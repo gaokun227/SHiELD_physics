@@ -529,7 +529,7 @@ contains
       real, dimension(:,:), allocatable:: wk2, zs, ps
       real, dimension(:,:,:), allocatable:: dp, t, ua, va
       real, dimension(:,:,:,:), allocatable:: q
-      integer:: n, npz, itoa, nt, ntprog, ntdiag, ntracers
+      integer:: n, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res

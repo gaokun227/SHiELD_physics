@@ -528,7 +528,7 @@ contains
       real, dimension(64):: ak_sj, bk_sj
       real, dimension(:), allocatable:: ak, bk
       real, dimension(:,:), allocatable:: wk2, zs, ps
-      real, dimension(:,:,:), allocatable:: dp, t, ua, va
+      real, dimension(:,:,:), allocatable:: dp, t, ua, va, omga
       real, dimension(:,:,:,:), allocatable:: q
       integer:: n, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac
       integer :: is,  ie,  js,  je
@@ -688,9 +688,10 @@ contains
       allocate (zs(is:ie,js:je))
       allocate (ps(is:ie,js:je))
       allocate (dp(is:ie,js:je,levp))
-      allocate (t (is:ie,js:je,levp))
-      allocate (ua(isd:ied,jsd:jed,levp))
-      allocate (va(isd:ied,jsd:jed,levp))
+      allocate (t   (is:ie,js:je,levp))
+      allocate (ua  (isd:ied,jsd:jed,levp))
+      allocate (va  (isd:ied,jsd:jed,levp))
+      allocate (omga(isd:ied,jsd:jed,levp))
       allocate (q (is:ie,js:je,levp,ntrac))
       do n = 1,size(Atm(:))
 !--- read in surface temperature (k) and land-frac
@@ -729,6 +730,9 @@ contains
         ! prognostic meridional wind (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v', va, domain=Atm(n)%domain)
 
+        ! prognostic vertical velocity 'omga' (Pa/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
+
         ! prognostic tracers
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'q', q, domain=Atm(n)%domain)
 
@@ -764,10 +768,11 @@ contains
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
           Atm(n)%ps  (is:ie,js:je) = ps(is:ie,js:je)
           Atm(n)%phis(is:ie,js:je) = zs(is:ie,js:je)
-          Atm(n)%delp(is:ie,js:je,1:npz) = dp(is:ie,js:je,itoa:levp)
-          Atm(n)%pt  (is:ie,js:je,1:npz) = t (is:ie,js:je,itoa:levp)
-          Atm(n)%ua  (is:ie,js:je,1:npz) = ua(is:ie,js:je,itoa:levp)
-          Atm(n)%va  (is:ie,js:je,1:npz) = va(is:ie,js:je,itoa:levp)
+          Atm(n)%delp(is:ie,js:je,1:npz) = dp  (is:ie,js:je,itoa:levp)
+          Atm(n)%pt  (is:ie,js:je,1:npz) = t   (is:ie,js:je,itoa:levp)
+          Atm(n)%ua  (is:ie,js:je,1:npz) = ua  (is:ie,js:je,itoa:levp)
+          Atm(n)%va  (is:ie,js:je,1:npz) = va  (is:ie,js:je,itoa:levp)
+          Atm(n)%omga(is:ie,js:je,1:npz) = omga(is:ie,js:je,itoa:levp)
           Atm(n)%q   (is:ie,js:je,1:npz,1:ntrac) = q(is:ie,js:je,itoa:levp,1:ntrac)
 
           ! populate the haloes of Atm(:)%phis

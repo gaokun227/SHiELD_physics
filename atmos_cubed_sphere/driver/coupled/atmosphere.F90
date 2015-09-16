@@ -211,8 +211,10 @@ contains
    Grid_box%edge_n(   isc:iec+1           ) = Atm(mytile)%gridstruct%edge_n(   isc:iec+1)
    Grid_box%en1   (:, isc:iec  , jsc:jec+1) = Atm(mytile)%gridstruct%en1   (:, isc:iec  , jsc:jec+1)
    Grid_box%en2   (:, isc:iec+1, jsc:jec  ) = Atm(mytile)%gridstruct%en2   (:, isc:iec+1, jsc:jec  )
-   Grid_box%vlon  (:, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlon  (:,  isc:iec ,  jsc:jec )
-   Grid_box%vlat  (:, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlat  (:,  isc:iec ,  jsc:jec )
+   do i = 1,3
+     Grid_box%vlon  (i, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlon  (isc:iec ,  jsc:jec, i )
+     Grid_box%vlat  (i, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlat  (isc:iec ,  jsc:jec, i )
+   enddo
 
 !----- allocate and zero out the dynamics (and accumulated) tendencies
    allocate( u_dt(isd:ied,jsd:jed,npz), &

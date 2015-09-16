@@ -490,15 +490,15 @@ contains
 !    and has been horiztontally interpolated to the 
 !    current cubed-sphere grid
 !
-!--- variables read in from 'nggps_gfs_ctl.nc'
+!--- variables read in from 'gfs_ctrl.nc'
 !       VCOORD  -  level information
 !                   maps to 'ak & bk'
-!--- variables read in from 'nggps_sfc_ICs.nc'
+!--- variables read in from 'sfc_data.nc'
 !       land_frac  -  land-sea-ice mask (L:0 / S:1)
 !                     maps to 'oro'
 !       TSEA       -  surface skin temperature (k)
 !                     maps to 'ts'
-!--- variables read in from 'nggps_gfs_ICs.nc'
+!--- variables read in from 'gfs_data.nc'
 !       ZS  -  surface height (m)
 !              maps to 'ze0' for hybrid_z non-hydrostatic(?)
 !              maps to phis = zs*grav for case where we use
@@ -525,6 +525,7 @@ contains
       type(fv_atmos_type), intent(inout) :: Atm(:)
       type(domain2d),      intent(inout) :: fv_domain
 ! local:
+      real, dimension(64):: ak_sj, bk_sj
       real, dimension(:), allocatable:: ak, bk
       real, dimension(:,:), allocatable:: wk2, zs, ps
       real, dimension(:,:,:), allocatable:: dp, t, ua, va
@@ -533,19 +534,65 @@ contains
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res
-      type (restart_file_type) :: Restart
+      type (restart_file_type) :: SFC_restart, GFS_restart
       character(len=6)  :: gn, stile_name
       character(len=64) :: tracer_name
-      character(len=64) :: fn_gfs_ctl = 'nggps_gfs_ctl.nc'
-      character(len=64) :: fn_gfs_ics = 'nggps_gfs_ICs.nc'
-      character(len=64) :: fn_sfc_ctl = 'nggps_sfc_ctl.nc'
-      character(len=64) :: fn_sfc_ics = 'nggps_sfc_ICs.nc'
+      character(len=64) :: fn_gfs_ctl = 'gfs_ctrl.nc'
+      character(len=64) :: fn_gfs_ics = 'gfs_data.nc'
+      character(len=64) :: fn_sfc_ctl = 'sfc_ctrl.nc'
+      character(len=64) :: fn_sfc_ics = 'sfc_data.nc'
       logical :: remap
       logical :: filtered_terrain = .true.
       logical :: ncep_terrain = .false.
       logical :: ncep_plevels = .false.
       integer :: levp = 64
       namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp
+! This is activated by USE_GFSL63
+! Thfollowing L63 setting is the same as NCEP GFS's L64 except the top
+! 3 layers
+      data ak_sj/25.00000,     100.00000,     200.00000,    &
+                311.00000,     430.00000,     558.00000,    &
+                700.00000,     863.05803,    1051.07995,    &
+               1265.75194,    1510.71101,    1790.05098,    &
+               2108.36604,    2470.78817,    2883.03811,    &
+               3351.46002,    3883.05187,    4485.49315,    &
+               5167.14603,    5937.04991,    6804.87379,    &
+               7780.84698,    8875.64338,   10100.20534,    &
+              11264.35673,   12190.64366,   12905.42546,    &
+              13430.87867,   13785.88765,   13986.77987,    &
+              14047.96335,   13982.46770,   13802.40331,    &
+              13519.33841,   13144.59486,   12689.45608,    &
+              12165.28766,   11583.57006,   10955.84778,    &
+              10293.60402,    9608.08306,    8910.07678,    &
+               8209.70131,    7516.18560,    6837.69250,    &
+               6181.19473,    5552.39653,    4955.72632,    &
+               4394.37629,    3870.38682,    3384.76586,    &
+               2937.63489,    2528.37666,    2155.78385,    &
+               1818.20722,    1513.68173,    1240.03585,    &
+                994.99144,     776.23591,     581.48797,    &
+                408.53400,     255.26520,     119.70243, 0. /
+
+      data bk_sj/0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00201,       0.00792,       0.01755,    &
+                 0.03079,       0.04751,       0.06761,    &
+                 0.09097,       0.11746,       0.14690,    &
+                 0.17911,       0.21382,       0.25076,    &
+                 0.28960,       0.32994,       0.37140,    &
+                 0.41353,       0.45589,       0.49806,    &
+                 0.53961,       0.58015,       0.61935,    &
+                 0.65692,       0.69261,       0.72625,    &
+                 0.75773,       0.78698,       0.81398,    &
+                 0.83876,       0.86138,       0.88192,    &
+                 0.90050,       0.91722,       0.93223,    &
+                 0.94565,       0.95762,       0.96827,    &
+                 0.97771,       0.98608,       0.99347,  1./
 
       call mpp_error(NOTE,'Using external_IC::get_nggps_ic which is valid only for data which has been &
                           &horizontally interpolated to the current cubed-sphere grid')
@@ -602,9 +649,6 @@ contains
       call get_number_tracers(MODEL_ATMOS, num_tracers=ntracers, num_prog=ntprog)
       ntdiag = ntracers-ntprog
 
-!--- read in the number of tracers in the NCEP NGGPS ICs
-      call read_data (trim(fn_gfs_ctl), 'ntrac', ntrac)
-
 !--- set the 'nestXX' appendix for all files using fms_io
       if (Atm(1)%grid_number > 1) then
          write(gn,'(A4, I2.2)') "nest", Atm(1)%grid_number
@@ -613,26 +657,30 @@ contains
       end if
       call set_filename_appendix(gn)
 
-!--- read in ak and bk from the gfs control file using fms_io read_data ---
+!--- test for existence of the GFS control file
       if (.not. file_exist('INPUT/'//trim(fn_gfs_ctl), no_domain=.TRUE.)) then
         call mpp_error(FATAL,'==> Error in External_ic::get_nggps_ic: file '//trim(fn_gfs_ctl)//' for NGGPS IC does not exist')
       endif
       call mpp_error(NOTE,'==> External_ic::get_nggps_ic: using control file '//trim(fn_gfs_ctl)//' for NGGPS IC')
 
+!--- read in the number of tracers in the NCEP NGGPS ICs
+      call read_data ('INPUT/'//trim(fn_gfs_ctl), 'ntrac', ntrac, no_domain=.TRUE.)
+
+!--- read in ak and bk from the gfs control file using fms_io read_data ---
       allocate (wk2(levp+1,2))
       allocate (ak(levp+1))
       allocate (bk(levp+1))
-      call read_data(fn_gfs_ctl,'vcoord',wk2, no_domain=.TRUE.)
+      call read_data('INPUT/'//trim(fn_gfs_ctl),'vcoord',wk2, no_domain=.TRUE.)
       ak(1:levp+1) = wk2(1:levp+1,1)
       bk(1:levp+1) = wk2(1:levp+1,2)
       deallocate (wk2)
 
-      if (.not. file_exist(trim(fn_sfc_ics), domain=Atm(nt)%domain)) then
+      if (.not. file_exist('INPUT/'//trim(fn_sfc_ics), domain=Atm(1)%domain)) then
         call mpp_error(FATAL,'==> Error in External_ic::get_nggps_ic: tiled file '//trim(fn_sfc_ics)//' for NGGPS IC does not exist')
       endif
       call mpp_error(NOTE,'==> External_ic::get_nggps_ic: using tiled data file '//trim(fn_sfc_ics)//' for NGGPS IC')
 
-      if (.not. file_exist(trim(fn_gfs_ics), domain=Atm(nt)%domain)) then
+      if (.not. file_exist('INPUT/'//trim(fn_gfs_ics), domain=Atm(1)%domain)) then
         call mpp_error(FATAL,'==> Error in External_ic::get_nggps_ic: tiled file '//trim(fn_gfs_ics)//' for NGGPS IC does not exist')
       endif
       call mpp_error(NOTE,'==> External_ic::get_nggps_ic: using tiled data file '//trim(fn_gfs_ics)//' for NGGPS IC')
@@ -647,42 +695,42 @@ contains
       do n = 1,size(Atm(:))
 !--- read in surface temperature (k) and land-frac
         ! surface skin temperature
-        id_res = register_restart_field (Restart, fn_sfc_ics, 'tsea', Atm(n)%ts, domain=Atm(n)%domain)
-
-        if ( Atm(n)%flagstruct%fv_land ) then
-          ! stddev
-          id_res = register_restart_field (Restart, fn_sfc_ics, 'sdtdev', Atm(n)%sgh, domain=Atm(n)%domain)
-          ! land-frac
-          id_res = register_restart_field (Restart, fn_sfc_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
-        endif
-
-        ! surface pressure (Pa)
-        id_res = register_restart_field (Restart, fn_gfs_ics, 'ps', ps, domain=Atm(n)%domain)
-
-        ! NCEP IC surface height -- (needs to be transformed ino phis = zs*grav)
-        id_res = register_restart_field (Restart, fn_gfs_ics, 'zs', zs, domain=Atm(n)%domain)
+        id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'tsea', Atm(n)%ts, domain=Atm(n)%domain)
 
         ! terrain surface height -- (needs to be transformed ino phis = zs*grav)
         if (filtered_terrain) then
-          id_res = register_restart_field (Restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
-          id_res = register_restart_field (Restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
         endif
+
+        if ( Atm(n)%flagstruct%fv_land ) then
+          ! stddev
+          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'sdtdev', Atm(n)%sgh, domain=Atm(n)%domain)
+          ! land-frac
+          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
+        endif
+
+        ! NCEP IC surface height -- (needs to be transformed ino phis = zs*grav)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'zs', zs, domain=Atm(n)%domain)
      
+        ! surface pressure (Pa)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'ps', ps, domain=Atm(n)%domain)
+
         ! prognostic delta-p (Pa)
-        id_res = register_restart_field (Restart, fn_gfs_ics, 'dp', dp, domain=Atm(n)%domain)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'dp', dp, domain=Atm(n)%domain)
 
         ! prognostic temperature (k)
-        id_res = register_restart_field (Restart, fn_gfs_ics, 't', t, domain=Atm(n)%domain)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 't', t, domain=Atm(n)%domain)
 
         ! prognostic horizonal wind (m/s)
-        id_res = register_restart_field (Restart, fn_gfs_ics, 'u', ua, domain=Atm(n)%domain)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u', ua, domain=Atm(n)%domain)
 
         ! prognostic meridional wind (m/s)
-        id_res = register_restart_field (Restart, fn_gfs_ics, 'v', va, domain=Atm(n)%domain)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v', va, domain=Atm(n)%domain)
 
         ! prognostic tracers
-        id_res = register_restart_field (Restart, fn_gfs_ics, 'q', q, domain=Atm(n)%domain)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'q', q, domain=Atm(n)%domain)
 
         ! initialize all tracers to default values prior to being input
         do nt = 1, ntprog
@@ -697,9 +745,11 @@ contains
         enddo
 
         ! read in the restart
-        call restore_state (Restart)
+        call restore_state (SFC_restart)
+        call restore_state (GFS_restart)
         ! free the restart type to be re-used by the nest
-        call free_restart_type(Restart)
+!rab        call free_restart_type(SFC_restart)
+!rab        call free_restart_type(GFS_restart)
 
         ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
         zs = zs*grav
@@ -709,7 +759,7 @@ contains
           ! no vertical remapping necessary, store data into Atm(:)
           ! carve off top layer of atmosphere
           itoa = levp - npz + 1
-          Atm(n)%ptop = ak(itoa)*1.d5
+          Atm(n)%ptop = ak(itoa)
           Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
           Atm(n)%ps  (is:ie,js:je) = ps(is:ie,js:je)
@@ -726,9 +776,20 @@ contains
           call cubed_a2d (Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ua, Atm(n)%va, Atm(n)%u, Atm(n)%v, &
                           Atm(n)%gridstruct, Atm(n)%domain, Atm(n)%bd )
         else
+          ! set the pressure levels and ptop to be used
+          if (ncep_plevels) then
+            itoa = levp - npz + 1
+            Atm(n)%ptop = ak(itoa)
+            Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
+            Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
+          else
+            Atm(n)%ptop = ak_sj(1)
+            Atm(n)%ak(:) = ak_sj(:)
+            Atm(n)%bk(:) = bk_sj(:)
+          endif
           ! call vertical remapping algorithms 
-          call remap_scalar(is, js, levp, npz, ntprog, ntrac, ak, bk, ps, zs, t, q, Atm(n))
-          call remap_winds (is, js, levp, npz, ak, bk, ps, ua, va, Atm(n))
+          call remap_scalar(is, js, levp-1, npz, ntprog, ntrac, ak(2:), bk(2:), ps, zs, t(:,:,2:), q(:,:,2:,:), Atm(n))
+          call remap_winds (is, js, levp-1, npz, ak(2:), bk(2:), ps, ua(:,:,2:), va(:,:,2:), Atm(n))
         endif
       enddo
 

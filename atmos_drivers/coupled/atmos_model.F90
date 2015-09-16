@@ -366,6 +366,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call get_time (Atmos % Time_step, sec, day)
    dt = sec + 86400*day  ! integer seconds
 
+   call atmosphere_resolution (mlon, mlat, nlev, global=.true.)
    if ( file_exist(filename, domain=Atmos%domain) ) then
       if(mpp_pe() == mpp_root_pe() ) call mpp_error ('atmos_model_mod', &
                   'Reading netCDF formatted restart file: INPUT/atmos_coupled.res.nc', NOTE)

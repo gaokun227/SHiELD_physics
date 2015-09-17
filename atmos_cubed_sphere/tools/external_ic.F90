@@ -1437,7 +1437,7 @@ contains
   real qp(Atm%bd%is:Atm%bd%ie,km,ncnst)
   real pst, p1, p2, alpha, rdg
   integer i,j,k, iq
-  integer  sphum
+  integer  sphum, o3mr, clwmr
   integer :: is,  ie,  js,  je
   integer :: isd, ied, jsd, jed
 
@@ -1452,6 +1452,15 @@ contains
 
 
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
+  o3mr   = get_tracer_index(MODEL_ATMOS, 'o3mr')
+  clwmr   = get_tracer_index(MODEL_ATMOS, 'clwmr')
+
+  if (mpp_pe()==1) then
+    print *, 'sphum = ', sphum
+    print *, 'o3mr = ', o3mr
+    print *, 'clwmr = ', clwmr
+  endif
+
   if ( sphum/=1 ) then
        call mpp_error(FATAL,'SPHUM must be 1st tracer')
   endif
@@ -1460,11 +1469,11 @@ contains
 
      do i=is,ie
 
-       do iq=1,ncnst
-          do k=1,km
-             qp(i,k,iq) = qa(i,j,k,iq)
-          enddo
-       enddo
+        do k=1,km
+           qp(i,k,1) = qa(i,j,k,1)
+           qp(i,k,2) = qa(i,j,k,2)
+           qp(i,k,3) = qa(i,j,k,3)
+        enddo
 
     if ( T_is_Tv ) then
 ! The "T" field in NCEP analysis is actually virtual temperature (Larry H. post processing)
@@ -1474,7 +1483,7 @@ contains
        enddo
     else
        do k=1,km
-          tp(i,k) = ta(i,j,k)*(1.+zvir*qp(i,k,sphum))
+          tp(i,k) = ta(i,j,k)*(1.+zvir*qp(i,k,1))
        enddo
     endif
 ! Tracers:
@@ -1534,33 +1543,32 @@ contains
      enddo
 
 !---------------
-! map tracers
+! map water vapor
 !----------------
-      do iq=1,ncnst
-         call mappm(km, pe0, qp(is,1,iq), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
-         if ( iq==sphum .and. Atm%flagstruct%ncep_ic ) then
-             p1 = 200.E2
-             p2 =  75.E2
+       call mappm(km, pe0, qp(is,1,1), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
+
+       if ( Atm%flagstruct%ncep_ic ) then
+           p1 = 200.E2
+           p2 =  75.E2
 ! Blend model sphum with NCEP data
-         do k=1,npz
-            do i=is,ie
-               pst = 0.5*(pe1(i,k)+pe1(i,k+1))
-               if ( pst > p1 ) then
-                    Atm%q(i,j,k,iq) = qn1(i,k)
-               elseif( pst > p2 ) then            ! p2 < pst < p1
-                    alpha = (pst-p2)/(p1-p2)
-                    Atm%q(i,j,k,1) = qn1(i,k)*alpha + Atm%q(i,j,k,1)*(1.-alpha)
-               endif
-            enddo
-         enddo
-         else
-         do k=1,npz
-            do i=is,ie
-               Atm%q(i,j,k,iq) = qn1(i,k)
-            enddo
-         enddo
-         endif
-      enddo
+       do k=1,npz
+          do i=is,ie
+             pst = 0.5*(pe1(i,k)+pe1(i,k+1))
+             if ( pst > p1 ) then
+                  Atm%q(i,j,k,1) = qn1(i,k)
+             elseif( pst > p2 ) then            ! p2 < pst < p1
+                  alpha = (pst-p2)/(p1-p2)
+                  Atm%q(i,j,k,1) = qn1(i,k)*alpha + Atm%q(i,j,k,1)*(1.-alpha)
+             endif
+          enddo
+       enddo
+       else
+       do k=1,npz
+          do i=is,ie
+             Atm%q(i,j,k,1) = qn1(i,k)
+          enddo
+       enddo
+       endif
 
 !-------------------------------------------------------------
 ! map virtual temperature using geopotential conserving scheme.
@@ -1581,6 +1589,27 @@ contains
             enddo
          enddo
       endif
+
+!---------------
+! map ozone
+!----------------
+      call mappm(km, pe0, qp(is,1,2), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
+
+      do k=1,npz
+         do i=is,ie
+            Atm%q(i,j,k,2) = qn1(i,k)
+         enddo
+      enddo
+!---------------
+! map liq_cond
+!----------------
+      call mappm(km, pe0, qp(is,1,3), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
+
+      do k=1,npz
+         do i=is,ie
+            Atm%q(i,j,k,3) = qn1(i,k)
+         enddo
+      enddo
 
 5000 continue
 

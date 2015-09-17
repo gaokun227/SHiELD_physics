@@ -115,37 +115,45 @@ module gfs_physics_driver_mod
 !--- local variables
     integer :: nb, ibs, ibe, jbs, jbe, ngptc
     integer :: i, j, ix
-    integer :: ntrac, ntp
+    integer :: ntp
     integer          ::  ierr, io, unit, logunit, outunit
 !--- gfs initialization variables
-    integer :: kdt, jdate(8), ipt, latgfs, nnp, NFXR
+    integer :: kdt, jdate(8), ipt, latgfs, nnp
     real(kind=kind_phys) :: xkzm_m, xkzm_h, xkzm_s, evpco
-    real(kind=kind_phys) :: psautco(2), prautco(2), wminco(2)
-    real(kind=kind_phys) :: slag, sdec, cdec, sup, clstp
+    real(kind=kind_phys) :: psautco(2)
+    real(kind=kind_phys) :: prautco(2)
+    real(kind=kind_phys) :: wminco(2)
+    real(kind=kind_phys) :: slag, sdec, cdec, clstp
+    real(kind=kind_phys) :: sup = 0.0
     real(kind=kind_phys) :: solhr, solcon, dtp, dtf, dtlw, dtsw, deltim, fhour
-    logical :: lsswr, lslwr, lssav, lprnt, SW0, SWB, LW0, LWB
+    logical               :: lsswr     ! logical flags for sw radiation calls
+    logical               :: lslwr     ! logical flags for lw radiation calls
+    logical               :: lprnt     ! control flag for diagnostic print out
+    logical               :: lssav     ! logical flag for store 3-d cloud field
+
 
 !--- namelist parameters ---
-    integer :: ntcw
-    integer :: ncld
-    integer :: ntoz
-!rab    integer :: ntrac
-    integer :: levr
-    integer :: levs
-    integer :: me
-    integer :: lsoil
-    integer :: lsm = 1
+    integer :: NFXR = 5
+    integer :: ntoz = 2
+    integer :: ntcw = 3
+    integer :: ncld = 1
+    integer :: ntrac        ! set by call to get_number_tracers
+    integer :: levs = 64
+    integer :: levr = 64
+    integer :: me           ! set by call to mpp_pe
+    integer :: lsoil = 4
+    integer :: lsm = 1      ! best guess not set in scripts
     integer :: nmtvr = 14
-    integer :: nrcm
-    integer :: levozp
-    integer :: lonr = 768
-    integer :: latr = 768
-    integer :: jcap = 0
-    integer :: num_p3d 
-    integer :: num_p2d
-    integer :: npdf3d
-    integer :: pl_coeff = 5
-    integer :: ncw(2)
+    integer :: nrcm  = 0    ! not set in scripts
+    integer :: levozp = 0   ! not set in scripts
+    integer :: lonr  = 768  ! NOT NEEDED/NOT USED
+    integer :: latr  = 768  ! NOT NEEDED: used to calculate gaussian grid parameters
+    integer :: jcap  = 0    ! should not matter it is used by spherical 
+    integer :: num_p3d      ! not in script
+    integer :: num_p2d      ! not in script
+    integer :: npdf3d       ! not in script
+    integer :: pl_coeff = 5 ! not in script
+    integer :: ncw(2)       ! not in script
     real (kind=kind_phys) :: si(nlev+1) ! (levr+1)
     real (kind=kind_phys) :: crtrh(3)
     real (kind=kind_phys) :: cdmbgwd(2)
@@ -154,43 +162,61 @@ module gfs_physics_driver_mod
     real (kind=kind_phys) :: ctei_rm(2)
     real (kind=kind_phys) :: cgwf(2)
     real (kind=kind_phys) :: prslrd0
-    real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
-    logical :: ras 
-    logical :: pre_rad
-    logical :: ldiag3d = .true.
-    logical :: lgocart = .false.
-    logical :: cplflx
-    logical :: lssav_cpl = .false.
-    logical :: flipv = .false.
-    logical :: old_monin = .false.
-    logical :: cnvgwd
-    logical :: shal_cnv
-    logical :: sashal
-    logical :: newsas
-    logical :: cal_pre
-    logical :: mom4ice
-    logical :: mstrat
-    logical :: trans_trac
+    real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin ! need to calculate these from Dy-core: log(dx)
+    logical :: ras               ! not in script
+    logical :: pre_rad           ! not in script
+    logical :: ldiag3d = .true.  ! not in script
+    logical :: lgocart = .false. ! not in script
+    logical :: cplflx = .false.  
+    logical :: lssav_cpl = .false. ! not in script
+    logical :: flipv = .false.     ! not in script (deals with ras) 
+    logical :: old_monin = .false. ! not in script
+    logical :: cnvgwd      ! not in script
+    logical :: shal_cnv    ! not in script
+    logical :: sashal      ! not in script
+    logical :: newsas      ! not in script
+    logical :: cal_pre     ! not in script
+    logical :: mom4ice     ! not in script
+    logical :: mstrat      ! not in script
+    logical :: trans_trac  ! not in script
     integer :: nst_fcst = 0
-    logical :: moist_adj = .false.
-    integer :: thermodyn_id
-    integer :: sfcpress_id
-    logical :: gen_coord_hybrid
-    logical :: lsidea
-    logical :: pdfcld
-    logical :: shcnvcw
-    logical :: redrag
-    logical :: hybedmf
-    logical :: dspheat
+    logical :: moist_adj = .false.  ! not in script
+    integer :: thermodyn_id   ! in script, but hard to tell value seems to be based on idvm
+    integer :: sfcpress_id    ! in script, but hard to tell value seems to be based on idvm (gfs_ctrl.nc)
+    logical :: gen_coord_hybrid ! in scrpt, could be T or F
+    logical :: lsidea = .false.  ! think that is it
+    logical :: pdfcld      ! not in script
+    logical :: shcnvcw     ! not in script
+    logical :: redrag      ! not in script
+    logical :: hybedmf     ! not in script
+    logical :: dspheat     ! not in script
 
 ! Radiation option control parameters
-    integer :: ictm, isol, ico2, iaer, ialb, iems
-    integer :: iovr_sw, iovr_lw, isubc_sw, isubc_lw
-    logical :: sas_shal, crick_proof, ccnorm, norad_precip
-! rad_savei
+    integer :: ictm = 0 
+    integer :: isol = 0
+    integer :: ico2 = 0 
+    integer :: iaer = 0 
+    integer :: ialb = 0 
+    integer :: iems = 0 
+    integer :: iovr_sw = 0       !not in script
+    integer :: iovr_lw = 0       !not in script
+    integer :: isubc_sw = 0      !not in script
+    integer :: isubc_lw = 0      !not in script
+    logical :: sas_shal = .false.      !not in script
+    logical :: crick_proof = .false.   !not in script
+    logical :: ccnorm = .false.        !not in script
+    logical :: norad_precip = .false.  !not in script
+! rad_save
     integer :: idate(4) = (/1, 1, 0, 0/)
     integer :: iflip = 0         ! toa to surface
 
+! interface props
+    logical :: SW0 = .false.
+    logical :: SWB = .false.
+    logical :: LW0 = .false.
+    logical :: LWB = .false.
+
+    levs = nlev
     levr = nlev
 
 !--- namelist ---
@@ -288,8 +314,8 @@ module gfs_physics_driver_mod
 
       !  populate static values that are grid dependent
       ix = 0 
-      do j=jbs,jbe
-       do i=ibs,ibe
+      do j=1,jbe-jbs+1
+       do i=1,ibe-ibs+1
         ix = ix + 1
         Dyn_parms(nb)%xlat(ix) = lat(i,j)*pi/180.0_kind_phys
         Dyn_parms(nb)%xlon(ix) = lon(i,j)*pi/180.0_kind_phys
@@ -501,13 +527,14 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- surface_props_input ---
 !-------------------------------------------------------------------------      
-  subroutine surface_props_input (Atm_block)
+  subroutine surface_props_input (Atm_block, GSM)
     type (block_control_type), intent(in) :: Atm_block
+    logical, intent(in), optional :: GSM
 !   local variables
     integer :: i, j, ibs, ibe, jbs, jbe, nct
-    integer :: funit, nb, nx, ny, ngptc
+    integer :: nb, nx, ny, ngptc
     integer :: start(4), nread(4)
-    character(len=32)  :: fname = 'INPUT/gfs_sfc.nc'
+    character(len=32)  :: fname = 'INPUT/sfc_data.nc'
     character(len=128) :: errmsg
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2 => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
@@ -523,8 +550,6 @@ module gfs_physics_driver_mod
       errmsg = 'error opening file '//trim(fname)//' for input'
       call error_mesg ('phys_rad_driver_init', trim(errmsg), FATAL)
     endif
-
-    funit = open_file(trim(fname))
 
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)-Atm_block%isc+1
@@ -547,7 +572,7 @@ module gfs_physics_driver_mod
       call read_data(fname,'slmsk',var2,start,nread)
 !--- oro (orog in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%oro(1:ngptc)
-      call read_data(fname,'orog',var2,start,nread)
+      call read_data(fname,'orog_raw',var2,start,nread)
 !--- tsfc (tsea in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%tsfc(1:ngptc)
       call read_data(fname,'tsea',var2,start,nread)
@@ -560,18 +585,28 @@ module gfs_physics_driver_mod
 !--- zorl
       var2(1:nx,1:ny) => Sfc_props(nb)%zorl(1:ngptc)
       call read_data(fname,'zorl',var2,start,nread)
-!--- alvsf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alvsf(1:ngptc)
-      call read_data(fname,'alvsf',var2,start,nread)
-!--- alvwf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alvwf(1:ngptc)
-      call read_data(fname,'alvwf',var2,start,nread)
-!--- alnsf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alnsf(1:ngptc)
-      call read_data(fname,'alnsf',var2,start,nread)
-!--- alnwf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alnwf(1:ngptc)
-      call read_data(fname,'alnwf',var2,start,nread)
+!rab      if (present(GSM)) then
+!rab        if (GSM) then
+!---     alvsf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alvsf(1:ngptc)
+          call read_data(fname,'alvsf',var2,start,nread)
+!---     alvwf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alvwf(1:ngptc)
+          call read_data(fname,'alvwf',var2,start,nread)
+!---     alnsf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alnsf(1:ngptc)
+          call read_data(fname,'alnsf',var2,start,nread)
+!---     alnwf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alnwf(1:ngptc)
+          call read_data(fname,'alnwf',var2,start,nread)
+!---     facsf
+          var2(1:nx,1:ny) => Sfc_props(nb)%facsf(1:ngptc)
+          call read_data(fname,'facsf',var2,start,nread)
+!---     facwf
+          var2(1:nx,1:ny) => Sfc_props(nb)%facwf(1:ngptc)
+          call read_data(fname,'facwf',var2,start,nread)
+!rab        endif
+!rab      endif
 !--- vfrac
       var2(1:nx,1:ny) => Sfc_props(nb)%vfrac(1:ngptc)
       call read_data(fname,'vfrac',var2,start,nread)
@@ -593,12 +628,6 @@ module gfs_physics_driver_mod
 !--- stype
       var2(1:nx,1:ny) => Sfc_props(nb)%stype(1:ngptc)
       call read_data(fname,'stype',var2,start,nread)
-!--- facsf
-      var2(1:nx,1:ny) => Sfc_props(nb)%facsf(1:ngptc)
-      call read_data(fname,'facsf',var2,start,nread)
-!--- facwf
-      var2(1:nx,1:ny) => Sfc_props(nb)%facwf(1:ngptc)
-      call read_data(fname,'facwf',var2,start,nread)
 !--- uustar
       var2(1:nx,1:ny) => Sfc_props(nb)%uustar(1:ngptc)
       call read_data(fname,'uustar',var2,start,nread)
@@ -651,7 +680,6 @@ module gfs_physics_driver_mod
       nread(4) = 1
 !--- stc
       call read_data(fname,'stc',var3,start,nread)
-      call read_data(fname,'stc',var3)
       do j = 1, ny
        do i = 1, nx
          nct = (j-1)*nx + i
@@ -676,13 +704,9 @@ module gfs_physics_driver_mod
       enddo
     enddo
 
-
 !--- nullify/deallocate any temporaries used
       nullify(var2)
       deallocate(var3)
-
-!--- close the file
-      call close_file(funit)
 
   end subroutine surface_props_input
 

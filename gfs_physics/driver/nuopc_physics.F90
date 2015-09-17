@@ -585,7 +585,7 @@
          ! grrad in
          ! gbphys inout
 !rab         real (kind=kind_phys), pointer :: sup  => null()         ! supersaturation in pdf cloud when t is very low
-         real (kind=kind_phys), pointer :: sup                    ! supersaturation in pdf cloud when t is very low
+         real (kind=kind_phys) :: sup                    ! supersaturation in pdf cloud when t is very low
 
          ! gbphys inout
          real (kind=kind_phys), pointer :: cnvqc_v(:,:) => null() ! total convective conensate (kg/kg)
@@ -1074,8 +1074,8 @@
              this%tisfc  = clear_val
 
              !!! GSM grrad.f ONLY
-             if (present(GSM)) then
-              if (GSM) then
+!rab             if (present(GSM)) then
+!rab              if (GSM) then
                allocate(this%alvsf (IX))
                allocate(this%alnsf (IX))
                allocate(this%alvwf (IX))
@@ -1089,8 +1089,8 @@
                this%alnwf = clear_val
                this%facsf = clear_val
                this%facwf = clear_val
-              endif
-             endif
+!rab              endif
+!rab             endif
 
          end select
 

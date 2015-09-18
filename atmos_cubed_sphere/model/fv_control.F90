@@ -716,7 +716,7 @@ module fv_control_mod
          if ( m_split==0 ) then
               m_split = 1. + abs(dt_atmos)/real(k_split*n_split*p_split)
          endif
-         if(is_master()) write(*,198) 'm_split is set to ', m_split
+         if(is_master()) write(*,196) 'm_split is set to ', m_split
          if(is_master()) then
             write(*,*) 'Off center implicit scheme param=', a_imp
             write(*,*) ' p_fac=', p_fac
@@ -728,6 +728,7 @@ module fv_control_mod
          write(*,197) 'Using non_ortho : ', non_ortho
       endif
 
+ 196  format(A,i4.4)
  197  format(A,l7)
  198  format(A,i2.2,A,i4.4,'x',i4.4,'x',i1.1,'-',f9.3)
  199  format(A,i2.2)

@@ -67,6 +67,7 @@
 
        real(kind=kind_phys) :: zero      = 0.0_kind_phys
        real(kind=kind_phys) :: clear_val = 0.0_kind_phys
+       real(kind=kind_phys) :: rann_init = 0.6_kind_phys
 
        ! Derived Data Types
        public :: state_fields_in        ! basic inputs of radiation and physics parameters
@@ -835,7 +836,7 @@
          this%dpshc  = clear_val
          this%prdout = clear_val
          this%poz    = clear_val
-         this%rann   = clear_val
+         this%rann   = rann_init
 
 ! In/Out
          allocate(this%acv     (IX))
@@ -1593,7 +1594,7 @@
 !******************************************
 ! Cloud properties methods
 !******************************************
-       subroutine cld_prop_setrad (this, IX, Model, sup)
+       subroutine cld_prop_setrad (this, IX, Model, flgmin, sup)
 !rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, flgmin, &
 !rab                                   cldcov, deltaq, sup, cnvw, cnvc)
 
@@ -1602,6 +1603,7 @@
          class(cloud_properties) :: this
          integer, intent(in) :: IX
          type(model_parameters), intent(in) :: Model
+         real(kind=kind_phys), dimension(2), intent(in) :: flgmin
          real(kind=kind_phys), intent(in) :: sup
         
          call dbgprint("cld_prop_set")
@@ -1612,7 +1614,7 @@
              allocate(this%cv     (IX))
              allocate(this%cvt    (IX))
              allocate(this%cvb    (IX))
-             allocate(this%flgmin (IX))
+             allocate(this%flgmin (2))
              allocate(this%fcice  (IX,Model%levs))
              allocate(this%frain  (IX,Model%levs))
              allocate(this%rrime  (IX,Model%levs))
@@ -1623,7 +1625,7 @@
              this%cv     = clear_val
              this%cvt    = clear_val
              this%cvb    = clear_val
-             this%flgmin = clear_val
+             this%flgmin = flgmin
              this%fcice  = clear_val
              this%frain  = clear_val
              this%rrime  = clear_val

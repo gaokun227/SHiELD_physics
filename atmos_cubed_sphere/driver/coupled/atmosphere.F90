@@ -76,7 +76,7 @@ public :: atmosphere_resolution, atmosphere_boundary, &
           atmosphere_pref, &
           get_atmosphere_axes, get_bottom_mass, &
           get_bottom_wind, get_stock_pe, &
-          set_atmosphere_pelist
+          set_atmosphere_pelist, get_atmosphere_grid
 
 !--- physics/radiation data exchange routines
 public :: atmos_phys_driver_statein
@@ -536,6 +536,14 @@ contains
 
  end subroutine atmosphere_domain
 
+
+ subroutine get_atmosphere_grid (dxmax, dxmin)
+   real, intent(out) :: dxmax, dxmin
+
+   dxmax = Atm(1)%gridstruct%da_max
+   dxmin = Atm(1)%gridstruct%da_min
+
+ end subroutine get_atmosphere_grid
 
 
  subroutine get_atmosphere_axes ( axes )

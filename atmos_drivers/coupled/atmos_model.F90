@@ -54,6 +54,7 @@ use atmosphere_mod,     only: atmosphere_end, get_bottom_mass, get_bottom_wind
 use atmosphere_mod,     only: atmosphere_resolution, atmosphere_domain
 use atmosphere_mod,     only: atmosphere_boundary, atmosphere_grid_center
 use atmosphere_mod,     only: atmosphere_dynamics, get_atmosphere_axes
+use atmosphere_mod,     only: get_atmosphere_grid
 use atmosphere_mod,     only: get_stock_pe
 use atmosphere_mod,     only: set_atmosphere_pelist
 use atmosphere_mod,     only: atmosphere_restart
@@ -129,6 +130,8 @@ public atmos_model_restart
      type(coupler_2d_bc_type)      :: fields             ! array of fields used for additional tracers
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
                                                          ! to calculate gradient on cubic sphere grid.
+     real                          :: dxmax
+     real                          :: dxmin
  end type atmos_data_type
 !</PUBLICTYPE >
 
@@ -301,6 +304,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
     call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
     call atmosphere_domain (Atmos%domain)
     call get_atmosphere_axes (Atmos%axes)
+    call get_atmosphere_grid (Atmos%dxmax, Atmos%dxmin)
     call atmosphere_boundary (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
     call atmosphere_grid_center (Atmos%lon, Atmos%lat)
 
@@ -318,6 +322,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
                               nlev,               &
                               Atmos%axes,         &
                               Atm_block,          &
+                              Atmos%dxmin,        &
+                              Atmos%dxmax,        &
                               Statein, Stateout) 
 
 !-----------------------------------------------------------------------

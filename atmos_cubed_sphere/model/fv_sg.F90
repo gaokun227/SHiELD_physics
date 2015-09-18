@@ -101,7 +101,7 @@ contains
          rz = rvgas - rdgas          ! rz = zvir * rdgas
       endif
       sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-      if ( nwat = 2 ) then
+      if ( nwat == 2 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'clwmr')
       elseif ( nwat > 2 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')

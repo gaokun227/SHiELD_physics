@@ -247,7 +247,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   integer :: mlon, mlat, nlon, nlat, nlev, sec, day, dt
   integer :: ierr, io, logunit
   integer :: id_restart, idx
-  integer :: isc, iec, jsc, jec, kpts
+  integer :: isc, iec, jsc, jec
   integer :: isd, ied, jsd, jed
   integer :: blk, ibs, ibe, jbs, jbe
   real, allocatable :: q(:,:,:,:), p_half(:,:,:)
@@ -300,7 +300,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 !-----------------------------------------------------------------------
 !---- allocate space ----
-    call atmosphere_resolution (nlon, nlat, nlev, global=.false.)
+    call atmosphere_resolution (nlon, nlat, global=.false.)
     call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
     call atmosphere_domain (Atmos%domain)
     call get_atmosphere_axes (Atmos%axes)
@@ -311,7 +311,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !-----------------------------------------------------------------------
 !--- before going any further check definitions for 'blocks'
 !-----------------------------------------------------------------------
-    call define_blocks ('atmos_model', Atm_block, isc, iec, jsc, jec, kpts, &
+    call atmosphere_control_data (isc, iec, jsc, jec, nlev, p_hydro, hydro)
+    call define_blocks ('atmos_model', Atm_block, isc, iec, jsc, jec, nlev, &
                         nxblocks, nyblocks, block_message)
     allocate(Statein (Atm_block%nblks))
     allocate(Stateout(Atm_block%nblks))
@@ -374,7 +375,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call get_time (Atmos % Time_step, sec, day)
    dt = sec + 86400*day  ! integer seconds
 
-   call atmosphere_resolution (mlon, mlat, nlev, global=.true.)
+   call atmosphere_resolution (mlon, mlat, global=.true.)
    if ( file_exist(filename, domain=Atmos%domain) ) then
       if(mpp_pe() == mpp_root_pe() ) call mpp_error ('atmos_model_mod', &
                   'Reading netCDF formatted restart file: INPUT/atmos_coupled.res.nc', NOTE)

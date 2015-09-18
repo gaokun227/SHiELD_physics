@@ -426,8 +426,8 @@ contains
   ! </SUBROUTINE>
 
 
- subroutine atmosphere_resolution (i_size, j_size, nlev, global)
-   integer, intent(out)          :: i_size, j_size, nlev
+ subroutine atmosphere_resolution (i_size, j_size, global)
+   integer, intent(out)          :: i_size, j_size
    logical, intent(in), optional :: global
    logical :: local
 
@@ -441,8 +441,6 @@ contains
        i_size = npx - 1
        j_size = npy - 1
    end if
-
-   nlev = npz
 
  end subroutine atmosphere_resolution
 

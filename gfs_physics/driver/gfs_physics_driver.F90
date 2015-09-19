@@ -121,7 +121,11 @@ module gfs_physics_driver_mod
     real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
 
 !--- gfs initialization variables
-    integer :: kdt, jdate(8), ipt, latgfs, nnp
+    integer :: kdt = 1
+    integer :: jdate(8) = (/2015, 5, 28, 5, 0, 0, 0, 0/)
+    integer :: ipt = 0 
+    integer :: latgfs
+    integer :: nnp
     real(kind=kind_phys) :: xkzm_m = 1.0
     real(kind=kind_phys) :: xkzm_h = 1.0
     real(kind=kind_phys) :: xkzm_s = 1.0
@@ -131,7 +135,14 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: wminco(2) = (/0.0e-5,1.0e-5/)
     real(kind=kind_phys) :: slag, sdec, cdec, clstp
     real(kind=kind_phys) :: sup = 0.0
-    real(kind=kind_phys) :: solhr, solcon, dtp, dtf, dtlw, dtsw, deltim, fhour
+    real(kind=kind_phys) :: solhr = 0.5
+    real(kind=kind_phys) :: solcon 
+    real(kind=kind_phys) :: dtp  = 1800.
+    real(kind=kind_phys) :: dtf = 1800.
+    real(kind=kind_phys) :: dtlw = 1800.
+    real(kind=kind_phys) :: dtsw = 1800.
+    real(kind=kind_phys) :: deltim = 1800.
+    real(kind=kind_phys) :: fhour = 0.5
     logical :: lsswr     ! logical flags for sw radiation calls
     logical :: lslwr     ! logical flags for lw radiation calls
     logical :: lprnt     ! control flag for diagnostic print out
@@ -186,8 +197,8 @@ module gfs_physics_driver_mod
     logical :: trans_trac = .true.
     integer :: nst_fcst = 0
     logical :: moist_adj = .false.  ! not in script
-    integer :: thermodyn_id   ! in script, but hard to tell value seems to be based on idvm
-    integer :: sfcpress_id    ! in script, but hard to tell value seems to be based on idvm (gfs_ctrl.nc)
+    integer :: thermodyn_id = 0   ! in script, but hard to tell value seems to be based on idvm
+    integer :: sfcpress_id  = 10  ! in script, but hard to tell value seems to be based on idvm (gfs_ctrl.nc)
     logical :: gen_coord_hybrid ! in scrpt, could be T or F
     logical :: lsidea = .false.  
     logical :: pdfcld = .false.
@@ -212,7 +223,7 @@ module gfs_physics_driver_mod
     logical :: ccnorm = .false.
     logical :: norad_precip = .false.  !not in script
 ! rad_save
-    integer :: idate(4) = (/1, 1, 0, 0/)
+    integer :: idate(4) = (/0, 28, 5,2015/)
     integer :: iflip = 0         ! toa to surface
 
 ! interface props

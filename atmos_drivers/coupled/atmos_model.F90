@@ -210,16 +210,19 @@ subroutine update_atmos_radiation_physics (Atmos)
 
     Time_next = Atmos%Time + Atmos%Time_step
 
+    if(mpp_pe() == mpp_root_pe() ) write(6,*) "statein driver"
 !--- get atmospheric state from the dynamic core
     call mpp_clock_begin(stateClock)
     call atmos_phys_driver_statein (Statein, Atm_block)
     call mpp_clock_end(stateClock)
 
+    if(mpp_pe() == mpp_root_pe() ) write(6,*) "radiation driver"
 !--- execute the GFS atmospheric radiation subcomponent (RRTM)
     call mpp_clock_begin(radClock)
     call radiation_driver (Atmos%time, Time_next, Atm_block, Statein)
     call mpp_clock_end(radClock)
 
+    if(mpp_pe() == mpp_root_pe() ) write(6,*) "physics driver"
 !--- execute the GFS atmospheric physics subcomponent (RRTM)
     call mpp_clock_begin(physClock)
     call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)

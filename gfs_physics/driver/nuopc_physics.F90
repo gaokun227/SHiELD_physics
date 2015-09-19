@@ -53,8 +53,9 @@
 
        module nuopc_physics
 
-       use machine, only: kind_phys
+       use machine,  only: kind_phys
        use physcons, only: dxmax, dxmin, dxinv     ! lon lat dependant variables set in initialize
+       use funcphys, only: gfuncphys
  
 
        use module_radiation_driver,  only : grrad, radupdate
@@ -950,7 +951,11 @@
 !rab             this%tgrs
 !rab             this%vvl
 !is qgrs the same as tracer in state_fld_setrad_in
-!rab             this%qgrs
+             if (allocated(this%tracer)) then
+               this%qgrs => this%tracer
+             else
+               allocate(this%qgrs(IX,Model%levs,Model%ntrac))
+             endif
 
           ! The following not in radiation
              allocate(this%pgr   (IX))
@@ -2098,11 +2103,13 @@
          dxmin = dxminin
          dxinv = dxinvin
 
-        call rad_initialize                                             &
+         call gfuncphys ()
+
+         call rad_initialize                                             &
 !  ---  inputs:
-     &     ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
-     &       num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
-     &       sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
+     &      ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
+     &        num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
+     &        sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
 !  ---  outputs: ( none )
 
          call set_soilveg(me,nlunit)

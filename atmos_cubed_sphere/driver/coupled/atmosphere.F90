@@ -965,6 +965,8 @@ contains
      Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
      !  reset this parameter to 1 just to be safe
      Statein(nb)%adjtrc = 1.0_kind_phys
+     !  set the physics version of qgrs which is the same as tracer if separate arrays are needed
+!rab Statein(nb)%qgrs(:,:,:) = Statein(nb)%tracer(:,:,;)
    enddo
 
  end subroutine atmos_phys_driver_statein

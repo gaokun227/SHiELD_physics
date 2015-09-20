@@ -23,8 +23,7 @@ module gfs_physics_driver_mod
   use fms_io_mod,         only: restart_file_type, register_restart_field, &
                                 restore_state, save_restart, &
                                 get_mosaic_tile_file, read_data
-  use time_manager_mod,   only: time_type, get_time, operator (-), &
-                                time_manager_init, operator(*)
+  use time_manager_mod,   only: time_type, get_date, get_time, operator(-)
   use tracer_manager_mod, only: get_number_tracers
 
   use machine,            only: kind_phys
@@ -41,13 +40,16 @@ module gfs_physics_driver_mod
                                 diagnostics, tbd_ddt
 !--- GFS Physics share module ---
   use module_CONSTANTS,   only: pi
+  use physparam,          only: ipsd0
+  use mersenne_twister,   only: random_setseed, random_index, random_stat
+
 !-----------------------------------------------------------------------
   implicit none
   private
 
 !--- public interfaces ---
-  public  phys_rad_driver_init, radiation_driver, physics_driver, &
-          phys_rad_driver_end
+  public  phys_rad_driver_init, phys_rad_setup_step, radiation_driver, &
+          physics_driver, phys_rad_driver_end
 
 !--- public NUOPC GFS datatypes and data typing ---
   public  state_fields_in, state_fields_out, kind_phys
@@ -86,46 +88,17 @@ module gfs_physics_driver_mod
 
    type(gfdl_diag_type), dimension(:), allocatable :: Diag
 
-
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
-!-----------------------------------------------------------------------
 
-  CONTAINS
-
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-!
-!                     PUBLIC SUBROUTINES
-!
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-!---------------------------------------------------------------------
-!--- phys_rad_driver_init ---
-!    constructor for gfs_physics_driver_mod
-!---------------------------------------------------------------------
-  subroutine phys_rad_driver_init (Time, lon, lat, nlev, axes, Atm_block, &
-                                   dxmin, dxmax, State_in, State_out)
-    type(time_type),           intent(in) :: Time
-    real,    dimension(:,:),   intent(in) :: lon, lat
-    integer,                   intent(in) :: nlev
-    integer, dimension(4),     intent(in) :: axes
-    real (kind=kind_phys), intent(in) :: dxmin, dxmax
-    type (block_control_type), intent(in) :: Atm_block
-    type (state_fields_in),    dimension(:), intent(inout) :: State_in
-    type (state_fields_out),   dimension(:), intent(inout) :: State_out
-!--- local variables
-    integer :: nb, ibs, ibe, jbs, jbe, ngptc
-    integer :: i, j, ix
-    integer :: ntp
-    integer          ::  ierr, io, unit, logunit, outunit
-    real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
+!--- NAMELIST/CONFIGURATION parameters
+!--- convenience variables
+    integer :: lonr, latr
+    integer :: nsswr, nslwr   ! trigger aids for radiation
 
 !--- gfs initialization variables
-    integer :: kdt = 1
-    integer :: jdate(8) = (/2015, 5, 28, 5, 0, 0, 0, 0/)
-    integer :: ipt = 0 
-    integer :: latgfs
-    integer :: nnp
+    integer :: ipt = 1 
+    integer :: latgfs = 1
     real(kind=kind_phys) :: xkzm_m = 1.0
     real(kind=kind_phys) :: xkzm_h = 1.0
     real(kind=kind_phys) :: xkzm_s = 1.0
@@ -133,52 +106,40 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: psautco(2) = (/6.0e-4,3.0e-4/)
     real(kind=kind_phys) :: prautco(2) = (/.0e-4, 1.0e-4/)
     real(kind=kind_phys) :: wminco(2) = (/0.0e-5,1.0e-5/)
-    real(kind=kind_phys) :: slag, sdec, cdec, clstp
-    real(kind=kind_phys) :: sup = 0.0
-    real(kind=kind_phys) :: solhr = 0.5
-    real(kind=kind_phys) :: solcon 
-    real(kind=kind_phys) :: dtp  = 1800.
-    real(kind=kind_phys) :: dtf = 1800.
+    real(kind=kind_phys) :: clstp
+    real(kind=kind_phys) :: sup = 1.1
     real(kind=kind_phys) :: dtlw = 1800.
     real(kind=kind_phys) :: dtsw = 1800.
-    real(kind=kind_phys) :: deltim = 1800.
-    real(kind=kind_phys) :: fhour = 0.5
-    logical :: lsswr     ! logical flags for sw radiation calls
-    logical :: lslwr     ! logical flags for lw radiation calls
-    logical :: lprnt     ! control flag for diagnostic print out
-    logical :: lssav     ! logical flag for store 3-d cloud field
+    logical :: lprnt = .false.   ! control flag for diagnostic print out (rad)
+    logical :: lssav = .true.    ! logical flag for store 3-d cloud field
 
 !--- namelist parameters ---
     integer :: NFXR = 5
     integer :: ntoz = 2
     integer :: ntcw = 3
     integer :: ncld = 1
-    integer :: ntrac        ! set by call to get_number_tracers
     integer :: levs = 64
     integer :: levr = 64
     integer :: me           ! set by call to mpp_pe
     integer :: lsoil = 4
-    integer :: lsm = 1      ! best guess not set in scripts
+    integer :: lsm = 1      ! NOAH LSM
     integer :: nmtvr = 14
-    integer :: nrcm  = 0    ! not set in scripts
-    integer :: levozp = 0   ! not set in scripts
-    integer :: lonr  = 768  ! NOT NEEDED/NOT USED
-    integer :: latr  = 768  ! NOT NEEDED: used to calculate gaussian grid parameters
+    integer :: nrcm  = 2    ! when using ras, will be computed
+    integer :: levozp = 1   ! still unknown
     integer :: jcap  = 0    ! should not matter it is used by spherical 
-    integer :: num_p3d      ! not in script
-    integer :: num_p2d      ! not in script
-    integer :: npdf3d       ! not in script
+    integer :: num_p3d = 3  ! Ferrier:3  Zhao:4 
+    integer :: num_p2d = 1  ! Ferrier:1  Zhao:3
+    integer :: npdf3d = 0   ! Zhao & pdfcld=.T.:3  -  else:0
     integer :: pl_coeff = 5
     integer :: ncw(2) = (/200,25/)
     real (kind=kind_phys) :: flgmin(2) = (/0.150,0.200/)
-    real (kind=kind_phys) :: si(nlev+1) ! (levr+1)
     real (kind=kind_phys) :: crtrh(3) = (/0.85,0.85,0.85/)
     real (kind=kind_phys) :: cdmbgwd(2) = (/1.0,1.0/)
     real (kind=kind_phys) :: ccwf(2) = (/1.0,1.0/)
     real (kind=kind_phys) :: dlqf(2) = (/0.5,0.5/)
     real (kind=kind_phys) :: ctei_rm(2) = (/10.0,10.0/)
     real (kind=kind_phys) :: cgwf(2) = (/0.1,0.1/)
-    real (kind=kind_phys) :: prslrd0
+    real (kind=kind_phys) :: prslrd0 = 200.
     logical :: ras = .false.
     logical :: pre_rad = .false.
     logical :: ldiag3d = .false.
@@ -196,10 +157,10 @@ module gfs_physics_driver_mod
     logical :: mstrat = .false.
     logical :: trans_trac = .true.
     integer :: nst_fcst = 0
-    logical :: moist_adj = .false.  ! not in script
-    integer :: thermodyn_id = 0   ! in script, but hard to tell value seems to be based on idvm
-    integer :: sfcpress_id  = 10  ! in script, but hard to tell value seems to be based on idvm (gfs_ctrl.nc)
-    logical :: gen_coord_hybrid ! in scrpt, could be T or F
+    logical :: moist_adj = .false.  ! Must be true to turn on moist convective
+    integer :: thermodyn_id = 0     ! idvm/10
+    integer :: sfcpress_id  = 1     ! idvm-(idvm/10)*10
+    logical :: gen_coord_hybrid = .false. ! in scrpt, could be T or F
     logical :: lsidea = .false.  
     logical :: pdfcld = .false.
     logical :: shcnvcw = .false.
@@ -218,12 +179,11 @@ module gfs_physics_driver_mod
     integer :: iovr_lw = 1
     integer :: isubc_sw = 2
     integer :: isubc_lw = 2
-    logical :: sas_shal = .false.      !not in script
-    logical :: crick_proof = .false.   !not in script
+    logical :: crick_proof = .false.
     logical :: ccnorm = .false.
-    logical :: norad_precip = .false.  !not in script
+    logical :: norad_precip = .false.  ! This is effective only for Ferrier/Moorthi
+
 ! rad_save
-    integer :: idate(4) = (/0, 28, 5,2015/)
     integer :: iflip = 0         ! toa to surface
 
 ! interface props
@@ -232,11 +192,46 @@ module gfs_physics_driver_mod
     logical :: LW0 = .false.
     logical :: LWB = .false.
 
-    levs = nlev
-    levr = nlev
-
 !--- namelist ---
    namelist / gfs_physics_nml / norad_precip
+!-----------------------------------------------------------------------
+
+  CONTAINS
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!
+!                     PUBLIC SUBROUTINES
+!
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+!---------------------------------------------------------------------
+!--- phys_rad_driver_init ---
+!    constructor for gfs_physics_driver_mod
+!---------------------------------------------------------------------
+  subroutine phys_rad_driver_init (Time, lon, lat, glon, glat, npz,   &
+                                   axes, dx, dy, area, dxmin, dxmax,  &
+                                   dt_phys, Atm_block, State_in, State_out)
+    type(time_type),           intent(in) :: Time
+    real,    dimension(:,:),   intent(in) :: lon, lat, dx, dy, area
+    integer,                   intent(in) :: glon, glat, npz
+    integer, dimension(4),     intent(in) :: axes
+    real (kind=kind_phys), intent(in) :: dxmin, dxmax, dt_phys
+    type (block_control_type), intent(in) :: Atm_block
+    type (state_fields_in),    dimension(:), intent(inout) :: State_in
+    type (state_fields_out),   dimension(:), intent(inout) :: State_out
+!--- local variables
+    integer ::  ierr, io, unit, logunit, outunit
+    integer :: nb, ibs, ibe, jbs, jbe, ngptc
+    integer :: i, j, ix, ntrac, ntp
+    integer :: jdate(8) = (/1, 1, 1, 0, 0, 0, 0, 0/)
+    integer :: idate(4) = (/0, 1, 1, 1/)
+    integer :: kdt = 0
+    integer :: nnp = 0
+    real(kind=kind_phys) :: solhr = 0.0   
+    real(kind=kind_phys) :: fhour = 0.
+    real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
+    logical :: sas_shal
+    real (kind=kind_phys) :: si(npz+1)
 
 !--- if routine has already been executed, return ---
     if (module_is_initialized) return
@@ -244,7 +239,14 @@ module gfs_physics_driver_mod
 !--- verify that the modules used by this module that are called ---
 !--- later in this subroutine have already been initialized ---
     call fms_init
- 
+
+    call get_date (Time, jdate(1), jdate(2), jdate(3),  &
+                         jdate(5), jdate(6), jdate(7))
+    idate(4) = jdate(1)
+    idate(3) = jdate(2)
+    idate(2) = jdate(3)
+    idate(1) = jdate(5)
+
 !--- read namelist  ---
 #ifdef INTERNAL_FILE_NML
     read (input_nml_file, nml=gfs_physics_nml, iostat=io)
@@ -264,6 +266,13 @@ module gfs_physics_driver_mod
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
     logunit = stdlog()
     if (mpp_pe() == mpp_root_pe() ) write(logunit, nml=gfs_physics_nml)
+
+!--- set some configurational parameters that are derived from others
+    lonr = glon
+    latr = glat
+    nsswr = nint(dtsw/dt_phys)
+    nslwr = nint(dtlw/dt_phys)
+    sas_shal = (sashal .and. (.not. ras))
  
 !--- define the model dimensions on the local processor ---
     call get_number_tracers (MODEL_ATMOS, num_tracers=ntrac, num_prog=ntp)
@@ -282,17 +291,17 @@ module gfs_physics_driver_mod
     dxmaxin = log(dxmax)
     dxminin = log(dxmin)
     dxinvin = 1.0/(dxmax-dxmin)
-    call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, levs, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
-                          lonr, latr, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
+    call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
+                          glon, glat, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
-                          gen_coord_hybrid, levr, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
+                          gen_coord_hybrid, npz, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
                           dxmaxin, dxminin, dxinvin, &
                           ! For radiation
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
                           iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                          sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip, unit)
+                          sas_shal,crick_proof,ccnorm,norad_precip,jdate,iflip, unit)
     call close_file (unit)
 
 !--- allocate and call the different storage items needed by GFS physics/radiation ---
@@ -312,12 +321,10 @@ module gfs_physics_driver_mod
 
       call Tbd_data(nb)%set      (ngptc, Mdl_parms, xkzm_m, xkzm_h, xkzm_s, &
                                   evpco, psautco, prautco, wminco)
-      call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, solcon,  &
-                                  dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, &
-                                  deltim, slag, sdec, cdec)
+      call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, dtlw, dtsw, &
+                                  lssav, ipt, lprnt, dt_phys)
       call Dyn_parms(nb)%setphys (ngptc, ngptc, solhr, kdt, lssav, latgfs, &
-                                  dtp, dtf, clstp, nnp, fhour, slag, &
-                                  sdec, cdec)
+                                  dt_phys, dt_phys, clstp, nnp, fhour)
       call Gfs_diags(nb)%setrad  (ngptc, NFXR)
       call Gfs_diags(nb)%setphys (ngptc, Mdl_parms)
       call Sfc_props(nb)%setrad  (ngptc, Mdl_parms, .FALSE.)  ! last argument determines gsm vs atmos-only
@@ -336,6 +343,9 @@ module gfs_physics_driver_mod
       do j=1,jbe-jbs+1
        do i=1,ibe-ibs+1
         ix = ix + 1
+        Dyn_parms(nb)%area(ix) = area(i,j)
+        Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
+        Dyn_parms(nb)%dy(ix)   = 0.5*(dy(i,j)+dy(i+1,j))
         Dyn_parms(nb)%xlat(ix) = lat(i,j)*pi/180.0_kind_phys
         Dyn_parms(nb)%xlon(ix) = lon(i,j)*pi/180.0_kind_phys
         Dyn_parms(nb)%sinlat(ix) = sin(Dyn_parms(nb)%xlat(ix))
@@ -359,6 +369,76 @@ module gfs_physics_driver_mod
 
 
 !-------------------------------------------------------------------------      
+!--- phys_rad_setup_step ---
+!-------------------------------------------------------------------------      
+  subroutine phys_rad_setup_step (Time_init, Time, Time_next, Atm_block)
+    type(time_type),            intent(in) :: Time_init, Time, Time_next
+    type (block_control_type),  intent(in) :: Atm_block
+!   local variables
+    integer, parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
+    integer :: i, j, k, nb
+    integer :: ibs, ibe, jbs, jbe, ix
+    integer :: sec, ipseed, jdate(8)
+    integer :: kdt
+    integer :: numrdm(lonr*latr*2)
+    type (random_stat) :: stat
+    real(kind=kind_phys) :: fhour
+
+!--- set the date
+    call get_date (Time, jdate(1), jdate(2), jdate(3),  &
+                         jdate(5), jdate(6), jdate(7))
+
+    call get_time(Time - Time_init, sec)
+    fhour = real(sec)/3600.
+
+!--- may need this to repopulate sfc properties for AMIP runs
+!    call sfc_populate (Sfc_props)
+
+
+!--- set up random seed index for the whole tile in a reproducible way
+    if (isubc_lw==2 .or. isubc_sw==2) then
+      ipseed = mod(nint(100.0*sqrt(real(sec))), ipsdlim) + 1 + ipsd0
+      call random_setseed (ipseed, stat)
+      call random_index (ipsdlim, numrdm, stat)
+    endif
+
+
+    do nb = 1, Atm_block%nblks
+      ibs = Atm_block%ibs(nb)
+      ibe = Atm_block%ibe(nb)
+      jbs = Atm_block%jbs(nb)
+      jbe = Atm_block%jbe(nb)
+!--- increment the time step number
+      Dyn_parms(nb)%kdt      = Dyn_parms(nb)%kdt + 1
+      Dyn_parms(nb)%nnp      = Dyn_parms(nb)%nnp + 1
+!--- set the current forecast hour
+      Dyn_parms(nb)%fhour    = fhour
+      Dyn_parms(nb)%jdate(:) = jdate(:)
+!--- set the solhr
+      Dyn_parms(nb)%solhr    = real(jdate(5))
+!--- radiation triggers
+      Dyn_parms(nb)%lsswr = (mod(kdt, nsswr) == 1)
+      Dyn_parms(nb)%lslwr = (mod(kdt, nslwr) == 1)
+
+!--- set the random seeds for each column
+      if (isubc_lw==2 .or. isubc_sw==2) then
+
+!--- populate the random seed for this block
+        ix = 0 
+        do j = jbs,jbe
+          do i = ibs,ibe
+            ix = ix + 1
+            Dyn_parms(nb)%icsdsw(i) = numrdm(i + (j-1)*lonr)
+            Dyn_parms(nb)%icsdlw(i) = numrdm(i + (j-1)*lonr + latr)
+          enddo
+        enddo
+      endif
+    enddo
+
+  end subroutine phys_rad_setup_step
+
+
+!-------------------------------------------------------------------------      
 !--- radiation_driver ---
 !-------------------------------------------------------------------------      
   subroutine radiation_driver (Time, Time_next, Atm_block, Statein)
@@ -368,48 +448,9 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
-!need to populate anything needing help
-!    call sfc_populate (Sfc_props)
-
-!rab      if ( Mdl_parms%isubc_lw==2 .or. Mdl_parms%isubc_sw==2 ) then
-!rab        ipseed = mod(nint(100.0*sqrt(phour*3600)), ipsdlim) + 1 + ipsd0
-!rab
-!rab        call random_setseed                                             &
-!rab!  ---  inputs:
-!rab     &     ( ipseed,                                                    &
-!rab!  ---  outputs:
-!rab     &       stat                                                       &
-!rab     &      )
-!rab        call random_index                                               &
-!rab!  ---  inputs:
-!rab     &     ( ipsdlim,                                                   &
-!rab!  ---  outputs:
-!rab     &       numrdm, stat                                               &
-!rab     &     )
-!rab
-!rab        do k = 1, 2
-!rab          do j = 1, lats_node_r
-!rab            lat = global_lats_r(ipt_lats_node_r-1+j)
-!rab
-!rab            do i = 1, LONR
-!rab              ixseed(i,j,k) = numrdm(i+(lat-1)*LONR+(k-1)*LATR)
-!rab            enddo
-!rab          enddo
-!rab        enddo
-!rab      endif
-
 !--- call the nuopc radiation loop---
     call mpp_clock_begin(grrad_clk)
     do nb = 1, Atm_block%nblks
-
-
-!rab          if ( Mdl_parms%isubc_lw==2 .or. Mdl_parms%isubc_sw==2 ) then
-!rab            do i = 1, njeff
-!rab              Dyn_parms(nb)%icsdsw(i) = ixseed(lon+i-1,lan,1)
-!rab              Dyn_parms(nb)%icsdlw(i) = ixseed(lon+i-1,lan,2)
-!rab            enddo
-!rab          endif
-
 
 !
 !--- call the nuopc radiation routine for time-varying data ---
@@ -519,10 +560,14 @@ module gfs_physics_driver_mod
     endif
 
     do nb = 1, Atm_block%nblks
-      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
-      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
-      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
-      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
+      ibs = Atm_block%ibs(nb)
+      ibe = Atm_block%ibe(nb)
+      jbs = Atm_block%jbs(nb)
+      jbe = Atm_block%jbe(nb)
+!rab      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
+!rab      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
+!rab      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
+!rab      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
       nx = (ibe - ibs + 1)
       ny = (jbe - jbs + 1) 
       ngptc = nx * ny

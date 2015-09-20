@@ -657,6 +657,9 @@
                                                                 ! or -pi -> +pi ranges                           !
          real (kind=kind_phys), pointer :: xlat  (:) => null()  ! grid latitude in radians, default to pi/2 ->   !
                                                                 ! -pi/2 range, otherwise adj in subr called      !
+         real (kind=kind_phys), pointer :: area  (:) => null()  ! added by GFDL to be used for grid scales
+         real (kind=kind_phys), pointer :: dx    (:) => null()  ! added by GFDL to be used for grid scales
+         real (kind=kind_phys), pointer :: dy    (:) => null()  ! added by GFDL to be used for grid scales
          real (kind=kind_phys), pointer :: sinlat(:) => null()  ! sine of the grids corresponding latitudes      !
          real (kind=kind_phys), pointer :: coslat(:) => null()  ! cosine of the grids corresponding latitudes    !
          real (kind=kind_phys)          :: solhr                ! hour time after 00z at the t-step              !
@@ -1810,8 +1813,8 @@
 ! Dynamic_parameter methods
 !******************************************
 
-       subroutine dyn_param_setrad (this, IX, IM, kdt, jdate, solhr, solcon, dtlw, dtsw, &
-                                    lsswr, lslwr, lssav, ipt, lprnt, deltim, slag, sdec, cdec)
+       subroutine dyn_param_setrad (this, IX, IM, kdt, jdate, solhr, dtlw, dtsw, &
+                                    lssav, ipt, lprnt, deltim)
 !rab       subroutine dyn_param_setrad (this, xlon, xlat, sinlat, coslat, solhr, &
 !rab                                    IX, IM, kdt, jdate, solcon, icsdsw, icsdlw, &
 !rab                                    dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, deltim, &
@@ -1828,14 +1831,8 @@
          ! Radiation only
          integer, intent(in) :: jdate(8)
          integer, intent(in) :: ipt                 
-         real (kind=kind_phys), intent(in) :: solcon, dtlw, dtsw, deltim
-         logical, intent(in) :: lsswr, lslwr, lprnt
-
-         ! These might be able to be computed elsewhere
-         real (kind=kind_phys), intent(in) :: slag  ! equation of time ( radian )
-         real (kind=kind_phys), intent(in) :: sdec  ! sin of the solar declination angle
-         real (kind=kind_phys), intent(in) :: cdec  ! cos of the solar declination angle
-         ! End Radiation only
+         real (kind=kind_phys), intent(in) :: dtlw, dtsw, deltim
+         logical, intent(in) :: lprnt
 
          call dbgprint("dyn_param_setrad")
 
@@ -1843,6 +1840,9 @@
            class is (dynamic_parameters)
              if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
              if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
+             if (.not.associated(this%xlat)) allocate(this%area   (IX))
+             if (.not.associated(this%xlat)) allocate(this%dx     (IX))
+             if (.not.associated(this%xlat)) allocate(this%dy     (IX))
              if (.not.associated(this%sinlat)) allocate(this%sinlat (IX))
              if (.not.associated(this%coslat)) allocate(this%coslat (IX))
              if (.not.associated(this%icsdsw)) allocate(this%icsdsw (IX))
@@ -1852,19 +1852,12 @@
              this%IM     = IM
              this%kdt    = kdt
              this%jdate  = jdate
-             this%solcon = solcon
              this%dtlw   = dtlw
              this%dtsw   = dtsw
-             this%lsswr  = lsswr
-             this%lslwr  = lslwr
              this%lssav  = lssav
              this%ipt    = ipt
              this%lprnt  = lprnt
              this%deltim = deltim
-
-             this%slag = slag
-             this%sdec = sdec
-             this%cdec = cdec
 
            class default
              print *, "class default"
@@ -1874,7 +1867,7 @@
 
 
        subroutine dyn_param_setphys (this, IX, IM, solhr, kdt, lssav, lat, dtp, dtf, &
-                                     clstp, nnp, fhour, slag, sdec, cdec)
+                                     clstp, nnp, fhour)
 !rab       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
 !rab                                     kdt, lssav, lat, dtp, dtf, clstp,       &
 !rab                                     nnp, nlons, fhour, slag, sdec, cdec )
@@ -1890,12 +1883,6 @@
          integer, intent(in) :: lat, nnp
          real (kind=kind_phys), intent(in) :: dtp, dtf, clstp, fhour
 
-         ! These might be able to be computed elsewhere
-         real (kind=kind_phys), intent(in) :: slag  ! equation of time ( radian )
-         real (kind=kind_phys), intent(in) :: sdec  ! sin of the solar declination angle
-         real (kind=kind_phys), intent(in) :: cdec  ! cos of the solar declination angle
-         ! locals
-
          call dbgprint("dyn_param_setphys")
 
          select type (this)
@@ -1903,6 +1890,9 @@
 !rab these are already done in setrad
              if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
              if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
+             if (.not.associated(this%xlat)) allocate(this%area   (IX))
+             if (.not.associated(this%xlat)) allocate(this%dx     (IX))
+             if (.not.associated(this%xlat)) allocate(this%dy     (IX))
              if (.not.associated(this%sinlat)) allocate(this%sinlat (IX))
              if (.not.associated(this%coslat)) allocate(this%coslat (IX))
              allocate(this%nlons (IX))
@@ -1917,10 +1907,6 @@
              this%clstp = clstp
              this%nnp   = nnp
              this%fhour = fhour
-
-             this%slag = slag
-             this%sdec = sdec
-             this%cdec = cdec
 
              !  set a default value for nlons
              this%nlons(:) = -9999
@@ -2672,7 +2658,7 @@
                  dyn%slag, dyn%sdec, dyn%cdec, dyn%sinlat, dyn%coslat, statein%pgr,  &
                  statein%ugrs, statein%vgrs, statein%tgrs, statein%qgrs, statein%vvl, statein%prsi,  &
                  statein%prsl, statein%prslk, statein%prsik, statein%phii, statein%phil, tbd%rann,  &
-                 tbd%prdout, tbd%poz, tbd%dpshc, sfc%hprime2, dyn%xlon, dyn%xlat,  &
+                 tbd%prdout, tbd%poz, tbd%dpshc, sfc%hprime2, dyn%xlon, dyn%xlat, dyn%dx, dyn%dy, dyn%area, &
                  sfc%slope, sfc%shdmin, sfc%shdmax, sfc%snoalb, sfc%tg3, sfc%slmsk,  &
                  sfc%vfrac, sfc%vtype, sfc%stype, sfc%uustar, sfc%oro, sfc%oro_uf,  &
                  rad%coszen, intr%sfcdsw, intr%sfcnsw, intr%sfcnirbmd, intr%sfcnirdfd, intr%sfcvisbmd,  &

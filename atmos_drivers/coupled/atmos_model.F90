@@ -58,7 +58,6 @@ use atmosphere_mod,     only: get_atmosphere_grid
 use atmosphere_mod,     only: get_stock_pe
 use atmosphere_mod,     only: set_atmosphere_pelist
 use atmosphere_mod,     only: atmosphere_restart
-use atmosphere_mod,     only: atmosphere_cell_area
 use atmosphere_mod,     only: atmosphere_state_update
 use atmosphere_mod,     only: atmos_phys_driver_statein
 use atmosphere_mod,     only: atmosphere_control_data, atmosphere_pref
@@ -67,6 +66,7 @@ use block_control_mod,  only: block_control_type, define_blocks
 use gfs_physics_driver_mod, only: state_fields_in, state_fields_out, &
                                   kind_phys, phys_rad_driver_init, &
                                   phys_rad_driver_end, &
+                                  phys_rad_setup_step, &
                                   radiation_driver, physics_driver
 
 !-----------------------------------------------------------------------
@@ -135,7 +135,7 @@ public atmos_model_restart
  end type atmos_data_type
 !</PUBLICTYPE >
 
-integer :: atmClock, stateClock, radClock, physClock
+integer :: atmClock, stateClock, setupClock, radClock, physClock
 
 !for restart
 integer                 :: ipts, jpts, dto
@@ -216,6 +216,11 @@ subroutine update_atmos_radiation_physics (Atmos)
     call atmos_phys_driver_statein (Statein, Atm_block)
     call mpp_clock_end(stateClock)
 
+    if(mpp_pe() == mpp_root_pe() ) write(6,*) "setup step"
+    call mpp_clock_begin(setupClock)
+    call phys_rad_setup_step (Atmos%Time_init, Atmos%Time, Time_next, Atm_block)
+    call mpp_clock_end(setupClock)
+
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "radiation driver"
 !--- execute the GFS atmospheric radiation subcomponent (RRTM)
     call mpp_clock_begin(radClock)
@@ -245,14 +250,14 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   type (atmos_data_type), intent(inout) :: Atmos
   type (time_type), intent(in) :: Time_init, Time, Time_step
 !--- local variables ---
-  real, dimension(:,:), allocatable :: area
   integer :: unit, ntdiag, ntfamily, i, j, k
-  integer :: mlon, mlat, nlon, nlat, nlev, sec, day, dt
+  integer :: mlon, mlat, nlon, nlat, nlev, sec, dt
   integer :: ierr, io, logunit
   integer :: id_restart, idx
   integer :: isc, iec, jsc, jec
   integer :: isd, ied, jsd, jed
   integer :: blk, ibs, ibe, jbs, jbe
+  real :: dt_phys
   real, allocatable :: q(:,:,:,:), p_half(:,:,:)
   character(len=80) :: control
   character(len=64) :: filename, filename2
@@ -266,6 +271,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Atmos % Time_init = Time_init
    Atmos % Time      = Time
    Atmos % Time_step = Time_step
+   call get_time (Atmos % Time_step, sec)
+   dt_phys = real(sec)      ! integer seconds
+
    logunit = stdlog()
 
    IF ( file_exist('input.nml')) THEN
@@ -304,6 +312,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !-----------------------------------------------------------------------
 !---- allocate space ----
     call atmosphere_resolution (nlon, nlat, global=.false.)
+    call atmosphere_resolution (mlon, mlat, global=.true.)
     call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
     call atmosphere_domain (Atmos%domain)
     call get_atmosphere_axes (Atmos%axes)
@@ -323,11 +332,17 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
     call phys_rad_driver_init(Atmos%Time,         &
                               Atmos%lon(:,:),     &
                               Atmos%lat(:,:),     &
+                              mlon,               &
+                              mlat,               &
                               nlev,               &
                               Atmos%axes,         &
-                              Atm_block,          &
+                              Atmos%grid%dx,      &
+                              Atmos%grid%dy,      &
+                              Atmos%grid%area,    &
                               Atmos%dxmin,        &
                               Atmos%dxmax,        &
+                              dt_phys,            &
+                              Atm_block,          &
                               Statein, Stateout) 
 
 !-----------------------------------------------------------------------
@@ -375,10 +390,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    id_restart = register_restart_field(Til_restart, filename, 'fprec', Atmos % fprec, domain=Atmos%domain)
    id_restart = register_restart_field(Til_restart, filename, 'gust',  Atmos % gust,  domain=Atmos%domain)
 
-   call get_time (Atmos % Time_step, sec, day)
-   dt = sec + 86400*day  ! integer seconds
+   call get_time (Atmos % Time_step, dt)
 
-   call atmosphere_resolution (mlon, mlat, global=.true.)
    if ( file_exist(filename, domain=Atmos%domain) ) then
       if(mpp_pe() == mpp_root_pe() ) call mpp_error ('atmos_model_mod', &
                   'Reading netCDF formatted restart file: INPUT/atmos_coupled.res.nc', NOTE)
@@ -405,18 +418,13 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 atmClock   = mpp_clock_id( 'Atmosphere', flags=clock_flag_default, grain=CLOCK_COMPONENT )
 stateClock = mpp_clock_id( 'Dynamics get_state ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-radClock   = mpp_clock_id( 'GFS_Radiation ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-physClock  = mpp_clock_id( 'GFS Physics   ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+setupClock = mpp_clock_id( 'GFS Step Setup ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+radClock   = mpp_clock_id( 'GFS Radiation  ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+physClock  = mpp_clock_id( 'GFS Physics    ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
 
 !------ initialize global integral package ------
 !**** TEMPORARY FIX FOR GRID CELL CORNER PROBLEM ****
     call mpp_set_current_pelist(Atmos%pelist, no_sync=.TRUE.)
-
-    allocate (area (nlon, nlat))
-! call atmosphere_cell_area to obtain array of grid cell areas needed
-! by diag_integral_init
-    call atmosphere_cell_area (area)
-    deallocate (area)
 
 !-----------------------------------------------------------------------
 end subroutine atmos_model_init

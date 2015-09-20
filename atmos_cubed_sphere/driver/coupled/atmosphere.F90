@@ -72,8 +72,7 @@ public :: atmosphere_init, atmosphere_end, atmosphere_restart, &
 !--- utility routines
 public :: atmosphere_resolution, atmosphere_boundary, &
           atmosphere_grid_center, atmosphere_domain, &
-          atmosphere_cell_area, atmosphere_control_data, & 
-          atmosphere_pref, &
+          atmosphere_control_data, atmosphere_pref, &
           get_atmosphere_axes, get_bottom_mass, &
           get_bottom_wind, get_stock_pe, &
           set_atmosphere_pelist, get_atmosphere_grid
@@ -452,6 +451,7 @@ contains
 
  end subroutine atmosphere_pref
 
+
  subroutine atmosphere_control_data (i1, i2, j1, j2, kt, p_hydro, hydro)
    integer, intent(out)           :: i1, i2, j1, j2, kt
    logical, intent(out), optional :: p_hydro, hydro
@@ -465,15 +465,6 @@ contains
    if (present(  hydro))   hydro = Atm(mytile)%flagstruct%hydrostatic
 
  end subroutine atmosphere_control_data
-
-
- subroutine atmosphere_cell_area  (area_out)
-   real, dimension(:,:),  intent(out)          :: area_out       
-
-   area_out(1:iec-isc+1, 1:jec-jsc+1) =  Atm(mytile)%gridstruct%area (isc:iec,jsc:jec)                        
-
- end subroutine atmosphere_cell_area 
-
 
 
  subroutine atmosphere_grid_center (lon, lat)
@@ -492,7 +483,6 @@ contains
     end do
 
  end subroutine atmosphere_grid_center
-
 
 
  subroutine atmosphere_boundary (blon, blat, global)

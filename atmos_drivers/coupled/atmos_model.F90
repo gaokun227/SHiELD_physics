@@ -328,6 +328,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
                         nxblocks, nyblocks, block_message)
     allocate(Statein (Atm_block%nblks))
     allocate(Stateout(Atm_block%nblks))
+
 !---------- initialize physics -------
     call phys_rad_driver_init(Atmos%Time,         &
                               Atmos%lon(:,:),     &

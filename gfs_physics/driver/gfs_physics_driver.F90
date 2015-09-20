@@ -184,7 +184,7 @@ module gfs_physics_driver_mod
     logical :: norad_precip = .false.  ! This is effective only for Ferrier/Moorthi
 
 ! rad_save
-    integer :: iflip = 0         ! toa to surface
+    integer :: iflip = 1         ! surface to toa
 
 ! interface props
     logical :: SW0 = .false.
@@ -417,8 +417,8 @@ module gfs_physics_driver_mod
 !--- set the solhr
       Dyn_parms(nb)%solhr    = real(jdate(5))
 !--- radiation triggers
-      Dyn_parms(nb)%lsswr = (mod(kdt, nsswr) == 1)
-      Dyn_parms(nb)%lslwr = (mod(kdt, nslwr) == 1)
+      Dyn_parms(nb)%lsswr = (mod(Dyn_parms(nb)%kdt, nsswr) == 1)
+      Dyn_parms(nb)%lslwr = (mod(Dyn_parms(nb)%kdt, nslwr) == 1)
 
 !--- set the random seeds for each column
       if (isubc_lw==2 .or. isubc_sw==2) then

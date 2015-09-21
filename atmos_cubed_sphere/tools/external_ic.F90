@@ -1839,32 +1839,41 @@ contains
   js  = Atm%bd%js
   je  = Atm%bd%je
 
-  do i=is,ie
-     pe0(i,1) = ak0(1)
-     pn0(i,1) = log(pe0(i,1))
-  enddo
-  do k=2,npz+1
+
+  do j = js, je
+
      do i=is,ie
-        pe0(i,k) = ak0(k) + bk0(k)*psc(i,j)
-        pn0(i,k) = log(pe0(i,k))
+        pe0(i,1) = ak0(1)
+        pn0(i,1) = log(pe0(i,1))
      enddo
-  enddo
 
-  rdg = -rdgas / grav
-  do k= 1, npz
-     do i = is, ie
-     do j = js, je
-        atm%delz(i,j,k) = rdg*ta(i,j,k)*(pn0(i,k+1)-pn0(i,k))
+     do k=2,npz+1
+        do i=is,ie
+           pe0(i,k) = ak0(k) + bk0(k)*psc(i,j)
+           pn0(i,k) = log(pe0(i,k))
+        enddo
      enddo
-     enddo
-  enddo
 
-  do k = 1, npz
-     do i = is, ie
-     do j = js, je
-        atm%w(i,j,k) = omga(i,j,k)/dp(i,j,k)*atm%delz(i,j,k)
+     rdg = -rdgas / grav
+     do k= 1, npz
+        do i = is, ie
+           atm%delz(i,j,k) = rdg*ta(i,j,k)*(pn0(i,k+1)-pn0(i,k))
+        enddo
      enddo
+
+     do k = 1, npz
+        do i = is, ie
+           atm%w(i,j,k) = omga(i,j,k)/dp(i,j,k)*atm%delz(i,j,k)
+if (mpp_pe()==1) then
+
+ if (atm%w(i,j,k)/=0.) then
+ print *, i,j,k, atm%w(i,j,k)
+ endif
+
+endif
+        enddo
      enddo
+
   enddo
 
   make_nh = .false.

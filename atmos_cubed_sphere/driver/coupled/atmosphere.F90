@@ -72,11 +72,10 @@ public :: atmosphere_init, atmosphere_end, atmosphere_restart, &
 !--- utility routines
 public :: atmosphere_resolution, atmosphere_boundary, &
           atmosphere_grid_center, atmosphere_domain, &
-          atmosphere_cell_area, atmosphere_control_data, & 
-          atmosphere_pref, &
+          atmosphere_control_data, atmosphere_pref, &
           get_atmosphere_axes, get_bottom_mass, &
           get_bottom_wind, get_stock_pe, &
-          set_atmosphere_pelist
+          set_atmosphere_pelist, get_atmosphere_grid
 
 !--- physics/radiation data exchange routines
 public :: atmos_phys_driver_statein
@@ -426,8 +425,8 @@ contains
   ! </SUBROUTINE>
 
 
- subroutine atmosphere_resolution (i_size, j_size, nlev, global)
-   integer, intent(out)          :: i_size, j_size, nlev
+ subroutine atmosphere_resolution (i_size, j_size, global)
+   integer, intent(out)          :: i_size, j_size
    logical, intent(in), optional :: global
    logical :: local
 
@@ -442,8 +441,6 @@ contains
        j_size = npy - 1
    end if
 
-   nlev = npz
-
  end subroutine atmosphere_resolution
 
 
@@ -453,6 +450,7 @@ contains
    p_ref = pref
 
  end subroutine atmosphere_pref
+
 
  subroutine atmosphere_control_data (i1, i2, j1, j2, kt, p_hydro, hydro)
    integer, intent(out)           :: i1, i2, j1, j2, kt
@@ -467,15 +465,6 @@ contains
    if (present(  hydro))   hydro = Atm(mytile)%flagstruct%hydrostatic
 
  end subroutine atmosphere_control_data
-
-
- subroutine atmosphere_cell_area  (area_out)
-   real, dimension(:,:),  intent(out)          :: area_out       
-
-   area_out(1:iec-isc+1, 1:jec-jsc+1) =  Atm(mytile)%gridstruct%area (isc:iec,jsc:jec)                        
-
- end subroutine atmosphere_cell_area 
-
 
 
  subroutine atmosphere_grid_center (lon, lat)
@@ -494,7 +483,6 @@ contains
     end do
 
  end subroutine atmosphere_grid_center
-
 
 
  subroutine atmosphere_boundary (blon, blat, global)
@@ -536,6 +524,14 @@ contains
 
  end subroutine atmosphere_domain
 
+
+ subroutine get_atmosphere_grid (dxmax, dxmin)
+   real, intent(out) :: dxmax, dxmin
+
+   dxmax = Atm(1)%gridstruct%da_max
+   dxmin = Atm(1)%gridstruct%da_min
+
+ end subroutine get_atmosphere_grid
 
 
  subroutine get_atmosphere_axes ( axes )
@@ -959,6 +955,8 @@ contains
      Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
      !  reset this parameter to 1 just to be safe
      Statein(nb)%adjtrc = 1.0_kind_phys
+     !  set the physics version of qgrs which is the same as tracer if separate arrays are needed
+!rab Statein(nb)%qgrs(:,:,:) = Statein(nb)%tracer(:,:,;)
    enddo
 
  end subroutine atmos_phys_driver_statein

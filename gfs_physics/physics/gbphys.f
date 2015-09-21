@@ -15,7 +15,7 @@
 !           ccwf,dlqf,ctei_rm,clstp,cgwf,prslrd0,dtp,dtf,fhour,solhr,   !
 !           slag,sdec,cdec,sinlat,coslat,pgr,ugrs,vgrs,                 !
 !           tgrs,qgrs,vvel,prsi,prsl,prslk,prsik,phii,phil,             !
-!           rann,prdout,poz,dpshc,hprime,xlon,xlat,                     !
+!           rann,prdout,poz,dpshc,hprime,xlon,xlat, dx, dy, area,       !
 !           slope,shdmin,shdmax,snoalb,tg3,slmsk,vfrac,                 !
 !           vtype,stype,uustar,oro,oro_uf,coszen,sfcdsw,sfcnsw,         !
 !           sfcnirbmd,sfcnirdfd,sfcvisbmd,sfcvisdfd,                    !
@@ -206,6 +206,8 @@
 !     dpshc    - real, maximum pressure depth for shallow convection im   !
 !     hprime   - real, orographic std dev                       ix,nmtvr!
 !     xlon,xlat- real, longitude and latitude ( radian )           im   !
+!     dx,dy    - real, dx and dy (m)                               im   !
+!     area     - real, area (m)                                    im   !
 !     slope    - real, sfc slope type for lsm                      im   !
 !     shdmin   - real, min fractional coverage of green veg        im   !
 !     shdmax   - real, max fractnl cover of green veg (not used)   im   !
@@ -456,7 +458,7 @@
      &      ccwf,dlqf,ctei_rm,clstp,cgwf,prslrd0,dtp,dtf,fhour,solhr,   &
      &      slag,sdec,cdec,sinlat,coslat,pgr,ugrs,vgrs,                 &
      &      tgrs,qgrs,vvel,prsi,prsl,prslk,prsik,phii,phil,             &
-     &      rann,prdout,poz,dpshc,hprime,xlon,xlat,                     &
+     &      rann,prdout,poz,dpshc,hprime,xlon,xlat,dx,dy,area,          &
      &      slope,shdmin,shdmax,snoalb,tg3,slmsk,vfrac,                 &
      &      vtype,stype,uustar,oro,oro_uf,coszen,sfcdsw,sfcnsw,         &
 
@@ -548,7 +550,7 @@
       real(kind=kind_phys) :: adjtrc(ntrac)
 
       real(kind=kind_phys), dimension(im),            intent(in) ::     &
-     &      sinlat, coslat, pgr,    dpshc,  xlon,   xlat,               &
+     &      sinlat, coslat, pgr, dpshc, xlon, xlat, dx, dy, area,       &
      &      slope,  shdmin, shdmax, snoalb, tg3,    slmsk,  vfrac,      &
      &      vtype,  stype,  uustar, oro,    coszen, sfcnsw, sfcdsw,     &
      &      sfcnirbmu,      sfcnirdfu,      sfcvisbmu,      sfcvisdfu,  &
@@ -858,14 +860,18 @@
         cice(i) = fice(i)
         tice(i) = tisfc(i)
 !
-        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
+!GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
+        work1(i)   = (dx(i) - dxmin) * dxinv
         work1(i)   = max(0.0, min(1.0,work1(i)))
         work2(i)   = 1.0 - work1(i)
         psurf(i)   = pgr(i)
         work3(i)   = prsik(i,1) / prslk(i,1)
-        tem1       = con_rerth * (con_pi+con_pi)*coslat(i)/nlons(i)
-        tem2       = con_rerth * con_pi / latr
-        garea(i)   = tem1 * tem2
+!GFDL        tem1       = con_rerth * (con_pi+con_pi)*coslat(i)/nlons(i)
+!GFDL        tem2       = con_rerth * con_pi / latr
+!GFDL        garea(i)   = tem1 * tem2
+        tem1       = dx(i)
+        tem2       = dy(i)
+        garea(i)   = area(i)
         dlength(i) = sqrt( tem1*tem1+tem2*tem2 )
         cldf(i)    = cgwf(1)*work1(i) + cgwf(2)*work2(i)
       enddo

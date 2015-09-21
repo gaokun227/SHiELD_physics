@@ -53,8 +53,10 @@
 
        module nuopc_physics
 
-       use machine, only: kind_phys
+       use machine,  only: kind_phys
        use physcons, only: dxmax, dxmin, dxinv     ! lon lat dependant variables set in initialize
+       use funcphys, only: gfuncphys
+       use module_microphysics, only: gsmconst
  
 
        use module_radiation_driver,  only : grrad, radupdate
@@ -67,6 +69,7 @@
 
        real(kind=kind_phys) :: zero      = 0.0_kind_phys
        real(kind=kind_phys) :: clear_val = 0.0_kind_phys
+       real(kind=kind_phys) :: rann_init = 0.6_kind_phys
 
        ! Derived Data Types
        public :: state_fields_in        ! basic inputs of radiation and physics parameters
@@ -585,7 +588,7 @@
          ! grrad in
          ! gbphys inout
 !rab         real (kind=kind_phys), pointer :: sup  => null()         ! supersaturation in pdf cloud when t is very low
-         real (kind=kind_phys), pointer :: sup                    ! supersaturation in pdf cloud when t is very low
+         real (kind=kind_phys) :: sup                    ! supersaturation in pdf cloud when t is very low
 
          ! gbphys inout
          real (kind=kind_phys), pointer :: cnvqc_v(:,:) => null() ! total convective conensate (kg/kg)
@@ -655,6 +658,9 @@
                                                                 ! or -pi -> +pi ranges                           !
          real (kind=kind_phys), pointer :: xlat  (:) => null()  ! grid latitude in radians, default to pi/2 ->   !
                                                                 ! -pi/2 range, otherwise adj in subr called      !
+         real (kind=kind_phys), pointer :: area  (:) => null()  ! added by GFDL to be used for grid scales
+         real (kind=kind_phys), pointer :: dx    (:) => null()  ! added by GFDL to be used for grid scales
+         real (kind=kind_phys), pointer :: dy    (:) => null()  ! added by GFDL to be used for grid scales
          real (kind=kind_phys), pointer :: sinlat(:) => null()  ! sine of the grids corresponding latitudes      !
          real (kind=kind_phys), pointer :: coslat(:) => null()  ! cosine of the grids corresponding latitudes    !
          real (kind=kind_phys)          :: solhr                ! hour time after 00z at the t-step              !
@@ -835,7 +841,7 @@
          this%dpshc  = clear_val
          this%prdout = clear_val
          this%poz    = clear_val
-         this%rann   = clear_val
+         this%rann   = rann_init
 
 ! In/Out
          allocate(this%acv     (IX))
@@ -949,7 +955,11 @@
 !rab             this%tgrs
 !rab             this%vvl
 !is qgrs the same as tracer in state_fld_setrad_in
-!rab             this%qgrs
+             if (allocated(this%tracer)) then
+               this%qgrs => this%tracer
+             else
+               allocate(this%qgrs(IX,Model%levs,Model%ntrac))
+             endif
 
           ! The following not in radiation
              allocate(this%pgr   (IX))
@@ -1074,8 +1084,8 @@
              this%tisfc  = clear_val
 
              !!! GSM grrad.f ONLY
-             if (present(GSM)) then
-              if (GSM) then
+!rab             if (present(GSM)) then
+!rab              if (GSM) then
                allocate(this%alvsf (IX))
                allocate(this%alnsf (IX))
                allocate(this%alvwf (IX))
@@ -1089,8 +1099,8 @@
                this%alnwf = clear_val
                this%facsf = clear_val
                this%facwf = clear_val
-              endif
-             endif
+!rab              endif
+!rab             endif
 
          end select
 
@@ -1594,7 +1604,7 @@
 ! Cloud properties methods
 !******************************************
        subroutine cld_prop_setrad (this, IX, Model, sup)
-!rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, flgmin, &
+!rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, &
 !rab                                   cldcov, deltaq, sup, cnvw, cnvc)
 
          implicit none
@@ -1803,8 +1813,8 @@
 ! Dynamic_parameter methods
 !******************************************
 
-       subroutine dyn_param_setrad (this, IX, IM, kdt, jdate, solhr, solcon, dtlw, dtsw, &
-                                    lsswr, lslwr, lssav, ipt, lprnt, deltim, slag, sdec, cdec)
+       subroutine dyn_param_setrad (this, IX, IM, kdt, jdate, solhr, dtlw, dtsw, &
+                                    lssav, ipt, lprnt, deltim)
 !rab       subroutine dyn_param_setrad (this, xlon, xlat, sinlat, coslat, solhr, &
 !rab                                    IX, IM, kdt, jdate, solcon, icsdsw, icsdlw, &
 !rab                                    dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, deltim, &
@@ -1821,14 +1831,8 @@
          ! Radiation only
          integer, intent(in) :: jdate(8)
          integer, intent(in) :: ipt                 
-         real (kind=kind_phys), intent(in) :: solcon, dtlw, dtsw, deltim
-         logical, intent(in) :: lsswr, lslwr, lprnt
-
-         ! These might be able to be computed elsewhere
-         real (kind=kind_phys), intent(in) :: slag  ! equation of time ( radian )
-         real (kind=kind_phys), intent(in) :: sdec  ! sin of the solar declination angle
-         real (kind=kind_phys), intent(in) :: cdec  ! cos of the solar declination angle
-         ! End Radiation only
+         real (kind=kind_phys), intent(in) :: dtlw, dtsw, deltim
+         logical, intent(in) :: lprnt
 
          call dbgprint("dyn_param_setrad")
 
@@ -1836,6 +1840,9 @@
            class is (dynamic_parameters)
              if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
              if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
+             if (.not.associated(this%area)) allocate(this%area   (IX))
+             if (.not.associated(this%dx))   allocate(this%dx     (IX))
+             if (.not.associated(this%dy))   allocate(this%dy     (IX))
              if (.not.associated(this%sinlat)) allocate(this%sinlat (IX))
              if (.not.associated(this%coslat)) allocate(this%coslat (IX))
              if (.not.associated(this%icsdsw)) allocate(this%icsdsw (IX))
@@ -1845,19 +1852,12 @@
              this%IM     = IM
              this%kdt    = kdt
              this%jdate  = jdate
-             this%solcon = solcon
              this%dtlw   = dtlw
              this%dtsw   = dtsw
-             this%lsswr  = lsswr
-             this%lslwr  = lslwr
              this%lssav  = lssav
              this%ipt    = ipt
              this%lprnt  = lprnt
              this%deltim = deltim
-
-             this%slag = slag
-             this%sdec = sdec
-             this%cdec = cdec
 
            class default
              print *, "class default"
@@ -1867,7 +1867,7 @@
 
 
        subroutine dyn_param_setphys (this, IX, IM, solhr, kdt, lssav, lat, dtp, dtf, &
-                                     clstp, nnp, fhour, slag, sdec, cdec)
+                                     clstp, nnp, fhour)
 !rab       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
 !rab                                     kdt, lssav, lat, dtp, dtf, clstp,       &
 !rab                                     nnp, nlons, fhour, slag, sdec, cdec )
@@ -1883,12 +1883,6 @@
          integer, intent(in) :: lat, nnp
          real (kind=kind_phys), intent(in) :: dtp, dtf, clstp, fhour
 
-         ! These might be able to be computed elsewhere
-         real (kind=kind_phys), intent(in) :: slag  ! equation of time ( radian )
-         real (kind=kind_phys), intent(in) :: sdec  ! sin of the solar declination angle
-         real (kind=kind_phys), intent(in) :: cdec  ! cos of the solar declination angle
-         ! locals
-
          call dbgprint("dyn_param_setphys")
 
          select type (this)
@@ -1896,6 +1890,9 @@
 !rab these are already done in setrad
              if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
              if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
+             if (.not.associated(this%area)) allocate(this%area   (IX))
+             if (.not.associated(this%dx))   allocate(this%dx     (IX))
+             if (.not.associated(this%dy))   allocate(this%dy     (IX))
              if (.not.associated(this%sinlat)) allocate(this%sinlat (IX))
              if (.not.associated(this%coslat)) allocate(this%coslat (IX))
              allocate(this%nlons (IX))
@@ -1910,10 +1907,6 @@
              this%clstp = clstp
              this%nnp   = nnp
              this%fhour = fhour
-
-             this%slag = slag
-             this%sdec = sdec
-             this%cdec = cdec
 
              !  set a default value for nlons
              this%nlons(:) = -9999
@@ -1941,7 +1934,7 @@
                                  ! For radiation
                                  si, ictm, isol, ico2, iaer, ialb, iems,                    &
                                  iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                                 sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip, nlunit)
+                                 sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dtp,nlunit)
 
          ! use physcons, only: dxmin, dxmax, dxinv
 
@@ -1949,6 +1942,7 @@
 
          ! Add intent ?
          type (model_parameters) :: mdl
+         real(kind=kind_phys) :: dtp
 
          integer :: ntcw
          integer :: ncld
@@ -2096,11 +2090,19 @@
          dxmin = dxminin
          dxinv = dxinvin
 
-        call rad_initialize                                             &
+!/GFDL - had to add the following to get things working...
+         call gfuncphys ()
+         call gsmconst (dtp,me,.TRUE.)
+!GFDL/
+
+
+!GFDL/
+
+         call rad_initialize                                             &
 !  ---  inputs:
-     &     ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
-     &       num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
-     &       sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
+     &      ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
+     &        num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
+     &        sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
 !  ---  outputs: ( none )
 
          call set_soilveg(me,nlunit)
@@ -2663,7 +2665,7 @@
                  dyn%slag, dyn%sdec, dyn%cdec, dyn%sinlat, dyn%coslat, statein%pgr,  &
                  statein%ugrs, statein%vgrs, statein%tgrs, statein%qgrs, statein%vvl, statein%prsi,  &
                  statein%prsl, statein%prslk, statein%prsik, statein%phii, statein%phil, tbd%rann,  &
-                 tbd%prdout, tbd%poz, tbd%dpshc, sfc%hprime2, dyn%xlon, dyn%xlat,  &
+                 tbd%prdout, tbd%poz, tbd%dpshc, sfc%hprime2, dyn%xlon, dyn%xlat, dyn%dx, dyn%dy, dyn%area, &
                  sfc%slope, sfc%shdmin, sfc%shdmax, sfc%snoalb, sfc%tg3, sfc%slmsk,  &
                  sfc%vfrac, sfc%vtype, sfc%stype, sfc%uustar, sfc%oro, sfc%oro_uf,  &
                  rad%coszen, intr%sfcdsw, intr%sfcnsw, intr%sfcnirbmd, intr%sfcnirdfd, intr%sfcvisbmd,  &

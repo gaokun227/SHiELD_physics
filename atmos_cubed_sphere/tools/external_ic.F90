@@ -126,6 +126,7 @@ contains
                              call timing_on('NGGPS_IC')
            call get_nggps_ic( Atm, fv_domain )
                              call timing_off('NGGPS_IC')
+           Atm(1)%flagstruct%make_nh  = .false.
       elseif ( Atm(1)%flagstruct%fv_diag_ic ) then
 ! Interpolate/remap diagnostic output from a FV model diagnostic output file on uniform lat-lon A grid:
                nq = size(Atm(1)%q,4)
@@ -778,7 +779,6 @@ contains
  
           call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
           
-          Atm(1)%flagstruct%make_nh  = .false.
 
           ! populate the haloes of Atm(:)%phis
           call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
@@ -800,7 +800,6 @@ contains
           ! call vertical remapping algorithms
           call remap_scalar_nggps(is, js, levp, npz, ntprog, ntrac, ak(:), bk(:), ps, zs, t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
-          Atm(1)%flagstruct%make_nh  = .false.
         endif
       enddo
 

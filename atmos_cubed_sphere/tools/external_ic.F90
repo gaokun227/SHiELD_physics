@@ -777,6 +777,8 @@ contains
           Atm(n)%q   (is:ie,js:je,1:npz,1:ntrac) = q(is:ie,js:je,itoa:levp,1:ntrac)
  
           call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
+          
+          Atm(1)%flagstruct%make_nh  = .false.
 
           ! populate the haloes of Atm(:)%phis
           call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
@@ -798,6 +800,7 @@ contains
           ! call vertical remapping algorithms
           call remap_scalar_nggps(is, js, levp, npz, ntprog, ntrac, ak(:), bk(:), ps, zs, t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
+          Atm(1)%flagstruct%make_nh  = .false.
         endif
       enddo
 
@@ -1628,7 +1631,6 @@ contains
   integer  sphum, o3mr, clwmr
   integer :: is,  ie,  js,  je
   integer :: isd, ied, jsd, jed
-  logical :: make_nh
 
   is  = Atm%bd%is
   ie  = Atm%bd%ie
@@ -1813,8 +1815,8 @@ contains
 
 5000 continue
 
-  make_nh = .false.
 
+  call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
   call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
 
   if (is_master()) write(*,*) 'done remap_scalar_nggps'
@@ -1832,7 +1834,6 @@ contains
   real rdg
   integer i,j,k
   integer :: is,  ie,  js,  je
-  logical :: make_nh
 
   is  = Atm%bd%is
   ie  = Atm%bd%ie
@@ -1864,19 +1865,11 @@ contains
      do k = 1, npz
         do i = is, ie
            atm%w(i,j,k) = omga(i,j,k)/dp(i,j,k)*atm%delz(i,j,k)
-if (mpp_pe()==1) then
-
- if (atm%w(i,j,k)/=0.) then
- print *, i,j,k, atm%w(i,j,k)
- endif
-
-endif
         enddo
      enddo
 
   enddo
 
-  make_nh = .false.
 
   if (is_master()) write(*,*) 'done get_w_from_omga'
 

@@ -56,6 +56,7 @@
        use machine,  only: kind_phys
        use physcons, only: dxmax, dxmin, dxinv     ! lon lat dependant variables set in initialize
        use funcphys, only: gfuncphys
+       use module_microphysics, only: gsmconst
  
 
        use module_radiation_driver,  only : grrad, radupdate
@@ -1602,8 +1603,8 @@
 !******************************************
 ! Cloud properties methods
 !******************************************
-       subroutine cld_prop_setrad (this, IX, Model, flgmin, sup)
-!rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, flgmin, &
+       subroutine cld_prop_setrad (this, IX, Model, sup)
+!rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, &
 !rab                                   cldcov, deltaq, sup, cnvw, cnvc)
 
          implicit none
@@ -1611,7 +1612,6 @@
          class(cloud_properties) :: this
          integer, intent(in) :: IX
          type(model_parameters), intent(in) :: Model
-         real(kind=kind_phys), dimension(2), intent(in) :: flgmin
          real(kind=kind_phys), intent(in) :: sup
         
          call dbgprint("cld_prop_set")
@@ -1622,7 +1622,7 @@
              allocate(this%cv     (IX))
              allocate(this%cvt    (IX))
              allocate(this%cvb    (IX))
-             allocate(this%flgmin (2))
+             allocate(this%flgmin (IX))
              allocate(this%fcice  (IX,Model%levs))
              allocate(this%frain  (IX,Model%levs))
              allocate(this%rrime  (IX,Model%levs))
@@ -1633,7 +1633,7 @@
              this%cv     = clear_val
              this%cvt    = clear_val
              this%cvb    = clear_val
-             this%flgmin = flgmin
+             this%flgmin = clear_val
              this%fcice  = clear_val
              this%frain  = clear_val
              this%rrime  = clear_val
@@ -1934,7 +1934,7 @@
                                  ! For radiation
                                  si, ictm, isol, ico2, iaer, ialb, iems,                    &
                                  iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                                 sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip, nlunit)
+                                 sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dtp,nlunit)
 
          ! use physcons, only: dxmin, dxmax, dxinv
 
@@ -1942,6 +1942,7 @@
 
          ! Add intent ?
          type (model_parameters) :: mdl
+         real(kind=kind_phys) :: dtp
 
          integer :: ntcw
          integer :: ncld
@@ -2089,7 +2090,13 @@
          dxmin = dxminin
          dxinv = dxinvin
 
+!/GFDL - had to add the following to get things working...
          call gfuncphys ()
+         call gsmconst (dtp,me,.TRUE.)
+!GFDL/
+
+
+!GFDL/
 
          call rad_initialize                                             &
 !  ---  inputs:

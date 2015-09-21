@@ -42,6 +42,8 @@ module gfs_physics_driver_mod
   use module_CONSTANTS,   only: pi
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
+  use physcons,           only: dxmax, dxmin, dxinv
+
 
 !-----------------------------------------------------------------------
   implicit none
@@ -108,13 +110,13 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: wminco(2) = (/0.0e-5,1.0e-5/)
     real(kind=kind_phys) :: clstp
     real(kind=kind_phys) :: sup = 1.1
-    real(kind=kind_phys) :: dtlw = 1800.
-    real(kind=kind_phys) :: dtsw = 1800.
+    real(kind=kind_phys) :: fhswr = 3600.
+    real(kind=kind_phys) :: fhlwr = 3600.
     logical :: lprnt = .false.   ! control flag for diagnostic print out (rad)
     logical :: lssav = .true.    ! logical flag for store 3-d cloud field
 
 !--- namelist parameters ---
-    integer :: NFXR = 5
+    integer :: NFXR = 39
     integer :: ntoz = 2
     integer :: ntcw = 3
     integer :: ncld = 1
@@ -125,12 +127,12 @@ module gfs_physics_driver_mod
     integer :: lsm = 1      ! NOAH LSM
     integer :: nmtvr = 14
     integer :: nrcm  = 2    ! when using ras, will be computed
-    integer :: levozp = 1   ! still unknown
+    integer :: levozp = 80  ! read from global_o3prdlos.f77
     integer :: jcap  = 0    ! should not matter it is used by spherical 
     integer :: num_p3d = 3  ! Ferrier:3  Zhao:4 
     integer :: num_p2d = 1  ! Ferrier:1  Zhao:3
     integer :: npdf3d = 0   ! Zhao & pdfcld=.T.:3  -  else:0
-    integer :: pl_coeff = 5
+    integer :: pl_coeff = 4
     integer :: ncw(2) = (/200,25/)
     real (kind=kind_phys) :: flgmin(2) = (/0.150,0.200/)
     real (kind=kind_phys) :: crtrh(3) = (/0.85,0.85,0.85/)
@@ -208,14 +210,14 @@ module gfs_physics_driver_mod
 !--- phys_rad_driver_init ---
 !    constructor for gfs_physics_driver_mod
 !---------------------------------------------------------------------
-  subroutine phys_rad_driver_init (Time, lon, lat, glon, glat, npz,   &
-                                   axes, dx, dy, area, dxmin, dxmax,  &
+  subroutine phys_rad_driver_init (Time, lon, lat, glon, glat, npz,       &
+                                   axes, dx, dy, area, indxmin, indxmax,  &
                                    dt_phys, Atm_block, State_in, State_out)
     type(time_type),           intent(in) :: Time
     real,    dimension(:,:),   intent(in) :: lon, lat, dx, dy, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
-    real (kind=kind_phys), intent(in) :: dxmin, dxmax, dt_phys
+    real (kind=kind_phys), intent(in) :: indxmin, indxmax, dt_phys
     type (block_control_type), intent(in) :: Atm_block
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
@@ -270,8 +272,8 @@ module gfs_physics_driver_mod
 !--- set some configurational parameters that are derived from others
     lonr = glon
     latr = glat
-    nsswr = nint(dtsw/dt_phys)
-    nslwr = nint(dtlw/dt_phys)
+    nsswr = nint(fhswr/dt_phys)
+    nslwr = nint(fhlwr/dt_phys)
     sas_shal = (sashal .and. (.not. ras))
  
 !--- define the model dimensions on the local processor ---
@@ -288,9 +290,9 @@ module gfs_physics_driver_mod
     unit = open_namelist_file ()
 
     me = mpp_pe()
-    dxmaxin = log(dxmax)
-    dxminin = log(dxmin)
-    dxinvin = 1.0/(dxmax-dxmin)
+    dxmaxin = indxmax
+    dxminin = indxmin
+    dxinvin = 1.0/(dxmaxin-dxminin)
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
                           glon, glat, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
@@ -301,7 +303,7 @@ module gfs_physics_driver_mod
                           ! For radiation
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
                           iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                          sas_shal,crick_proof,ccnorm,norad_precip,jdate,iflip, unit)
+                          sas_shal,crick_proof,ccnorm,norad_precip,jdate,iflip,dt_phys,unit)
     call close_file (unit)
 
 !--- allocate and call the different storage items needed by GFS physics/radiation ---
@@ -321,7 +323,7 @@ module gfs_physics_driver_mod
 
       call Tbd_data(nb)%set      (ngptc, Mdl_parms, xkzm_m, xkzm_h, xkzm_s, &
                                   evpco, psautco, prautco, wminco)
-      call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, dtlw, dtsw, &
+      call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, fhlwr, fhswr, &
                                   lssav, ipt, lprnt, dt_phys)
       call Dyn_parms(nb)%setphys (ngptc, ngptc, solhr, kdt, lssav, latgfs, &
                                   dt_phys, dt_phys, clstp, nnp, fhour)
@@ -329,7 +331,7 @@ module gfs_physics_driver_mod
       call Gfs_diags(nb)%setphys (ngptc, Mdl_parms)
       call Sfc_props(nb)%setrad  (ngptc, Mdl_parms, .FALSE.)  ! last argument determines gsm vs atmos-only
       call Sfc_props(nb)%setphys (ngptc, Mdl_parms)
-      call Cld_props(nb)%setrad  (ngptc, Mdl_parms, flgmin, sup)
+      call Cld_props(nb)%setrad  (ngptc, Mdl_parms, sup)
       call Cld_props(nb)%setphys (ngptc, Mdl_parms, sup)
       call Rad_tends(nb)%set     (ngptc, Mdl_parms)
       call Intr_flds(nb)%setrad  (ngptc, Mdl_parms, SW0, SWB, LW0, LWB)
@@ -376,13 +378,14 @@ module gfs_physics_driver_mod
     type (block_control_type),  intent(in) :: Atm_block
 !   local variables
     integer, parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
-    integer :: i, j, k, nb
-    integer :: ibs, ibe, jbs, jbe, ix
+    integer :: i, j, k, nb, ix
+    integer :: ibs, ibe, jbs, jbe, nx, ny
     integer :: sec, ipseed, jdate(8)
     integer :: kdt
     integer :: numrdm(lonr*latr*2)
     type (random_stat) :: stat
     real(kind=kind_phys) :: fhour
+    real(kind=kind_phys) :: work1, work2
 
 !--- set the date
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
@@ -402,12 +405,14 @@ module gfs_physics_driver_mod
       call random_index (ipsdlim, numrdm, stat)
     endif
 
-
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
       jbs = Atm_block%jbs(nb)
       jbe = Atm_block%jbe(nb)
+      nx = ibe-ibs+1
+      ny = jbe-jbs+1
+
 !--- increment the time step number
       Dyn_parms(nb)%kdt      = Dyn_parms(nb)%kdt + 1
       Dyn_parms(nb)%nnp      = Dyn_parms(nb)%nnp + 1
@@ -419,17 +424,31 @@ module gfs_physics_driver_mod
 !--- radiation triggers
       Dyn_parms(nb)%lsswr = (mod(Dyn_parms(nb)%kdt, nsswr) == 1)
       Dyn_parms(nb)%lslwr = (mod(Dyn_parms(nb)%kdt, nslwr) == 1)
+! **************  Ken Campana Stuff  ********************************
+!...  set switch for saving convective clouds
+      if(Dyn_parms(nb)%lsswr) then
+        Dyn_parms(nb)%clstp = 1100                           !initialize,accumulate
+      else
+        Dyn_parms(nb)%clstp = 0100                           !accumulate
+      endif
+! **************  Ken Campana Stuff  ********************************
 
 !--- set the random seeds for each column
       if (isubc_lw==2 .or. isubc_sw==2) then
-
-!--- populate the random seed for this block
         ix = 0 
-        do j = jbs,jbe
-          do i = ibs,ibe
+        do j = 1,ny
+          do i = 1,nx
             ix = ix + 1
-            Dyn_parms(nb)%icsdsw(i) = numrdm(i + (j-1)*lonr)
-            Dyn_parms(nb)%icsdlw(i) = numrdm(i + (j-1)*lonr + latr)
+            Dyn_parms(nb)%icsdsw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
+            Dyn_parms(nb)%icsdlw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
+
+            if (Mdl_parms%num_p3d == 3) then
+              work1 = (Dyn_parms(nb)%dx(ix) - dxmin) * dxinv
+              work1 = max(0.0, min(1.0,work1))
+              Cld_props(nb)%flgmin(ix) = flgmin(1)*work1 + flgmin(2)*(1.0-work1)
+            else
+              Cld_props(nb)%flgmin(ix) = 0.0
+            endif
           enddo
         enddo
       endif

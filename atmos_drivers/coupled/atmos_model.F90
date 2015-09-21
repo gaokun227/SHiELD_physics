@@ -233,6 +233,7 @@ subroutine update_atmos_radiation_physics (Atmos)
     call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)
     call mpp_clock_end(physClock)
 
+    if(mpp_pe() == mpp_root_pe() ) write(6,*) "end of radiation and physics step"
 !-----------------------------------------------------------------------
  end subroutine update_atmos_radiation_physics
 ! </SUBROUTINE>

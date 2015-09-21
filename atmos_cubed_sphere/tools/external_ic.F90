@@ -1815,6 +1815,9 @@ contains
 5000 continue
 
 
+  if (mpp_pe()==1) then
+   print * , 'HERE!'
+  endif
   call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
   call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
 

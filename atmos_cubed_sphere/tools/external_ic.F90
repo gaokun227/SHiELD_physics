@@ -126,7 +126,6 @@ contains
                              call timing_on('NGGPS_IC')
            call get_nggps_ic( Atm, fv_domain )
                              call timing_off('NGGPS_IC')
-           Atm(1)%flagstruct%make_nh  = .false.
       elseif ( Atm(1)%flagstruct%fv_diag_ic ) then
 ! Interpolate/remap diagnostic output from a FV model diagnostic output file on uniform lat-lon A grid:
                nq = size(Atm(1)%q,4)
@@ -141,7 +140,12 @@ contains
            call get_fv_ic( Atm, fv_domain, nq )
       endif
 
+      call prt_maxmin('PS', Atm(1)%ps, is, ie, js, je, ng, 1, 0.01)
       call prt_maxmin('T', Atm(1)%pt, is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('W', Atm(1)%w, is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('SPHUM', Atm(1)%q(:,:,:,1), is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('O3MR', Atm(1)%q(:,:,:,2), is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('CLWMR', Atm(1)%q(:,:,:,3), is, ie, js, je, ng, Atm(1)%npz, 1.)
 
       call p_var(Atm(1)%npz,  is, ie, js, je, Atm(1)%ak(1),  ptop_min,         &
                  Atm(1)%delp, Atm(1)%delz, Atm(1)%pt, Atm(1)%ps,               &
@@ -691,9 +695,9 @@ contains
       allocate (ps(is:ie,js:je))
       allocate (dp(is:ie,js:je,levp))
       allocate (t   (is:ie,js:je,levp))
-      allocate (ua  (isd:ied,jsd:jed,levp))
-      allocate (va  (isd:ied,jsd:jed,levp))
-      allocate (omga(isd:ied,jsd:jed,levp))
+      allocate (ua  (is:ie,js:je,levp))
+      allocate (va  (is:ie,js:je,levp))
+      allocate (omga(is:ie,js:je,levp))
       allocate (q (is:ie,js:je,levp,ntrac))
       do n = 1,size(Atm(:))
 !--- read in surface temperature (k) and land-frac
@@ -777,8 +781,8 @@ contains
           Atm(n)%omga(is:ie,js:je,1:npz) = omga(is:ie,js:je,itoa:levp)
           Atm(n)%q   (is:ie,js:je,1:npz,1:ntrac) = q(is:ie,js:je,itoa:levp,1:ntrac)
  
-          call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
-          
+          call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), &
+                               dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
 
           ! populate the haloes of Atm(:)%phis
           call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
@@ -798,10 +802,13 @@ contains
             Atm(n)%bk(:) = bk_sj(:)
           endif
           ! call vertical remapping algorithms
-          call remap_scalar_nggps(is, js, levp, npz, ntprog, ntrac, ak(:), bk(:), ps, zs, t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
+          call remap_scalar_nggps(is, js, levp, npz, ntprog, ntrac, ak(:), bk(:), ps, zs, &
+                                  t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
         endif
       enddo
+
+      Atm(1)%flagstruct%make_nh = .false.
 
       deallocate (ak)
       deallocate (bk)
@@ -1758,7 +1765,7 @@ contains
 !----------------
       do iq=1,ncnst
          call mappm(km, pe0, qp(is,1,iq), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
-         if (iq==sphum .and. Atm%flagstruct%ncep_ic ) then
+         if (iq==sphum .and. Atm%flagstruct%nggps_ic ) then
              p1 = 200.E2
              p2 =  75.E2
 ! Blend model sphum with NCEP data
@@ -1792,7 +1799,7 @@ contains
          enddo
       enddo
 
-      if ( .not. Atm%flagstruct%hydrostatic .and. Atm%flagstruct%ncep_ic ) then
+      if ( .not. Atm%flagstruct%hydrostatic .and. Atm%flagstruct%nggps_ic ) then
 ! Replace delz with NCEP hydrostatic state
          rdg = -rdgas / grav
          do k=1,npz
@@ -1814,12 +1821,8 @@ contains
 
 5000 continue
 
-
-  if (mpp_pe()==1) then
-   print * , 'HERE!'
-  endif
-  call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
-  call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
+!  call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
+!  call prt_maxmin('W_model in remap_scalar_nggps', Atm%w, is, ie, js, je, ng, npz, 1. )
 
   if (is_master()) write(*,*) 'done remap_scalar_nggps'
 
@@ -1872,6 +1875,7 @@ contains
 
   enddo
 
+!  call prt_maxmin('W_model', Atm%w, is, ie, js, je, ng, npz, 1.)
 
   if (is_master()) write(*,*) 'done get_w_from_omga'
 

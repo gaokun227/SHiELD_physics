@@ -43,6 +43,7 @@ module gfs_physics_driver_mod
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
   use physcons,           only: dxmax, dxmin, dxinv
+  use ozne_def,           only: pl_pres, ozplin
 
 
 !-----------------------------------------------------------------------
@@ -56,6 +57,17 @@ module gfs_physics_driver_mod
 !--- public NUOPC GFS datatypes and data typing ---
   public  state_fields_in, state_fields_out, kind_phys
 
+   
+!--- data needed for prognostic ozone interpolation
+  type ozone_data
+    private
+    integer,              dimension(:), allocatable :: j1
+    integer,              dimension(:), allocatable :: j2
+    real(kind=kind_phys), dimension(:), allocatable :: ddy
+    real(kind=kind_phys), dimension(:), allocatable :: gaul
+  end type ozone_data
+
+  type(ozone_data), dimension(:), allocatable :: O3dat
 
 !--- module private data ---
 !--- NUOPC data types
@@ -275,7 +287,10 @@ module gfs_physics_driver_mod
     nsswr = nint(fhswr/dt_phys)
     nslwr = nint(fhlwr/dt_phys)
     sas_shal = (sashal .and. (.not. ras))
- 
+!--- read in ozone datasets for prognostic ozone interpolation
+!--- sets values for levozp, pl_coeff, pl_pres(=>Tbd_data%poz), ozplin
+    if (ntoz > 0 ) call read_o3data (levozp, pl_coeff)
+
 !--- define the model dimensions on the local processor ---
     call get_number_tracers (MODEL_ATMOS, num_tracers=ntrac, num_prog=ntp)
 
@@ -307,13 +322,14 @@ module gfs_physics_driver_mod
     call close_file (unit)
 
 !--- allocate and call the different storage items needed by GFS physics/radiation ---
-    allocate( Tbd_data(Atm_block%nblks))
-    allocate(Dyn_parms(Atm_block%nblks))
-    allocate(Gfs_diags(Atm_block%nblks))
-    allocate(Sfc_props(Atm_block%nblks))
-    allocate(Cld_props(Atm_block%nblks))
-    allocate(Rad_tends(Atm_block%nblks))
-    allocate(Intr_flds(Atm_block%nblks))
+    allocate (  Tbd_data(Atm_block%nblks) )
+    allocate ( Dyn_parms(Atm_block%nblks) )
+    allocate ( Gfs_diags(Atm_block%nblks) )
+    allocate ( Sfc_props(Atm_block%nblks) )
+    allocate ( Cld_props(Atm_block%nblks) )
+    allocate ( Rad_tends(Atm_block%nblks) )
+    allocate ( Intr_flds(Atm_block%nblks) )
+    if (ntoz > 0 ) allocate ( O3dat(Atm_block%nblks) )
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -321,8 +337,16 @@ module gfs_physics_driver_mod
       jbe = Atm_block%jbe(nb)
       ngptc = (ibe - ibs + 1) * (jbe - jbs + 1) 
 
+!--- allocate elements of O3dat for prognostic ozone
+      if (ntoz > 0 ) Then
+        allocate ( O3dat(nb)%j1  (ngptc) )
+        allocate ( O3dat(nb)%j2  (ngptc) )
+        allocate ( O3dat(nb)%ddy (ngptc) )
+        allocate ( O3dat(nb)%gaul(ngptc) )
+      endif
+
       call Tbd_data(nb)%set      (ngptc, Mdl_parms, xkzm_m, xkzm_h, xkzm_s, &
-                                  evpco, psautco, prautco, wminco)
+                                  evpco, psautco, prautco, wminco, pl_pres)
       call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, fhlwr, fhswr, &
                                   lssav, ipt, lprnt, dt_phys)
       call Dyn_parms(nb)%setphys (ngptc, ngptc, solhr, kdt, lssav, latgfs, &
@@ -352,8 +376,15 @@ module gfs_physics_driver_mod
         Dyn_parms(nb)%xlon(ix) = lon(i,j)*pi/180.0_kind_phys
         Dyn_parms(nb)%sinlat(ix) = sin(Dyn_parms(nb)%xlat(ix))
         Dyn_parms(nb)%coslat(ix) = sqrt(1.0_kind_phys - Dyn_parms(nb)%sinlat(ix)*Dyn_parms(nb)%sinlat(ix))
+!--- needed for setindxoz
+        O3dat(nb)%gaul(ix) = lat(i,j)
        enddo
       enddo
+
+!--- set up interpolation indices and weights for prognostic ozone interpolation
+      if (ntoz > 0) then
+        call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
+      endif
     enddo
 
 !--- read in surface data from chgres ---
@@ -379,7 +410,7 @@ module gfs_physics_driver_mod
 !   local variables
     integer, parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
     integer :: i, j, k, nb, ix
-    integer :: ibs, ibe, jbs, jbe, nx, ny
+    integer :: ibs, ibe, jbs, jbe, nx, ny, ngptc
     integer :: sec, ipseed, jdate(8)
     integer :: kdt
     integer :: numrdm(lonr*latr*2)
@@ -412,6 +443,7 @@ module gfs_physics_driver_mod
       jbe = Atm_block%jbe(nb)
       nx = ibe-ibs+1
       ny = jbe-jbs+1
+      ngptc = nx*ny
 
 !--- increment the time step number
       Dyn_parms(nb)%kdt      = Dyn_parms(nb)%kdt + 1
@@ -452,7 +484,16 @@ module gfs_physics_driver_mod
           enddo
         enddo
       endif
+
+!--- interpolate coefficients for prognostic ozone calculation
+      if (ntoz > 0) then
+        call ozinterpol(Mdl_parms%me, ngptc, ngptc, Mdl_parms%idate, fhour, &
+                        O3dat(nb)%j1, O3dat(nb)%j2, ozplin, Tbd_data(nb)%prdout, &
+                        O3dat(nb)%ddy)
+      endif
     enddo
+
+
 
   end subroutine phys_rad_setup_step
 

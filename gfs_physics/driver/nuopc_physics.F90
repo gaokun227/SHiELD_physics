@@ -810,7 +810,7 @@
 !******************************************
 
       subroutine tbd_set (this, IX, Model, xkzm_m, xkzm_h, xkzm_s, &
-                          evpco, psautco, prautco, wminco)
+                          evpco, psautco, prautco, wminco, pl_pres)
 !rab      subroutine tbd_set ( this, dpshc, prdout, poz, rann, xkzm_m, xkzm_h, xkzm_s, psautco,  &
 !rab                 prautco, evpco, wminco, &
 !rab                 acv, acvb, acvt, slc, smc, stc,  &
@@ -824,6 +824,7 @@
          type(model_parameters), intent(in) :: Model
          real(kind=kind_phys), intent(in) :: xkzm_m, xkzm_h, xkzm_s, evpco
          real(kind=kind_phys), dimension(2), intent(in) :: psautco, prautco, wminco
+         real(kind=kind_phys), dimension(Model%levozp), intent(in) :: pl_pres
 
 ! In
          this%xkzm_m  = xkzm_m
@@ -835,12 +836,12 @@
          this%wminco  = wminco
          allocate(this%dpshc   (IX))
          allocate(this%prdout  (IX,Model%levozp,Model%pl_coeff))
-         allocate(this%poz     (Model%pl_coeff))
+         allocate(this%poz     (Model%levozp))
          allocate(this%rann    (IX,Model%nrcm))
 
          this%dpshc  = clear_val
          this%prdout = clear_val
-         this%poz    = clear_val
+         this%poz    = pl_pres
          this%rann   = rann_init
 
 ! In/Out
@@ -2093,9 +2094,6 @@
 !/GFDL - had to add the following to get things working...
          call gfuncphys ()
          call gsmconst (dtp,me,.TRUE.)
-!GFDL/
-
-
 !GFDL/
 
          call rad_initialize                                             &

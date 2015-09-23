@@ -903,7 +903,7 @@ contains
    type (state_fields_in), dimension(:), intent(inout) :: Statein
    type (block_control_type),            intent(in)    :: Atm_block
 !--- local variables
-   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, ix, sphum
+   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum
    real(kind=kind_phys) :: pk0inv
 
    pk0inv = 1.0_kind_phys/(100000._kind_phys**kappa)
@@ -945,14 +945,17 @@ contains
        Statein(nb)%tracer(ix,1:npz,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz:1:-1,:)
        !-- level geopotential height
        Statein(nb)%phii(ix,1) = Atm(mytile)%phis(i,j)
-       Statein(nb)%phii(ix,2:npz+1:1) = Statein(nb)%phii(ix,1:npz:1) + Atm(mytile)%delz(i,j,npz:1:-1)
+       do k = 1, npz
+         Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz-k+1)
+       enddo
       enddo
      enddo
 
      !  layer pressure
      Statein(nb)%prsl(:,1:npz) = 0.5_kind_phys*(Statein(nb)%prsi(:,1:npz) + Statein(nb)%prsi(:,2:npz+1))
      !  layer geopotential height
-     Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
+!rab     Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
+     Statein(nb)%phil(:,1:npz) = 0.0
      !  reset this parameter to 1 just to be safe
      Statein(nb)%adjtrc = 1.0_kind_phys
      !  set the physics version of qgrs which is the same as tracer if separate arrays are needed

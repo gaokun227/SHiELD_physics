@@ -9,7 +9,7 @@ module fv_diagnostics_mod
  use fv_arrays_mod,    only: fv_atmos_type, fv_grid_type, fv_diag_type
  !!! CLEANUP needs removal?
  use fv_mapz_mod,      only: E_Flux, E_Flux_nest
- use fv_mp_mod,        only: mp_reduce_sum, mp_reduce_min, mp_reduce_max
+ use fv_mp_mod,        only: mp_reduce_sum, mp_reduce_min, mp_reduce_max, is_master
  use fv_eta_mod,        only: get_eta_level, gw_1d
  use fv_grid_utils_mod, only: g_sum
  use a2b_edge_mod,     only: a2b_ord2, a2b_ord4
@@ -2258,6 +2258,8 @@ contains
       real qmin, qmax
       integer i,j,k
 
+      master = (mpp_pe()==mpp_root_pe()) .or. is_master()
+
       qmin = q(is,js,1)
       qmax = qmin
 
@@ -2297,6 +2299,8 @@ contains
 !
       real qmin, qmax, gmean
       integer i,j,k
+
+      master = (mpp_pe()==mpp_root_pe()) .or. is_master()
 
       qmin = q(is,js,1)
       qmax = qmin

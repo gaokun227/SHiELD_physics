@@ -954,8 +954,11 @@ contains
      !  layer pressure
      Statein(nb)%prsl(:,1:npz) = 0.5_kind_phys*(Statein(nb)%prsi(:,1:npz) + Statein(nb)%prsi(:,2:npz+1))
      !  layer geopotential height
-!rab     Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
-     Statein(nb)%phil(:,1:npz) = 0.0
+     if (Atm(mytile)%flagstruct%gfs_phil) then
+       Statein(nb)%phil(:,1:npz) = 0.0
+     else
+       Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
+     endif
      !  reset this parameter to 1 just to be safe
      Statein(nb)%adjtrc = 1.0_kind_phys
      !  set the physics version of qgrs which is the same as tracer if separate arrays are needed

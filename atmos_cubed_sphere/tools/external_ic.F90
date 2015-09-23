@@ -704,7 +704,7 @@ contains
         ! surface skin temperature
         id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'tsea', Atm(n)%ts, domain=Atm(n)%domain)
 
-        ! terrain surface height -- (needs to be transformed ino phis = zs*grav)
+        ! terrain surface height -- (needs to be transformed into phis = zs*grav)
         if (filtered_terrain) then
           id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
@@ -740,11 +740,15 @@ contains
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
 
         ! prognostic tracers
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'q', q, domain=Atm(n)%domain)
+        do nt = 1, ntrac
+          call get_tracer_names(MODEL_ATMOS, nt, tracer_name)
+          id_res = register_restart_field (GFS_restart, fn_gfs_ics, trim(tracer_name), q(:,:,:,nt), &
+                                           domain=Atm(n)%domain)
+        enddo
 
         ! initialize all tracers to default values prior to being input
         do nt = 1, ntprog
-          call get_tracer_names(MODEL_ATMOS, n, tracer_name)
+          call get_tracer_names(MODEL_ATMOS, nt, tracer_name)
           ! set all tracers to an initial profile value
           call set_tracer_profile (MODEL_ATMOS, nt, Atm(n)%q(:,:,:,n)  )
         enddo
@@ -763,7 +767,7 @@ contains
 
         ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
         zs = zs*grav
-        Atm(n)%phis = Atm(n)%phis*grav
+        Atm(n)%phis = max(Atm(n)%phis*grav, 0.0)
         
         if (ncep_terrain .and. ncep_plevels) then
           ! no vertical remapping necessary, store data into Atm(:)
@@ -773,7 +777,7 @@ contains
           Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
           Atm(n)%ps  (is:ie,js:je) = ps(is:ie,js:je)
-          Atm(n)%phis(is:ie,js:je) = zs(is:ie,js:je)
+          Atm(n)%phis(is:ie,js:je) = max(zs(is:ie,js:je),0.0)
           Atm(n)%delp(is:ie,js:je,1:npz) = dp  (is:ie,js:je,itoa:levp)
           Atm(n)%pt  (is:ie,js:je,1:npz) = t   (is:ie,js:je,itoa:levp)
           Atm(n)%ua  (is:ie,js:je,1:npz) = ua  (is:ie,js:je,itoa:levp)
@@ -1469,8 +1473,8 @@ contains
 
   if (mpp_pe()==1) then
     print *, 'sphum = ', sphum
-    print *, 'o3mr = ', o3mr
     print *, 'clwmr = ', clwmr
+    print *, ' o3mr = ', o3mr
     print *, 'ncnst = ', ncnst
   endif
 
@@ -1478,9 +1482,9 @@ contains
        call mpp_error(FATAL,'SPHUM must be 1st tracer')
   endif
 
-  if ( clwmr/=ncnst ) then
-       call mpp_error(FATAL,'number of q species is not match')
-  endif
+!rab  if ( o3mr/=ncnst ) then
+!rab       call mpp_error(FATAL,'number of q species is not match')
+!rab  endif
 
   do 5000 j=js,je
 
@@ -1649,13 +1653,13 @@ contains
 
 
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
-  o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
   clwmr   = get_tracer_index(MODEL_ATMOS, 'clwmr')
+  o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
 
   if (mpp_pe()==1) then
     print *, 'sphum = ', sphum
-    print *, 'o3mr = ', o3mr
     print *, 'clwmr = ', clwmr
+    print *, ' o3mr = ', o3mr
     print *, 'ncnst = ', ncnst
   endif
 
@@ -1663,9 +1667,9 @@ contains
        call mpp_error(FATAL,'SPHUM must be 1st tracer')
   endif
 
-  if ( clwmr/=ncnst ) then
-       call mpp_error(FATAL,'number of q species is not match')
-  endif
+!rab  if ( o3mwr/=ncnst ) then
+!rab       call mpp_error(FATAL,'number of q species is not match')
+!rab  endif
 
   do 5000 j=js,je
 

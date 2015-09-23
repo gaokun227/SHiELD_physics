@@ -697,6 +697,8 @@
 
       real(kind=kind_phys), allocatable :: cnvc(:,:),cnvw(:,:)
       real(kind=kind_phys) eng0, eng1
+!GFDL added code
+      logical :: calc_phil
 
 !
 !===> ...  begin here
@@ -816,6 +818,10 @@
         enddo
       endif
 !
+!GFDL begin added code
+      calc_phil = .false.
+      if (phil(1,levs) == 0.) calc_phil = .true.
+!GFDL end added code
       call get_prs(im,ix,levs,ntrac,tgrs,qgrs,                          &
      &             thermodyn_id, sfcpress_id,                           &
      &             gen_coord_hybrid,                                    &
@@ -1799,10 +1805,12 @@
         enddo
       endif   ! end if_ldiag3d/lgocart
 
-      call get_phi(im,ix,levs,ntrac,gt0,gq0,                            &
-     &             thermodyn_id, sfcpress_id,                           &
-     &             gen_coord_hybrid,                                    &
-     &             prsi,prsik,prsl,prslk,phii,phil)
+      if (calc_phil == .true.) then
+        call get_phi(im,ix,levs,ntrac,gt0,gq0,                            &
+     &               thermodyn_id, sfcpress_id,                           &
+     &               gen_coord_hybrid,                                    &
+     &               prsi,prsik,prsl,prslk,phii,phil)
+      endif
 
 !     if (lprnt) then
 !       print *,' phii2=',phii(ipr,:)

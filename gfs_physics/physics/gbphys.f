@@ -9,13 +9,13 @@
 !                                                                       !
 !    call gbphys                                                        !
 !       inputs:                                                         !
-!         ( im,ix,levs,lsoil,lsm,ntrac,ncld,ntoz,ntcw,                  !
+!         ( im,ix,levs,lsoil,lsm,ntrac,ncld,ntoz,ntcw,ntke,             !
 !           nmtvr,nrcm,ko3,lonr,latr,jcap,num_p3d,num_p2d,npdf3d,       !
 !           kdt,lat,me,pl_coeff,nlons,ncw,flgmin,crtrh,cdmbgwd,         !
 !           ccwf,dlqf,ctei_rm,clstp,cgwf,prslrd0,dtp,dtf,fhour,solhr,   !
 !           slag,sdec,cdec,sinlat,coslat,pgr,ugrs,vgrs,                 !
 !           tgrs,qgrs,vvel,prsi,prsl,prslk,prsik,phii,phil,             !
-!           rann,prdout,poz,dpshc,hprime,xlon,xlat, dx, dy, area,       !
+!           rann,prdout,poz,dpshc,hprime,xlon,xlat,dx, dy, area,        !
 !           slope,shdmin,shdmax,snoalb,tg3,slmsk,vfrac,                 !
 !           vtype,stype,uustar,oro,oro_uf,coszen,sfcdsw,sfcnsw,         !
 !           sfcnirbmd,sfcnirdfd,sfcvisbmd,sfcvisdfd,                    !
@@ -27,6 +27,7 @@
 !           flipv,old_monin,cnvgwd,shal_cnv,sashal,newsas,cal_pre,      !
 !           mom4ice,mstrat,trans_trac,nst_fcst,moist_adj,               !
 !           thermodyn_id, sfcpress_id, gen_coord_hybrid,levr,adjtrc,nnp,!
+!           cscnv,nctp,do_shoc,shocaftcnv,ntot3d,ntot2d,                !
 !       input/outputs:                                                  !
 !           hice,fice,tisfc,tsea,tprcp,cv,cvb,cvt,                      !
 !           srflag,snwdph,weasd,sncovr,zorl,canopy,                     !
@@ -36,12 +37,13 @@
 !           dlwsfc,ulwsfc,suntim,runoff,ep,cldwrk,                      !
 !           dugwd,dvgwd,psmean,cnvprcp,spfhmin,spfhmax,rain,rainc,      !
 !           dt3dt,dq3dt,du3dt,dv3dt,dqdt_v,cnvqc_v,acv,acvb,acvt,       !
-!           slc,smc,stc,upd_mf,dwn_mf,det_mf,        phy_f3d,phy_f2d,   !
+!           slc,smc,stc,upd_mf,dwn_mf,det_mf,phy_f3d,phy_f2d,           !
 !           dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl,                 !
 !           dlwsfc_cpl,dswsfc_cpl,dnirbm_cpl,dnirdf_cpl,                !
 !           dvisbm_cpl,dvisdf_cpl,rain_cpl,  nlwsfc_cpl,nswsfc_cpl,     !
 !           nnirbm_cpl,nnirdf_cpl,nvisbm_cpl,nvisdf_cpl,                !
 !           xt,xs,xu,xv,xz,zm,xtts,xzts,d_conv,ifd,dt_cool,Qrain,       !
+!           phy_fctd,                                                   !
 !       outputs:                                                        !
 !           gt0,gq0,gu0,gv0,t2m,q2m,u10m,v10m,                          !
 !           zlvl,psurf,hpbl,pwat,t1,q1,u1,v1,                           !
@@ -62,7 +64,7 @@
 !     get_prs,  dcyc2t2_pre_rad (testing),    dcyc2t3,  sfc_diff,       !
 !     sfc_ocean,sfc_drv,  sfc_land, sfc_sice, sfc_diag, moninp1,        !
 !     moninp,   moninq1,  moninq,   gwdps,    ozphys,   get_phi,        !
-!     sascnv,   sascnvn,  rascnv,   gwdc,     shalcvt3, shalcv,         !
+!     sascnv,   sascnvn,  rascnv,   cs_convr, gwdc,     shalcvt3,shalcv,!
 !     shalcnv,  cnvc90,   lrgscl,   gsmdrive, gscond,   precpd,         !
 !     progt2.                                                           !
 !                                                                       !
@@ -130,7 +132,11 @@
 !      Sep  2014  - Sarah Lu    disable the option to compute tracer    !
 !                               scavenging in GFS phys (set fscav=0.)   !
 !      Dec  2014  - Jun Wang    add cnvqc_v for gocart                  !
-!  ====================  defination of variables  ====================  !
+!      ---  2014  - D. Dazlich  Added Chikira-Sugiyama (CS) convection  !
+!                               as an option in opr GFS.                !
+!      Apr  2015    S. Moorthi  Added CS scheme to NEMS/GSM             !
+!      Jun  2015    S. Moorthi  Added SHOC  to NEMS/GSM                 !
+!  ====================  definition of variables  ====================  !
 !                                                                       !
 !  inputs:                                                       size   !
 !     ix, im   - integer, horiz dimention and num of used pts      1    !
@@ -143,6 +149,7 @@
 !     ntoz     - integer, ozone location in the tracer array       1    !
 !     ntcw     - integer, cloud condensate location in the tracer  1    !
 !                         array                                    1    !
+!     ntke     - integer, tke location in the tracer array         1    !
 !     nmtvr    - integer, number of topographic variables such as  1    !
 !                         variance etc used in the GWD parameterization !
 !     nrcm     - integer, second dimension for the random number   1    !
@@ -206,8 +213,6 @@
 !     dpshc    - real, maximum pressure depth for shallow convection im   !
 !     hprime   - real, orographic std dev                       ix,nmtvr!
 !     xlon,xlat- real, longitude and latitude ( radian )           im   !
-!     dx,dy    - real, dx and dy (m)                               im   !
-!     area     - real, area (m)                                    im   !
 !     slope    - real, sfc slope type for lsm                      im   !
 !     shdmin   - real, min fractional coverage of green veg        im   !
 !     shdmax   - real, max fractnl cover of green veg (not used)   im   !
@@ -241,6 +246,12 @@
 !     hlwc     - real, clear sky lw heating rates ( k/s )       ix,levs !
 !     hlwd     - real, idea  sky lw heating rates ( k/s )       ix,levs !
 !     ras      - logical, flag for ras convection scheme           1    !
+!     cscnv    - logical, flag for Chikira-Sugiyama convection     1    !
+!     nctp     - integer, number of cloud types in CS scheme       1    !
+!     do_shoc  - logical, flag for SHOC                            1    !
+!     shocaftcnv - logical, flag for SHOC                          1    !
+!     ntot3d   - integer, number of total 3d fields for phy_f3d    1    !
+!     ntot2d   - integer, number of total 2d fields for phy_f2d    1    !
 !     pre_rad  - logical, flag for testing purpose                 1    !
 !     ldiag3d  - logical, flag for 3d diagnostic fields            1    !
 !     lgocart  - logical, flag for 3d diagnostic fields for gocart 1    !
@@ -343,8 +354,11 @@
 !     upd_mf    - real, convective updraft mass flux             ix,levs !
 !     dwn_mf    - real, convective downdraft mass flux           ix,levs !
 !     det_mf    - real, convective detrainment mass flux         ix,levs !
+!  ------- not used below -----------
 !     dkh       - real, vertical diffusion coefficient (gocart)  ix,levs !
 !     rnp       - real, n cloud precipitation rate     (gocart)  ix,levs !
+!  ------- not used  above -----------
+
 !     phy_f3d   - real, 3d arrays saved for restart              ix,levs,num_p3d!
 !                                                                  +npdf3d!
 !     phy_f2d   - real, 2d arrays save for restart               ix,num_p2d!
@@ -378,6 +392,7 @@
 !     ifd       - real, index to start DTM run or not               im  !
 !     dt_cool   - real, Sub-layer cooling amount                    im  !
 !     Qrain     - real, sensible heat flux due to rainfall (watts)  im  !
+!     phy_fctd - real, cloud base mass flux for CScnv           ix,nctp !
 !                                                                       !
 !  outputs:                                                             !
 !     gt0       - real, updated temperature                        ix,levs !
@@ -452,14 +467,14 @@
 
       subroutine gbphys                                                 &
 !  ---  inputs:
-     &    ( im,ix,levs,lsoil,lsm,ntrac,ncld,ntoz,ntcw,                  &
+     &    ( im,ix,levs,lsoil,lsm,ntrac,ncld,ntoz,ntcw,ntke,             &
      &      nmtvr,nrcm,ko3,lonr,latr,jcap,num_p3d,num_p2d,npdf3d,       &
      &      kdt,lat,me,pl_coeff,nlons,ncw,flgmin,crtrh,cdmbgwd,         &
      &      ccwf,dlqf,ctei_rm,clstp,cgwf,prslrd0,dtp,dtf,fhour,solhr,   &
      &      slag,sdec,cdec,sinlat,coslat,pgr,ugrs,vgrs,                 &
      &      tgrs,qgrs,vvel,prsi,prsl,prslk,prsik,phii,phil,             &
-     &      rann,prdout,poz,dpshc,hprime,xlon,xlat,dx,dy,area,          &
-     &      slope,shdmin,shdmax,snoalb,tg3,slmsk,vfrac,                 &
+     &      rann,prdout,poz,dpshc,fscav,fswtr,hprime,xlon,xlat,dx,dy,   &
+     &      area,slope,shdmin,shdmax,snoalb,tg3,slmsk,vfrac,            &
      &      vtype,stype,uustar,oro,oro_uf,coszen,sfcdsw,sfcnsw,         &
 
      &      sfcnirbmd,sfcnirdfd,sfcvisbmd,sfcvisdfd,                    &
@@ -472,6 +487,7 @@
      &      flipv,old_monin,cnvgwd,shal_cnv,sashal,newsas,cal_pre,      &
      &      mom4ice,mstrat,trans_trac,nst_fcst,moist_adj,               &
      &      thermodyn_id, sfcpress_id, gen_coord_hybrid,levr,adjtrc,nnp,&
+     &      cscnv,nctp,do_shoc,shocaftcnv,ntot3d,ntot2d,                &
 !  ---  input/outputs:
      &      hice,fice,tisfc,tsea,tprcp,cv,cvb,cvt,                      &
      &      srflag,snwdph,weasd,sncovr,zorl,canopy,                     &
@@ -480,8 +496,9 @@
      &      dusfc,dvsfc,dtsfc,dqsfc,totprcp,gflux,                      &
      &      dlwsfc,ulwsfc,suntim,runoff,ep,cldwrk,                      &
      &      dugwd,dvgwd,psmean,cnvprcp,spfhmin,spfhmax,rain,rainc,      &
+
      &      dt3dt,dq3dt,du3dt,dv3dt,dqdt_v,cnvqc_v,acv,acvb,acvt,       &
-     &      slc,smc,stc,upd_mf,dwn_mf,det_mf,        phy_f3d,phy_f2d,   &
+     &      slc,smc,stc,upd_mf,dwn_mf,det_mf,phy_f3d,phy_f2d,           &
 !    &      slc,smc,stc,upd_mf,dwn_mf,det_mf,dkh,rnp,phy_f3d,phy_f2d,   &
      &      dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl,                 &
      &      dlwsfc_cpl,dswsfc_cpl,dnirbm_cpl,dnirdf_cpl,                & 
@@ -489,6 +506,7 @@
      &      nnirbm_cpl,nnirdf_cpl,nvisbm_cpl,nvisdf_cpl,                &
 
      &      xt,xs,xu,xv,xz,zm,xtts,xzts,d_conv,ifd,dt_cool,Qrain,       &
+     &      phy_fctd,                                                   &
 !  ---  outputs:
      &      gt0,gq0,gu0,gv0,t2m,q2m,u10m,v10m,                          &
      &      zlvl,psurf,hpbl,pwat,t1,q1,u1,v1,                           &
@@ -498,14 +516,16 @@
      &      rqtk,                                                       &
 !       Stochastic physics perturnbation
      &      dtdtr,                                                      &
-! Optional outputs
+
      &      dusfci_cpl,  dvsfci_cpl, dtsfci_cpl, dqsfci_cpl,            &
      &      dlwsfci_cpl, dswsfci_cpl,                                   &
      &      dnirbmi_cpl, dnirdfi_cpl, dvisbmi_cpl, dvisdfi_cpl,         &
      &      nlwsfci_cpl, nswsfci_cpl,                                   &
      &      nnirbmi_cpl, nnirdfi_cpl, nvisbmi_cpl, nvisdfi_cpl,         &
      &      t2mi_cpl,    q2mi_cpl,    u10mi_cpl,   v10mi_cpl,           &
-     &      tseai_cpl,   psurfi_cpl,  oro_cpl,     slmsk_cpl,           &
+     &      tseai_cpl,   psurfi_cpl,                                    &
+!    &      tseai_cpl,   psurfi_cpl,  oro_cpl,     slmsk_cpl,           &
+
      &      tref, z_c, c_0, c_d, w_0, w_d                               &
      &      )
 !
@@ -513,6 +533,7 @@
       use physcons,   only : con_cp, con_fvirt, con_g, con_rd, con_rv,  &
      &                       con_hvap, con_hfus, con_rerth, con_pi
      &,                      rhc_max, dxmin, dxinv, pa2mb, rlapse
+      use cs_conv, only : cs_convr
 
       implicit none
 !
@@ -534,7 +555,8 @@
      &                       ncld, ntoz, ntcw, nmtvr,   nrcm,    ko3,   &
      &                       lonr, latr, jcap, num_p3d, num_p2d, kdt,   &
      &                       me,   pl_coeff, lat, npdf3d,               &
-     &                       thermodyn_id, sfcpress_id, levr, nnp
+     &                       thermodyn_id, sfcpress_id, levr, nnp, nctp,&
+     &                       ntke, ntot3d, ntot2d
 
 
       integer, intent(in) :: nlons(im), ncw(2), nst_fcst
@@ -543,14 +565,15 @@
      &                       old_monin,  cnvgwd,    sashal,  newsas,    &
      &                       redrag,     hybedmf,   dspheat,            &
      &                       lssav,                 mom4ice, mstrat,    &
-     &                       trans_trac, moist_adj, cal_pre,            &
+     &                       trans_trac, moist_adj, cal_pre, cscnv,     &
      &                       shal_cnv,   gen_coord_hybrid,   lgocart,   &
-     &                       lsidea,     lssav_cpl, pdfcld, shcnvcw
+     &                       lsidea,     lssav_cpl, pdfcld, shcnvcw,    &
+     &                       do_shoc, shocaftcnv
 
       real(kind=kind_phys) :: adjtrc(ntrac)
 
       real(kind=kind_phys), dimension(im),            intent(in) ::     &
-     &      sinlat, coslat, pgr, dpshc, xlon, xlat, dx, dy, area,       &
+     &      sinlat, coslat, pgr,    dpshc,  xlon,   xlat, dx, dy, area, &
      &      slope,  shdmin, shdmax, snoalb, tg3,    slmsk,  vfrac,      &
      &      vtype,  stype,  uustar, oro,    coszen, sfcnsw, sfcdsw,     &
      &      sfcnirbmu,      sfcnirdfu,      sfcvisbmu,      sfcvisdfu,  &
@@ -602,13 +625,17 @@
      &      smc, stc, slc
 
       real(kind=kind_phys), dimension(ix,levs),       intent(inout) ::  &
-     &      upd_mf, dwn_mf, det_mf
+     &      upd_mf, dwn_mf, det_mf, dqdt_v, cnvqc_v
 !    &      upd_mf, dwn_mf, det_mf, dkh, rnp
 
       real(kind=kind_phys),                           intent(inout) ::  &
-     &      phy_f3d(ix,levs,num_p3d+npdf3d), phy_f2d(ix,num_p2d),       &
+     &      phy_f3d(ix,levs,ntot3d),  phy_f2d(ix,ntot2d),               &
      &      dt3dt(ix,levs,6), du3dt(ix,levs,4), dv3dt(ix,levs,4),       &
      &      dq3dt(ix,levs,5+pl_coeff)
+
+      real(kind=kind_phys),                           intent(inout) ::  &
+     &      phy_fctd(ix,nctp)                                           &
+      real(kind=kind_phys), dimension(ntrac-ncld+2) ::  fscav, fswtr
 
 !  ---  output:
       real(kind=kind_phys), dimension(im),            intent(out) ::    &
@@ -625,17 +652,20 @@
      &      nlwsfci_cpl,nswsfci_cpl,                                    &
      &      nnirbmi_cpl,nnirdfi_cpl,nvisbmi_cpl,nvisdfi_cpl,            &
      &      t2mi_cpl,q2mi_cpl,                                          &
-     &      u10mi_cpl,v10mi_cpl,tseai_cpl,psurfi_cpl,oro_cpl,slmsk_cpl, &
+     &      u10mi_cpl,v10mi_cpl,tseai_cpl,psurfi_cpl,                   &
+!    &      u10mi_cpl,v10mi_cpl,tseai_cpl,psurfi_cpl,oro_cpl,slmsk_cpl, &
+
      &      tref,    z_c,     c_0,     c_d,     w_0,   w_d, rqtk
 
       real(kind=kind_phys), dimension(ix,levs),       intent(out) ::    &
-     &      gt0, gu0, gv0, dqdt_v, cnvqc_v
+     &      gt0, gu0, gv0
 
       real(kind=kind_phys), dimension(ix,levs,ntrac), intent(out) ::    &
      &      gq0
 
 !  ---  local:
-      real(kind=kind_phys) ::  fscav(ntrac-ncld-1)
+!     real(kind=kind_phys) ::  fscav(ntrac-ncld-1)
+!     real(kind=kind_phys),allocatable  ::  fscav(:), fswtr(:)
       real(kind=kind_phys), dimension(im)          :: ccwfac, garea,    &
      &      dlength, xncw,   cumabs, qmax,   cice,    zice,   tice,     &
 !    &      gflx,    rain,   rainc,  rainl,  rain1,   raincs, evapc,    &
@@ -666,9 +696,10 @@
       real(kind=kind_phys), dimension(im,levs-1)   :: dkt
 
       real(kind=kind_phys), dimension(im,levs)     :: rhc, dtdt,        &
-     &      dudt, dvdt, gwdcu, gwdcv, dtdtc,                            &
-!    &      diagn1, diagn2, cuhr, cumchr,     &
-     &      qr_col, fc_ice, rainp, ud_mf, dd_mf, dt_mf
+     &      dudt, dvdt, gwdcu, gwdcv, dtdtc, dmdt,                      &
+!    &      diagn1, diagn2, cuhr, cumchr,                               &
+     &      qr_col, fc_ice, rainp, ud_mf, dd_mf, dt_mf, prnum
+!    &      qr_col, fc_ice, rainp, ud_mf, dd_mf, dt_mf, shoc_cld, prnum
 
       real(kind=kind_phys), dimension(im,lsoil)    :: smsoil, stsoil,   &
      &      ai, bi, cci, rhsmc, zsoil, slsoil
@@ -683,31 +714,41 @@
 !           from third to ntrac are convective transportable tracers,
 !           third being the ozone, when ntrac=3 (valid only with ras)
 
-      real(kind=kind_phys), allocatable :: clw(:,:,:)
+      real(kind=kind_phys), allocatable :: clw(:,:,:), qpl(:,:),qpi(:,:)
 
       integer, dimension(im) :: kbot, ktop, kcnv, soiltyp, vegtype,     &
      &          kpbl, slopetyp, kinver, lmh, levshc, islmsk
 
       integer :: i, nvdiff, kk, ic, k, n, ipr, lv, k1, iter, levshcm,   &
-     &           tracers, trc_shft, tottracer, num2, num3
+     &           tracers, trc_shft, tottracer, num2, num3               &
+     &,          nshocm, nshoc, ntk
 
       logical, dimension(im) :: flag_iter, flag_guess, invrsn
 
-      logical :: lprnt
+      logical :: lprnt, calc_phil
 
       real(kind=kind_phys), allocatable :: cnvc(:,:),cnvw(:,:)
-      real(kind=kind_phys) eng0, eng1
-!GFDL added code
-      logical :: calc_phil
-
+      real(kind=kind_phys) eng0, eng1, dtshoc
+!
+! for CS-convection
+!     real(kind=kind_phys), parameter :: wcbmax1=2.8, wcbmax2=1.4
+      real(kind=kind_phys), parameter :: wcbmax1=2.5, wcbmax2=1.5
+!     real(kind=kind_phys), parameter :: wcbmax1=1.4, wcbmax2=1.4
+      real(kind=kind_phys)  wcbmax(im)
+!
+      real(kind=kind_phys) tf, tcr, tcrf
+!     parameter (tf=233.16, tcr=263.16, tcrf=1.0/(tcr-tf))
+      parameter (tf=258.16, tcr=273.16, tcrf=1.0/(tcr-tf))
+!
 !
 !===> ...  begin here
 !
 ! The option to compute tracer scavenging in GSM is disabled
-      do i=1, ntrac-ncld-1
-        fscav(i) = 0.
-      enddo
+!     do i=1, ntrac-ncld-1
+!       fscav(i) = 0.
+!     enddo
  
+
 !  --- ...  set up check print point (for debugging)
 !
 !*************************************************************************
@@ -725,7 +766,7 @@
 !    &      kdt,lat,me,pl_coeff,ncw,flgmin,crtrh,cdmbgwd
 !    &,' ccwf=',ccwf,' dlqf=',dlqf,' ras=',ras,
 !    & ' evpco=',evpco,' wminco=',wminco,' levr=',levr
-      ipr = 1
+!     ipr = 1
 !     lprnt = kdt .gt. 0
 !     do i = 1, im
 !       work1(1) = xlon(i) * 57.29578
@@ -733,16 +774,23 @@
 !       work2(1) = xlat(i) * 57.29578
 !       print *,' me=',me,' work1=',work1(1),' work2=',work2(1),' i=',i
 !       lprnt = kdt > 4320
-!       lprnt = kdt > 0 .and. abs(work1(1)-110.3) < 0.5                 &
-!    &                  .and. abs(work2(1)-2.0)   < 0.5
+!       lprnt = kdt > 0 .and. abs(work1(1)-8.4375) < 0.5                &
+!    &                  .and. abs(work2(1)+1.4)   < 0.5
 !       lprnt = kdt >= 14 .and. lat == 43 
-!       lprnt = kdt >= 0 .and. abs(xlon(i)*57.29578-143.182) < 0.101    &
-!    &                   .and. abs(xlat(i)*57.29578-6.235)  < 0.101
+!       lprnt = kdt >= 256 .and. abs(xlon(i)*57.29578-136.07) < 0.08    &
+!    &                   .and. abs(xlat(i)*57.29578+1.1)  < 0.101
+!       lprnt = kdt >= 0 .and. abs(xlon(i)*57.29578-21.5) < 0.501       &
+!    &                   .and. abs(xlat(i)*57.29578+11.8)  < 0.501
+!       lprnt = kdt >= 0 .and. abs(xlon(i)*57.29578-8.4375) < 0.501     &
+!    &                   .and. abs(xlat(i)*57.29578+1.4)  < 0.501
+!       lprnt = kdt >= 40 .and. abs(xlon(i)*57.29578-288.75) < 1.501    &
+!    &                   .and. abs(xlat(i)*57.29578+12.38)  < 1.501
 !       lprnt = kdt >= 0 .and. abs(xlon(i)*57.29578-135.0) < 0.201      &
 !    &                   .and. abs(xlat(i)*57.29578-10.476)  < 0.201
 !       lprnt = kdt >= 0 .and. abs(xlon(i)*57.29578-110.3) < 0.201      &
 !    &                   .and. abs(xlat(i)*57.29578-2.0)   < 0.201
-!       print *,' i=',i,' xlon=',xlon(i)*57.29578,                      &
+!       if (kdt == 10)
+!    &  print *,' i=',i,' xlon=',xlon(i)*57.29578,                      &
 !    &                  ' xlat=',xlat(i)*57.29578,' i=',i,' me=',me
 !       if (lprnt) then
 !         ipr = i
@@ -753,9 +801,10 @@
 !     write(0,*)' In GBPHYS LSIDEA=',lsidea
 !     lprnt = .false.
 !     if(lprnt) then
-!       print *,' im=',im,' ix=',ix,' levs=',levs,' lsoil=',lsoil,      &
+!       write(0,*)' im=',im,' ix=',ix,' levs=',levs,' lsoil=',lsoil,    &
 !    &   ' ntrac=',ntrac,' ntoz=',ntoz,' ntcw=',ntcw,' me=',me,         &
 !    &   ' xlat=',xlat(ipr),' kdt=',kdt,' slmsk=',slmsk(ipr),           &
+!    & ' ntke=',ntke,' num_p3d=',num_p3d,' xlon=',xlon(ipr)
 !    &   ' tsea=',tsea(ipr),' tref=',tref(ipr),' dt_cool=',dt_cool(ipr),&
 !    &   ' dt_warm=',2.0*xt(ipr)/xz(ipr),' nrcm=',nrcm,' xlon=',
 !    &    xlon(ipr),                                                    &
@@ -769,6 +818,7 @@
 !    &,  ' xlon=',xlon(ipr),' xlat=',xlat(ipr)
 !       write(0,*)' qgrs=',qgrs(ipr,:,1)
 !       write(0,*)' ozg=',qgrs(ipr,:,2)
+!       write(0,*)' tke=',qgrs(ipr,:,4)
 !       print *,' clw=',qgrs(ipr,:,3)
 !    &,  ' xlon=',xlon(ipr),' xlat=',xlat(ipr)
 !     endif
@@ -797,17 +847,30 @@
         tottracer = tracers
         if (ntoz > 0) tottracer = tottracer + 1  ! ozone is added separately
       endif
+      if (ntke > 0) ntk = ntke - trc_shft + 3
 
 !     if (lprnt) write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
+!                write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
 !    &                   tottracer,' trc_shft=',trc_shft,' kdt=',kdt
+!    &,                  ntrac-ncld+2,' clstp=',clstp,' kdt=',kdt
+!    &,' ntk=',ntk,' lat=',lat
 
       allocate ( clw(ix,levs,tottracer+2) )
-      allocate ( cnvc(ix,levs))
-      allocate ( cnvw(ix,levs))
+      if (do_shoc) then
+        allocate (qpl(im,levs), qpi(im,levs))
+      else
+        allocate ( cnvc(ix,levs), cnvw(ix,levs))
+      endif
+!     allocate (fscav(tottracer+3), fswtr(tottracer+3))
+
+! The option to compute tracer scavenging in GSM is disabled
+      do i=1, tottracer+3
+        fscav(i) = 0.
+        fswtr(i) = 0.
+      enddo
 
       if (nnp == 1) then
         do n=1,ntrac
-!         write(0,*)' in gbphys adjtrc=',adjtrc(n),' for tracer=',n
           if (abs(1.0-adjtrc(n)) > 1.0e-7) then
             do k=1,levs
               do i=1,im
@@ -818,10 +881,8 @@
         enddo
       endif
 !
-!GFDL begin added code
       calc_phil = .false.
-      if (phil(1,levs) == 0.) calc_phil = .true.
-!GFDL end added code
+      if (phil(1,levs) == 0.0) calc_phil = .true.
       call get_prs(im,ix,levs,ntrac,tgrs,qgrs,                          &
      &             thermodyn_id, sfcpress_id,                           &
      &             gen_coord_hybrid,                                    &
@@ -867,7 +928,7 @@
         tice(i) = tisfc(i)
 !
 !GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
-        work1(i)   = (dx(i) - dxmin) * dxinv
+        work1(i)   = (log(dx(i)) - dxmin) * dxinv
         work1(i)   = max(0.0, min(1.0,work1(i)))
         work2(i)   = 1.0 - work1(i)
         psurf(i)   = pgr(i)
@@ -880,7 +941,9 @@
         garea(i)   = area(i)
         dlength(i) = sqrt( tem1*tem1+tem2*tem2 )
         cldf(i)    = cgwf(1)*work1(i) + cgwf(2)*work2(i)
+        wcbmax(i)  = wcbmax1*work1(i) + wcbmax2*work2(i)
       enddo
+
 !     if (lprnt) write(0,*)' in gbphys work1&2=',work1(ipr),work2(ipr)
 !    &,' dxmin=',dxmin,' dxinv=',dxinv,' dx=',
 !    &           log(coslat(ipr) / (nlons(ipr)*latr))
@@ -912,12 +975,6 @@
           enddo
         enddo
       enddo
-
-      if (lssav) then
-        do i = 1, im
-          psmean(i) = psmean(i) + pgr(i)*dtf
-        enddo
-      endif
 
 !  --- ...  initialize dtdt with heating rate from dcyc2 
 
@@ -985,9 +1042,7 @@
 
       endif
 !
-      if (lsidea) then
-!        print *,' in gbphys: lsidea is true '
-!idea jw
+      if (lsidea) then                       !idea jw
         do k = 1, levs
           do i = 1, im
 !           dtdt(i,k) = hlwd(i,k,2)
@@ -1018,9 +1073,7 @@
           gabsbdlw(i) = sfcemis(i) * adjsfcdlw(i)
         enddo
 
-!     write(0,*)' In GBPHYS LSIDEA2=',lsidea
-! idea : moved temp adjust to idea_phys
-!      if( lsidea ) then
+!      if( lsidea ) then     ! idea : moved temp adjust to idea_phys
 !        print *,' in gbphys: lsidea is true '
 !        DTDT = 0.
 !      endif
@@ -1041,12 +1094,12 @@
           endif
         enddo
 
-!     write(0,*)' In GBPHYS LSIDEA3=',lsidea
 !  --- ...  sfc lw fluxes used by atmospheric model are saved for output
 
         do i = 1, im
           dlwsfc(i) = dlwsfc(i) + adjsfcdlw(i)*dtf
           ulwsfc(i) = ulwsfc(i) + adjsfculw(i)*dtf
+          psmean(i) = psmean(i) + pgr(i)*dtf        ! mean surface pressure
         enddo
 
         if (ldiag3d) then
@@ -1139,9 +1192,10 @@
 !       write(0,*)' dtdth=',dtdt(ipr,:),' kdt=',kdt
 !     endif
 
+!     if (lprnt) write(0,*)' phil=',phil(1,1:5)
+
 !  --- ...  lu: initialize flag_guess, flag_iter, tsurf
 
-!     if (lprnt) write(0,*)' phil=',phil(1,1:5)
       do i = 1, im
         tsurf(i)      = tsea(i)
         flag_guess(i) = .false.
@@ -1169,6 +1223,7 @@
 
 !  --- ...  surface exchange coefficients
 !
+!     if (lprnt) write(0,*)' tsea=',tsea(ipr),' tsurf=',tsurf(ipr),iter
         call sfc_diff(im,pgr,ugrs,vgrs,tgrs,qgrs,zlvl,                  &
      &                tsea,zorl,cd,cdq,rb,                              &
      &                prsl(1,1),work3,islmsk,                           &
@@ -1215,7 +1270,7 @@
 !           enddo
 !         endif
 
-!         if (lprnt) print *,' tseaz1=',tsea(ipr),' tref=',tref(ipr),   &
+!         if (lprnt) write(0,*)' tseaz1=',tsea(ipr),' tref=',tref(ipr), &
 !    &      ' dt_cool=',dt_cool(ipr),' dt_warm=',2.0*(xt(ipr)/xz(ipr)   &
 !    &      ' dt_cool=',dt_cool(ipr),' dt_warm=',dt_warm(ipr)           &
 !    &,     ' tgrs=',tgrs(ipr,1),' prsl=',prsl(ipr,1)
@@ -1268,14 +1323,16 @@
 
         endif
  
-!       if (lprnt) print *,' sfalb=',sfalb(ipr),' ipr=',ipr             &
+!       if (lprnt) write(0,*)' sfalb=',sfalb(ipr),' ipr=',ipr           &
 !    &,   ' weasd=',weasd(ipr),' snwdph=',snwdph(ipr)                   &
 !    &,   ' tprcp=',tprcp(ipr),' kdt=',kdt,' iter=',iter
+!    &,' tseabefland=',tsea(ipr)
  
 !  --- ...  surface energy balance over land
 !
         if (lsm == 1) then                          ! noah lsm call
 
+!     if (lprnt) write(0,*)' tsead=',tsea(ipr),' tsurf=',tsurf(ipr),iter
           call sfc_drv                                                  &
 !  ---  inputs:
      &     ( im,lsoil,pgr,ugrs,vgrs,tgrs,qgrs,soiltyp,vegtype,sigmaf,   &
@@ -1311,7 +1368,7 @@
 
         endif
 
-!       if (lprnt) print *,' tseabeficemodel =',tsea(ipr),' me=',me     &
+!       if (lprnt) write(0,*)' tseabeficemodel =',tsea(ipr),' me=',me   &
 !    &,   ' kdt=',kdt
 
 !  --- ...  surface energy balance over seaice
@@ -1338,7 +1395,7 @@
           if(islmsk(i) == 1 .and. iter == 1) then
             if (wind(i) < 2.0) flag_iter(i) = .true.
           elseif (islmsk(i) == 0 .and. iter == 1                        &
-     &                           .and. nst_fcst > 1) then
+     &                           .and. nst_fcst > 0) then
             if (wind(i) < 2.0) flag_iter(i) = .true.
           endif
         enddo
@@ -1397,8 +1454,8 @@
           v10mi_cpl(i)     = v10m(i)
           tseai_cpl(i)     = tsea(i)
           psurfi_cpl(i)    = pgr(i)
-          oro_cpl(i)       = oro(i)
-          slmsk_cpl(i)     = slmsk(i)
+!         oro_cpl(i)       = oro(i)
+!         slmsk_cpl(i)     = slmsk(i)
         enddo
 
 !  ---  estimate mean albedo for ocean point without ice cover and apply
@@ -1415,10 +1472,11 @@
      &                       * (xcosz_loc-1.0))
             ocalvisdf_cpl(i) = 0.06
             ocalvisbm_cpl(i) = ocalnirbm_cpl(i)
-            nnirbmi_cpl(i)=adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i)
-            nnirdfi_cpl(i)=adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i)
-            nvisbmi_cpl(i)=adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i)
-            nvisdfi_cpl(i)=adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
+
+            nnirbmi_cpl(i) = adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i)
+            nnirdfi_cpl(i) = adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i)
+            nvisbmi_cpl(i) = adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i)
+            nvisdfi_cpl(i) = adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
           else
             nnirbmi_cpl(i) = adjnirbmd(i) - adjnirbmu(i)
             nnirdfi_cpl(i) = adjnirdfd(i) - adjnirdfu(i)
@@ -1466,9 +1524,9 @@
 
 !  --- ...  Boundary Layer and Free atmospheic turbulence parameterization
 
-!     if (lprnt) print *,' tsea3=',tsea(ipr),' slmsk=',slmsk(ipr)       &
+!     if (lprnt) write(0,*)' tsea3=',tsea(ipr),' slmsk=',slmsk(ipr)     &
 !    &, ' kdt=',kdt,' evap=',evap(ipr)
-!     if (lprnt)  print *,' dtdtb=',dtdt(ipr,:)
+!     if (lprnt)  write(0,*)' dtdtb=',dtdt(ipr,1:10)
 
 !     do i = 1, im
 !       if (islmsk(i) == 0) then
@@ -1478,51 +1536,67 @@
 !       endif
 !     enddo
 
-      if (hybedmf) then
+!     write(0,*)' before monin clstp=',clstp,' kdt=',kdt,' lat=',lat
 
-        call moninedmf(ix,im,levs,nvdiff,ntcw,dvdt,dudt,dtdt,dqdt,      &
-     &     ugrs,vgrs,tgrs,qgrs,swh,hlw,xmu,                             &
-     &     prsik(1,1),rb,zorl,u10m,v10m,ffmm,ffhh,                      &
-     &     tsea,qss,hflx,evap,stress,wind,kpbl,                         &
-     &     prsi,del,prsl,prslk,phii,phil,dtp,dspheat,                   &
-     &     dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,              &
-     &     kinver, xkzm_m, xkzm_h, xkzm_s, lprnt, ipr)
-
-      elseif (.not. old_monin) then
-
-        call moninq(ix,im,levs,nvdiff,ntcw,dvdt,dudt,dtdt,dqdt,         &
-     &     ugrs,vgrs,tgrs,qgrs,swh,hlw,xmu,                             &
-     &     prsik(1,1),rb,ffmm,ffhh,                                     &
-     &     tsea,qss,hflx,evap,stress,wind,kpbl,                         &
-     &     prsi,del,prsl,prslk,phii,phil,dtp,dspheat,                   &
-     &     dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,              &
-     &     kinver, xkzm_m, xkzm_h, xkzm_s, lprnt, ipr)
-
+      if (do_shoc) then
+        call moninshoc(ix,im,levs,ntrac,ntcw,dvdt,dudt,dtdt,dqdt,       &
+     &                 ugrs,vgrs,tgrs,qgrs,phy_f3d(1,1,ntot3d-1),       &  ! tkh
+     &                 prnum,ntke,                                      &
+     &                 prsik(1,1),rb,zorl,u10m,v10m,ffmm,ffhh,          &
+     &                 tsea,hflx,evap,stress,wind,kpbl,                 &
+     &                 prsi,del,prsl,prslk,phii,phil,dtp,               &
+     &                 dusfc1,dvsfc1,dtsfc1,dqsfc1,dkt,hpbl,            &
+     &                 kinver, xkzm_m, xkzm_h, xkzm_s, lprnt, ipr,me)
       else
 
-        if (mstrat) then
-          call moninp1(ix,im,levs,nvdiff,dvdt,dudt,dtdt,dqdt,           &
-     &     ugrs,vgrs,tgrs,qgrs,                                         &
-     &     prsik(1,1),rb,ffmm,ffhh,tsea,qss,hflx,evap,stress,wind,kpbl, &
-     &     prsi,del,prsl,prslk,phii,phil,dtp,                           &
-     &     dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,              &
-     &     kinver, xkzm_m, xkzm_h)
-!    &     kinver, oro_land, ctei_r, ctei_rm, xkzm_m, xkzm_h)
-        else
-          call moninp(ix,im,levs,nvdiff,dvdt,dudt,dtdt,dqdt,            &
-     &     ugrs,vgrs,tgrs,qgrs,                                         &
-     &     prsik(1,1),rb,ffmm,ffhh,tsea,qss,hflx,evap,stress,wind,kpbl, &
-     &     prsi,del,prsl,prslk,phii,phil,dtp,                           &
-     &     dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,xkzm_m,xkzm_h)
-        endif
+        if (hybedmf) then
 
-      endif   ! end if_hybedmf
+          call moninedmf(ix,im,levs,nvdiff,ntcw,dvdt,dudt,dtdt,dqdt,    &
+     &       ugrs,vgrs,tgrs,qgrs,swh,hlw,xmu,                           &
+     &       prsik(1,1),rb,zorl,u10m,v10m,ffmm,ffhh,                    &
+     &       tsea,qss,hflx,evap,stress,wind,kpbl,                       &
+     &       prsi,del,prsl,prslk,phii,phil,dtp,dspheat,                 &
+     &       dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,            &
+     &       kinver, xkzm_m, xkzm_h, xkzm_s, lprnt, ipr)
+
+        elseif (.not. old_monin) then
+
+          call moninq(ix,im,levs,nvdiff,ntcw,dvdt,dudt,dtdt,dqdt,       &
+     &       ugrs,vgrs,tgrs,qgrs,swh,hlw,xmu,                           &
+     &       prsik(1,1),rb,ffmm,ffhh,                                   &
+     &       tsea,qss,hflx,evap,stress,wind,kpbl,                       &
+     &       prsi,del,prsl,prslk,phii,phil,dtp,dspheat,                 &
+     &       dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,            &
+     &       kinver, xkzm_m, xkzm_h, xkzm_s, lprnt, ipr)
+
+        else
+
+          if (mstrat) then
+            call moninp1(ix,im,levs,nvdiff,dvdt,dudt,dtdt,dqdt,         &
+     &       ugrs,vgrs,tgrs,qgrs,                                       &
+     &       prsik(1,1),rb,ffmm,ffhh,tsea,qss,hflx,evap,stress,wind,    &
+     &       kpbl,prsi,del,prsl,prslk,phii,phil,dtp,                    &
+     &       dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,            &
+     &       kinver, xkzm_m, xkzm_h)
+!    &       kinver, oro_land, ctei_r, ctei_rm, xkzm_m, xkzm_h)
+          else
+            call moninp(ix,im,levs,nvdiff,dvdt,dudt,dtdt,dqdt,          &
+     &       ugrs,vgrs,tgrs,qgrs,                                       &
+     &       prsik(1,1),rb,ffmm,ffhh,tsea,qss,hflx,evap,stress,wind,    &
+     &       kpbl,prsi,del,prsl,phii,phil,dtp,                          &
+     &       dusfc1,dvsfc1,dtsfc1,dqsfc1,hpbl,gamt,gamq,dkt,            &
+     &       xkzm_m,xkzm_h)
+          endif
+
+        endif   ! end if_hybedmf
+      endif   ! end if_do_shoc
+
 
 !     if (lprnt) then
 !       write(0,*) ' dusfc1=',dusfc1(ipr),' kdt=',kdt,' lat=',lat
 !       write(0,*)' dtsfc1=',dtsfc1(ipr)
 !       write(0,*)' dqsfc1=',dqsfc1(ipr)
-!       write(0,*)' dtdt=',dtdt(ipr,:)
+!       write(0,*)' dtdt=',dtdt(ipr,1:10)
 !       print *,' dudtm=',dudt(ipr,:)
 !     endif
 
@@ -1540,7 +1614,7 @@
           dqsfci_cpl(i) = dqsfc1(i)
         enddo
       endif
-
+!-------------------------------------------------------lssav if loop ----------
       if (lssav) then
         do i = 1, im
           dusfc(i)  = dusfc(i) + dusfc1(i)*dtf
@@ -1552,10 +1626,10 @@
           dtsfci(i) = dtsfc1(i)
           dqsfci(i) = dqsfc1(i)
         enddo
-!     if (lprnt) then
-!       write(0,*)' dusfc=',dusfc(ipr),' dusfc1=',dusfc1(ipr),' dtf=',
+!       if (lprnt) then
+!         write(0,*)' dusfc=',dusfc(ipr),' dusfc1=',dusfc1(ipr),' dtf=',
 !    &     dtf,' kdt=',kdt,' lat=',lat
-!     endif
+!       endif
 
         if (ldiag3d) then
 
@@ -1606,7 +1680,8 @@
         endif
 
       endif   ! end if_lssav
-
+!-------------------------------------------------------lssav if loop ----------
+!
 !            Orographic gravity wave drag parameterization
 !            ---------------------------------------------
 
@@ -1659,6 +1734,7 @@
 
       endif   ! end if_nmtvr
 
+!     write(0,*)' before gwd clstp=',clstp,' kdt=',kdt,' lat=',lat
       call gwdps(im, ix, im,   levs,  dvdt, dudt, dtdt,                 &
      &           ugrs,   vgrs, tgrs,  qgrs,                             &
      &           kpbl,   prsi, del,   prsl, prslk,                      &
@@ -1714,8 +1790,7 @@
         enddo
       enddo
 
-! idea convective adjustment
-      if( lsidea ) then
+      if( lsidea ) then            ! idea convective adjustment
         call ideaca_up(prsi,gt0,ix,im,levs+1)
       endif
 
@@ -1742,11 +1817,13 @@
 !  --- ...  ozone physics
 
       if (ntoz > 0 .and. ntrac >= ntoz) then
-
+!GFDL! PT - turn off ozone in physics for NGGPS testing 8/25/2015
+!GFDL        if (me == 0 .and. kdt < 5) then
+!GFDL          print *, "OZONE TURNED OFF IN GBPHYS - ozphys not called"
+!GFDL        end if
         call ozphys(ix,im,levs,ko3,dtp,gq0(1,1,ntoz),gq0(1,1,ntoz)      &
      &,             gt0, poz, prsl, prdout, pl_coeff, del, ldiag3d      &
      &,             dq3dt(1,1,6), me)
-
       endif
 
 !  --- ...  to side-step the ozone physics
@@ -1805,7 +1882,7 @@
         enddo
       endif   ! end if_ldiag3d/lgocart
 
-      if (calc_phil == .true.) then
+      if (calc_phil) then
         call get_phi(im,ix,levs,ntrac,gt0,gq0,                            &
      &               thermodyn_id, sfcpress_id,                           &
      &               gen_coord_hybrid,                                    &
@@ -1821,14 +1898,22 @@
         do i = 1, im
           clw(i,k,1) = 0.0
           clw(i,k,2) = -999.9
-          cnvc(i,k)  = 0.0
-          cnvw(i,k)  = 0.0
         enddo
       enddo
+      if (.not. do_shoc) then
+        do k = 1, levs
+          do i = 1, im
+            cnvc(i,k)  = 0.0
+            cnvw(i,k)  = 0.0
+          enddo
+        enddo
+      endif
+
+!     write(0,*)' before cnv clstp=',clstp,' kdt=',kdt,' lat=',lat
 
 !  --- ...  for convective tracer transport (while using ras)
 
-      if (ras) then
+      if (ras .or. cscnv) then
         if (tottracer > 0) then
 
           if (ntoz > 0) then
@@ -1865,10 +1950,8 @@
         kbot(i)  = levs
       enddo
 
-!  --- ...  calling precipitation processes
-!           -------------------------------
-
-!  --- ...  calling convective parameterization
+!  --- ...  calling condensation/precipitation processes
+!           --------------------------------------------
 
       if (ntcw > 0) then
 
@@ -1880,7 +1963,7 @@
           enddo
         enddo
 
-        if (num_p3d == 3) then    ! call brad ferrier's microphysics
+        if (num_p3d == 3) then    !  brad ferrier's microphysics
 
 !  --- ...  algorithm to separate different hydrometeor species
 
@@ -1962,49 +2045,131 @@
 
       endif   ! end if_ntcw
 !
-      if (.not. ras) then
+!        Call SHOC iif do_shoc is true and shocaftcnv is false
+!
+      if (do_shoc .and. .not. shocaftcnv) then
+
+        if (num_p3d == 4) then
+          do k=1,levs
+            do i=1,im
+              qpl(i,k)   = 0.0
+              qpi(i,k)   = 0.0
+              tem = gq0(i,k,ntcw)                                         &
+     &            * max(0.0, MIN(1.0, (TCR-gt0(i,k))*TCRF))
+              clw(i,k,1) = tem                              ! ice
+              clw(i,k,2) = gq0(i,k,ntcw) - tem              ! water
+            enddo
+          enddo
+        endif
+!       dtshoc = 60.0
+!       dtshoc = 120.0
+!       dtshoc = dtp
+!       nshocm = (dtp/dtshoc) + 0.001
+!       dtshoc = dtp / nshocm
+!       do nshoc=1,nshocm
+!      if (lprnt) write(1000+me,*)' before shoc tke=',clw(ipr,:,ntk),
+!    &' kdt=',kdt,' lat=',lat,'xlon=',xlon(ipr),' xlat=',xlat(ipr)
+
+!         call shoc(ix, im, 1, levs, levs+1, dtshoc, me, lat,           &
+          call shoc(ix, im, 1, levs, levs+1, dtp, me, lat,              &
+     &              prsl(1,1), phii(1,1), phil(1,1),                    &
+     &              gu0(1,1),gv0(1,1), vvel(1,1), gt0(1,1), gq0(1,1,1), &
+!    &              clw(1,1,1), clw(1,1,2), qpi, qpl, rhc, shoc_cld(1,1)&
+!    &              clw(1,1,1), clw(1,1,2), qpi, qpl, shoc_cld(1,1)     &
+     &              clw(1,1,1), clw(1,1,2), qpi, qpl,                   &
+!    &              sgs_cld(1:im,1:levs)                                &
+     &              phy_f3d(1,1,ntot3d-2), clw(1,1,ntk), hflx, evap,    &
+     &              prnum, phy_f3d(1,1,ntot3d-1), phy_f3d(1,1,ntot3d),  &
+     &              lprnt, ipr)
+!       do k=1,levs
+!         do i=1,im
+!           sgs_cld(i,k) = sgs_cld(i,k) + shoc_cld(i,k)
+!         enddo
+!       enddo
+
+!      if (lprnt) write(1000+me,*)' after shoc tke=',clw(1,:,ntk),
+!    &' kdt=',kdt
+!       enddo
+!
+!      do k=1,levs
+!      write(1000+me,*)' maxcld=',maxval(sgs_cld(1:im,k)),
+!      write(1000+me,*)' maxtkh=',maxval(phy_f3d(1:im,k,ntot3d-1)),
+!    &' k=',k,' kdt=',kdt,' lat=',lat
+!      enddo
+
+!     write(0,*)' aft shoc gt0=',gt0(1,:),' lat=',lat
+!     write(0,*)' aft shoc gq0=',gq0(1,:,1),' lat=',lat
+!     write(0,*)' aft shoc gu0=',gu0(1,:),' lat=',lat
+!
+      endif   ! if(do_shoc)
+      
+
+!  --- ...  calling convective parameterization
+!
+      if (.not. ras .and. .not. cscnv) then
 
         if (newsas) then             ! no random cloud top
           call sascnvn(im,ix,levs,jcap,dtp,del,prsl,pgr,phil,           &
      &                clw,gq0,gt0,gu0,gv0,cld1d,                        &
      &                rain1,kbot,ktop,kcnv,islmsk,                      &
-     &                vvel,ncld,ud_mf,dd_mf,dt_mf,                      &
-     &                cnvw,cnvc)
+     &                vvel,ncld,ud_mf,dd_mf,dt_mf,cnvw,cnvc)
 !         if (lprnt) print *,' rain1=',rain1(ipr)
         else                         ! random cloud top
           call sascnv(im,ix,levs,jcap,dtp,del,prsl,pgr,phil,            &
      &                clw,gq0,gt0,gu0,gv0,cld1d,                        &
      &                rain1,kbot,ktop,kcnv,islmsk,                      &
-     &                vvel,rann,ncld,ud_mf,dd_mf,dt_mf,                 &
-     &                cnvw,cnvc)
+     &                vvel,rann,ncld,ud_mf,dd_mf,dt_mf,cnvw,cnvc)
 !         if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
         endif
 
       else    ! ras
 
-        if (ccwf(1) >= 0.0 .or. ccwf(2) >= 0 ) then
-          do i=1,im
-            ccwfac(i) = ccwf(1)*work1(i) + ccwf(2)*work2(i)
-            dlqfac(i) = dlqf(1)*work1(i) + dlqf(2)*work2(i)
-            lmh(i)    = levs
+!       if  (lprnt) print *,' calling ras for kdt=',kdt,' me=',me       &
+!    &,                     ' lprnt=',lprnt
+
+        if(cscnv) then    ! Chikira-Sugiyama                            !DD
+           
+!         fscav(:) = 0.0
+!         fswtr(:) = 0.0
+          call cs_convr(                                                & !DD
+     &                  ix      ,im      ,levs    , tottracer+3 ,       & !DD
+     &                  gt0     ,gq0     ,rain1   , clw       ,         & !DD
+     &                  phil    ,phii    ,                              & !DD
+     &                  prsl    ,prsi    ,                              & !DD
+     &                  dtp     ,dtf     ,                              & !DD
+     &                  ud_mf   ,dd_mf   ,dt_mf   ,                     & !DD
+     &                  gu0     ,gv0     ,fscav, fswtr,                 & !DD
+!    &                  phy_fctd, me         )                            !DD & moorthi
+     &                  phy_fctd, me, wcbmax )                            !DD & moorthi
+!    &                  phy_fctd     )                                    !DD
+          do i = 1,im                                                     !DD
+             rain1(i) = rain1(i) * (dtp*0.001)                            !DD
           enddo
         else
-          do i=1,im
-            ccwfac(i) = -999.0
-            dlqfac(i) = 0.0
-            lmh(i)    = levs
-          enddo
-        endif
-!       if  (lprnt) write(0,*) ' calling ras for kdt=',kdt,' me=',me    &
-!    &,                     ' lprnt=',lprnt,' ccwfac=',ccwfac(ipr)
+          if (ccwf(1) >= 0.0 .or. ccwf(2) >= 0 ) then
+            do i=1,im
+              ccwfac(i) = ccwf(1)*work1(i) + ccwf(2)*work2(i)
+              dlqfac(i) = dlqf(1)*work1(i) + dlqf(2)*work2(i)
+              lmh(i)    = levs
+            enddo
+          else
+            do i=1,im
+              ccwfac(i) = -999.0
+              dlqfac(i) = 0.0
+              lmh(i)    = levs
+            enddo
+          endif
+!         if  (lprnt) write(0,*) ' calling ras for kdt=',kdt,' me=',me    &
+!    &,                       ' lprnt=',lprnt,' ccwfac=',ccwfac(ipr)
 
-        call rascnv(im,     ix,    levs,   dtp, dtf, rann               &
-     &,             gt0,    gq0,   gu0,    gv0, clw, tottracer          &
-     &,             prsi,   prsl,   prsik,  prslk, phil,  phii          &
-     &,             kpbl,   cd,     rain1,  kbot,  ktop,  kcnv          &
-     &,             phy_f2d(1,num_p2d), flipv, pa2mb                    &
-     &,             me, garea, lmh, ccwfac, nrcm, rhc                   &
-     &,             ud_mf, dd_mf, dt_mf, dlqfac, lprnt, ipr, kdt,fscav)
+          call rascnv(im,    ix,    levs,   dtp, dtf, rann                &
+     &,               gt0,    gq0,   gu0,    gv0, clw, tottracer, fscav   &
+     &,               prsi,   prsl,   prsik,  prslk, phil,  phii          &
+     &,               kpbl,   cd,     rain1,  kbot,  ktop,  kcnv          &
+     &,               phy_f2d(1,num_p2d), flipv, pa2mb                    &
+     &,               me, garea, lmh, ccwfac, nrcm, rhc                   &
+     &,               ud_mf, dd_mf, dt_mf, dlqfac, lprnt, ipr, kdt)
+        endif
 
         cld1d = 0
 
@@ -2015,13 +2180,13 @@
               dwn_mf(i,k)  = dwn_mf(i,k)  + dd_mf(i,k) * frain
               det_mf(i,k)  = det_mf(i,k)  + dt_mf(i,k) * frain
               cnvqc_v(i,k) = cnvqc_v(i,k) + (clw(i,k,1)+clw(i,k,2)-     &
-     &                                       gq0(i,k,ntcw)) * frain
+     &                                         gq0(i,k,ntcw)) * frain
             enddo
           enddo
         endif ! if (lgocart)
 
 !  --- ...  update the tracers due to convective transport
-
+  
         if (tottracer > 0) then
           if (ntoz > 0) then                         ! for ozone
             do k=1,levs
@@ -2084,21 +2249,29 @@
         if (lgocart) then
           do k = 1, levs
             do i = 1, im
-              dqdt_v(i,k)  = (gq0(i,k,1)-dqdt(i,k,1)) * frain
+              dqdt_v(i,k)  = (gq0(i,k,1)-dqdt(i,k,1))  * frain
+              upd_mf(i,k)  = upd_mf(i,k)  + ud_mf(i,k) * frain
+              dwn_mf(i,k)  = dwn_mf(i,k)  + dd_mf(i,k) * frain
+              det_mf(i,k)  = det_mf(i,k)  + dt_mf(i,k) * frain
+              cnvqc_v(i,k) = cnvqc_v(i,k) + (clw(i,k,1)+clw(i,k,2))
+     &                                                        *frain
             enddo
           enddo
         endif ! if (lgocart)
 !
       if( npdf3d == 3  .and. num_p3d == 4 ) then
         num2 = num_p3d + 2
-        num3 = num_p3d + 3
+        num3 = num2 + 1
         do k = 1, levs
           do i = 1, im
             phy_f3d(i,k,num2) = cnvw(i,k)
             phy_f3d(i,k,num3) = cnvc(i,k)
           enddo
         enddo
-      endif
+      endif 
+
+!     write(0,*)' cnvgwd moninshobl clstp=',clstp,' kdt=',kdt,
+!    &         ' lat=',lat
 !
       if (cnvgwd) then         !        call convective gravity wave drag
 
@@ -2281,6 +2454,9 @@
 
       endif   ! end if_cnvgwd (convective gravity wave drag)
 
+!     write(0,*)' after cnvgwd  clstp=',clstp,' kdt=',kdt,
+!    &         ' lat=',lat
+
       if (ldiag3d) then
         do k = 1, levs
           do i = 1, im
@@ -2297,97 +2473,173 @@
         enddo
       endif
 
-      if (shal_cnv) then               ! Shallow convection parameterization
-!                                        -----------------------------------
-        if (sashal) then               ! opr option now at 2014
-                                       !-----------------------
-          call shalcnv(im,ix,levs,jcap,dtp,del,prsl,pgr,phil,           &
-     &                 clw,gq0,gt0,gu0,gv0,                             &
-     &                 rain1,kbot,ktop,kcnv,islmsk,                     &
-     &                 vvel,ncld,hpbl,hflx,evap,ud_mf,dt_mf,            &
-     &                 cnvw,cnvc)
+!     write(0,*)' before do_shoc shal clstp=',clstp,' kdt=',kdt,
+!    &         ' lat=',lat
 
-          if (shcnvcw .and. num_p3d == 4 .and. npdf3d == 3 ) then
+      if (.not. do_shoc) then
+
+        if (shal_cnv) then               ! Shallow convection parameterization
+!                                        -----------------------------------
+          if (sashal) then               ! opr option now at 2014
+                                         !-----------------------
+            call shalcnv(im,ix,levs,dtp,del,prsl,pgr,phil,              &
+     &                   clw,gq0,gt0,gu0,gv0,                           &
+     &                   kbot,ktop,kcnv,islmsk,                         &
+     &                   vvel,ncld,hpbl,hflx,evap,ud_mf,dt_mf,          &
+     &                   cnvw,cnvc)
+
+            if (shcnvcw .and. num_p3d == 4 .and. npdf3d == 3 ) then
+              do k = 1, levs
+                do i = 1, im
+                  phy_f3d(i,k,num2) = cnvw(i,k)
+                  phy_f3d(i,k,num3) = cnvc(i,k)
+!???              phy_f3d(i,k,num2) = phy_f3d(i,k,num2) + cnvw(i,k)
+!???              phy_f3d(i,k,num3) = phy_f3d(i,k,num3) + cnvc(i,k)
+                enddo
+              enddo
+            endif
+!           do i = 1, im
+!             raincs(i) = frain    * rain1(i)
+!             rainc(i)  = rainc(i) + raincs(i)
+!           enddo
+!           if (lssav) then
+!             do i = 1, im
+!               cnvprcp(i) = cnvprcp(i) + raincs(i)
+!             enddo
+!           endif
+
+          else                           ! modified Tiedtke Shallow convecton
+                                         !-----------------------------------
+            do i = 1, im
+              levshc(i) = 0
+            enddo
+            do k = 2, levs
+              do i = 1, im
+                if (prsi(i,1)-prsi(i,k) <= dpshc(i)) levshc(i) = k
+              enddo
+            enddo
+            levshcm = 1
+            do i = 1, im
+              levshcm = max(levshcm, levshc(i))
+            enddo
+
+!           if (lprnt) print *,' levshcm=',levshcm,' gt0sh=',gt0(ipr,:)
+!    &,    ' lat=',lat
+
+            if (mstrat) then             !  As in CFSv2
+              call shalcv(im,ix,levshcm,dtp,del,prsi,prsl,prslk,kcnv,   &
+     &                    gq0,gt0,levshc,phil,kinver,ctei_r,ctei_rml    &
+     &,                                                    lprnt,ipr)
+            else
+              call shalcvt3(im,ix,levshcm,dtp,del,prsi,prsl,prslk,      &
+     &                      kcnv,gq0,gt0)
+            endif
+!           if (lprnt) print *,' levshcm=',levshcm,' gt0sha=',gt0(ipr,:)
+
+          endif   ! end if_sashal
+        endif     ! end if_shal_cnv
+
+        if (lssav) then
+!          update dqdt_v to include moisture tendency due to shallow convection
+          if (lgocart) then
             do k = 1, levs
               do i = 1, im
-                phy_f3d(i,k,num2) = cnvw(i,k)
-                phy_f3d(i,k,num3) = cnvc(i,k)
-!???            phy_f3d(i,k,num2) = phy_f3d(i,k,num2) + cnvw(i,k)
-!???            phy_f3d(i,k,num3) = phy_f3d(i,k,num3) + cnvc(i,k)
+                tem         = (gq0(i,k,1)-dqdt(i,k,1)) * frain
+                dqdt_v(i,k) = dqdt_v(i,k)  + tem
               enddo
             enddo
           endif
-          do i = 1, im
-            raincs(i) = frain    * rain1(i)
-            rainc(i)  = rainc(i) + raincs(i)
-          enddo
-          if (lssav) then
-            do i = 1, im
-              cnvprcp(i) = cnvprcp(i) + raincs(i)
+          if (ldiag3d) then
+            do k = 1, levs
+              do i = 1, im
+                dt3dt(i,k,5) = dt3dt(i,k,5) + (gt0(i,k)-dtdt(i,k))
+     &                                                          * frain
+                dq3dt(i,k,3) = dq3dt(i,k,3) + (gq0(i,k,1)-dqdt(i,k,1))  &
+     &                                                          * frain
+                dtdt(i,k)   = gt0(i,k)
+                dqdt(i,k,1) = gq0(i,k,1)
+              enddo
             enddo
           endif
-
-        else                           ! modified Tiedtke Shallow convecton
-                                       !-----------------------------------
+        endif   ! end if_lssav
+!
+        do k = 1, levs
           do i = 1, im
-            levshc(i) = 0
+            if (clw(i,k,2) <= -999.0) clw(i,k,2) = 0.0
           enddo
-          do k = 2, levs
-            do i = 1, im
-              if (prsi(i,1)-prsi(i,k) <= dpshc(i)) levshc(i) = k
-            enddo
-          enddo
-          levshcm = 1
-          do i = 1, im
-            levshcm = max(levshcm, levshc(i))
-          enddo
-
-!         if (lprnt) print *,' levshcm=',levshcm,' gt0sh=',gt0(ipr,:)
-!    &,  ' lat=',lat
-
-          if (mstrat) then             !  As in CFSv2
-            call shalcv(im,ix,levshcm,dtp,del,prsi,prsl,prslk,kcnv,     &
-     &                  gq0,gt0,levshc,phil,kinver,ctei_r,ctei_rml      &
-     &,                                                  lprnt,ipr)
-          else
-            call shalcvt3(im,ix,levshcm,dtp,del,prsi,prsl,prslk,        &
-     &                    kcnv,gq0,gt0)
-          endif
-!         if (lprnt) print *,' levshcm=',levshcm,' gt0sha=',gt0(ipr,:)
-
-        endif   ! end if_sashal
-      endif     ! end if_shal_cnv
-
-      if (lssav) then
-!        update dqdt_v to include moisture tendency due to shallow convection
-        if (lgocart) then
-          do k = 1, levs
-            do i = 1, im
-              tem         = (gq0(i,k,1)-dqdt(i,k,1)) * frain
-              dqdt_v(i,k) = dqdt_v(i,k)  + tem
-            enddo
-          enddo
-        endif
-        if (ldiag3d) then
-          do k = 1, levs
-            do i = 1, im
-              dt3dt(i,k,5) = dt3dt(i,k,5) + (gt0(i,k)-dtdt(i,k)) * frain
-              dq3dt(i,k,3) = dq3dt(i,k,3) + (gq0(i,k,1)-dqdt(i,k,1))    &
-     &                                                           * frain
-              dtdt(i,k)   = gt0(i,k)
-              dqdt(i,k,1) = gq0(i,k,1)
-            enddo
-          enddo
-        endif
-      endif   ! end if_lssav
-
-      do k = 1, levs
-        do i = 1, im
-          if (clw(i,k,2) <= -999.0) clw(i,k,2) = 0.0
         enddo
-      enddo
+
+!       if (lprnt) then
+!         write(0,*)' prsl=',prsl(ipr,:)
+!         write(0,*) ' del=',del(ipr,:)
+!         write(0,*) ' befshgt0=',gt0(ipr,:)
+!         write(0,*) ' befshgq0=',gq0(ipr,:,1)
+!       endif
+
+      elseif (shocaftcnv) then ! if do_shoc is true and shocaftcnv is true call shoc
+
+        if (clw(1,1,2) < -999.0) then ! if clw is not partitioned to ice and water
+          do k=1,levs
+            do i=1,im
+              tem = gq0(i,k,ntcw)                                       &
+     &            * max(0.0, MIN(1.0, (TCR-gt0(i,k))*TCRF))
+              clw(i,k,1) = tem                              ! ice
+              clw(i,k,2) = gq0(i,k,ntcw) - tem              ! water
+            enddo
+          enddo
+        endif
+        do k=1,levs
+          do i=1,im
+            qpl(i,k)   = 0.0
+            qpi(i,k)   = 0.0
+          enddo
+        enddo
+!       dtshoc = 60.0
+!       nshocm = (dtp/dtshoc) + 0.001
+!       dtshoc = dtp / nshocm
+!       do nshoc=1,nshocm
+!       call shoc(im, 1, levs, levs+1, dtp, me, lat,        &
+!!       call shoc(im, 1, levs, levs+1, dtshoc, me, lat, &
+!    &                       prsl(1:im,:), phii (1:im,:),  phil(1:im,:),&
+!    &          gu0(1:im,:),gv0(1:im,:), vvel(1:im,:), gt0(1:im,:),     &
+!    &                                                   gq0(1:im,:,1), &
+!    &          clw(1:im,:,1), clw(1:im,:,2), qpi, qpl,  sgs_cld(1:im,:)&
+!    &,         gq0(1:im,:,ntke),                                       &
+!    &          phy_f3d(1:im,:,ntot3d-1), phy_f3d(1:im,:,ntot3d),       &
+!    &          lprnt, ipr,                                             &
+!    &          con_cp, con_g, con_hvap, con_hfus, con_hvap+con_hfus,   &
+!    &          con_rv, con_rd, con_pi, con_fvirt)
+
+!       call shoc(ix, im, 1, levs, levs+1, dtshoc, me, lat,             &
+        call shoc(ix, im, 1, levs, levs+1, dtp, me, lat,                &
+     &            prsl(1,1), phii(1,1), phil(1,1),                      &
+     &            gu0(1,1),gv0(1,1), vvel(1,1), gt0(1,1), gq0(1,1,1),   &
+     &            clw(1,1,1), clw(1,1,2), qpi, qpl,                     &
+     &            phy_f3d(1,1,ntot3d-2),  gq0(1,1,ntke),hflx,evap,      &
+     &            prnum, phy_f3d(1,1,ntot3d-1), phy_f3d(1,1,ntot3d),    &
+     &            lprnt, ipr)
+!
+!      do k=1,levs
+!      write(1000+me,*)' maxtkh=',maxval(phy_f3d(1:im,k,ntot3d-1)),
+!    &' k=',k,' kdt=',kdt,' lat=',lat
+!      enddo
+
+!     write(0,*)' aft shoc gt0=',gt0(1,:),' lat=',lat
+!     write(0,*)' aft shoc gq0=',gq0(1,:,1),' lat=',lat
+!     write(0,*)' aft shoc gu0=',gu0(1,:),' lat=',lat
+!
+      endif   ! if( .not. do_shoc)
+!
+!       if (lprnt) then
+!         write(0,*)' prsl=',prsl(ipr,:)
+!         write(0,*) ' del=',del(ipr,:)
+!         write(0,*) ' aftshgt0=',gt0(ipr,:)
+!         write(0,*) ' aftshgq0=',gq0(ipr,:,1)
+!       endif
 
       if (ntcw > 0) then
+
+!     microphysics
 
         if (num_p3d == 3) then    ! call brad ferrier's microphysics
 
@@ -2438,6 +2690,7 @@
 
       endif   ! end if_ntcw
 
+!     write(0,*)' bef cnvc90 clstp=',clstp,' kdt=',kdt,' lat=',lat
       call cnvc90(clstp, im,   ix,   rainc, kbot, ktop, levs, prsi,     &
      &            acv,   acvb, acvt, cv,    cvb,  cvt)
 
@@ -2573,24 +2826,47 @@
         elseif (num_p3d == 4) then  ! call zhao/carr/sundqvist microphysics
 
           if (npdf3d /= 3) then               ! without pdf clouds
-                                              ! ------------------
-            call gscond(im, ix, levs, dtp, dtf, prsl, pgr,              &
-     &                  gq0(1,1,1), gq0(1,1,ntcw), gt0,                 &
-     &                  phy_f3d(1,1,1), phy_f3d(1,1,2), phy_f2d(1,1),   &
-     &                  phy_f3d(1,1,3), phy_f3d(1,1,4), phy_f2d(1,2),   &
-     &                  rhc,lprnt, ipr)
 
-            call precpd(im, ix, levs, dtp, del, prsl, pgr,              &
-     &                  gq0(1,1,1), gq0(1,1,ntcw), gt0, rain1, sr,      &
-     &                  rainp, rhc, psautco_l, prautco_l, evpco, wminco,&
-     &                  lprnt, ipr)
+!           if (lprnt) then
+!             write(0,*)' prsl=',prsl(ipr,:)
+!             write(0,*) ' del=',del(ipr,:)
+!             write(0,*) ' beflsgt0=',gt0(ipr,:),' kdt=',kdt
+!             write(0,*) ' beflsgq0=',gq0(ipr,:,1),' kdt=',kdt
+!           endif
+                                              ! ------------------
+            if (do_shoc) then
+              call precpd_shoc(im, ix, levs, dtp, del, prsl,            &
+     &                    gq0(1,1,1), gq0(1,1,ntcw), gt0, rain1, sr,    &
+     &                    rainp, rhc, psautco_l, prautco_l, evpco,      &
+     &                    wminco, phy_f3d(1,1,ntot3d-2), lprnt, ipr)
+!    &                    wminco, sgs_cld(1:im,1:levs), lprnt, ipr)
+!    &                    wminco, shoc_cld, lprnt, ipr)
+            else
+              call gscond(im, ix, levs, dtp, dtf, prsl, pgr,            &
+     &                    gq0(1,1,1), gq0(1,1,ntcw), gt0,               &
+     &                    phy_f3d(1,1,1), phy_f3d(1,1,2), phy_f2d(1,1), &
+     &                    phy_f3d(1,1,3), phy_f3d(1,1,4), phy_f2d(1,2), &
+     &                    rhc,lprnt, ipr)
+
+              call precpd(im, ix, levs, dtp, del, prsl,                 &
+     &                    gq0(1,1,1), gq0(1,1,ntcw), gt0, rain1, sr,    &
+     &                    rainp, rhc, psautco_l, prautco_l, evpco,      &
+     &                    wminco, lprnt, ipr)
+            endif
+!           if (lprnt) then
+!             write(0,*)' prsl=',prsl(ipr,:)
+!             write(0,*) ' del=',del(ipr,:)
+!             write(0,*) ' aftlsgt0=',gt0(ipr,:),' kdt=',kdt
+!             write(0,*) ' aftlsgq0=',gq0(ipr,:,1),' kdt=',kdt
+!           endif
           else                                ! with pdf clouds
                                               ! ---------------
             call gscondp(im, ix, levs, dtp, dtf, prsl, pgr,             &
      &                  gq0(1,1,1), gq0(1,1,ntcw), gt0,                 &
      &                  phy_f3d(1,1,1), phy_f3d(1,1,2), phy_f2d(1,1),   &
      &                  phy_f3d(1,1,3), phy_f3d(1,1,4), phy_f2d(1,2),   &
-     &                  rhc,phy_f3d(1,1,num_p3d+1),sup,lprnt,ipr,kdt)
+     &                  rhc,phy_f3d(1,1,num_p3d+1),sup,lprnt,           &
+     &                  ipr,kdt)
 
             call precpdp(im, ix, levs, dtp, del, prsl, pgr,             &
      &                  gq0(1,1,1), gq0(1,1,ntcw), gt0, rain1,sr,       &
@@ -2624,8 +2900,8 @@
 
         call calpreciptype(kdt,nrcm,im,ix,levs,levs+1,rann,
      &                     xlat,xlon,gt0,gq0,prsl,prsi,rain,
-     &                     phii,num_p3d,tsea,sr,phy_f3d(1,1,3),    ! input
-     &                     domr,domzr,domip,doms)                  ! output
+     &                     phii,num_p3d,tsea,sr,phy_f3d(1,1,3),             ! input
+     &                     domr,domzr,domip,doms)                           ! output
 
 !
 !        if (lprnt) print*,'debug calpreciptype: DOMR,DOMZR,DOMIP,DOMS '
@@ -2799,6 +3075,9 @@
         endif
 
         do i = 1, im
+!     if (lat == 45 .and. i == 1) write(1000+me,*)' pwatb=',pwat(1),
+!    &' kdt=',kdt,'del=',del(1,k),' gq0=',gq0(1,k,1),' work1=',
+!    &work1(1a,' k=',k
           pwat(i) = pwat(i) + del(i,k)*(gq0(i,k,1)+work1(i))
           rqtk(i) = rqtk(i) + del(i,k)*(gq0(i,k,1)-qgrs(i,k,1))
         enddo
@@ -2809,11 +3088,21 @@
 !       rqtk(i) = rqtk(i) * work2(i)
       enddo
 !
+!     if (lat == 45) write(1000+me,*)' pwat=',pwat(1),' kdt=',kdt
+!       if (lprnt) then
+!         write(0,*) ' endgt0=',gt0(ipr,:),' kdt=',kdt
+!         write(0,*) ' endgq0=',gq0(ipr,:,1),' kdt=',kdt
+!       endif
       deallocate (clw)
-      deallocate (cnvc)
-      deallocate (cnvw)
+      if (do_shoc) then
+        deallocate (qpl, qpi)
+      else
+        deallocate (cnvc, cnvw)
+      endif
+!     deallocate (fscav, fswtr)
 !
 !     if (lprnt) call mpi_quit(7)
+!     if (kdt >300 ) call mpi_quit(7)
 
       return
 !...................................

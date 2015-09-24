@@ -101,9 +101,9 @@
 ! ............................................. !
       integer, save :: isolar  = 0      ! solar constant scheme control flag
 
-      character, save :: solar_file*26  ! external solar constant data table
+      character, save :: solar_file*32  ! external solar constant data table
 !     data solar_file   / 'solarconstantdata.txt     ' /
-      data solar_file   / 'solarconstant_noaa_a0.txt ' /
+      data solar_file   / 'INPUT/solarconstant_noaa_a0.txt ' /
 
 ! ............................................. !
 !  -2.2- for module radiation_aerosols          !
@@ -117,7 +117,7 @@
 
       character, save :: aeros_file*26  ! external aerosols data file
 !     data aeros_file   / 'climaeropac_global.txt    ' /
-      data aeros_file   / 'aerosol.dat               ' /
+      data aeros_file   / 'INPUT/aerosol.dat         ' /
 
 ! ............................................. !
 !  -2.3- for module radiation_gases             !
@@ -126,14 +126,14 @@
       integer, save :: ictmflg = 0      ! external data time/date control flag
       integer, save :: ioznflg = 1      ! ozone data source control flag
 
-      character, save :: co2dat_file*26 ! external co2 2d monthly obsv data table
-      character, save :: co2gbl_file*26 ! external co2 global annual mean data tb
-      character, save :: co2usr_file*26 ! external co2 user defined data table
-      character, save :: co2cyc_file*26 ! external co2 clim monthly cycle data tb
-      data co2dat_file   / 'co2historicaldata_2004.txt' /   !year is run-time selected
-      data co2gbl_file   / 'co2historicaldata_glob.txt' /
-      data co2usr_file   / 'co2userdata.txt           ' /
-      data co2cyc_file   / 'co2monthlycyc.txt         ' /
+      character, save :: co2dat_file*32 ! external co2 2d monthly obsv data table
+      character, save :: co2gbl_file*32 ! external co2 global annual mean data tb
+      character, save :: co2usr_file*32 ! external co2 user defined data table
+      character, save :: co2cyc_file*32 ! external co2 clim monthly cycle data tb
+      data co2dat_file   / 'INPUT/co2historicaldata_2004.txt' /   !year is run-time selected
+      data co2gbl_file   / 'INPUT/co2historicaldata_glob.txt' /
+      data co2usr_file   / 'INPUT/co2userdata.txt           ' /
+      data co2cyc_file   / 'INPUT/co2monthlycyc.txt         ' /
 
 ! ............................................. !
 !  -2.4- for module radiation_clouds            !

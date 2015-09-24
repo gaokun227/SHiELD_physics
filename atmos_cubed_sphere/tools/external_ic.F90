@@ -767,7 +767,7 @@ contains
 
         ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
         zs = zs*grav
-        Atm(n)%phis = max(Atm(n)%phis*grav, 0.0)
+        Atm(n)%phis = Atm(n)%phis*grav
         
         if (ncep_terrain .and. ncep_plevels) then
           ! no vertical remapping necessary, store data into Atm(:)
@@ -777,7 +777,7 @@ contains
           Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
           Atm(n)%ps  (is:ie,js:je) = ps(is:ie,js:je)
-          Atm(n)%phis(is:ie,js:je) = max(zs(is:ie,js:je),0.0)
+          Atm(n)%phis(is:ie,js:je) = zs(is:ie,js:je)
           Atm(n)%delp(is:ie,js:je,1:npz) = dp  (is:ie,js:je,itoa:levp)
           Atm(n)%pt  (is:ie,js:je,1:npz) = t   (is:ie,js:je,itoa:levp)
           Atm(n)%ua  (is:ie,js:je,1:npz) = ua  (is:ie,js:je,itoa:levp)

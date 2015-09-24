@@ -944,7 +944,14 @@ contains
        Statein(nb)%tracer(ix,1:npz,1:nq) = Atm(mytile)%q(i,j,npz:1:-1,:)
        Statein(nb)%tracer(ix,1:npz,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz:1:-1,:)
        !-- level geopotential height
-       Statein(nb)%phii(ix,1) = Atm(mytile)%phis(i,j)
+!
+!RAB
+!RAB --- this is a tempporary fix to an issue where lakes/black sea can have geopotential .lt. 0
+!RAB --- negative geopotential causes issues in GFS physics sfc_diff - log(phil) 
+!RAB --- waiting on a fix from Laura Fowler/Michael Duda
+       Statein(nb)%phii(ix,1) = max(Atm(mytile)%phis(i,j),0.0)
+!RAB
+!
        do k = 1, npz
          Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz-k+1)
        enddo

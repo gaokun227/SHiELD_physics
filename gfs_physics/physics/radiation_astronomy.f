@@ -101,7 +101,7 @@
 !  ---  module variables (to be set in subr sol_init):
       real (kind=kind_phys), public    :: solc0 = con_solr
       integer   :: isolflg = 10
-      character(26) :: solar_fname = ' '
+      character(32) :: solar_fname = ' '
 
 !  ---  module variables (to be set in subr sol_update):
       real (kind=kind_phys) :: sollag=0.0   ! equation of time
@@ -209,7 +209,7 @@
           endif
         endif
       elseif ( isolar == 2 ) then        ! noaa ann-mean tsi in tim scale
-        solar_fname(15:26) = 'noaa_an.txt'
+        solar_fname(21:32) = 'noaa_an.txt'
 
         if ( me == 0 ) then
           print *,' - Using NOAA annual mean TSI table in TIM scale',   &
@@ -387,6 +387,7 @@
           inquire (file=solar_fname, exist=file_exist)
           if ( .not. file_exist ) then
             print *,' !!! ERROR! Can not find solar constant file!!!'
+            print *, solar_fname
             stop
           else
             iyr = iyear

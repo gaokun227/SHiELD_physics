@@ -34,7 +34,7 @@
       end module sfccyc_module
       subroutine sfccycle(lugb,len,lsoil,sig1t,deltsfc
      &,                   iy,im,id,ih,fh
-     &,                   rla, rlo, slmask,orog,orog_uf,use_ufo
+     &,                   rla, rlo, slmask,orog,orog_uf,use_ufo,nst_anl
 !cwu [+1l] add sihfcs and sicfcs
      &,                   sihfcs,sicfcs,sitfcs                 
 !clu [+2l] add swd, slc, vmn, vmx, slp, abs
@@ -48,7 +48,7 @@
       use machine , only : kind_io8,kind_io4
       use sfccyc_module
       implicit none
-      logical use_ufo
+      logical use_ufo, nst_anl
       real (kind=kind_io8) sllnd,slsea,aicice,aicsea,tgice,rlapse,
      &                     orolmx,orolmn,oroomx,oroomn,orosmx,
      &                     orosmn,oroimx,oroimn,orojmx,orojmn,
@@ -1503,7 +1503,7 @@
 !    unfiltered orography (for lakes).  if the analysis is at lake surface
 !    as in the nst model, then this call should be removed - moorthi 09/23/2011
 !
-        if (use_ufo) then
+        if (use_ufo .and. .not. nst_anl) then
           ztsfc = 0.0
           call tsfcor(tsfanl,orog_uf,slmask,ztsfc,len,rlapse)
         endif
@@ -1622,7 +1622,7 @@
      &              snojmx,snojmn,snosmx,snosmn,epssno,
      &              rla,rlo,len,kqcm,percrit,lgchek,me)
         call getscv(snoanl,scvanl,len)
-        call qcmxmn('sncva'   ,scvanl,slianl,snoanl,icefl1,
+        call qcmxmn('sncva   ',scvanl,slianl,snoanl,icefl1,
      &              scvlmx,scvlmn,scvomx,scvomn,scvimx,scvimn,
      &              scvjmx,scvjmn,scvsmx,scvsmn,epsscv,
      &              rla,rlo,len,kqcm,percrit,lgchek,me)
@@ -2073,11 +2073,14 @@
 !
 !     if(lprnt) print *,'tsfclm=',tsfclm(iprnt),' tsfcl2=',tsfcl2(iprnt)
 !    *,' tsffcs=',tsffcs(iprnt),' slianl=',slianl(iprnt)
-      do i=1,len
-        if(slianl(i) .eq. 0.0) then
-          tsffcs(i)=tsffcs(i) + (tsfclm(i) - tsfcl2(i))
-        endif
-      enddo
+
+      if (fh > 0.0) then
+        do i=1,len
+          if(slianl(i) == 0.0) then
+            tsffcs(i) = tsffcs(i) + (tsfclm(i) - tsfcl2(i))
+          endif
+        enddo
+      endif
 !
 !  quality control analysis using forecast guess
 !
@@ -2100,7 +2103,7 @@
 !  merge analysis and forecast.  note tg3, ais are not merged
 !
 
-      call merge(len,lsoil,iy,im,id,ih,fh,
+      call merge(len,lsoil,iy,im,id,ih,fh,deltsfc,
 !cwu [+1l] add ()fcs for sih, sic
      &           sihfcs,sicfcs,
 !clu [+1l] add ()fcs for vmn, vmx, slp, abs
@@ -2736,13 +2739,16 @@
       jmsk = ydata
 
       if (me .eq. 0) then
-      write(6,*)' imsk=',imsk,' jmsk=',jmsk,' xdata=',xdata,' ydata='
-     &,ydata
+        write(6,*)' imsk=',imsk,' jmsk=',jmsk,' xdata=',xdata,' ydata='
+     &,             ydata
       endif
+
       call fixrdg(lugb,imsk,jmsk,fnmskh,
      &            kpds5,slmskh,gausm,blnmsk,bltmsk,me)
-      print *,'in sfc_sub, aft fixrdg,slmskh=',maxval(slmskh),
-     &  minval(slmskh),'mdata=',mdata,'imsk*jmsk=',imsk*jmsk
+
+!     print *,'in sfc_sub, aft fixrdg,slmskh=',maxval(slmskh),
+!    &  minval(slmskh),'mdata=',mdata,'imsk*jmsk=',imsk*jmsk
+
       do i=1,imsk*jmsk
          slmskh(i) = nint(slmskh(i))
       enddo
@@ -3795,13 +3801,13 @@
 !
 ! tsf
 !
-      irttsf=0
+      irttsf = 1
       if(fntsfa(1:8).ne.'        ') then
         call fixrda(lugb,fntsfa,kpdtsf,slmask,
      &             iy,im,id,ih,fh,tsfanl,len,iret
      &,            imsk, jmsk, slmskh, gaus,blno, blto
      &,            outlat, outlon, me)
-        irttsf=iret
+        irttsf = iret
         if(iret.eq.1) then
           write(6,*) 't surface analysis read error'
           call abort
@@ -4632,7 +4638,7 @@
       enddo
       return
       end
-      subroutine merge(len,lsoil,iy,im,id,ih,fh,
+      subroutine merge(len,lsoil,iy,im,id,ih,fh,deltsfc,
 !cwu [+1l] add sihfcs & sicfcs
      &                 sihfcs,sicfcs,
 !clu [+1l] add ()fcs for vmn, vmx, slp, abs
@@ -4684,9 +4690,9 @@
      &                     qvetl,rtsfl,calbs,caiss,ctsfs,czorl,cvegl,
      &                     csnos,ccvb,ccvt,ccv,czors,cvegs,caisl,csnol,
      &                     calbl,fh,ctsfl,ccnp,csots,calfl,csotl,cvetl,
-     &                     cvets,calfs
+     &                     cvets,calfs,deltsfc,
 !cwu [+3l] add c(), q(), r() for sih, sic
-     &,                    csihl,csihs,csicl,csics,
+     &                     csihl,csihs,csicl,csics,
      &                     rsihl,rsihs,rsicl,rsics,
      &                     qsihl,qsihs,qsicl,qsics
 !clu [+4l] add c(), q(), r() for vmn, vmx, slp, abs
@@ -4797,29 +4803,39 @@
         rstcl(k) = cstcl(k)
         rstcs(k) = cstcs(k)
       enddo
+      if (fh-deltsfc < -0.001 .and. irttsf == 1) then
+        rtsfs = 1.0
+        rtsfl = 1.0
+!       do k=1,lsoil
+!         rsmcl(k) = 1.0
+!         rsmcs(k) = 1.0
+!         rstcl(k) = 1.0
+!         rstcs(k) = 1.0
+!       enddo
+      endif
 !
 !  if analysis file name is given but no matching analysis date found,
 !  use guess (these are flagged by irt???=1).
 !
-      if(irttsf.eq.-1) then
+      if(irttsf == -1) then
         rtsfl = 1.
         rtsfs = 1.
       endif
-      if(irtalb.eq.-1) then
+      if(irtalb == -1) then
         ralbl = 1.
         ralbs = 1.
         ralfl = 1.
         ralfs = 1.
       endif
-      if(irtais.eq.-1) then
+      if(irtais == -1) then
         raisl = 1.
         raiss = 1.
       endif
-      if(irtsno.eq.-1.or.irtscv.eq.-1) then
+      if(irtsno == -1 .or. irtscv == -1) then
         rsnol = 1.
         rsnos = 1.
       endif
-      if(irtsmc.eq.-1.or.irtwet.eq.-1) then
+      if(irtsmc == -1 .or. irtwet == -1) then
 !       rsmcl = 1.
 !       rsmcs = 1.
         do k=1,lsoil
@@ -4833,11 +4849,11 @@
           rstcs(k) = 1.
         enddo
       endif
-      if(irtzor.eq.-1) then
+      if(irtzor == -1) then
         rzorl = 1.
         rzors = 1.
       endif
-      if(irtveg.eq.-1) then
+      if(irtveg == -1) then
         rvegl = 1.
         rvegs = 1.
       endif
@@ -4845,44 +4861,44 @@
         rvetl = 1.
         rvets = 1.
       endif
-      if(irtsot.eq.-1) then
+      if(irtsot == -1) then
         rsotl = 1.
         rsots = 1.
       endif
 
 !cwu [+4l] -----------------------------------------------------------------
-      if(irtacn.eq.-1) then
+      if(irtacn == -1) then
         rsicl = 1.
         rsics = 1.
       endif
 !clu [+16l] -----------------------------------------------------------------
-      if(irtvmn.eq.-1) then
+      if(irtvmn == -1) then
         rvmnl = 1.
         rvmns = 1.
       endif
-      if(irtvmx.eq.-1) then
+      if(irtvmx == -1) then
         rvmxl = 1.
         rvmxs = 1.
       endif
-      if(irtslp.eq.-1) then
+      if(irtslp == -1) then
         rslpl = 1.
         rslps = 1.
       endif
-      if(irtabs.eq.-1) then
+      if(irtabs == -1) then
         rabsl = 1.
         rabss = 1.
       endif
 !clu --------------------------------------------------------------------------
 !
-      if(raiss.eq.1..or.irtacn.eq.-1) then
-        if (me .eq. 0) print *,'use forecast land-sea-ice mask'
+      if(raiss == 1. .or. irtacn == -1) then
+        if (me == 0) print *,'use forecast land-sea-ice mask'
         do i = 1, len
           aisanl(i) = aisfcs(i)
           slianl(i) = slifcs(i)
         enddo
       endif
 !
-      if (me .eq. 0) then
+      if (me == 0) then
       write(6,100) rtsfl,ralbl,raisl,rsnol,rsmcl,rzorl,rvegl
   100 format('rtsfl,ralbl,raisl,rsnol,rsmcl,rzorl,rvegl=',10f7.3)
       write(6,101) rtsfs,ralbs,raiss,rsnos,rsmcs,rzors,rvegs
@@ -7535,7 +7551,11 @@ cjfe
 !
 !     to get tsf climatology at the previous call to sfccycle
 !
-      rjdayh = rjday - deltsfc/24.0
+!     if (fh-deltsfc >= 0.0) then
+        rjdayh = rjday - deltsfc/24.0
+!     else
+!       rjdayh = rjday
+!     endif
 !     if(lprnt) print *,' rjdayh=',rjdayh,' mon1=',mon1,' mon2='
 !    &,mon2,' mon1s=',mon1s,' mon2s=',mon2s,' k1=',k1,' k2=',k2
       if (rjdayh .ge. dayhf(mon1)) then

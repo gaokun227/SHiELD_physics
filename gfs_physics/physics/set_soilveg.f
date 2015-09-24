@@ -198,8 +198,6 @@ C READ NAMELIST FILE TO OVERRIDE DEFAULT PARAMETERS ONLY ONCE.
 C NAMELIST_NAME must be 50 characters or less.
 C ----------------------------------------------------------------------
 Clu: namelist is set up in run script
-! PT 5/18/2015 - commented out namelist read - file fort.35 created by exglobal script
-! PT - not needed - LPARAM = .FALSE. in namelist
 ! PT         if (me .eq. 0) WRITE(0,*) 'READ NAMELIST SOIL_VEG'
 c$$$         READ(5, SOIL_VEG)
 ! PT         rewind(nlunit)

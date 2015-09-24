@@ -344,7 +344,7 @@
 !  ---  inputs:
      &     ( plyr,plvl,tlyr,tvly,qlyr,qstl,rhly,clw,                    &
      &       xlat,xlon,slmsk,                                           &
-     &       IX, NLAY, NLP1,                                            &
+     &       IX, NLAY, NLP1, shoc_cld, cldcov,                          &
 !  ---  outputs:
      &       clouds,clds,mtop,mbot                                      &
      &      )
@@ -423,8 +423,9 @@
 !  ---  inputs
       integer,  intent(in) :: IX, NLAY, NLP1
 
+      logical, intent(in)  :: shoc_cld
       real (kind=kind_phys), dimension(:,:), intent(in) :: plvl, plyr,  &
-     &       tlyr, tvly, qlyr, qstl, rhly, clw
+     &       tlyr, tvly, qlyr, qstl, rhly, clw, cldcov
 
       real (kind=kind_phys), dimension(:),   intent(in) :: xlat, xlon,  &
      &       slmsk
@@ -540,7 +541,14 @@
           enddo
         endif
       enddo
+      if (shoc_cld) then     ! use shoc generated sgs clouds
+        do k = 1, NLAY
+          do i = 1, IX
+            cldtot(i,k) = cldcov(i,k)
+          enddo
+        enddo
 
+      else
 !  ---  layer cloud fraction
 
       if ( ivflip == 0 ) then              ! input data from toa to sfc
@@ -652,6 +660,7 @@
         endif
 
       endif                                ! end_if_flip
+      endif                                ! if (shoc_cld) then
 
       do k = 1, NLAY
         do i = 1, IX

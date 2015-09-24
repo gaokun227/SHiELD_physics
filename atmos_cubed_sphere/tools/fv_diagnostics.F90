@@ -108,6 +108,9 @@ contains
     call set_domain(Atm(1)%domain)  ! Set domain so that diag_manager can access tile information
 
          sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
+    if ( Atm(1)%flagstruct%nwat == 2 ) then
+         liq_wat = get_tracer_index (MODEL_ATMOS, 'clwmr')
+    endif
     if ( Atm(1)%flagstruct%nwat>=3 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
          ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
@@ -1033,11 +1036,11 @@ contains
             write(*,*) 'ENG Deficit (W/m**2)', trim(gn), '=', E_Flux
         endif
 
-           idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
-        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
-        if (master .and. abs(E_Flux_nest) > 0.)  then
-            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
-        endif
+!rab           idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
+!rab        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
+!rab        if (master .and. abs(E_Flux_nest) > 0.)  then
+!rab            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
+!rab        endif
 #endif
         call prt_maxmin('UA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, 1.)
         call prt_maxmin('VA', Atm(n)%va, isc, iec, jsc, jec, ngc, npz, 1.)
@@ -2358,9 +2361,11 @@ contains
  endif
 
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,sphum  ), psq(is,js,sphum  ), domain) 
- if (nwat > 1) then
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat), domain)
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat), domain)
+ if (nwat == 2) then
+   call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat), domain)
+ elseif (nwat > 2 ) then
+   call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat), domain)
+   call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat), domain)
  endif
 
 ! Mean water vapor in the "stratosphere" (75 mb and above):

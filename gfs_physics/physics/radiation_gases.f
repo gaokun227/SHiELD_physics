@@ -555,7 +555,7 @@
       data mdays / 31,28,31,30,31,30,31,31,30,31,30,31,30 /
 
       logical    :: file_exist, lextpl, change
-      character  :: cline*100, cform*8, cfile1*26
+      character  :: cline*100, cform*8, cfile1*32
       data  cform  / '(24f7.2)' /       !! data format in IMXCO2*f7.2
 !
 !===>  ...  begin here
@@ -686,7 +686,7 @@
 !  --- ...  set up input data file name
 
         cfile1 = co2dat_file
-        write(cfile1(19:22),34) idyr
+        write(cfile1(25:28),34) idyr
   34    format(i4.4)
 
 !  --- ... check to see if requested co2 data file existed
@@ -709,7 +709,7 @@
 
             Lab_dowhile2 : do while ( iyr >= MINYEAR )
               iyr = iyr - 1
-              write(cfile1(19:22),34) iyr
+              write(cfile1(25:28),34) iyr
 
               inquire (file=cfile1, exist=file_exist)
               if ( me == 0 ) then

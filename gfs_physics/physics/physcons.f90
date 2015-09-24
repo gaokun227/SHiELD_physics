@@ -100,7 +100,7 @@
   real(kind=kind_phys),parameter:: con_amo2   =31.9999        ! molecular wght of o2  (g/mol)
   real(kind=kind_phys),parameter:: con_amch4  =16.043         ! molecular wght of ch4 (g/mol)
   real(kind=kind_phys),parameter:: con_amn2o  =44.013         ! molecular wght of n2o (g/mol)
-  real(kind=kind_phys), parameter:: con_thgni  =-38.15         ! temperature the H.G.Nuc. ice starts
+  real(kind=kind_phys), parameter:: con_thgni  =-38.15        ! temperature the H.G.Nuc. ice starts
 
 !
 ! Miscellaneous physics related constatnts (Moorthi - Jul 2014)

@@ -202,6 +202,11 @@
               DPHIT       = (PRKL(i,k  ) - PRKI(i,k+1)) * TEM
               phil(i,k)   = phii(i,k) + DPHIB
               phii(i,k+1) = phil(i,k) + DPHIT
+              if (phil(i,k) .lt. 0.0) then
+                write(6,*) 'NEGATIVE phil'
+                write(6,*) i,k,phil(i,k), phii(i,k)
+                write(6,*)     prki(i,k), prkl(i,k)
+              endif
             ENDDO
           ENDDO
 !       if (lprnt)write(0,*)' in get_prs phil=',phil(1,1),'t=',t(1,1),

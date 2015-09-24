@@ -4,7 +4,6 @@
 ! Author: Patrick Tripp - NOAA/NCEP/EMC
 ! Email: patrick.tripp@noaa.gov
 ! Abstract: Wrapper for GFS physics
-! History Log: Tripp - 5/2015 - Initial release
 ! History Log: 
 !   Tripp - 5/2015 - Initial release
 !   Tripp - 8/2015 - Added nems_slg_shoc updates
@@ -61,10 +60,8 @@
 
        module nuopc_physics
 
-       use machine,  only: kind_phys
+       use machine, only: kind_phys
        use physcons, only: dxmax, dxmin, dxinv     ! lon lat dependant variables set in initialize
-       use funcphys, only: gfuncphys
-       use module_microphysics, only: gsmconst
  
 
        use module_radiation_driver,  only : grrad, radupdate
@@ -74,10 +71,6 @@
        implicit none
 
        private
-
-       real(kind=kind_phys) :: zero      = 0.0_kind_phys
-       real(kind=kind_phys) :: clear_val = 0.0_kind_phys
-       real(kind=kind_phys) :: rann_init = 0.6_kind_phys
 
        ! Derived Data Types
        public :: state_fields_in        ! basic inputs of radiation and physics parameters
@@ -116,7 +109,7 @@
 
 
        integer :: myme                              ! My mpi mpe - set in initialize
-       logical, parameter :: debug = .false.        ! Flag toggle for debug print output
+       logical, parameter :: debug = .false.         ! Flag toggle for debug print output
        ! logical, parameter :: debug = .true.
        ! logical, parameter :: use_nuopc = .false.
        logical, parameter :: use_nuopc = .true.     ! Flag to use this wrapper
@@ -138,7 +131,7 @@
 !******************************************
        type tbd_ddt
 
-!rab         private
+         private
 
 ! In
          real (kind=kind_phys), pointer :: dpshc (:) => null()     !              maximum pressure depth for shallow convection
@@ -187,7 +180,7 @@
 
 ! Unknown (InOut??)
          real (kind=kind_phys), pointer :: fscav(:) => null()    ! tracer scavenging
-         real (kind=kind_phys), pointer :: fswtr(:) => null()
+         real (kind=kind_phys), pointer :: fswtr(:) => null() 
 
          contains
            procedure set => tbd_set
@@ -235,7 +228,7 @@
 !******************************************
        type state_fields_in
 
-!rab         private
+         private
 
          !! Inputs (also in rad)
          real (kind=kind_phys), pointer :: prsi  (:,:) => null()    ! model level pressure in Pa                     !
@@ -275,7 +268,7 @@
 !******************************************
        type state_fields_out
 
-!rab         private
+         private
 
          !! Outputs (only in physics)
          real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  ! updated temperature 
@@ -298,7 +291,7 @@
 !******************************************
        type sfc_properties
 
-!rab         private
+         private
 
          ! Inputs
          real (kind=kind_phys), pointer :: slmsk (:) => null()  ! sea/land mask array (sea:0,land:1,sea-ice:2)   !
@@ -361,11 +354,9 @@
 !******************************************
        type diagnostics
 
-!rab         private
+         private
 
          integer :: NFXR                                           ! second dimension of input/output array fluxr   !
-         logical :: first_rad  = .TRUE.     !  to allow first time allocation but subsequent calls to clear only
-         logical :: first_phys = .TRUE.     !  to allow first time allocation but subsequent calls to clear only
 
          !! Input/Output only in radiation
          real (kind=kind_phys), pointer :: fluxr (:,:) => null()   ! to save time accumulated 2-d fields defined as:!
@@ -376,7 +367,7 @@
 
          type (topfsw_type), pointer :: topfsw(:) => null()     ! sw radiation fluxes at toa, components:        !
                                          !       %upfxc           - total sky upward sw flux at toa (w/m**2)     !
-                                         !       %dnfxc           - total sky downward sw flux at toa (w/m**2)   !
+                                         !       %dnflx           - total sky downward sw flux at toa (w/m**2)   !
                                          !       %upfx0           - clear sky upward sw flux at toa (w/m**2)     !
 
          type (topflw_type), pointer :: topflw(:) => null()      ! lw radiation fluxes at top, component:        !
@@ -464,7 +455,7 @@
 !******************************************
        type interface_fields
 
-!rab         private
+         private
 
          ! Radiation output only
          type (sfcfsw_type), pointer :: sfcfsw(:) => null()      ! sw radiation fluxes at sfc, components:        !
@@ -579,7 +570,7 @@
 ! ******************************************
        type cloud_properties
 
-!rab         private
+         private
 
          ! grrad in
          ! gbphys inout
@@ -602,14 +593,15 @@
    
          ! grrad in
          ! gbphys inout
-!rab         real (kind=kind_phys), pointer :: sup  => null()         ! supersaturation in pdf cloud when t is very low
-         real (kind=kind_phys) :: sup                    ! supersaturation in pdf cloud when t is very low
+         real (kind=kind_phys), pointer :: sup  => null()         ! supersaturation in pdf cloud when t is very low
 
          ! gbphys inout
          real (kind=kind_phys), pointer :: cnvqc_v(:,:) => null() ! total convective conensate (kg/kg)
          
          !! grrad out
          real (kind=kind_phys), pointer :: cldcov(:,:) => null()  ! 3-d cloud fraction (IX,levs)                     !
+
+
 
          contains
            procedure setrad => cld_prop_setrad
@@ -630,7 +622,7 @@
 !******************************************
        type radiation_tendencies
 
-!rab         private
+         private
 
          !! Outputs from grrad
          real (kind=kind_phys), pointer :: htrsw (:,:) => null()  ! swh  total sky sw heating rate in k/sec
@@ -667,15 +659,12 @@
 !******************************************
        type dynamic_parameters
 
-!rab         private
+         private
 
          real (kind=kind_phys), pointer :: xlon  (:) => null()  ! grid longitude in radians, ok for both 0->2pi  !
                                                                 ! or -pi -> +pi ranges                           !
          real (kind=kind_phys), pointer :: xlat  (:) => null()  ! grid latitude in radians, default to pi/2 ->   !
                                                                 ! -pi/2 range, otherwise adj in subr called      !
-         real (kind=kind_phys), pointer :: area  (:) => null()  ! added by GFDL to be used for grid scales
-         real (kind=kind_phys), pointer :: dx    (:) => null()  ! added by GFDL to be used for grid scales
-         real (kind=kind_phys), pointer :: dy    (:) => null()  ! added by GFDL to be used for grid scales
          real (kind=kind_phys), pointer :: sinlat(:) => null()  ! sine of the grids corresponding latitudes      !
          real (kind=kind_phys), pointer :: coslat(:) => null()  ! cosine of the grids corresponding latitudes    !
          real (kind=kind_phys)          :: solhr                ! hour time after 00z at the t-step              !
@@ -735,7 +724,7 @@
 !******************************************
        type model_parameters
 
-!rab         private
+         private
 
          integer :: ntcw        ! =0 no cloud condensate calculated
                                 ! >0 array index location for cloud condensate
@@ -764,7 +753,7 @@
 
          ! NEW in nems_slg_shoc branch
          integer :: nctp        ! number of cloud types in CS scheme
-         integer :: ntke        ! tke location in the tracer array
+         integer :: ntke        ! tke location in the tracer array 
          integer :: ntot3d      ! number of total 3d fields for phy_f3d
          integer :: ntot2d      ! number of total 2d fields for phy_f2d
 
@@ -835,94 +824,108 @@
 ! tbd_ddt methods
 !******************************************
 
-      subroutine tbd_set (this, IX, Model, xkzm_m, xkzm_h, xkzm_s, &
-                          evpco, psautco, prautco, wminco, pl_pres)
-!rab      subroutine tbd_set ( this, dpshc, prdout, poz, rann, xkzm_m, xkzm_h, xkzm_s, psautco,  &
-!rab                 prautco, evpco, wminco, &
-!rab                 acv, acvb, acvt, slc, smc, stc,  &
-!rab                 upd_mf, dwn_mf, det_mf, phy_f3d, phy_f2d, tprcp,  &
-!rab                 srflag, tref, z_c, c_0, c_d, w_0, w_d  ) 
-
-         implicit none
+      subroutine tbd_set ( this, dpshc, prdout, poz, rann, xkzm_m, xkzm_h, xkzm_s, psautco,  &
+                 prautco, evpco, wminco, &
+                 acv, acvb, acvt, slc, smc, stc,  &
+                 upd_mf, dwn_mf, det_mf, phy_f3d, phy_f2d, tprcp,  &
+                 srflag, tref, z_c, c_0, c_d, w_0, w_d, fscav, fswtr, phy_fctd)
 
          class(tbd_ddt) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
-         real(kind=kind_phys), intent(in) :: xkzm_m, xkzm_h, xkzm_s, evpco
-         real(kind=kind_phys), dimension(2), intent(in) :: psautco, prautco, wminco
-         real(kind=kind_phys), dimension(Model%levozp), intent(in) :: pl_pres
 
 ! In
-         this%xkzm_m  = xkzm_m
-         this%xkzm_h  = xkzm_h
-         this%xkzm_s  = xkzm_s
-         this%evpco   = evpco
-         this%psautco = psautco
-         this%prautco = prautco
-         this%wminco  = wminco
-         allocate(this%dpshc   (IX))
-         allocate(this%prdout  (IX,Model%levozp,Model%pl_coeff))
-         allocate(this%poz     (Model%levozp))
-         allocate(this%rann    (IX,Model%nrcm))
+         real (kind=kind_phys), target :: dpshc (:)     !            maximum pressure depth for shallow convection
+         real (kind=kind_phys), target :: prdout(:,:,:) ! ozplout_v  ozone forcing data
+         real (kind=kind_phys), target :: poz(:)        ! pl_pres    ozone forcing data level pressure (ln(Pa))
+         real (kind=kind_phys), target :: rann(:,:)     !            random number array (0-1)
 
-         this%dpshc  = clear_val
-         this%prdout = clear_val
-         this%poz    = pl_pres
-         this%rann   = rann_init
+         real (kind=kind_phys) :: xkzm_m      ! bkgd_vdif_m  background vertical diffusion for momentum
+         real (kind=kind_phys) :: xkzm_h      ! bkgd_vdif_h  background vertical diffusion for heat q
+         real (kind=kind_phys) :: xkzm_s      ! bkgd_vdif_s  sigma threshold for background mom. diffusn
+         real (kind=kind_phys) :: psautco(2)  !              auto conversion coeff from ice to snow
+         real (kind=kind_phys) :: prautco(2)  !              auto conversion coeff from cloud to rain
+         real (kind=kind_phys) :: evpco       !              coeff for evaporation of largescale rain
+         real (kind=kind_phys) :: wminco(2)   !              water and ice minimum threshold for Zhao
+
+! Moved to interface fields
+!         real (kind=kind_phys), target :: sfcnirbmu(:) ! aoi_fld%nirbmui  sfc nir beam sw upward flux (w/m2)
+!         real (kind=kind_phys), target :: sfcnirdfu(:) ! aoi_fld%nirdfui  sfc nir diff sw upward flux (w/m2)
+!         real (kind=kind_phys), target :: sfcvisbmu(:) ! aoi_fld%visbmui  sfc uv+vis beam sw upward flux (w/m2)
+!         real (kind=kind_phys), target :: sfcvisdfu(:) ! aoi_fld%visdfui  sfc uv+vis diff sw upward flux (w/m2)
+
+! Moved to dyn_parm
+!         real (kind=kind_phys) :: slag  ! equation of time ( radian )
+!         real (kind=kind_phys) :: sdec  ! sin of the solar declination angle
+!         real (kind=kind_phys) :: cdec  ! cos of the solar declination angle
 
 ! In/Out
-         allocate(this%acv     (IX))
-         allocate(this%acvb    (IX))
-         allocate(this%acvt    (IX))
-         allocate(this%slc     (IX,Model%lsoil))
-         allocate(this%smc     (IX,Model%lsoil))
-         allocate(this%stc     (IX,Model%lsoil))
-         allocate(this%upd_mf  (IX,Model%levs))
-         allocate(this%dwn_mf  (IX,Model%levs))
-         allocate(this%det_mf  (IX,Model%levs))
-         allocate(this%phy_f3d (IX,Model%levs,Model%num_p3d+Model%npdf3d))
-         allocate(this%phy_f2d (IX,Model%num_p2d))
-         allocate(this%tprcp   (IX))
-         allocate(this%srflag  (IX))
-
-         this%acv     = clear_val
-         this%acvb    = clear_val
-         this%acvt    = clear_val
-         this%slc     = clear_val
-         this%smc     = clear_val
-         this%stc     = clear_val
-         this%upd_mf  = clear_val
-         this%dwn_mf  = clear_val
-         this%det_mf  = clear_val
-         this%phy_f3d = clear_val
-         this%phy_f2d = clear_val
-         this%tprcp   = clear_val
-         this%srflag  = clear_val
-
-! Out
-         if (Model%nst_fcst > 0 ) then
-           allocate(this%tref (IX))
-           allocate(this%z_c  (IX))
-           allocate(this%c_0  (IX))
-           allocate(this%c_d  (IX))
-           allocate(this%w_0  (IX))
-           allocate(this%w_d  (IX))
-
-           this%tref = clear_val
-           this%z_c  = clear_val
-           this%c_0  = clear_val
-           this%c_d  = clear_val
-           this%w_0  = clear_val
-           this%w_d  = clear_val
-         endif
+         real (kind=kind_phys), target :: acv (:)      ! array containing accumulated convective clouds
+         real (kind=kind_phys), target :: acvb(:)      ! arrays used by cnvc90 bottom
+         real (kind=kind_phys), target :: acvt(:)      ! arrays used by cnvc9 top
+         real (kind=kind_phys), target :: slc(:,:)     ! liquid soil moisture
+         real (kind=kind_phys), target :: smc(:,:)     ! total soil moisture
+         real (kind=kind_phys), target :: stc(:,:)     ! soil temperature
+         real (kind=kind_phys), target :: upd_mf(:,:)   ! convective updraft mass flux
+         real (kind=kind_phys), target :: dwn_mf(:,:)   ! convective downdraft mass flux
+         real (kind=kind_phys), target :: det_mf(:,:)   ! convective detrainment mass flux
+         real (kind=kind_phys), target :: phy_f3d(:,:,:) ! 3d arrays saved for restart
+         real (kind=kind_phys), target :: phy_f2d(:,:)   ! phy_f2dv     2d arrays save for restart
+         real (kind=kind_phys), target :: tprcp (:)      ! sfc_fld%tprcp   total precipitation
+         real (kind=kind_phys), target :: srflag(:)      ! sfc_fld%srflag  snow/rain flag for precipitation
 
 ! NEW
-         allocate (this%fscav(IX))
-         allocate (this%fswtr(IX))
-         allocate (this%phy_fctd(IX,Model%nctp))
-         this%fscav    = clear_val
-         this%fswtr    = clear_val
-         this%phy_fctd = clear_val
+         real (kind=kind_phys), target :: phy_fctd(:,:)  ! For CS convection
+
+! Out
+         real (kind=kind_phys), target :: tref(:) ! nst_fld%Tref  Reference Temperature
+         real (kind=kind_phys), target :: z_c(:)  ! nst_fld%z_c   Sub layer cooling thickness
+         real (kind=kind_phys), target :: c_0(:)  ! nst_fld%c_0   coefficient1 to calculate d(Tz)/d(Ts)
+         real (kind=kind_phys), target :: c_d(:)  ! nst_fld%c_d   coefficient2 to calculate d(Tz)/d(Ts)
+         real (kind=kind_phys), target :: w_0(:)  ! nst_fld%w_0   coefficient3 to calculate d(Tz)/d(Ts)
+         real (kind=kind_phys), target :: w_d(:)  ! nst_fld%w_d   coefficient4 to calculate d(Tz)/d(Ts)
+
+! Unknown
+         real (kind=kind_phys), target :: fscav(:)    ! tracer scavenging
+         real (kind=kind_phys), target :: fswtr(:)
+
+
+         this%dpshc => dpshc
+         this%prdout => prdout
+         this%poz => poz
+         this%rann => rann
+
+         this%xkzm_m = xkzm_m
+         this%xkzm_h = xkzm_h
+         this%xkzm_s = xkzm_s
+         this%psautco = psautco
+         this%prautco = prautco
+         this%evpco = evpco
+         this%wminco = wminco
+
+         this%acv => acv
+         this%acvb => acvb
+         this%acvt => acvt
+         this%slc => slc
+         this%smc => smc
+         this%stc => stc
+         this%upd_mf => upd_mf
+         this%dwn_mf => dwn_mf
+         this%det_mf => det_mf
+         this%phy_f3d => phy_f3d
+         this%phy_f2d => phy_f2d
+         this%tprcp => tprcp
+         this%srflag => srflag
+
+         this%tref => tref
+         this%z_c => z_c
+         this%c_0 => c_0
+         this%c_d => c_d
+         this%w_0 => w_0
+         this%w_d => w_d
+
+         this%fscav => fscav
+         this%fswtr => fswtr
+
+         this%phy_fctd => phy_fctd
 
       end subroutine
 
@@ -934,86 +937,81 @@
 ! State field methods
 !******************************************
 
-       subroutine state_fld_setrad_in (this, IX, Model)
-!rab       subroutine state_fld_setrad_in (this, prsi, prsl, prslk, tgrs, qgrs_rad, tracer, vvl)
+       subroutine state_fld_setrad_in (this, prsi, prsl, prslk, tgrs, qgrs_rad, tracer, vvl)
 
          implicit none
 
          class(state_fields_in) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+
+         real (kind=kind_phys), intent(in), target :: prsi (:,:)
+         real (kind=kind_phys), target :: prsl  (:,:)
+         real (kind=kind_phys), target :: prslk (:,:)
+         real (kind=kind_phys), target :: tgrs  (:,:)
+         real (kind=kind_phys), target :: qgrs_rad (:,:)
+         real (kind=kind_phys), target :: tracer(:,:,:)
+         real (kind=kind_phys), target :: vvl  (:,:)
 
          call dbgprint("state_fld_setradin")
 
          select type (this)
            class is (state_fields_in)
-             allocate(this%prsi     (IX,Model%levs+1))
-             allocate(this%prsl     (IX,Model%levs))
-             allocate(this%prslk    (IX,Model%levs))
-             allocate(this%tgrs     (IX,Model%levs))
-             allocate(this%qgrs_rad (IX,Model%levs))
-             allocate(this%tracer   (IX,Model%levs,Model%ntrac))
-             allocate(this%vvl      (IX,Model%levs))
-
-             this%prsi     = clear_val
-             this%prsl     = clear_val
-             this%prslk    = clear_val
-             this%tgrs     = clear_val
-             this%qgrs_rad = clear_val
-             this%tracer   = clear_val
-             this%vvl      = clear_val
+             this%prsi   => prsi
+             this%prsl   => prsl
+             this%prslk  => prslk
+             this%tgrs   => tgrs
+             this%qgrs_rad   => qgrs_rad
+             this%tracer => tracer
+             this%vvl    => vvl
          end select
 
        end subroutine
 
 
 
-       subroutine state_fld_setphys_in (this, IX, Model)
-!rab       subroutine state_fld_setphys_in (this, prsi, prsl, prslk, tgrs, qgrs, vvl,       &
-!rab                                     pgr, ugrs, vgrs, prsik, phii, phil, adjtrc)
+       subroutine state_fld_setphys_in (this, prsi, prsl, prslk, tgrs, qgrs, vvl,       &
+                                     pgr, ugrs, vgrs, prsik, phii, phil, adjtrc)
 
          implicit none
 
          class(state_fields_in) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+
+         real (kind=kind_phys), target :: prsi  (:,:)
+         real (kind=kind_phys), target :: prsl  (:,:)
+         real (kind=kind_phys), target :: prslk (:,:)
+         real (kind=kind_phys), target :: tgrs  (:,:)
+         real (kind=kind_phys), target :: qgrs (:,:,:)
+         real (kind=kind_phys), target :: vvl (:,:)
+
+         !! The following not in radiation
+         real (kind=kind_phys), target :: pgr    (:)
+         real (kind=kind_phys), target :: ugrs   (:,:)
+         real (kind=kind_phys), target :: vgrs   (:,:)
+         real (kind=kind_phys), target :: prsik  (:,:)
+         real (kind=kind_phys), target :: phii   (:,:)
+         real (kind=kind_phys), target :: phil   (:,:)
+
+         real (kind=kind_phys), target :: adjtrc (:)
 
          call dbgprint("state_fld_setphys_in")
 
          select type (this)
            class is (state_fields_in)
 
-!rab are these the same from state_fld_setrad_in
-!rab             this%prsi
-!rab             this%prsl
-!rab             this%prslk
-!rab             this%tgrs
-!rab             this%vvl
-!is qgrs the same as tracer in state_fld_setrad_in
-             if (allocated(this%tracer)) then
-               this%qgrs => this%tracer
-             else
-               allocate(this%qgrs(IX,Model%levs,Model%ntrac))
-             endif
+             this%prsi   => prsi
+             this%prsl   => prsl
+             this%prslk  => prslk
+             this%tgrs   => tgrs
+             this%qgrs   => qgrs
+             this%vvl    => vvl
 
-          ! The following not in radiation
-             allocate(this%pgr   (IX))
-             allocate(this%ugrs  (IX,Model%levs))
-             allocate(this%vgrs  (IX,Model%levs))
-             allocate(this%prsik (IX,Model%levs+1))
-             allocate(this%phii  (IX,Model%levs+1))
-             allocate(this%phil  (IX,Model%levs))
+             this%pgr => pgr
+             this%ugrs => ugrs
+             this%vgrs => vgrs
+             this%prsik => prsik
+             this%phii => phii
+             this%phil => phil
 
-             this%pgr   = clear_val
-             this%ugrs  = clear_val
-             this%vgrs  = clear_val
-             this%prsik = clear_val
-             this%phii  = clear_val
-             this%phil  = clear_val
-
-             allocate(this%adjtrc (Model%ntrac))
-           ! set adjtrc to 1.0_kind_phys by default
-             this%adjtrc = 1.0_kind_phys
+             this%adjtrc => adjtrc
 
            ! class default
            ! print *, "class default"
@@ -1023,29 +1021,26 @@
 
 
 
-       subroutine state_fld_setphys_out (this, IX, Model)
-!rab       subroutine state_fld_setphys_out (this, gt0, gq0, gu0, gv0)
+       subroutine state_fld_setphys_out (this, gt0, gq0, gu0, gv0)
 
          implicit none
 
          class(state_fields_out) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+
+         !! Outputs (only in physics)
+         real (kind=kind_phys), intent(out), target :: gt0    (:,:)
+         real (kind=kind_phys), target :: gq0    (:,:,:)
+         real (kind=kind_phys), target :: gu0    (:,:)
+         real (kind=kind_phys), target :: gv0    (:,:)
 
          call dbgprint("state_fld_setphys_out")
 
          select type (this)
            class is (state_fields_out)
-          ! Outputs (only in physics)
-             allocate(this%gt0 (IX,Model%levs))
-             allocate(this%gq0 (IX,Model%levs,Model%ntrac))
-             allocate(this%gu0 (IX,Model%levs))
-             allocate(this%gv0 (IX,Model%levs))
-
-             this%gt0 = clear_val
-             this%gq0 = clear_val
-             this%gu0 = clear_val
-             this%gv0 = clear_val
+             this%gt0 => gt0
+             this%gq0 => gq0
+             this%gu0 => gu0
+             this%gv0 => gv0
          end select
 
       end subroutine
@@ -1082,153 +1077,152 @@
 !******************************************
 ! Surface properties methods
 !******************************************
-       subroutine sfc_prop_setrad (this, IX, Model, GSM)
-!rab       subroutine sfc_prop_setrad (this, slmsk, tsfc, snowd, sncovr, snoalb,      &
-!rab                                zorl, hprim, fice, tisfc,                      &
-!rab                                alvsf, alnsf, alvwf, alnwf, facsf, facwf )
+       subroutine sfc_prop_setrad (this, slmsk, tsfc, snowd, sncovr, snoalb,      &
+                                zorl, hprim, fice, tisfc,                      &
+                                alvsf, alnsf, alvwf, alnwf, facsf, facwf )
+                                
                                 
          implicit none
 
          class(sfc_properties) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
-         logical, intent(in), optional :: GSM
+
+         real (kind=kind_phys), target :: slmsk (:)
+         real (kind=kind_phys), target :: tsfc  (:)
+         real (kind=kind_phys), target :: snowd (:)
+         real (kind=kind_phys), target :: sncovr(:)
+         real (kind=kind_phys), target :: snoalb(:)
+         real (kind=kind_phys), target :: zorl  (:)
+         real (kind=kind_phys), target :: hprim (:)
+         real (kind=kind_phys), target :: fice  (:)
+         real (kind=kind_phys), target :: tisfc (:)
+
+         !!! GSM grrad.f ONLY
+         real (kind=kind_phys), optional, target :: alvsf (:)
+         real (kind=kind_phys), optional, target :: alnsf (:)
+         real (kind=kind_phys), optional, target :: alvwf (:)
+         real (kind=kind_phys), optional, target :: alnwf (:)
+         real (kind=kind_phys), optional, target :: facsf (:)
+         real (kind=kind_phys), optional, target :: facwf (:)
+         !!! END
 
          call dbgprint("sfc_prop_set")
 
          select type (this)
            class is (sfc_properties)
-             allocate(this%slmsk  (IX))
-             allocate(this%tsfc   (IX))
-             allocate(this%snowd  (IX))
-             allocate(this%sncovr (IX))
-             allocate(this%snoalb (IX))
-             allocate(this%zorl   (IX))
-             allocate(this%hprim  (IX))
-             allocate(this%fice   (IX))
-             allocate(this%tisfc  (IX))
+             this%slmsk  => slmsk
+             this%tsfc   => tsfc
+             this%snowd  => snowd
+             this%sncovr => sncovr
+             this%snoalb => snoalb
+             this%zorl   => zorl
+             this%hprim  => hprim
+             this%fice   => fice
+             this%tisfc  => tisfc
 
-             this%slmsk  = clear_val
-             this%tsfc   = clear_val
-             this%snowd  = clear_val
-             this%sncovr = clear_val
-             this%snoalb = clear_val
-             this%zorl   = clear_val
-             this%hprim  = clear_val
-             this%fice   = clear_val
-             this%tisfc  = clear_val
-
-             !!! GSM grrad.f ONLY
-!rab             if (present(GSM)) then
-!rab              if (GSM) then
-               allocate(this%alvsf (IX))
-               allocate(this%alnsf (IX))
-               allocate(this%alvwf (IX))
-               allocate(this%alnwf (IX))
-               allocate(this%facsf (IX))
-               allocate(this%facwf (IX))
-
-               this%alvsf = clear_val
-               this%alnsf = clear_val
-               this%alvwf = clear_val
-               this%alnwf = clear_val
-               this%facsf = clear_val
-               this%facwf = clear_val
-!rab              endif
-!rab             endif
+             !!! GSM 
+             if (present(alvsf)) this%alvsf  => alvsf
+             if (present(alnsf)) this%alnsf  => alnsf
+             if (present(alvwf)) this%alvwf  => alvwf
+             if (present(alnwf)) this%alnwf  => alnwf
+             if (present(facsf)) this%facsf  => facsf
+             if (present(facwf)) this%facwf  => facwf
 
          end select
 
        end subroutine
 
 
-       subroutine sfc_prop_setphys ( this, IX, Model)
-!rab       subroutine sfc_prop_setphys ( this,                                   &
-!rab                 hprime2, slope, shdmin, shdmax, snoalb, tg3, slmsk, vfrac,  &
-!rab                 vtype, stype, uustar, oro, oro_uf, hice, fice, tisfc,  &
-!rab                 tsea, snwdph, weasd, sncovr, zorl, canopy, ffmm, ffhh,  &
-!rab                 f10m, t2m, q2m                                          &
-!rab                 )
+       subroutine sfc_prop_setphys ( this,                                   &
+                 hprime2, slope, shdmin, shdmax, snoalb, tg3, slmsk, vfrac,  &
+                 vtype, stype, uustar, oro, oro_uf, hice, fice, tisfc,  &
+                 tsea, snwdph, weasd, sncovr, zorl, canopy, ffmm, ffhh,  &
+                 f10m, t2m, q2m                                          &
+                 )
          implicit none
 
          class(sfc_properties) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
 
          ! In
-         allocate(this%hprime2 (IX,Model%nmtvr))
-         allocate(this%slope   (IX))
-         allocate(this%shdmin  (IX))
-         allocate(this%shdmax  (IX))
-         allocate(this%snoalb  (IX))
-         allocate(this%tg3     (IX))
-         allocate(this%slmsk   (IX))
-         allocate(this%vfrac   (IX))
-         allocate(this%vtype   (IX))
-         allocate(this%stype   (IX))
-         allocate(this%uustar  (IX))
-         allocate(this%oro     (IX))
-         allocate(this%oro_uf  (IX))
-
-         this%hprime2 = clear_val
-         this%slope   = clear_val
-         this%shdmin  = clear_val
-         this%shdmax  = clear_val
-         this%snoalb  = clear_val
-         this%tg3     = clear_val
-         this%slmsk   = clear_val
-         this%vfrac   = clear_val
-         this%vtype   = clear_val
-         this%stype   = clear_val
-         this%uustar  = clear_val
-         this%oro     = clear_val
-         this%oro_uf  = clear_val
+         real (kind=kind_phys), target :: hprime2(:,:) 
+         real (kind=kind_phys), target :: slope(:) 
+         real (kind=kind_phys), target :: shdmin(:) 
+         real (kind=kind_phys), target :: shdmax(:) 
+         real (kind=kind_phys), target :: snoalb(:) 
+         real (kind=kind_phys), target :: tg3(:) 
+         real (kind=kind_phys), target :: slmsk(:) 
+         real (kind=kind_phys), target :: vfrac(:) 
+         real (kind=kind_phys), target :: vtype(:) 
+         real (kind=kind_phys), target :: stype(:) 
+         real (kind=kind_phys), target :: uustar(:) 
+         real (kind=kind_phys), target :: oro(:) 
+         real (kind=kind_phys), target :: oro_uf(:) 
 
          ! In/Out
-         allocate(this%hice   (IX))
-         allocate(this%fice   (IX))
-         allocate(this%tisfc  (IX))
-         allocate(this%tsfc   (IX))
-         allocate(this%snowd  (IX))
-         allocate(this%weasd  (IX))
-         allocate(this%sncovr (IX))
-         allocate(this%zorl   (IX))
-         allocate(this%canopy (IX))
-         allocate(this%ffmm   (IX))
-         allocate(this%ffhh   (IX))
-         allocate(this%f10m   (IX))
-
-         this%hice   = clear_val
-         this%fice   = clear_val
-         this%tisfc  = clear_val
-         this%tsfc   = clear_val
-         this%snowd  = clear_val
-         this%weasd  = clear_val
-         this%sncovr = clear_val
-         this%zorl   = clear_val
-         this%canopy = clear_val
-         this%ffmm   = clear_val
-         this%ffhh   = clear_val
-         this%f10m   = clear_val
+         real (kind=kind_phys), target :: hice(:) 
+         real (kind=kind_phys), target :: fice(:) 
+         real (kind=kind_phys), target :: tisfc(:) 
+         real (kind=kind_phys), target :: tsea(:) 
+         real (kind=kind_phys), target :: snwdph(:) 
+         real (kind=kind_phys), target :: weasd(:) 
+         real (kind=kind_phys), target :: sncovr(:) 
+         real (kind=kind_phys), target :: zorl(:) 
+         real (kind=kind_phys), target :: canopy(:) 
+         real (kind=kind_phys), target :: ffmm(:) 
+         real (kind=kind_phys), target :: ffhh(:) 
+         real (kind=kind_phys), target :: f10m(:) 
 
          ! Outputs
-         allocate(this%t2m    (IX))
-         allocate(this%q2m    (IX))
+         real (kind=kind_phys), target :: t2m(:) 
+         real (kind=kind_phys), target :: q2m(:)
 
-         this%t2m    = clear_val
-         this%q2m    = clear_val
+         this%hprime2 => hprime2
+         this%slope => slope
+         this%shdmin => shdmin
+         this%shdmax => shdmax
+         this%snoalb => snoalb
+         this%tg3 => tg3
+         this%slmsk => slmsk
+         this%vfrac => vfrac
+         this%vtype => vtype
+         this%stype => stype
+         this%uustar => uustar
+         this%oro => oro
+         this%oro_uf => oro_uf
+         this%hice => hice
+         this%fice => fice
+         this%tisfc => tisfc
+         this%tsfc => tsea
+         this%snowd => snwdph   ! snowd
+         this%weasd => weasd
+         this%sncovr => sncovr
+         this%zorl => zorl
+         this%canopy => canopy
+         this%ffmm => ffmm
+         this%ffhh => ffhh
+         this%f10m => f10m
+         this%t2m => t2m
+         this%q2m => q2m
+
 
        end subroutine
 
 !******************************************
 ! Diagnostics methods
-       subroutine diagnostics_setrad (this, IX, NFXR)
-!rab       subroutine diagnostics_setrad (this, NFXR, fluxr, topfsw, topflw, dswcmp, uswcmp)
+!******************************************
+       subroutine diagnostics_setrad (this, NFXR, fluxr, topfsw, topflw, dswcmp, uswcmp)
 
          implicit none
 
          class(diagnostics) :: this
-         integer, intent(in) :: IX, NFXR
+
+         integer :: NFXR
+
+         real (kind=kind_phys), target :: fluxr (:,:)
+         type (topfsw_type), target :: topfsw(:)
+         type (topflw_type), target :: topflw(:)
+
+         real (kind=kind_phys), target :: dswcmp(:,:) 
+         real (kind=kind_phys), target :: uswcmp(:,:) 
 
          call dbgprint("diagnostics_setrad")
 
@@ -1236,183 +1230,173 @@
            class is (diagnostics)
 
              this%NFXR = NFXR
-             if (this%first_rad) then
-               allocate(this%fluxr  (IX,NFXR))
-               allocate(this%topfsw (IX))
-               allocate(this%topflw (IX))
-               allocate(this%dswcmp (IX,4))
-               allocate(this%uswcmp (IX,4))
-             endif
-
-             this%fluxr        = zero
-             this%topfsw%upfxc = zero
-             this%topfsw%dnfxc = zero
-             this%topfsw%upfx0 = zero
-             this%topflw%upfxc = zero
-             this%topflw%upfx0 = zero
-             this%dswcmp       = zero
-             this%uswcmp       = zero
-
-             this%first_rad = .FALSE.
+             this%fluxr => fluxr
+             this%topfsw => topfsw
+             this%topflw => topflw
+             this%dswcmp => dswcmp
+             this%uswcmp => uswcmp
 
          end select
 
        end subroutine
 
 
-       subroutine diagnostics_setphys ( this, IX, Model)
-!rab       subroutine diagnostics_setphys ( this, srunoff, evbsa, evcwa,                     &
-!rab                          snohfa, transa, sbsnoa, snowca, soilm,                         &
-!rab                          tmpmin, tmpmax, dusfc, dvsfc, dtsfc, dqsfc, totprcp, gflux,    &
-!rab                          dlwsfc, ulwsfc, suntim, runoff, ep, cldwrk, dugwd, dvgwd,      &
-!rab                          psmean, cnvprcp, spfhmin, spfhmax, rain, rainc,                &
-!rab                          dt3dt, dq3dt, du3dt, dv3dt, dqdt_v,                            &
-!rab                          u10m, v10m, zlvl, psurf, hpbl, pwat, t1, q1,                   &
-!rab                          u1, v1, chh, cmm, dlwsfci, ulwsfci, dswsfci, uswsfci,          &
-!rab                          dusfci, dvsfci, dtsfci, dqsfci, gfluxi, epi, smcwlt2, smcref2, &
-!rab                          wet1, sr )
+       subroutine diagnostics_setphys ( this, srunoff, evbsa, evcwa,                     &
+                          snohfa, transa, sbsnoa, snowca, soilm,                         &
+                          tmpmin, tmpmax, dusfc, dvsfc, dtsfc, dqsfc, totprcp, gflux,    &
+                          dlwsfc, ulwsfc, suntim, runoff, ep, cldwrk, dugwd, dvgwd,      &
+                          psmean, cnvprcp, spfhmin, spfhmax, rain, rainc,                &
+                          dt3dt, dq3dt, du3dt, dv3dt, dqdt_v,                            &
+                          u10m, v10m, zlvl, psurf, hpbl, pwat, t1, q1,                   &
+                          u1, v1, chh, cmm, dlwsfci, ulwsfci, dswsfci, uswsfci,          &
+                          dusfci, dvsfci, dtsfci, dqsfci, gfluxi, epi, smcwlt2, smcref2, &
+                          wet1, sr )
 
          implicit none
 
          class(diagnostics) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+
+
+         ! Inputs
+
+         ! Moved to interface fields ddt
+         ! real (kind=kind_phys), target :: sfcnirbmd(:)
+         ! real (kind=kind_phys), target :: sfcnirdfd(:)
+         ! real (kind=kind_phys), target :: sfcvisbmd(:)
+         ! real (kind=kind_phys), target :: sfcvisdfd(:)
+
+         ! In/Out
+         real (kind=kind_phys), target :: srunoff (:)
+         real (kind=kind_phys), target :: evbsa (:)
+         real (kind=kind_phys), target :: evcwa (:)
+         real (kind=kind_phys), target :: snohfa (:)
+         real (kind=kind_phys), target :: transa (:)
+         real (kind=kind_phys), target :: sbsnoa (:)
+         real (kind=kind_phys), target :: snowca (:)
+         real (kind=kind_phys), target :: soilm (:)
+         real (kind=kind_phys), target :: tmpmin (:)
+         real (kind=kind_phys), target :: tmpmax (:)
+         real (kind=kind_phys), target :: dusfc (:)
+         real (kind=kind_phys), target :: dvsfc (:)
+         real (kind=kind_phys), target :: dtsfc (:)
+         real (kind=kind_phys), target :: dqsfc (:)
+         real (kind=kind_phys), target :: totprcp (:)
+         real (kind=kind_phys), target :: gflux (:)
+         real (kind=kind_phys), target :: dlwsfc (:)
+         real (kind=kind_phys), target :: ulwsfc (:)
+         real (kind=kind_phys), target :: suntim (:)
+         real (kind=kind_phys), target :: runoff (:)
+         real (kind=kind_phys), target :: ep (:)
+         real (kind=kind_phys), target :: cldwrk (:)
+         real (kind=kind_phys), target :: dugwd (:)
+         real (kind=kind_phys), target :: dvgwd (:)
+         real (kind=kind_phys), target :: psmean (:)
+         real (kind=kind_phys), target :: cnvprcp (:)
+         real (kind=kind_phys), target :: spfhmin (:)
+         real (kind=kind_phys), target :: spfhmax (:)
+         real (kind=kind_phys), target :: rain (:)
+         real (kind=kind_phys), target :: rainc (:)
+         real (kind=kind_phys), target :: dt3dt (:,:,:)
+         real (kind=kind_phys), target :: dq3dt (:,:,:)
+         real (kind=kind_phys), target :: du3dt (:,:,:)
+         real (kind=kind_phys), target :: dv3dt (:,:,:)
+         real (kind=kind_phys), target :: dqdt_v(:,:)
+
+         ! Outputs
+         real (kind=kind_phys), target :: u10m(:) 
+         real (kind=kind_phys), target :: v10m(:) 
+         real (kind=kind_phys), target :: zlvl(:) 
+         real (kind=kind_phys), target :: psurf(:) 
+         real (kind=kind_phys), target :: hpbl(:) 
+         real (kind=kind_phys), target :: pwat(:) 
+         real (kind=kind_phys), target :: t1(:) 
+         real (kind=kind_phys), target :: q1(:) 
+         real (kind=kind_phys), target :: u1(:) 
+         real (kind=kind_phys), target :: v1(:) 
+         real (kind=kind_phys), target :: chh(:)
+         real (kind=kind_phys), target :: cmm(:) 
+         real (kind=kind_phys), target :: dlwsfci(:) 
+         real (kind=kind_phys), target :: ulwsfci(:) 
+         real (kind=kind_phys), target :: dswsfci(:) 
+         real (kind=kind_phys), target :: uswsfci(:) 
+         real (kind=kind_phys), target :: dusfci(:) 
+         real (kind=kind_phys), target :: dvsfci(:) 
+         real (kind=kind_phys), target :: dtsfci(:) 
+         real (kind=kind_phys), target :: dqsfci(:) 
+         real (kind=kind_phys), target :: gfluxi(:) 
+         real (kind=kind_phys), target :: epi(:) 
+         real (kind=kind_phys), target :: smcwlt2(:) 
+         real (kind=kind_phys), target :: smcref2(:) 
+         real (kind=kind_phys), target :: wet1(:) 
+         real (kind=kind_phys), target :: sr(:) 
+
 
          call dbgprint("diagnostics_setphys")
 
          ! In/Out
-         if (this%first_phys) then
-           allocate(this%srunoff (IX))
-           allocate(this%evbsa   (IX))
-           allocate(this%evcwa   (IX))
-           allocate(this%snohfa  (IX))
-           allocate(this%transa  (IX))
-           allocate(this%sbsnoa  (IX))
-           allocate(this%snowca  (IX))
-           allocate(this%soilm   (IX))
-           allocate(this%tmpmin  (IX))
-           allocate(this%tmpmax  (IX))
-           allocate(this%dusfc   (IX))
-           allocate(this%dvsfc   (IX))
-           allocate(this%dtsfc   (IX))
-           allocate(this%dqsfc   (IX))
-           allocate(this%totprcp (IX))
-           allocate(this%gflux   (IX))
-           allocate(this%dlwsfc  (IX))
-           allocate(this%ulwsfc  (IX))
-           allocate(this%suntim  (IX))
-           allocate(this%runoff  (IX))
-           allocate(this%ep      (IX))
-           allocate(this%cldwrk  (IX))
-           allocate(this%dugwd   (IX))
-           allocate(this%dvgwd   (IX))
-           allocate(this%psmean  (IX))
-           allocate(this%cnvprcp (IX))
-           allocate(this%spfhmin (IX))
-           allocate(this%spfhmax (IX))
-           allocate(this%rain    (IX))
-           allocate(this%rainc   (IX))
-           allocate(this%dt3dt   (IX,Model%levs,6))
-           allocate(this%dq3dt   (IX,Model%levs,5+Model%pl_coeff))
-           allocate(this%du3dt   (IX,Model%levs,4))
-           allocate(this%dv3dt   (IX,Model%levs,4))
-           allocate(this%dqdt_v  (IX,Model%levs))
-         endif
-
-         this%srunoff = zero
-         this%evbsa   = zero
-         this%evcwa   = zero
-         this%snohfa  = zero
-         this%transa  = zero
-         this%sbsnoa  = zero
-         this%snowca  = zero
-         this%soilm   = zero
-         this%tmpmin  = zero
-         this%tmpmax  = zero
-         this%dusfc   = zero
-         this%dvsfc   = zero
-         this%dtsfc   = zero
-         this%dqsfc   = zero
-         this%totprcp = zero
-         this%gflux   = zero
-         this%dlwsfc  = zero
-         this%ulwsfc  = zero
-         this%suntim  = zero
-         this%runoff  = zero
-         this%ep      = zero
-         this%cldwrk  = zero
-         this%dugwd   = zero
-         this%dvgwd   = zero
-         this%psmean  = zero
-         this%cnvprcp = zero
-         this%spfhmin = zero
-         this%spfhmax = zero
-         this%rain    = zero
-         this%rainc   = zero
-         this%dt3dt   = zero
-         this%dq3dt   = zero
-         this%du3dt   = zero
-         this%dv3dt   = zero
-         this%dqdt_v  = zero
+         this%srunoff => srunoff
+         this%evbsa => evbsa
+         this%evcwa => evcwa
+         this%snohfa => snohfa
+         this%transa => transa
+         this%sbsnoa => sbsnoa
+         this%snowca => snowca
+         this%soilm => soilm
+         this%tmpmin => tmpmin
+         this%tmpmax => tmpmax
+         this%dusfc => dusfc
+         this%dvsfc => dvsfc
+         this%dtsfc => dtsfc
+         this%dqsfc => dqsfc
+         this%totprcp => totprcp
+         this%gflux => gflux
+         this%dlwsfc => dlwsfc
+         this%ulwsfc => ulwsfc
+         this%suntim => suntim
+         this%runoff => runoff
+         this%ep => ep
+         this%cldwrk => cldwrk
+         this%dugwd => dugwd
+         this%dvgwd => dvgwd
+         this%psmean => psmean
+         this%cnvprcp => cnvprcp
+         this%spfhmin => spfhmin
+         this%spfhmax => spfhmax
+         this%rain => rain
+         this%rainc => rainc
+         this%dt3dt => dt3dt
+         this%dq3dt => dq3dt
+         this%du3dt => du3dt
+         this%dv3dt => dv3dt
+         this%dqdt_v => dqdt_v
 
          ! Output
-         if (this%first_phys) then
-           allocate(this%u10m    (IX))
-           allocate(this%v10m    (IX))
-           allocate(this%zlvl    (IX))
-           allocate(this%psurf   (IX))
-           allocate(this%hpbl    (IX))
-           allocate(this%pwat    (IX))
-           allocate(this%t1      (IX))
-           allocate(this%q1      (IX))
-           allocate(this%u1      (IX))
-           allocate(this%v1      (IX))
-           allocate(this%chh     (IX))
-           allocate(this%cmm     (IX))
-           allocate(this%dlwsfci (IX))
-           allocate(this%ulwsfci (IX))
-           allocate(this%dswsfci (IX))
-           allocate(this%uswsfci (IX))
-           allocate(this%dusfci  (IX))
-           allocate(this%dvsfci  (IX))
-           allocate(this%dtsfci  (IX))
-           allocate(this%dqsfci  (IX))
-           allocate(this%gfluxi  (IX))
-           allocate(this%epi     (IX))
-           allocate(this%smcwlt2 (IX))
-           allocate(this%smcref2 (IX))
-           allocate(this%wet1    (IX))
-           allocate(this%sr      (IX))
-         endif
-
-         this%u10m    = zero
-         this%v10m    = zero
-         this%zlvl    = zero
-         this%psurf   = zero
-         this%hpbl    = zero
-         this%pwat    = zero
-         this%t1      = zero
-         this%q1      = zero
-         this%u1      = zero
-         this%v1      = zero
-         this%chh     = zero
-         this%cmm     = zero
-         this%dlwsfci = zero
-         this%ulwsfci = zero
-         this%dswsfci = zero
-         this%uswsfci = zero
-         this%dusfci  = zero
-         this%dvsfci  = zero
-         this%dtsfci  = zero
-         this%dqsfci  = zero
-         this%gfluxi  = zero
-         this%epi     = zero
-         this%smcwlt2 = zero
-         this%smcref2 = zero
-         this%wet1    = zero
-         this%sr      = zero
-
-         this%first_phys = .FALSE.
+         this%u10m => u10m
+         this%v10m => v10m
+         this%zlvl => zlvl
+         this%psurf => psurf
+         this%hpbl => hpbl
+         this%pwat => pwat
+         this%t1 => t1
+         this%q1 => q1
+         this%u1 => u1
+         this%v1 => v1
+         this%chh => chh
+         this%cmm => cmm
+         this%dlwsfci => dlwsfci
+         this%ulwsfci => ulwsfci
+         this%dswsfci => dswsfci
+         this%uswsfci => uswsfci
+         this%dusfci => dusfci
+         this%dvsfci => dvsfci
+         this%dtsfci => dtsfci
+         this%dqsfci => dqsfci
+         this%gfluxi => gfluxi
+         this%epi => epi
+         this%smcwlt2 => smcwlt2
+         this%smcref2 => smcref2
+         this%wet1 => wet1
+         this%sr => sr
 
        end subroutine
 
@@ -1421,43 +1405,35 @@
 !******************************************
 ! Interface Fields methods
 !******************************************
-       subroutine interface_fld_setrad (this, IX, Model, SW0, SWB, LW0, LWB)
-!rab       subroutine interface_fld_setrad (this, sfcfsw, sfcflw, htrlw0, htrsw0, htrswb, htrlwb)
-
-         use module_radsw_parameters, only: NBDSW
-         use module_radlw_parameters, only: NBDLW
+       subroutine interface_fld_setrad (this, sfcfsw, sfcflw, htrlw0, htrsw0, htrswb, htrlwb)
 
          implicit none
 
          class(interface_fields) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
-         logical, optional, intent(in) :: SW0, SWB, LW0, LWB
+
+         type (sfcfsw_type), target :: sfcfsw(:)
+         type (sfcflw_type), target :: sfcflw(:)
+
+         !! Optional output variables:
+         real (kind=kind_phys), target, optional :: htrlw0(:,:)
+         real (kind=kind_phys), target, optional :: htrsw0(:,:)
+
+         real (kind=kind_phys), target, optional :: htrswb(:,:,:)
+         real (kind=kind_phys), target, optional :: htrlwb(:,:,:)
 
          call dbgprint("interface_fld_setrad")
 
          select type (this)
            class is (interface_fields)
            
-             allocate(this%sfcfsw (IX))
-             allocate(this%sfcflw (IX))
+             this%sfcfsw => sfcfsw
+             this%sfcflw => sfcflw
 
-             this%sfcfsw%upfxc = clear_val
-             this%sfcfsw%dnfxc = clear_val
-             this%sfcfsw%upfx0 = clear_val
-             this%sfcfsw%dnfx0 = clear_val
-             this%sfcflw%upfxc = clear_val
-             this%sfcflw%dnfxc = clear_val
-             this%sfcflw%upfx0 = clear_val
-             this%sfcflw%dnfx0 = clear_val
+             if (present(htrswb)) this%htrswb => htrswb
+             if (present(htrlwb)) this%htrlwb => htrlwb
 
-         !! Optional output variables:
-             if (present(SW0)) then ; if (SW0) allocate(this%htrsw0 (IX,Model%levs)); endif
-             if (present(LW0)) then ; if (LW0) allocate(this%htrlw0 (IX,Model%levs)); endif
-
-             if (present(SWB)) then ; if (SWB) allocate(this%htrswb (IX,Model%levs,NBDSW)); endif
-             if (present(LWB)) then ; if (LWB) allocate(this%htrlwb (IX,Model%levs,NBDLW)); endif
-
+             if (present(htrlw0)) this%htrlw0 => htrlw0
+             if (present(htrsw0)) this%htrsw0 => htrsw0
 
          end select
 
@@ -1465,172 +1441,168 @@
 
 
 
-       subroutine interface_fld_setphys(this, IX, Model)
-!rab       subroutine interface_fld_setphys(this, sfcdsw, sfcnsw, sfcdlw, sfcnirbmu, sfcnirdfu, sfcvisbmu,         &
-!rab                 sfcvisdfu, sfcnirbmd, sfcnirdfd, sfcvisbmd, sfcvisdfd,                                        &
-!rab                 dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl, dlwsfc_cpl, dswsfc_cpl, dnirbm_cpl,               &
-!rab                 dnirdf_cpl, dvisbm_cpl, dvisdf_cpl, rain_cpl, nlwsfc_cpl, nswsfc_cpl, nnirbm_cpl, nnirdf_cpl, &
-!rab                 nvisbm_cpl, nvisdf_cpl, xt, xs, xu, xv, xz, zm, xtts, xzts, d_conv, ifd, dt_cool, Qrain,      &
-!rab                 dusfci_cpl, dvsfci_cpl, dtsfci_cpl, dqsfci_cpl, dlwsfci_cpl, dswsfci_cpl, dnirbmi_cpl, dnirdfi_cpl,      &
-!rab                 dvisbmi_cpl, dvisdfi_cpl, nlwsfci_cpl, nswsfci_cpl, nnirbmi_cpl, nnirdfi_cpl, nvisbmi_cpl, nvisdfi_cpl,  &
-!rab                 t2mi_cpl, q2mi_cpl, u10mi_cpl, v10mi_cpl, tseai_cpl, psurfi_cpl, oro_cpl, slmsk_cpl)
+       subroutine interface_fld_setphys(this, sfcdsw, sfcnsw, sfcdlw, sfcnirbmu, sfcnirdfu, sfcvisbmu,         &
+                 sfcvisdfu, sfcnirbmd, sfcnirdfd, sfcvisbmd, sfcvisdfd,                                        &
+                 dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl, dlwsfc_cpl, dswsfc_cpl, dnirbm_cpl,               &
+                 dnirdf_cpl, dvisbm_cpl, dvisdf_cpl, rain_cpl, nlwsfc_cpl, nswsfc_cpl, nnirbm_cpl, nnirdf_cpl, &
+                 nvisbm_cpl, nvisdf_cpl, xt, xs, xu, xv, xz, zm, xtts, xzts, d_conv, ifd, dt_cool, Qrain,      &
+                 dusfci_cpl, dvsfci_cpl, dtsfci_cpl, dqsfci_cpl, dlwsfci_cpl, dswsfci_cpl, dnirbmi_cpl, dnirdfi_cpl,      &
+                 dvisbmi_cpl, dvisdfi_cpl, nlwsfci_cpl, nswsfci_cpl, nnirbmi_cpl, nnirdfi_cpl, nvisbmi_cpl, nvisdfi_cpl,  &
+                 t2mi_cpl, q2mi_cpl, u10mi_cpl, v10mi_cpl, tseai_cpl, psurfi_cpl, oro_cpl, slmsk_cpl)
 
          implicit none
 
          class(interface_fields) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+
+         ! Inputs
+         real (kind=kind_phys), target :: sfcdsw(:)
+         real (kind=kind_phys), target :: sfcnsw(:)
+         real (kind=kind_phys), target :: sfcdlw(:)
+
+         ! Inputs moved from TBD physics only
+         real (kind=kind_phys), target :: sfcnirbmu(:) ! aoi_fld%nirbmui  sfc nir beam sw upward flux (w/m2)
+         real (kind=kind_phys), target :: sfcnirdfu(:) ! aoi_fld%nirdfui  sfc nir diff sw upward flux (w/m2)
+         real (kind=kind_phys), target :: sfcvisbmu(:) ! aoi_fld%visbmui  sfc uv+vis beam sw upward flux (w/m2)
+         real (kind=kind_phys), target :: sfcvisdfu(:) ! aoi_fld%visdfui  sfc uv+vis diff sw upward flux (w/m2)
+
+         ! Inputs moved from diagnostics - physics only
+         real (kind=kind_phys), target :: sfcnirbmd(:) ! aoi_fld%nirbmdi  sfc nir beam sw downward flux (w/m2)
+         real (kind=kind_phys), target :: sfcnirdfd(:) ! aoi_fld%nirdfdi  sfc nir diff sw downward flux (w/m2)
+         real (kind=kind_phys), target :: sfcvisbmd(:) ! aoi_fld%visbmdi  sfc uv+vis beam sw downward flux (w/m2)
+         real (kind=kind_phys), target :: sfcvisdfd(:) ! aoi_fld%visdfdi  sfc uv+vis diff sw downward flux (w/m2)
+
+         ! In/out
+         real (kind=kind_phys), target :: dusfc_cpl(:)
+         real (kind=kind_phys), target :: dvsfc_cpl(:)
+         real (kind=kind_phys), target :: dtsfc_cpl(:)
+         real (kind=kind_phys), target :: dqsfc_cpl(:)
+         real (kind=kind_phys), target :: dlwsfc_cpl(:)
+         real (kind=kind_phys), target :: dswsfc_cpl(:)
+         real (kind=kind_phys), target :: dnirbm_cpl(:)
+         real (kind=kind_phys), target :: dnirdf_cpl(:)
+         real (kind=kind_phys), target :: dvisbm_cpl(:)
+         real (kind=kind_phys), target :: dvisdf_cpl(:)
+         real (kind=kind_phys), target :: rain_cpl(:)
+         real (kind=kind_phys), target :: nlwsfc_cpl(:)
+         real (kind=kind_phys), target :: nswsfc_cpl(:)
+         real (kind=kind_phys), target :: nnirbm_cpl(:)
+         real (kind=kind_phys), target :: nnirdf_cpl(:)
+         real (kind=kind_phys), target :: nvisbm_cpl(:)
+         real (kind=kind_phys), target :: nvisdf_cpl(:)
+         real (kind=kind_phys), target :: xt(:)
+         real (kind=kind_phys), target :: xs(:)
+         real (kind=kind_phys), target :: xu(:)
+         real (kind=kind_phys), target :: xv(:)
+         real (kind=kind_phys), target :: xz(:)
+         real (kind=kind_phys), target :: zm(:)
+         real (kind=kind_phys), target :: xtts(:)
+         real (kind=kind_phys), target :: xzts(:)
+         real (kind=kind_phys), target :: d_conv(:)
+         real (kind=kind_phys), target :: ifd(:)
+         real (kind=kind_phys), target :: dt_cool(:)
+         real (kind=kind_phys), target :: Qrain(:)
+
+         ! Outputs
+         real (kind=kind_phys), optional, target :: dusfci_cpl(:)
+         real (kind=kind_phys), optional, target :: dvsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: dtsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: dqsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: dlwsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: dswsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: dnirbmi_cpl(:)
+         real (kind=kind_phys), optional, target :: dnirdfi_cpl(:)
+         real (kind=kind_phys), optional, target :: dvisbmi_cpl(:)
+         real (kind=kind_phys), optional, target :: dvisdfi_cpl(:)
+         real (kind=kind_phys), optional, target :: nlwsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: nswsfci_cpl(:)
+         real (kind=kind_phys), optional, target :: nnirbmi_cpl(:)
+         real (kind=kind_phys), optional, target :: nnirdfi_cpl(:)
+         real (kind=kind_phys), optional, target :: nvisbmi_cpl(:)
+         real (kind=kind_phys), optional, target :: nvisdfi_cpl(:)
+         real (kind=kind_phys), optional, target :: t2mi_cpl(:)
+         real (kind=kind_phys), optional, target :: q2mi_cpl(:)
+         real (kind=kind_phys), optional, target :: u10mi_cpl(:)
+         real (kind=kind_phys), optional, target :: v10mi_cpl(:)
+         real (kind=kind_phys), optional, target :: tseai_cpl(:)
+         real (kind=kind_phys), optional, target :: psurfi_cpl(:)
+         real (kind=kind_phys), optional, target :: oro_cpl(:)
+         real (kind=kind_phys), optional, target :: slmsk_cpl(:)
+
 
          call dbgprint("interface_fld_setphys")
 
          ! Input
-         allocate(this%sfcdsw (IX))
-         allocate(this%sfcnsw (IX))
-         allocate(this%sfcdlw (IX))
+         this%sfcdsw => sfcdsw
+         this%sfcnsw => sfcnsw
+         this%sfcdlw => sfcdlw
 
-         this%sfcdsw = clear_val
-         this%sfcnsw = clear_val
-         this%sfcdlw = clear_val
+         this%sfcnirbmu => sfcnirbmu
+         this%sfcnirdfu => sfcnirdfu
+         this%sfcvisbmu => sfcvisbmu
+         this%sfcvisdfu => sfcvisdfu
 
-         ! Inputs moved from TBD physics only
-         allocate(this%sfcnirbmu (IX))
-         allocate(this%sfcnirdfu (IX))
-         allocate(this%sfcvisbmu (IX))
-         allocate(this%sfcvisdfu (IX))
-
-         this%sfcnirbmu = clear_val
-         this%sfcnirdfu = clear_val
-         this%sfcvisbmu = clear_val
-         this%sfcvisdfu = clear_val
-
-         ! Inputs moved from diagnostics - physics only
-         allocate(this%sfcnirbmd (IX))
-         allocate(this%sfcnirdfd (IX))
-         allocate(this%sfcvisbmd (IX))
-         allocate(this%sfcvisdfd (IX))
-
-         this%sfcnirbmd = clear_val
-         this%sfcnirdfd = clear_val
-         this%sfcvisbmd = clear_val
-         this%sfcvisdfd = clear_val
+         this%sfcnirbmd => sfcnirbmd
+         this%sfcnirdfd => sfcnirdfd
+         this%sfcvisbmd => sfcvisbmd
+         this%sfcvisdfd => sfcvisdfd
 
          ! In/Out
-         allocate(this%dusfc_cpl  (IX))
-         allocate(this%dvsfc_cpl  (IX))
-         allocate(this%dtsfc_cpl  (IX))
-         allocate(this%dqsfc_cpl  (IX))
-         allocate(this%dlwsfc_cpl (IX))
-         allocate(this%dswsfc_cpl (IX))
-         allocate(this%dnirbm_cpl (IX))
-         allocate(this%dnirdf_cpl (IX))
-         allocate(this%dvisbm_cpl (IX))
-         allocate(this%dvisdf_cpl (IX))
-         allocate(this%rain_cpl   (IX))
-         allocate(this%nlwsfc_cpl (IX))
-         allocate(this%nswsfc_cpl (IX))
-         allocate(this%nnirbm_cpl (IX))
-         allocate(this%nnirdf_cpl (IX))
-         allocate(this%nvisbm_cpl (IX))
-         allocate(this%nvisdf_cpl (IX))
+         this%dusfc_cpl => dusfc_cpl
+         this%dvsfc_cpl => dvsfc_cpl
+         this%dtsfc_cpl => dtsfc_cpl
+         this%dqsfc_cpl => dqsfc_cpl
+         this%dlwsfc_cpl => dlwsfc_cpl
+         this%dswsfc_cpl => dswsfc_cpl
+         this%dnirbm_cpl => dnirbm_cpl
+         this%dnirdf_cpl => dnirdf_cpl
+         this%dvisbm_cpl => dvisbm_cpl
+         this%dvisdf_cpl => dvisdf_cpl
+         this%rain_cpl => rain_cpl
+         this%nlwsfc_cpl => nlwsfc_cpl
+         this%nswsfc_cpl => nswsfc_cpl
+         this%nnirbm_cpl => nnirbm_cpl
+         this%nnirdf_cpl => nnirdf_cpl
+         this%nvisbm_cpl => nvisbm_cpl
+         this%nvisdf_cpl => nvisdf_cpl
 
-         this%dusfc_cpl  = clear_val
-         this%dvsfc_cpl  = clear_val
-         this%dtsfc_cpl  = clear_val
-         this%dqsfc_cpl  = clear_val
-         this%dlwsfc_cpl = clear_val
-         this%dswsfc_cpl = clear_val
-         this%dnirbm_cpl = clear_val
-         this%dnirdf_cpl = clear_val
-         this%dvisbm_cpl = clear_val
-         this%dvisdf_cpl = clear_val
-         this%rain_cpl   = clear_val
-         this%nlwsfc_cpl = clear_val
-         this%nswsfc_cpl = clear_val
-         this%nnirbm_cpl = clear_val
-         this%nnirdf_cpl = clear_val
-         this%nvisbm_cpl = clear_val
-         this%nvisdf_cpl = clear_val
+         this%xt => xt
+         this%xs => xs
+         this%xu => xu
+         this%xv => xv
+         this%xz => xz
+         this%zm => zm
+         this%xtts => xtts
+         this%xzts => xzts
+         this%d_conv => d_conv
+         this%ifd => ifd
+         this%dt_cool => dt_cool
+         this%Qrain => Qrain
 
-         if (Model%nst_fcst > 0 ) then
-           allocate(this%xt      (IX))
-           allocate(this%xs      (IX))
-           allocate(this%xu      (IX))
-           allocate(this%xv      (IX))
-           allocate(this%xz      (IX))
-           allocate(this%zm      (IX))
-           allocate(this%xtts    (IX))
-           allocate(this%xzts    (IX))
-           allocate(this%d_conv  (IX))
-           allocate(this%ifd     (IX))
-           allocate(this%dt_cool (IX))
-           allocate(this%Qrain   (IX))
-
-           this%xt      = clear_val
-           this%xs      = clear_val
-           this%xu      = clear_val
-           this%xv      = clear_val
-           this%xz      = clear_val
-           this%zm      = clear_val
-           this%xtts    = clear_val
-           this%xzts    = clear_val
-           this%d_conv  = clear_val
-           this%ifd     = clear_val
-           this%dt_cool = clear_val
-           this%Qrain   = clear_val
-         endif
-
-         ! Outputs (optional)
-         if (Model%lssav_cpl) then
-           allocate(this%dusfci_cpl  (IX))
-           allocate(this%dvsfci_cpl  (IX))
-           allocate(this%dtsfci_cpl  (IX))
-           allocate(this%dqsfci_cpl  (IX))
-           allocate(this%dlwsfci_cpl (IX))
-           allocate(this%dswsfci_cpl (IX))
-           allocate(this%dnirbmi_cpl (IX))
-           allocate(this%dnirdfi_cpl (IX))
-           allocate(this%dvisbmi_cpl (IX))
-           allocate(this%dvisdfi_cpl (IX))
-           allocate(this%nlwsfci_cpl (IX))
-           allocate(this%nswsfci_cpl (IX))
-           allocate(this%nnirbmi_cpl (IX))
-           allocate(this%nnirdfi_cpl (IX))
-           allocate(this%nvisbmi_cpl (IX))
-           allocate(this%nvisdfi_cpl (IX))
-           allocate(this%t2mi_cpl    (IX))
-           allocate(this%q2mi_cpl    (IX))
-           allocate(this%u10mi_cpl   (IX))
-           allocate(this%v10mi_cpl   (IX))
-           allocate(this%tseai_cpl   (IX))
-           allocate(this%psurfi_cpl  (IX))
-           allocate(this%oro_cpl     (IX))
-           allocate(this%slmsk_cpl   (IX))
-
-           this%dusfci_cpl  = clear_val
-           this%dvsfci_cpl  = clear_val
-           this%dtsfci_cpl  = clear_val
-           this%dqsfci_cpl  = clear_val
-           this%dlwsfci_cpl = clear_val
-           this%dswsfci_cpl = clear_val
-           this%dnirbmi_cpl = clear_val
-           this%dnirdfi_cpl = clear_val
-           this%dvisbmi_cpl = clear_val
-           this%dvisdfi_cpl = clear_val
-           this%nlwsfci_cpl = clear_val
-           this%nswsfci_cpl = clear_val
-           this%nnirbmi_cpl = clear_val
-           this%nnirdfi_cpl = clear_val
-           this%nvisbmi_cpl = clear_val
-           this%nvisdfi_cpl = clear_val
-           this%t2mi_cpl    = clear_val
-           this%q2mi_cpl    = clear_val
-           this%u10mi_cpl   = clear_val
-           this%v10mi_cpl   = clear_val
-           this%tseai_cpl   = clear_val
-           this%psurfi_cpl  = clear_val
-           this%oro_cpl     = clear_val
-           this%slmsk_cpl   = clear_val
-         endif
+         ! Output
+         if (present(dusfci_cpl)) this%dusfci_cpl => dusfci_cpl
+         if (present(dvsfci_cpl)) this%dvsfci_cpl => dvsfci_cpl
+         if (present(dtsfci_cpl)) this%dtsfci_cpl => dtsfci_cpl
+         if (present(dqsfci_cpl)) this%dqsfci_cpl => dqsfci_cpl
+         if (present(dlwsfci_cpl)) this%dlwsfci_cpl => dlwsfci_cpl
+         if (present(dswsfci_cpl)) this%dswsfci_cpl => dswsfci_cpl
+         if (present(dnirbmi_cpl)) this%dnirbmi_cpl => dnirbmi_cpl
+         if (present(dnirdfi_cpl)) this%dnirdfi_cpl => dnirdfi_cpl
+         if (present(dvisbmi_cpl)) this%dvisbmi_cpl => dvisbmi_cpl
+         if (present(dvisdfi_cpl)) this%dvisdfi_cpl => dvisdfi_cpl
+         if (present(nlwsfci_cpl)) this%nlwsfci_cpl => nlwsfci_cpl
+         if (present(nswsfci_cpl)) this%nswsfci_cpl => nswsfci_cpl
+         if (present(nnirbmi_cpl)) this%nnirbmi_cpl => nnirbmi_cpl
+         if (present(nnirdfi_cpl)) this%nnirdfi_cpl => nnirdfi_cpl
+         if (present(nvisbmi_cpl)) this%nvisbmi_cpl => nvisbmi_cpl
+         if (present(nvisdfi_cpl)) this%nvisdfi_cpl => nvisdfi_cpl
+         if (present(t2mi_cpl)) this%t2mi_cpl => t2mi_cpl
+         if (present(q2mi_cpl)) this%q2mi_cpl => q2mi_cpl
+         if (present(u10mi_cpl)) this%u10mi_cpl => u10mi_cpl
+         if (present(v10mi_cpl)) this%v10mi_cpl => v10mi_cpl
+         if (present(tseai_cpl)) this%tseai_cpl => tseai_cpl
+         if (present(psurfi_cpl)) this%psurfi_cpl => psurfi_cpl
+         if (present(oro_cpl)) this%oro_cpl => oro_cpl
+         if (present(slmsk_cpl)) this%slmsk_cpl => slmsk_cpl
 
        end subroutine
 
@@ -1638,73 +1610,75 @@
 !******************************************
 ! Cloud properties methods
 !******************************************
-       subroutine cld_prop_setrad (this, IX, Model, sup)
-!rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, &
-!rab                                   cldcov, deltaq, sup, cnvw, cnvc)
+       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, flgmin, &
+                                   cldcov, deltaq, sup, cnvw, cnvc)
 
          implicit none
 
          class(cloud_properties) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
-         real(kind=kind_phys), intent(in) :: sup
         
+         ! PT intent ? 
+         real (kind=kind_phys), target :: cv  (:)
+         real (kind=kind_phys), target :: cvt (:)
+         real (kind=kind_phys), target :: cvb (:)
+         real (kind=kind_phys), target :: fcice (:,:)
+         real (kind=kind_phys), target :: frain (:,:)
+         real (kind=kind_phys), target :: rrime (:,:)
+         real (kind=kind_phys), target :: flgmin (:)
+
+         real (kind=kind_phys), target :: deltaq(:,:)
+         real (kind=kind_phys), target :: sup
+         real (kind=kind_phys), target :: cnvw(:,:)
+         real (kind=kind_phys), target :: cnvc(:,:)
+
+         !! Outputs from radiation
+         real (kind=kind_phys), target :: cldcov(:,:)
+
          call dbgprint("cld_prop_set")
 
          select type (this)
            class is (cloud_properties)
-             this%sup = sup
-             allocate(this%cv     (IX))
-             allocate(this%cvt    (IX))
-             allocate(this%cvb    (IX))
-             allocate(this%flgmin (IX))
-             allocate(this%fcice  (IX,Model%levs))
-             allocate(this%frain  (IX,Model%levs))
-             allocate(this%rrime  (IX,Model%levs))
-             allocate(this%deltaq (IX,Model%levs))
-             allocate(this%cnvw   (IX,Model%levs))
-             allocate(this%cnvc   (IX,Model%levs))
-
-             this%cv     = clear_val
-             this%cvt    = clear_val
-             this%cvb    = clear_val
-             this%flgmin = clear_val
-             this%fcice  = clear_val
-             this%frain  = clear_val
-             this%rrime  = clear_val
-             this%deltaq = clear_val
-             this%cnvw   = clear_val
-             this%cnvc   = clear_val
-
-         !! Outputs from radiation
-             allocate(this%cldcov (IX,Model%levs))
-
-             this%cldcov = clear_val
+             this%cv     => cv
+             this%cvt    => cvt
+             this%cvb    => cvb
+             this%fcice  => fcice
+             this%frain  => frain
+             this%rrime  => rrime
+             this%flgmin => flgmin
+             this%cldcov => cldcov
+             this%deltaq => deltaq
+             this%sup => sup
+             this%cnvw => cnvw
+             this%cnvc => cnvc
          end select         
 
        end subroutine
 
 
-       subroutine cld_prop_setphys (this, IX, Model, sup)
+       subroutine cld_prop_setphys (this, flgmin, cv, cvt, cvb, cnvqc_v, sup )
 
          implicit none
 
          class(cloud_properties) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
-         real(kind=kind_phys), intent(in) :: sup
+
+         ! Input
+         real (kind=kind_phys), target :: flgmin (:)
+
+         ! Input/output
+         real (kind=kind_phys), target :: cv  (:)
+         real (kind=kind_phys), target :: cvt (:)
+         real (kind=kind_phys), target :: cvb (:)
+         real (kind=kind_phys), target :: cnvqc_v(:,:)
+         real (kind=kind_phys), target :: sup
 
          call dbgprint("cld_prop_setphys")
 
-!rab are these the same from cld_prop_setrad
-         ! Input
-!rab         allocate(this%flgmin => flgmin
-         ! Input/output
-         this%sup = sup
-!rab         allocate(this%cv      (IX))
-!rab         allocate(this%cvt     (IX))
-!rab         allocate(this%cvb     (IX))
-         allocate(this%cnvqc_v (IX,Model%levs))
+         this%cv     => cv
+         this%cvt    => cvt
+         this%cvb    => cvb
+         this%flgmin => flgmin
+         this%cnvqc_v => cnvqc_v
+         this%sup     => sup
 
        end subroutine
 
@@ -1713,55 +1687,53 @@
 ! Radiation tendencies methods
 !******************************************
 
-       subroutine rad_tend_set (this, IX, Model)
                                       ! swh                 ! hlw
-!rab       subroutine rad_tend_set (this, htrsw, sfalb, coszen, htrlw, tsflw, semis, coszdg,  &
-!rab                                rqtk, hlwd, dtdtr, swhc, hlwc )
+       subroutine rad_tend_set (this, htrsw, sfalb, coszen, htrlw, tsflw, semis, coszdg,  &
+                                rqtk, hlwd, dtdtr, swhc, hlwc )
                                 
          implicit none
 
          class(radiation_tendencies) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+
+         !! Outputs from grrad
+         real (kind=kind_phys), target :: htrsw (:,:)
+         real (kind=kind_phys), target :: sfalb (:)
+
+         real (kind=kind_phys), target :: coszen(:)
+         real (kind=kind_phys), target :: htrlw (:,:)
+         real (kind=kind_phys), target :: tsflw (:)
+         real (kind=kind_phys), target :: semis (:)
+
+         ! Optional, used only by grrad
+         real (kind=kind_phys), optional, target :: coszdg(:)
+
+         ! Optional, used only by gbphys
+         real (kind=kind_phys), optional, target :: rqtk (:)
+         real (kind=kind_phys), optional, target :: hlwd (:,:,:)
+         real (kind=kind_phys), optional, target :: dtdtr(:,:)
+
+         real (kind=kind_phys), optional, target :: swhc (:,:)
+         real (kind=kind_phys), optional, target :: hlwc (:,:)
 
          call dbgprint("rad_tend_set")
 
          select type (this)
            class is (radiation_tendencies)
-           ! Outputs from grrad
-             allocate(this%htrsw  (IX,Model%levs))
-             allocate(this%sfalb  (IX))
-             allocate(this%coszen (IX))
-             allocate(this%htrlw  (IX,Model%levs))
-             allocate(this%tsflw  (IX))
-             allocate(this%semis  (IX))
+             this%htrsw => htrsw
+             this%sfalb => sfalb
+             this%coszen => coszen
+             this%htrlw => htrlw
+             this%tsflw => tsflw
+             this%semis => semis
 
-             this%htrsw  = clear_val
-             this%sfalb  = clear_val
-             this%coszen = clear_val
-             this%htrlw  = clear_val
-             this%tsflw  = clear_val
-             this%semis  = clear_val
+             if (present(coszdg)) this%coszdg => coszdg
 
-           ! used only by grrad
-             allocate(this%coszdg (IX))
+             if (present(rqtk)) this%rqtk => rqtk
+             if (present(hlwd)) this%hlwd => hlwd
+             if (present(dtdtr)) this%dtdtr => dtdtr
 
-             this%coszdg = clear_val
-
-           ! used only by gbphys
-             allocate(this%rqtk  (IX))
-             allocate(this%hlwd  (IX,Model%levs,6))
-             allocate(this%dtdtr (IX,Model%levs))
-
-             this%rqtk  = clear_val
-             this%hlwd  = clear_val
-             this%dtdtr = clear_val
-
-             allocate(this%swhc (IX,Model%levs))
-             allocate(this%hlwc (IX,Model%levs))
-
-             this%swhc = clear_val
-             this%hlwc = clear_val
+             if (present(swhc)) this%swhc => swhc
+             if (present(hlwc)) this%hlwc => hlwc
          end select
 
        end subroutine rad_tend_set
@@ -1848,51 +1820,73 @@
 ! Dynamic_parameter methods
 !******************************************
 
-       subroutine dyn_param_setrad (this, IX, IM, kdt, jdate, solhr, dtlw, dtsw, &
-                                    lssav, ipt, lprnt, deltim)
-!rab       subroutine dyn_param_setrad (this, xlon, xlat, sinlat, coslat, solhr, &
-!rab                                    IX, IM, kdt, jdate, solcon, icsdsw, icsdlw, &
-!rab                                    dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, deltim, &
-!rab                                    slag, sdec, cdec)
+       subroutine dyn_param_setrad (this, xlon, xlat, sinlat, coslat, solhr, &
+                                    IX, IM, kdt, jdate, solcon, icsdsw, icsdlw, &
+                                    dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, deltim, &
+                                    slag, sdec, cdec)
  
          implicit none
 
          class(dynamic_parameters) :: this
 
-         real (kind=kind_phys), intent(in) :: solhr
-         integer, intent(in) :: IX, IM, kdt
-         logical, intent(in) :: lssav
+         real (kind=kind_phys), target :: xlon(:)
+         real (kind=kind_phys), target :: xlat(:)
+         real (kind=kind_phys), target :: sinlat(:)
+         real (kind=kind_phys), target :: coslat(:)
+         real (kind=kind_phys) :: solhr
+         integer :: IX
+         integer :: IM
+         integer :: kdt
+         logical :: lssav
 
          ! Radiation only
-         integer, intent(in) :: jdate(8)
-         integer, intent(in) :: ipt                 
-         real (kind=kind_phys), intent(in) :: dtlw, dtsw, deltim
-         logical, intent(in) :: lprnt
+         integer :: jdate (8)
+         real (kind=kind_phys) :: solcon
+
+         integer, target :: icsdsw(:)
+         integer, target :: icsdlw(:)
+         real (kind=kind_phys)  :: dtlw
+         real (kind=kind_phys)  :: dtsw 
+         logical                :: lsswr 
+         logical                :: lslwr 
+         integer :: ipt                 
+         logical :: lprnt
+         real (kind=kind_phys) :: deltim
+
+         ! These might be able to be computed elsewhere
+         real (kind=kind_phys) :: slag  ! equation of time ( radian )
+         real (kind=kind_phys) :: sdec  ! sin of the solar declination angle
+         real (kind=kind_phys) :: cdec  ! cos of the solar declination angle
+         ! End Radiation only
 
          call dbgprint("dyn_param_setrad")
 
          select type (this)
            class is (dynamic_parameters)
-             if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
-             if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
-             if (.not.associated(this%area)) allocate(this%area   (IX))
-             if (.not.associated(this%dx))   allocate(this%dx     (IX))
-             if (.not.associated(this%dy))   allocate(this%dy     (IX))
-             if (.not.associated(this%sinlat)) allocate(this%sinlat (IX))
-             if (.not.associated(this%coslat)) allocate(this%coslat (IX))
-             if (.not.associated(this%icsdsw)) allocate(this%icsdsw (IX))
-             if (.not.associated(this%icsdlw)) allocate(this%icsdlw (IX))
-             this%solhr  = solhr
-             this%IX     = IX
-             this%IM     = IM
-             this%kdt    = kdt
-             this%jdate  = jdate
-             this%dtlw   = dtlw
-             this%dtsw   = dtsw
-             this%lssav  = lssav
-             this%ipt    = ipt
-             this%lprnt  = lprnt
-             this%deltim = deltim
+             this%xlon             => xlon
+             this%xlat             => xlat
+             this%sinlat           => sinlat
+             this%coslat           => coslat
+             this%solhr            = solhr
+             this%IX               = IX
+             this%IM               = IM
+             this%kdt              = kdt
+             this%jdate            = jdate
+             this%solcon           = solcon
+             this%icsdsw           => icsdsw
+             this%icsdlw           => icsdlw
+             this%dtlw             = dtlw
+             this%dtsw             = dtsw
+             this%lsswr            = lsswr
+             this%lslwr            = lslwr
+             this%lssav            = lssav
+             this%ipt              = ipt
+             this%lprnt            = lprnt
+             this%deltim           = deltim
+
+             this%slag = slag
+             this%sdec = sdec
+             this%cdec = cdec
 
            class default
              print *, "class default"
@@ -1901,50 +1895,64 @@
        end subroutine
 
 
-       subroutine dyn_param_setphys (this, IX, IM, solhr, kdt, lssav, lat, dtp, dtf, &
-                                     clstp, nnp, fhour)
-!rab       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
-!rab                                     kdt, lssav, lat, dtp, dtf, clstp,       &
-!rab                                     nnp, nlons, fhour, slag, sdec, cdec )
+       subroutine dyn_param_setphys (this, xlon, xlat, sinlat, coslat, solhr, &
+                                     IX, IM, kdt, lssav, lat, dtp, dtf, clstp,       &
+                                     nnp, nlons, fhour, slag, sdec, cdec )
          implicit none
 
          class(dynamic_parameters) :: this
 
+         real (kind=kind_phys), target :: xlon(:)
+         real (kind=kind_phys), target :: xlat(:)
+         real (kind=kind_phys), target :: sinlat(:)
+         real (kind=kind_phys), target :: coslat(:)
          real (kind=kind_phys) :: solhr
-         integer, intent(in) :: IX, IM, kdt
-         logical :: lssav 
+         integer :: IX
+         integer :: IM
+         integer :: kdt
+         logical :: lssav
+
 
          ! Physics only
-         integer, intent(in) :: lat, nnp
-         real (kind=kind_phys), intent(in) :: dtp, dtf, clstp, fhour
+         integer :: lat
+         real (kind=kind_phys) :: dtp
+         real (kind=kind_phys) :: dtf
+         real (kind=kind_phys) :: clstp
+         integer :: nnp
+         integer, target :: nlons(:)
+         real (kind=kind_phys) :: fhour
+
+
+         ! These might be able to be computed elsewhere
+         real (kind=kind_phys) :: slag  ! equation of time ( radian )
+         real (kind=kind_phys) :: sdec  ! sin of the solar declination angle
+         real (kind=kind_phys) :: cdec  ! cos of the solar declination angle
 
          call dbgprint("dyn_param_setphys")
 
          select type (this)
            class is (dynamic_parameters)
-!rab these are already done in setrad
-             if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
-             if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
-             if (.not.associated(this%area)) allocate(this%area   (IX))
-             if (.not.associated(this%dx))   allocate(this%dx     (IX))
-             if (.not.associated(this%dy))   allocate(this%dy     (IX))
-             if (.not.associated(this%sinlat)) allocate(this%sinlat (IX))
-             if (.not.associated(this%coslat)) allocate(this%coslat (IX))
-             allocate(this%nlons (IX))
-             this%solhr = solhr
-             this%IX    = IX
-             this%IM    = IM
-             this%kdt   = kdt
-             this%lssav = lssav
-             this%lat   = lat
-             this%dtp   = dtp
-             this%dtf   = dtf
-             this%clstp = clstp
-             this%nnp   = nnp
-             this%fhour = fhour
+             this%xlon             => xlon
+             this%xlat             => xlat
+             this%sinlat           => sinlat
+             this%coslat           => coslat
+             this%solhr            = solhr
+             this%IX               = IX
+             this%IM               = IM
+             this%kdt              = kdt
+             this%lssav            = lssav
+             this%lat              = lat
+             this%dtp              = dtp
+             this%dtf              = dtf
+             this%clstp            = clstp
+             this%nnp              = nnp
+             this%nlons            => nlons
+             this%fhour            = fhour
 
-             !  set a default value for nlons
-             this%nlons(:) = -9999
+             this%slag = slag
+             this%sdec = sdec
+             this%cdec = cdec
+
            class default
              print *, "class default"
          end select
@@ -1970,8 +1978,8 @@
                                  cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                                  ! For radiation
                                  si, ictm, isol, ico2, iaer, ialb, iems,                    &
-                                 iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                                 sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dtp,nlunit)
+                                 iovr_sw,iovr_lw,isubc_sw,isubc_lw, shoc_cld,  &
+                                 sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip, nlunit)
 
          ! use physcons, only: dxmin, dxmax, dxinv
 
@@ -1979,7 +1987,6 @@
 
          ! Add intent ?
          type (model_parameters) :: mdl
-         real(kind=kind_phys) :: dtp
 
          integer :: ntcw
          integer :: ncld
@@ -2131,8 +2138,8 @@
          mdl%redrag           = redrag
          mdl%hybedmf          = hybedmf
          mdl%dspheat          = dspheat
-
-         ! NEW CS Scheme
+   
+         ! NEW CS Scheme 
          mdl%cscnv            = cscnv
          mdl%nctp             = nctp
          mdl%ntke             = ntke
@@ -2146,16 +2153,11 @@
          dxmin = dxminin
          dxinv = dxinvin
 
-!/GFDL - had to add the following to get things working...
-         call gfuncphys ()
-         call gsmconst (dtp,me,.TRUE.)
-!GFDL/
-
-         call rad_initialize                                             &
+        call rad_initialize                                             &
 !  ---  inputs:
-     &      ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
-     &        num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
-     &        sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
+     &     ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
+     &       num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
+     &       sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
 !  ---  outputs: ( none )
 
          call set_soilveg(me,nlunit)
@@ -2300,6 +2302,84 @@
          ! report any errors
 900      if (ios .ne. 0 ) print *, "DBG NUOPC IOERR : ", ios
 
+         if (debug) then
+         print *, "BEFORE INIT SAVE"
+
+         print *, "ntcw : ", ntcw
+         print *, "ncld : ", ncld
+         print *, "ntoz : ", ntoz
+         print *, "NTRAC : ", NTRAC
+         print *, "levs : ", levs
+         print *, "me : ", me
+         print *, "lsoil : ", lsoil
+         print *, "lsm : ", lsm
+         print *, "nmtvr : ", nmtvr
+         print *, "nrcm : ", nrcm
+         print *, "levozp : ", levozp
+         print *, "lonr : ", lonr
+         print *, "latr : ", latr
+         print *, "jcap : ", jcap
+         print *, "num_p3d : ", num_p3d
+         print *, "num_p2d : ", num_p2d
+         print *, "npdf3d : ", npdf3d
+         print *, "pl_coeff : ", pl_coeff
+         print *, "ncw : ", ncw
+         print *, "crtrh : ", crtrh
+         print *, "cdmbgwd : ", cdmbgwd
+         print *, "ccwf : ", ccwf
+         print *, "dlqf : ", dlqf
+         print *, "ctei_rm : ", ctei_rm
+         print *, "cgwf : ", cgwf
+         print *, "prslrd0 : ", prslrd0
+         print *, "ras : ", ras
+         print *, "pre_rad : ", pre_rad
+         print *, "ldiag3d : ", ldiag3d
+         print *, "lgocart : ", lgocart
+         print *, "lssav_cpl : ", lssav_cpl
+         print *, "flipv : ", flipv
+         print *, "old_monin : ", old_monin
+         print *, "cnvgwd : ", cnvgwd
+         print *, "shal_cnv : ", shal_cnv
+         print *, "sashal : ", sashal
+         print *, "newsas : ", newsas
+         print *, "cal_pre : ", cal_pre
+         print *, "mom4ice : ", mom4ice
+         print *, "mstrat : ", mstrat
+         print *, "trans_trac : ", trans_trac
+         print *, "nst_fcst : ", nst_fcst
+         print *, "moist_adj : ", moist_adj
+         print *, "thermodyn_id : ", thermodyn_id
+         print *, "sfcpress_id : ", sfcpress_id
+         print *, "gen_coord_hybrid : ", gen_coord_hybrid
+         print *, "levr : ", levr
+         print *, "lsidea : ", lsidea
+         print *, "pdfcld : ", pdfcld
+         print *, "shcnvcw : ", shcnvcw
+         print *, "redrag : ", redrag
+         print *, "hybedmf : ", hybedmf
+         print *, "dspheat : ", dspheat
+         print *, "dxmax : ", dxmax
+         print *, "dxmin : ", dxmin
+         print *, "dxinv : ", dxinv
+         print *, "si : ", si
+         print *, "ictm : ", ictm
+         print *, "isol : ", isol
+         print *, "ico2 : ", ico2
+         print *, "iaer : ", iaer
+         print *, "ialb : ", ialb
+         print *, "iems : ", iems
+         print *, "iovr_sw : ", iovr_sw
+         print *, "iovr_lw : ", iovr_lw
+         print *, "isubc_sw : ", isubc_sw
+         print *, "isubc_lw : ", isubc_lw
+         print *, "sas_shal : ", sas_shal
+         print *, "crick_proof : ", crick_proof
+         print *, "ccnorm : ", ccnorm
+         print *, "norad_precip : ", norad_precip
+         print *, "idate : ", idate
+         print *, "iflip : ", iflip
+         end if
+
        end subroutine
 
 
@@ -2402,7 +2482,7 @@
          call dbgprint("phys_init_readin")
 
          if (debug) then
-         print *, "BEFORE READ"
+         print *, "BEFORE INIT READ"
 
          print *, "ntcw : ", ntcw
          print *, "ncld : ", ncld
@@ -2523,7 +2603,7 @@
          dxinv = dxinvin
 
          if (debug) then
-         print *, "DEBUG IN DRIVER AFTER READ"
+         print *, "DEBUG IN DRIVER AFTER INIT READ"
          print *, "ntcw : ", ntcw
          print *, "ncld : ", ncld
          print *, "ntoz : ", ntoz
@@ -2720,7 +2800,7 @@
                  statein%ugrs, statein%vgrs, statein%tgrs, statein%qgrs, statein%vvl, statein%prsi,  &
                  statein%prsl, statein%prslk, statein%prsik, statein%phii, statein%phil, tbd%rann,  &
                  tbd%prdout, tbd%poz, tbd%dpshc, tbd%fscav, tbd%fswtr, sfc%hprime2,   &
-                 dyn%xlon, dyn%xlat, dyn%dx, dyn%dy, dyn%area, &
+                 dyn%xlon, dyn%xlat,  &
                  sfc%slope, sfc%shdmin, sfc%shdmax, sfc%snoalb, sfc%tg3, sfc%slmsk,  &
                  sfc%vfrac, sfc%vtype, sfc%stype, sfc%uustar, sfc%oro, sfc%oro_uf,  &
                  rad%coszen, intr%sfcdsw, intr%sfcnsw, intr%sfcnirbmd, intr%sfcnirdfd, intr%sfcvisbmd,  &
@@ -2733,7 +2813,7 @@
                  mdl%sashal, mdl%newsas, mdl%cal_pre, mdl%mom4ice, mdl%mstrat, mdl%trans_trac,  &
                  mdl%nst_fcst, mdl%moist_adj, mdl%thermodyn_id, mdl%sfcpress_id, mdl%gen_coord_hybrid,  &
                  mdl%levr, statein%adjtrc, dyn%nnp,    &
-! Add new nems_slg_shoc arguments
+! Add new nems_slg_shoc arguments
                  mdl%cscnv, mdl%nctp, mdl%do_shoc, mdl%shocaftcnv, mdl%ntot3d, mdl%ntot2d,  &
 ! In/Out
                  sfc%hice, sfc%fice, sfc%tisfc, sfc%tsfc, tbd%tprcp, cld%cv,  &
@@ -2817,6 +2897,71 @@
          ! report any errors
 900      if (ios .ne. 0 ) print *, "DBG NUOPC IOERR : ", ios
 
+         if (debug) then
+           print *, "DEBUG: AFTER RAD RUN SAVEIN"
+           print *, 'statein%prsi : ',statein%prsi
+           print *, 'statein%prsl : ',statein%prsl
+           print *, 'statein%prslk : ',statein%prslk
+           print *, 'statein%tgrs : ',statein%tgrs
+           print *, 'statein%qgrs_rad : ',statein%qgrs_rad
+           print *, 'statein%tracer : ',statein%tracer
+           print *, 'statein%vvl : ',statein%vvl
+           print *, 'sfc_prop%slmsk : ',sfc_prop%slmsk
+           print *, 'dyn_parm%xlon : ',dyn_parm%xlon
+           print *, 'dyn_parm%xlat : ',dyn_parm%xlat
+           print *, 'sfc_prop%tsfc : ',sfc_prop%tsfc
+           print *, 'sfc_prop%snowd : ',sfc_prop%snowd
+           print *, 'sfc_prop%sncovr : ',sfc_prop%sncovr
+           print *, 'sfc_prop%snoalb : ',sfc_prop%snoalb
+           print *, 'sfc_prop%zorl : ',sfc_prop%zorl
+           print *, 'sfc_prop%hprim : ',sfc_prop%hprim
+           print *, 'sfc_prop%alvsf : ',sfc_prop%alvsf
+           print *, 'sfc_prop%alnsf : ',sfc_prop%alnsf
+           print *, 'sfc_prop%alvwf : ',sfc_prop%alvwf
+           print *, 'sfc_prop%alnwf : ',sfc_prop%alnwf
+           print *, 'sfc_prop%facsf : ',sfc_prop%facsf
+           print *, 'sfc_prop%facwf : ',sfc_prop%facwf
+           print *, 'sfc_prop%fice : ',sfc_prop%fice
+           print *, 'sfc_prop%tisfc : ',sfc_prop%tisfc
+           print *, 'dyn_parm%sinlat : ',dyn_parm%sinlat
+           print *, 'dyn_parm%coslat : ',dyn_parm%coslat
+           print *, 'dyn_parm%solhr : ',dyn_parm%solhr
+           print *, 'dyn_parm%jdate : ',dyn_parm%jdate
+           print *, 'dyn_parm%solcon : ',dyn_parm%solcon
+           print *, 'cld_prop%cv : ',cld_prop%cv
+           print *, 'cld_prop%cvt : ',cld_prop%cvt
+           print *, 'cld_prop%cvb : ',cld_prop%cvb
+           print *, 'cld_prop%fcice : ',cld_prop%fcice
+           print *, 'cld_prop%frain : ',cld_prop%frain
+           print *, 'cld_prop%rrime : ',cld_prop%rrime
+           print *, 'cld_prop%flgmin : ',cld_prop%flgmin
+           print *, 'dyn_parm%icsdsw : ',dyn_parm%icsdsw
+           print *, 'dyn_parm%icsdlw : ',dyn_parm%icsdlw
+           print *, 'mdl_parm%ntcw : ',mdl_parm%ntcw
+           print *, 'mdl_parm%ncld : ',mdl_parm%ncld
+           print *, 'mdl_parm%ntoz : ',mdl_parm%ntoz
+           print *, 'mdl_parm%NTRAC : ',mdl_parm%NTRAC
+           print *, 'diags%NFXR : ',diags%NFXR
+           print *, 'dyn_parm%dtlw : ',dyn_parm%dtlw
+           print *, 'dyn_parm%dtsw : ',dyn_parm%dtsw
+           print *, 'dyn_parm%lsswr : ',dyn_parm%lsswr
+           print *, 'dyn_parm%lslwr : ',dyn_parm%lslwr
+           print *, 'dyn_parm%lssav : ',dyn_parm%lssav
+           print *, 'dyn_parm%IX : ',dyn_parm%IX
+           print *, 'dyn_parm%IM : ',dyn_parm%IM
+           print *, 'mdl_parm%levs : ',mdl_parm%levs
+           print *, 'mdl_parm%me : ',mdl_parm%me
+           print *, 'dyn_parm%lprnt : ',dyn_parm%lprnt
+           print *, 'dyn_parm%ipt : ',dyn_parm%ipt
+           print *, 'dyn_parm%kdt : ',dyn_parm%kdt
+           print *, 'cld_prop%deltaq : ',cld_prop%deltaq
+           print *, 'cld_prop%sup : ',cld_prop%sup
+           print *, 'cld_prop%cnvw : ',cld_prop%cnvw
+           print *, 'cld_prop%cnvc : ',cld_prop%cnvc
+           print *, 'dyn_parm%deltim : ',dyn_parm%deltim
+
+         end if
+
        end subroutine
 
 
@@ -2860,6 +3005,71 @@
 
          ! report any errors
 900      if (ios .ne. 0 ) print *, "DBG NUOPC IOERR : ", ios
+
+         if (debug) then
+           print *, "DEBUG: AFTER RAD RUN READIN"
+           print *, 'statein%prsi : ',statein%prsi
+           print *, 'statein%prsl : ',statein%prsl
+           print *, 'statein%prslk : ',statein%prslk
+           print *, 'statein%tgrs : ',statein%tgrs
+           print *, 'statein%qgrs_rad : ',statein%qgrs_rad
+           print *, 'statein%tracer : ',statein%tracer
+           print *, 'statein%vvl : ',statein%vvl
+           print *, 'sfc_prop%slmsk : ',sfc_prop%slmsk
+           print *, 'dyn_parm%xlon : ',dyn_parm%xlon
+           print *, 'dyn_parm%xlat : ',dyn_parm%xlat
+           print *, 'sfc_prop%tsfc : ',sfc_prop%tsfc
+           print *, 'sfc_prop%snowd : ',sfc_prop%snowd
+           print *, 'sfc_prop%sncovr : ',sfc_prop%sncovr
+           print *, 'sfc_prop%snoalb : ',sfc_prop%snoalb
+           print *, 'sfc_prop%zorl : ',sfc_prop%zorl
+           print *, 'sfc_prop%hprim : ',sfc_prop%hprim
+           print *, 'sfc_prop%alvsf : ',sfc_prop%alvsf
+           print *, 'sfc_prop%alnsf : ',sfc_prop%alnsf
+           print *, 'sfc_prop%alvwf : ',sfc_prop%alvwf
+           print *, 'sfc_prop%alnwf : ',sfc_prop%alnwf
+           print *, 'sfc_prop%facsf : ',sfc_prop%facsf
+           print *, 'sfc_prop%facwf : ',sfc_prop%facwf
+           print *, 'sfc_prop%fice : ',sfc_prop%fice
+           print *, 'sfc_prop%tisfc : ',sfc_prop%tisfc
+           print *, 'dyn_parm%sinlat : ',dyn_parm%sinlat
+           print *, 'dyn_parm%coslat : ',dyn_parm%coslat
+           print *, 'dyn_parm%solhr : ',dyn_parm%solhr
+           print *, 'dyn_parm%jdate : ',dyn_parm%jdate
+           print *, 'dyn_parm%solcon : ',dyn_parm%solcon
+           print *, 'cld_prop%cv : ',cld_prop%cv
+           print *, 'cld_prop%cvt : ',cld_prop%cvt
+           print *, 'cld_prop%cvb : ',cld_prop%cvb
+           print *, 'cld_prop%fcice : ',cld_prop%fcice
+           print *, 'cld_prop%frain : ',cld_prop%frain
+           print *, 'cld_prop%rrime : ',cld_prop%rrime
+           print *, 'cld_prop%flgmin : ',cld_prop%flgmin
+           print *, 'dyn_parm%icsdsw : ',dyn_parm%icsdsw
+           print *, 'dyn_parm%icsdlw : ',dyn_parm%icsdlw
+           print *, 'mdl_parm%ntcw : ',mdl_parm%ntcw
+           print *, 'mdl_parm%ncld : ',mdl_parm%ncld
+           print *, 'mdl_parm%ntoz : ',mdl_parm%ntoz
+           print *, 'mdl_parm%NTRAC : ',mdl_parm%NTRAC
+           print *, 'diags%NFXR : ',diags%NFXR
+           print *, 'dyn_parm%dtlw : ',dyn_parm%dtlw
+           print *, 'dyn_parm%dtsw : ',dyn_parm%dtsw
+           print *, 'dyn_parm%lsswr : ',dyn_parm%lsswr
+           print *, 'dyn_parm%lslwr : ',dyn_parm%lslwr
+           print *, 'dyn_parm%lssav : ',dyn_parm%lssav
+           print *, 'dyn_parm%IX : ',dyn_parm%IX
+           print *, 'dyn_parm%IM : ',dyn_parm%IM
+           print *, 'mdl_parm%levs : ',mdl_parm%levs
+           print *, 'mdl_parm%me : ',mdl_parm%me
+           print *, 'dyn_parm%lprnt : ',dyn_parm%lprnt
+           print *, 'dyn_parm%ipt : ',dyn_parm%ipt
+           print *, 'dyn_parm%kdt : ',dyn_parm%kdt
+           print *, 'cld_prop%deltaq : ',cld_prop%deltaq
+           print *, 'cld_prop%sup : ',cld_prop%sup
+           print *, 'cld_prop%cnvw : ',cld_prop%cnvw
+           print *, 'cld_prop%cnvc : ',cld_prop%cnvc
+           print *, 'dyn_parm%deltim : ',dyn_parm%deltim
+
+         end if
 
        end subroutine
 

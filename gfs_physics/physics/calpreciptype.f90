@@ -162,8 +162,7 @@
 !     &  mod(ifhr*60+ifmin,44641)+4357
 
         ranl = randomno(i,1:2)
-        call calwxt_bourg(lm,lp1,ranl,con_g,pthresh,                    &
-     &                    t,q,pmid,pint,zint(1),iwx)
+        call calwxt_bourg(lm,lp1,ranl,con_g,t,q,pmid,pint,zint(1),iwx)
 
 !
         snow(3)   = mod(iwx,2)
@@ -173,21 +172,18 @@
 !
 ! revised ncep algorithm
 !
-
         call calwxt_revised(lm,lp1,t,q,pmid,pint,                       &
                             con_fvirt,con_rog,con_epsq,zint,twet,iwx)
-
 !
         snow(4)   = mod(iwx,2)
         sleet(4)  = mod(iwx,4)/2
         freezr(4) = mod(iwx,8)/4
         rain(4)   = iwx/8
-
 !
 ! explicit algorithm (under 18 not admitted without parent or guardian)
  
         if(n3dfercld == 3) then ! ferrier's scheme
-          call calwxt_explicit(lm, tskin(i),,sr(i),f_rimef,iwx)
+          call calwxt_explicit(lm,tskin(i),sr(i),f_rimef,iwx)
           snow(5)   = mod(iwx,2)
           sleet(5)  = mod(iwx,4)/2
           freezr(5) = mod(iwx,8)/4
@@ -199,10 +195,8 @@
           rain(5)   = 0
         endif
 !               
-
          call calwxt_dominant(nalg,rain(1),freezr(1),sleet(1),         &
                             snow(1),domr(i),domzr(i),domip(i),doms(i))
-
 
         else     !  prec < pthresh
           domr(i)  = 0.
@@ -491,13 +485,12 @@
       integer*4 i, k1, lll, k2, toodry
 !
       real xxx ,mye, icefrac
-      integer,intent(in) :: lm,lp1
-      real,dimension(lm),intent(in) :: t,q,pmid,rh,td
-      real,dimension(lp1),intent(in) :: pint
-      real,intent(out) :: ptyp
+      integer,            intent(in)  :: lm,lp1
+      real,dimension(lm), intent(in)  :: t,q,pmid,rh,td
+      real,dimension(lp1),intent(in)  :: pint
+      integer,            intent(out) :: ptyp
 !
-      real,dimension(lm) :: tq,pq,rhq
-      real,dimension(lm) :: twq
+      real,dimension(lm)              :: tq,pq,rhq,twq
 !
       integer j,l,lev,ii
       real    rhmax,twmax,ptop,dpdrh,twtop,rhtop,wgt1,wgt2,    &
@@ -867,9 +860,7 @@
 !                                       and layer lmh = bottom
 !
 !$$$
-      subroutine calwxt_bourg(lm,lp1,rn,g,            &
-     &                        t,q,pmid,pint,zint,ptype)
-!      use mersenne_twister
+      subroutine calwxt_bourg(lm,lp1,rn,g,t,q,pmid,pint,zint,ptype)
       implicit none
 !
 !    input:
@@ -879,7 +870,7 @@
       real,intent(in), dimension(lp1) :: pint, zint
 !
 !    output:
-      real,intent(out)                :: ptype
+      integer, intent(out)            :: ptype
 !
       integer ifrzl,iwrml,l,lhiwrm
       real    pintk1,areane,tlmhk,areape,pintk2,surfw,area1,dzkl,psfck,r1,r2
@@ -938,18 +929,22 @@
       surfw  = 0.0                                         
 
       do l = lm, 1, -1
-         if (ifrzl == 0 .and. t(l) <= 273.15) ifrzl = 1
-         pintk2 = pint(l)
-         dzkl   = zint(l)-zint(l+1)
-         area1  = log(t(l)/273.15) * g * dzkl
-         if (t(l) >= 273.15 .and. pmid(l) > 25000.) then
-            if (l < iwrml)  areape = areape + area1
-            if (l >= iwrml) surfw  = surfw  + area1
-         else
-            if (l > lhiwrm) areane = areane + abs(area1)
-         end if
-         pintk1 = pintk2
-      end do
+        if (ifrzl == 0 .and. t(l) <= 273.15) ifrzl = 1
+        pintk2 = pint(l)
+        dzkl   = zint(l)-zint(l+1)
+        if (t(l) >= 273.15 .and. pmid(l) > 25000.) then
+          area1  = log(t(l)/273.15) * g * dzkl
+          if (l < iwrml) then
+            areape = areape + area1
+          else
+            surfw  = surfw  + area1
+          endif
+        elseif (l > lhiwrm) then
+          area1  = log(t(l)/273.15) * g * dzkl
+          areane = areane + abs(area1)
+        endif
+        pintk1 = pintk2
+      enddo
       
 !
 !     decision tree time

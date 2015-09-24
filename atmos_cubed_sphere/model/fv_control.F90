@@ -165,6 +165,7 @@ module fv_control_mod
    logical , pointer :: nudge_ic
    logical , pointer :: ncep_ic 
    logical , pointer :: nggps_ic 
+   logical , pointer :: gfs_phil
    logical , pointer :: fv_diag_ic 
    logical , pointer :: external_ic 
    character(len=128) , pointer :: res_latlon_dynamics
@@ -231,7 +232,7 @@ module fv_control_mod
                          phys_hydrostatic, make_hybrid_z, old_divg_damp, add_noise, &
                          nested, twowaynest, parent_grid_num, parent_tile, &
                          refinement, nestbctype, nestupdate, nsponge, s_weight, &
-                         ioffset, joffset, check_negative, nudge_ic
+                         ioffset, joffset, check_negative, nudge_ic, gfs_phil
 
    namelist /test_case_nml/test_case,alpha
 
@@ -1064,6 +1065,7 @@ module fv_control_mod
      nudge_ic                      => Atm%flagstruct%nudge_ic
      ncep_ic                       => Atm%flagstruct%ncep_ic
      nggps_ic                      => Atm%flagstruct%nggps_ic
+     gfs_phil                      => Atm%flagstruct%gfs_phil
      fv_diag_ic                    => Atm%flagstruct%fv_diag_ic
      external_ic                   => Atm%flagstruct%external_ic
 

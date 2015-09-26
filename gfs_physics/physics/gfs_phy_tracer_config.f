@@ -59,14 +59,14 @@
 ! -------------------------------------------------------------------   
 !      subroutine tracer_config_init (gfs_phy_tracer,ntrac,
       subroutine tracer_config_init (ntrac,
-     &                               ntoz,ntcw,ncld,me)
+     &                               ntoz,ntcw,ncld,ntke,me)
 
 c  
 c  This subprogram sets up gfs_phy_tracer
 c 
       implicit none
 ! input
-      integer, intent(in)    ::  me, ntoz,ntcw,ncld
+      integer, intent(in)    ::  me, ntoz,ntcw,ncld,ntke
 ! output
 !      type (gfs_phy_tracer_type), intent(out)    ::  gfs_phy_tracer
 ! input/output
@@ -123,6 +123,7 @@ c
       gfs_phy_tracer%vname(1) = 'spfh'   
       if(ntoz>0) gfs_phy_tracer%vname(ntoz) = 'o3mr'   
       if(ntcw>0) gfs_phy_tracer%vname(ntcw) = 'clwmr'   
+      if(ntke>0) gfs_phy_tracer%vname(ntke) = 'tke'   
 !hmhj hardwired here, relax in future
       if(gfs_phy_tracer%ntrac_met .eq. 5) then
         gfs_phy_tracer%vname(4) = 'o' 

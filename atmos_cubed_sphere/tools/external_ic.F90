@@ -140,7 +140,12 @@ contains
            call get_fv_ic( Atm, fv_domain, nq )
       endif
 
+      call prt_maxmin('PS', Atm(1)%ps, is, ie, js, je, ng, 1, 0.01)
       call prt_maxmin('T', Atm(1)%pt, is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('W', Atm(1)%w, is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('SPHUM', Atm(1)%q(:,:,:,1), is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('O3MR', Atm(1)%q(:,:,:,2), is, ie, js, je, ng, Atm(1)%npz, 1.)
+      call prt_maxmin('CLWMR', Atm(1)%q(:,:,:,3), is, ie, js, je, ng, Atm(1)%npz, 1.)
 
       call p_var(Atm(1)%npz,  is, ie, js, je, Atm(1)%ak(1),  ptop_min,         &
                  Atm(1)%delp, Atm(1)%delz, Atm(1)%pt, Atm(1)%ps,               &
@@ -530,6 +535,7 @@ contains
       real, dimension(:,:), allocatable:: wk2, zs, ps
       real, dimension(:,:,:), allocatable:: dp, t, ua, va, omga
       real, dimension(:,:,:,:), allocatable:: q
+      real rdg
       integer:: n, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
@@ -689,16 +695,16 @@ contains
       allocate (ps(is:ie,js:je))
       allocate (dp(is:ie,js:je,levp))
       allocate (t   (is:ie,js:je,levp))
-      allocate (ua  (isd:ied,jsd:jed,levp))
-      allocate (va  (isd:ied,jsd:jed,levp))
-      allocate (omga(isd:ied,jsd:jed,levp))
+      allocate (ua  (is:ie,js:je,levp))
+      allocate (va  (is:ie,js:je,levp))
+      allocate (omga(is:ie,js:je,levp))
       allocate (q (is:ie,js:je,levp,ntrac))
       do n = 1,size(Atm(:))
 !--- read in surface temperature (k) and land-frac
         ! surface skin temperature
         id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'tsea', Atm(n)%ts, domain=Atm(n)%domain)
 
-        ! terrain surface height -- (needs to be transformed ino phis = zs*grav)
+        ! terrain surface height -- (needs to be transformed into phis = zs*grav)
         if (filtered_terrain) then
           id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
@@ -734,11 +740,15 @@ contains
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
 
         ! prognostic tracers
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'q', q, domain=Atm(n)%domain)
+        do nt = 1, ntrac
+          call get_tracer_names(MODEL_ATMOS, nt, tracer_name)
+          id_res = register_restart_field (GFS_restart, fn_gfs_ics, trim(tracer_name), q(:,:,:,nt), &
+                                           domain=Atm(n)%domain)
+        enddo
 
         ! initialize all tracers to default values prior to being input
         do nt = 1, ntprog
-          call get_tracer_names(MODEL_ATMOS, n, tracer_name)
+          call get_tracer_names(MODEL_ATMOS, nt, tracer_name)
           ! set all tracers to an initial profile value
           call set_tracer_profile (MODEL_ATMOS, nt, Atm(n)%q(:,:,:,n)  )
         enddo
@@ -763,7 +773,7 @@ contains
           ! no vertical remapping necessary, store data into Atm(:)
           ! carve off top layer of atmosphere
           itoa = levp - npz + 1
-          Atm(n)%ptop = ak(itoa)
+          Atm(n)%ptop =ak(itoa)
           Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
           Atm(n)%ps  (is:ie,js:je) = ps(is:ie,js:je)
@@ -774,6 +784,9 @@ contains
           Atm(n)%va  (is:ie,js:je,1:npz) = va  (is:ie,js:je,itoa:levp)
           Atm(n)%omga(is:ie,js:je,1:npz) = omga(is:ie,js:je,itoa:levp)
           Atm(n)%q   (is:ie,js:je,1:npz,1:ntrac) = q(is:ie,js:je,itoa:levp,1:ntrac)
+ 
+          call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), &
+                               dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
 
           ! populate the haloes of Atm(:)%phis
           call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
@@ -792,11 +805,14 @@ contains
             Atm(n)%ak(:) = ak_sj(:)
             Atm(n)%bk(:) = bk_sj(:)
           endif
-          ! call vertical remapping algorithms 
-          call remap_scalar(is, js, levp-1, npz, ntprog, ntrac, ak(2:), bk(2:), ps, zs, t(:,:,2:), q(:,:,2:,:), Atm(n))
-          call remap_winds (is, js, levp-1, npz, ak(2:), bk(2:), ps, ua(:,:,2:), va(:,:,2:), Atm(n))
+          ! call vertical remapping algorithms
+          call remap_scalar_nggps(is, js, levp, npz, ntprog, ntrac, ak(:), bk(:), ps, zs, &
+                                  t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
+          call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
         endif
       enddo
+
+      Atm(1)%flagstruct%make_nh = .false.
 
       deallocate (ak)
       deallocate (bk)
@@ -1437,7 +1453,7 @@ contains
   real qp(Atm%bd%is:Atm%bd%ie,km,ncnst)
   real pst, p1, p2, alpha, rdg
   integer i,j,k, iq
-  integer  sphum
+  integer  sphum, o3mr, clwmr
   integer :: is,  ie,  js,  je
   integer :: isd, ied, jsd, jed
 
@@ -1452,9 +1468,23 @@ contains
 
 
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
+  o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
+  clwmr   = get_tracer_index(MODEL_ATMOS, 'clwmr')
+
+  if (mpp_pe()==1) then
+    print *, 'sphum = ', sphum
+    print *, 'clwmr = ', clwmr
+    print *, ' o3mr = ', o3mr
+    print *, 'ncnst = ', ncnst
+  endif
+
   if ( sphum/=1 ) then
        call mpp_error(FATAL,'SPHUM must be 1st tracer')
   endif
+
+!rab  if ( o3mr/=ncnst ) then
+!rab       call mpp_error(FATAL,'number of q species is not match')
+!rab  endif
 
   do 5000 j=js,je
 
@@ -1534,31 +1564,31 @@ contains
      enddo
 
 !---------------
-! map tracers
+! map shpum, o3mr, clwmr tracers
 !----------------
       do iq=1,ncnst
          call mappm(km, pe0, qp(is,1,iq), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
-         if ( iq==sphum .and. Atm%flagstruct%ncep_ic ) then
+         if (iq==sphum .and. Atm%flagstruct%ncep_ic ) then
              p1 = 200.E2
              p2 =  75.E2
 ! Blend model sphum with NCEP data
-         do k=1,npz
-            do i=is,ie
-               pst = 0.5*(pe1(i,k)+pe1(i,k+1))
-               if ( pst > p1 ) then
-                    Atm%q(i,j,k,iq) = qn1(i,k)
-               elseif( pst > p2 ) then            ! p2 < pst < p1
-                    alpha = (pst-p2)/(p1-p2)
-                    Atm%q(i,j,k,1) = qn1(i,k)*alpha + Atm%q(i,j,k,1)*(1.-alpha)
-               endif
-            enddo
-         enddo
+             do k=1,npz
+                do i=is,ie
+                   pst = 0.5*(pe1(i,k)+pe1(i,k+1))
+                   if ( pst > p1 ) then
+                        Atm%q(i,j,k,iq) = qn1(i,k)
+                   elseif( pst > p2 ) then            ! p2 < pst < p1
+                        alpha = (pst-p2)/(p1-p2)
+                        Atm%q(i,j,k,1) = qn1(i,k)*alpha + Atm%q(i,j,k,1)*(1.-alpha)
+                   endif
+                enddo
+             enddo
          else
-         do k=1,npz
-            do i=is,ie
-               Atm%q(i,j,k,iq) = qn1(i,k)
-            enddo
-         enddo
+             do k=1,npz
+                do i=is,ie
+                   Atm%q(i,j,k,iq) = qn1(i,k)
+                enddo
+             enddo
          endif
       enddo
 
@@ -1589,6 +1619,271 @@ contains
   if (is_master()) write(*,*) 'done remap_scalar'
 
  end subroutine remap_scalar
+
+
+ subroutine remap_scalar_nggps(im, jm, km, npz, nq, ncnst, ak0, bk0, psc, gzc, ta, qa, omga, Atm)
+  type(fv_atmos_type), intent(inout) :: Atm
+  integer, intent(in):: im, jm, km, npz, nq, ncnst
+  real,    intent(in):: ak0(km+1), bk0(km+1)
+  real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je):: psc, gzc
+  real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je,km):: ta
+  real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je,km,ncnst):: qa
+  real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je,km):: omga
+! local:
+  real, dimension(Atm%bd%is:Atm%bd%ie,km):: tp, omgap
+  real, dimension(Atm%bd%is:Atm%bd%ie,km+1):: pe0, pn0
+  real, dimension(Atm%bd%is:Atm%bd%ie,npz):: qn1
+  real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1, pn1
+  real pt0(km), gz(km+1), pk0(km+1)
+  real qp(Atm%bd%is:Atm%bd%ie,km,ncnst)
+  real pst, p1, p2, alpha, rdg, ak0p
+  integer i,j,k, iq
+  integer  sphum, o3mr, clwmr
+  integer :: is,  ie,  js,  je
+  integer :: isd, ied, jsd, jed
+
+  is  = Atm%bd%is
+  ie  = Atm%bd%ie
+  js  = Atm%bd%js
+  je  = Atm%bd%je
+  isd = Atm%bd%isd
+  ied = Atm%bd%ied
+  jsd = Atm%bd%jsd
+  jed = Atm%bd%jed
+
+
+  sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
+  clwmr   = get_tracer_index(MODEL_ATMOS, 'clwmr')
+  o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
+
+  if (mpp_pe()==1) then
+    print *, 'sphum = ', sphum
+    print *, 'clwmr = ', clwmr
+    print *, ' o3mr = ', o3mr
+    print *, 'ncnst = ', ncnst
+  endif
+
+  if ( sphum/=1 ) then
+       call mpp_error(FATAL,'SPHUM must be 1st tracer')
+  endif
+
+!rab  if ( o3mwr/=ncnst ) then
+!rab       call mpp_error(FATAL,'number of q species is not match')
+!rab  endif
+
+  do 5000 j=js,je
+
+     do i=is,ie
+
+       do iq=1,ncnst
+          do k=1,km
+             qp(i,k,iq) = qa(i,j,k,iq)
+          enddo
+       enddo
+
+       do k=1,km
+          omgap(i,k) = omga(i,j,k)
+       enddo
+
+       if ( T_is_Tv ) then
+! The "T" field in NCEP analysis is actually virtual temperature (Larry H. post processing)
+! BEFORE 20051201
+         do k=1,km
+            tp(i,k) = ta(i,j,k)
+         enddo
+      else
+         do k=1,km
+            tp(i,k) = ta(i,j,k)*(1.+zvir*qp(i,k,sphum))
+         enddo
+      endif
+
+! Tracers:
+
+      if ( bk0(1) < 1.E-9 ) then 
+         ak0p = max(1.e-9, ak0(1))
+         pe0(i,1) = ak0p + bk0(1)*psc(i,j)
+         pn0(i,1) = log(pe0(i,1))
+           pk0(1) = pe0(i,1)**kappa
+      else
+         pe0(i,1) = ak0(1) + bk0(1)*psc(i,j)
+         pn0(i,1) = log(pe0(i,1))
+           pk0(1) = pe0(i,1)**kappa
+      endif
+      
+      do k=2,km+1
+         pe0(i,k) = ak0(k) + bk0(k)*psc(i,j)
+         pn0(i,k) = log(pe0(i,k))
+           pk0(k) = pe0(i,k)**kappa
+      enddo
+
+#ifdef USE_DATA_ZS
+       Atm%  ps(i,j) = psc(i,j)
+       Atm%phis(i,j) = gzc(i,j)
+#else
+
+! * Adjust interpolated ps to model terrain
+       gz(km+1) = gzc(i,j)
+       do k=km,1,-1
+           gz(k) = gz(k+1) + rdgas*tp(i,k)*(pn0(i,k+1)-pn0(i,k))
+       enddo
+! Only lowest layer potential temp is needed
+          pt0(km) = tp(i,km)/(pk0(km+1)-pk0(km))*(kappa*(pn0(i,km+1)-pn0(i,km)))
+       if( Atm%phis(i,j)>gzc(i,j) ) then
+           do k=km,1,-1
+              if( Atm%phis(i,j) <  gz(k)  .and.    &
+                  Atm%phis(i,j) >= gz(k+1) ) then
+                  pst = pk0(k) + (pk0(k+1)-pk0(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
+                  go to 123
+              endif
+           enddo
+       else
+! Extrapolation into the ground
+           pst = pk0(km+1) + (gzc(i,j)-Atm%phis(i,j))/(cp_air*pt0(km))
+       endif
+
+123    Atm%ps(i,j) = pst**(1./kappa)
+#endif
+     enddo   !i-loop
+
+
+     do i=is,ie
+        pe1(i,1) = Atm%ak(1)
+        pn1(i,1) = log(pe1(i,1))
+     enddo
+     do k=2,npz+1
+       do i=is,ie
+          pe1(i,k) = Atm%ak(k) + Atm%bk(k)*Atm%ps(i,j)
+          pn1(i,k) = log(pe1(i,k))
+       enddo
+     enddo
+
+! * Compute delp
+     do k=1,npz
+        do i=is,ie
+           Atm%delp(i,j,k) = pe1(i,k+1) - pe1(i,k)
+        enddo
+     enddo
+
+!---------------
+! map shpum, o3mr, clwmr tracers
+!----------------
+      do iq=1,ncnst
+         call mappm(km, pe0, qp(is,1,iq), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
+         if (iq==sphum .and. Atm%flagstruct%nggps_ic ) then
+             p1 = 200.E2
+             p2 =  75.E2
+! Blend model sphum with NCEP data
+             do k=1,npz
+                do i=is,ie
+                   pst = 0.5*(pe1(i,k)+pe1(i,k+1))
+                   if ( pst > p1 ) then
+                        Atm%q(i,j,k,iq) = qn1(i,k)
+                   elseif( pst > p2 ) then            ! p2 < pst < p1
+                        alpha = (pst-p2)/(p1-p2)
+                        Atm%q(i,j,k,1) = qn1(i,k)*alpha + Atm%q(i,j,k,1)*(1.-alpha)
+                   endif
+                enddo
+             enddo
+         else
+             do k=1,npz
+                do i=is,ie
+                   Atm%q(i,j,k,iq) = qn1(i,k)
+                enddo
+             enddo
+         endif
+      enddo
+
+!-------------------------------------------------------------
+! map virtual temperature using geopotential conserving scheme.
+!-------------------------------------------------------------
+      call mappm(km, pn0, tp, npz, pn1, qn1, is,ie, 1, 9, Atm%ptop)
+      do k=1,npz
+         do i=is,ie
+            Atm%pt(i,j,k) = qn1(i,k)/(1.+zvir*Atm%q(i,j,k,sphum))
+         enddo
+      enddo
+
+      if ( .not. Atm%flagstruct%hydrostatic .and. Atm%flagstruct%nggps_ic ) then
+! Replace delz with NCEP hydrostatic state
+         rdg = -rdgas / grav
+         do k=1,npz
+            do i=is,ie
+               atm%delz(i,j,k) = rdg*qn1(i,k)*(pn1(i,k+1)-pn1(i,k))
+            enddo
+         enddo
+      endif
+
+!-------------------------------------------------------------
+! map omega
+!-------------------------------------------------------------
+      call mappm(km, pe0, omgap, npz, pe1, qn1, is,ie, 0, 11, Atm%ptop)
+      do k=1,npz
+         do i=is,ie
+            atm%w(i,j,k) = qn1(i,k)/atm%delp(i,j,k)*atm%delz(i,j,k)
+         enddo
+      enddo
+
+5000 continue
+
+!  call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
+!  call prt_maxmin('W_model in remap_scalar_nggps', Atm%w, is, ie, js, je, ng, npz, 1. )
+
+  if (is_master()) write(*,*) 'done remap_scalar_nggps'
+
+ end subroutine remap_scalar_nggps
+
+
+ subroutine get_w_from_omga(im, jm, npz, ak0, bk0, psc, dp, ta, omga, Atm)
+  type(fv_atmos_type), intent(inout) :: Atm
+  integer, intent(in):: im, jm, npz
+  real,    intent(in):: ak0(npz+1), bk0(npz+1)
+  real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je):: psc
+  real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je,npz):: ta, dp, omga
+  real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe0, pn0
+  real rdg
+  integer i,j,k
+  integer :: is,  ie,  js,  je
+
+  is  = Atm%bd%is
+  ie  = Atm%bd%ie
+  js  = Atm%bd%js
+  je  = Atm%bd%je
+
+
+  do j = js, je
+
+     do i=is,ie
+        pe0(i,1) = ak0(1)
+        pn0(i,1) = log(pe0(i,1))
+     enddo
+
+     do k=2,npz+1
+        do i=is,ie
+           pe0(i,k) = ak0(k) + bk0(k)*psc(i,j)
+           pn0(i,k) = log(pe0(i,k))
+        enddo
+     enddo
+
+     rdg = -rdgas / grav
+     do k= 1, npz
+        do i = is, ie
+           atm%delz(i,j,k) = rdg*ta(i,j,k)*(pn0(i,k+1)-pn0(i,k))
+        enddo
+     enddo
+
+     do k = 1, npz
+        do i = is, ie
+           atm%w(i,j,k) = omga(i,j,k)/dp(i,j,k)*atm%delz(i,j,k)
+        enddo
+     enddo
+
+  enddo
+
+!  call prt_maxmin('W_model', Atm%w, is, ie, js, je, ng, npz, 1.)
+
+  if (is_master()) write(*,*) 'done get_w_from_omga'
+
+ end subroutine get_w_from_omga
 
 
 

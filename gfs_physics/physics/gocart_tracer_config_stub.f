@@ -10,7 +10,7 @@
       subroutine gocart_tracer_config()
 !
 
-      print *,'TRAC_CONFIG: gocart is not running.'
+!     print *,'TRAC_CONFIG: gocart is not running.'
 
       return
 

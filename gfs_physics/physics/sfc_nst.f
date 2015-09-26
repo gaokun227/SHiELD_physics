@@ -125,7 +125,7 @@
      &,             rhw0 => con_rhw0,sbc => con_sbc,pi => con_pi
       use date_def, only: idate
       use module_nst_parameters, only : t0k,cp_w,omg_m,omg_sh,          &
-     &    sigma_r,gray,solar_time_6am,ri_c,z_w_max,delz,wd_max,         &
+     &    sigma_r,solar_time_6am,ri_c,z_w_max,delz,wd_max,              &
      &    rad2deg,const_rot,tau_min,tw_max,sst_max
       use module_nst_water_prop, only: solar_time_from_julian,          &
      &                                 density,rhocoef,compjd,grv       &
@@ -351,12 +351,12 @@ cc
 !    &hflx(i),' evap=',evap(i),' ulwflx=',ulwflx(i),' dlwflx=',dlwflx(i)
 !    &,' omg_sh=',omg_sh,' qrain=',qrain(i)
 
-          sep      =  sss*(evap(i)/le-rain(i))/rho_w
+          sep      = sss*(evap(i)/le-rain(i))/rho_w
           ustar_a  = sqrt(stress(i)/rho_a(i))          ! air friction velocity
 !
 !  sensitivities of heat flux components to ts
 !
-          rnl_ts = 4.0*gray*sigma_r*tsea*tsea*tsea     ! d(rnl)/d(ts)
+          rnl_ts = 4.0*sfcemis(i)*sigma_r*tsea*tsea*tsea     ! d(rnl)/d(ts)
           hs_ts  = rch(i)
           hl_ts  = rch(i)*elocp*eps*hvap*qss(i)/(rd*t12)
           rf_ts  = (1000.*rain(i)/rho_w)*alfac*cp_w*(1.0+rch(i)*hl_ts)

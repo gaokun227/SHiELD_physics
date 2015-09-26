@@ -1,7 +1,9 @@
-       subroutine precpd (im,ix,km,dt,del,prsl,q,cwm,t,rn,sr
+       subroutine precpd_shoc(im,ix,km,dt,del,prsl,q,cwm,t,rn,sr
      &,                   rainp,u00k,psautco,prautco,evpco,wminco
-     &,                   lprnt,jpr)
+     &,                   cll,lprnt,jpr)
 !
+!
+!     Modified for SHOC by S. Moorthi - July 2015
 !
 !     ******************************************************************
 !     *                                                                *
@@ -39,9 +41,9 @@
 !       cwm(ix,km) : condensate mixing ratio (updated in the code)
 !       t(ix,km)   : temperature       (updated in the code)
 !       rn(im)     : precipitation over one time-step dt (m/dt)
-!old      sr(im)     : index (=-1 snow, =0 rain/snow, =1 rain)
+!old    sr(im)     : index (=-1 snow, =0 rain/snow, =1 rain)
 !new    sr(im)     : "snow ratio", ratio of snow to total precipitation
-!       cll(ix,km) : cloud cover
+!       cll(ix,km) : sgs cloud cover from shoc
 !hchuang rn(im) unit in m per time step
 !        precipitation rate conversion 1 mm/s = 1 kg/m2/s
 !
@@ -51,84 +53,59 @@
      &,             ttp => con_ttp, cp => con_cp
      &,             eps => con_eps, epsm1 => con_epsm1
       implicit none
-!     include 'constant.h'
 !
-      real (kind=kind_phys) g,      h1,    h1000
-     &,                     d00
-     &,                     elwv,   eliv,  row
-     &,                     epsq,   eliw
-     &,                     rcp,    rrow
-       parameter (g=grav,         h1=1.e0,     h1000=1000.0
-     &,           d00=0.e0
-     &,           elwv=hvap,      eliv=hvap+hfus,   row=1.e3
-     &,           epsq=2.e-12
-     &,           eliw=eliv-elwv, rcp=h1/cp,   rrow=h1/row)
+      real (kind=kind_phys), parameter :: g=grav, h1=1.e0
+     &,           h1000=1000.0,   d00=0.e0,       epsq=2.e-12
+     &,           elwv=hvap,      eliv=hvap+hfus, row=1.e3
+     &,           eliw=eliv-elwv, rcp=h1/cp,      rrow=h1/row
+     &,           cons_0=0.0,     cons_p01=0.01,  cons_20=20.0
+     &,           cons_m30=-30.0, cons_50=50.0
 !
-      real(kind=kind_phys), parameter :: cons_0=0.0,     cons_p01=0.01
-     &,                                  cons_20=20.0
-     &,                                  cons_m30=-30.0, cons_50=50.0
+     &,           climit=1.0e-20, cws=0.025
+     &,           cmr=1.0/3.0e-4, c1=300.0, c2=0.5
 !
       integer im, ix, km, jpr
-      real (kind=kind_phys) q(ix,km),   t(ix,km),    cwm(ix,km)
-     &,                                 del(ix,km),  prsl(ix,km)
-!    &,                     cll(im,km), del(ix,km),  prsl(ix,km)
-     &,                     rn(im),      sr(im)
-     &,                     dt
-!hchuang code change [+1l] : add record to record information in vertical in
-!                       addition to total column precrl
-     &,                     rainp(im,km), rnp(im),
-     &                      psautco(im), prautco(im), evpco, wminco(2)
+      real (kind=kind_phys), dimension(ix,km) :: q, t, cwm, del, prsl
+     &,                                          cll
+      real (kind=kind_phys), dimension(im,km) :: rainp
+!     real (kind=kind_phys), dimension(im,km) :: rainp, cll
+      real (kind=kind_phys), dimension(im)    :: rn, sr, rnp 
+     &,                                          psautco, prautco
+      real (kind=kind_phys) dt, evpco, wminco(2)
+
 !
-!
-      real (kind=kind_phys) err(im),      ers(im),     precrl(im)
-     &,                     precsl(im),   precrl1(im), precsl1(im)
-     &,                     rq(im),       condt(im)
-     &,                     conde(im),    rconde(im),  tmt0(im)
-     &,                     wmin(im,km),  wmink(im),   pres(im)
-     &,                     wmini(im,km), ccr(im)
-     &,                     tt(im),       qq(im),      ww(im)
-     &,                     u00k(im,km)
-     &,                     zaodt
-       real (kind=kind_phys) cclim(km)
+      real (kind=kind_phys), dimension(im,km) :: wmin,    wmini,  u00k
+      real (kind=kind_phys), dimension(im)    :: err,     ers,    pres
+     &,                                          rconde,  condt,  conde
+     &,                                          precrl,  precsl, tt, qq
+     &,                                          precrl1, precsl1, ww,rq
+     &,                                          tmt0, wmink
+      real (kind=kind_phys) cclim(km), zaodt
 !
       integer iw(im,km), ipr(im), iwl(im),     iwl1(im)
 !
-       logical comput(im)
-       logical lprnt
+      logical comput(im)
+      logical lprnt
 !
-      real (kind=kind_phys) ke,   rdt,  us, climit, cws, csm1
-     &,                     crs1, crs2, cr, aa2,     dtcp,   c00, cmr
-     &,                     tem,  c1,   c2, wwn
-!    &,                     tem,  c1,   c2, u00b,    u00t,   wwn
-     &,                     precrk, precsk, pres1,   qk,     qw,  qi
-     &,                     qint, fiw, wws, cwmk, expf
-     &,                     psaut, psaci, amaxcm, tem1, tem2
+      real (kind=kind_phys) ke,   rdt,  us, csm1, wwn
+     &,                     crs1, crs2, cr, aa2,   dtcp,   c00
+     &,                     precrk, precsk, pres1, qk,     qw,  qi
+     &,                     qint, fiw, wws, cwmk,  expf
+     &,                     psaut, psaci, amaxcm,  tem, tem1, tem2
      &,                     tmt0k, psm1, psm2, ppr
      &,                     rprs,  erk,   pps, sid, rid, amaxps
-     &,                     praut, fi, qc, amaxrq, rqkll
+     &,                     praut, fi, qc, amaxrq
+
       integer i, k, ihpr, n
 !
 !-----------------------preliminaries ---------------------------------
 !
-!     do k=1,km
-!       do i=1,im
-!         cll(i,k) = 0.0
-!       enddo
-!     enddo
-!
       rdt     = h1 / dt
-!     ke      = 2.0e-5  ! commented on 09/10/99  -- opr value
-!     ke      = 2.0e-6
-!     ke      = 1.0e-5
-!!!   ke      = 5.0e-5
-!!    ke      = 7.0e-5
-      ke      = evpco
-!     ke      = 7.0e-5
+      ke      = evpco * sqrt(rdt)
       us      = h1
-      climit  = 1.0e-20
-      cws     = 0.025
 !
-      zaodt   = 800.0 * rdt
+!     zaodt   = 800.0 * rdt
+      zaodt   = 1.0
 !
       csm1    = 5.0000e-8   * zaodt
       crs1    = 5.00000e-6  * zaodt
@@ -136,22 +113,8 @@
       cr      = 5.0e-4      * zaodt
       aa2     = 1.25e-3     * zaodt
 !
-      ke      = ke * sqrt(rdt)
-!     ke      = ke * sqrt(zaodt)
 !
       dtcp    = dt * rcp
-!
-!     c00 = 1.5e-1 * dt
-!     c00 = 10.0e-1 * dt
-!     c00 = 3.0e-1 * dt          !05/09/2000
-!     c00 = 1.0e-4 * dt          !05/09/2000
-!     c00 = prautco * dt         !05/09/2000
-      cmr = 1.0 / 3.0e-4
-!     cmr = 1.0 / 5.0e-4
-!     c1  = 100.0
-      c1  = 300.0
-      c2  = 0.5
-!
 !
 !--------calculate c0 and cmr using lc at previous step-----------------
 !
@@ -160,16 +123,10 @@
           tem   = (prsl(i,k)*0.00001)
 !         tem   = sqrt(tem)
           iw(i,k)    = 0.0
-!         wmin(i,k)  = 1.0e-5 * tem
-!         wmini(i,k) = 1.0e-5 * tem       ! testing for ras
 !
-
           wmin(i,k)  = wminco(1) * tem
-          wmini(i,k) = wminco(2) * tem
-
-
+          wmini(i,k) = wminco(2) * tem 
           rainp(i,k) = 0.0
-
         enddo
       enddo
       do i=1,im
@@ -182,7 +139,6 @@
         comput(i)  = .false.
         rn(i)      = d00
         sr(i)      = d00
-        ccr(i)     = d00
 !
         rnp(i)     = d00
       enddo
@@ -222,7 +178,7 @@
           precrk = max(cons_0,    precrl1(n))
           precsk = max(cons_0,    precsl1(n))
           wwn    = max(ww(n), climit)
-!         if (wwn .gt. wmink(n) .or. (precrk+precsk) .gt. d00) then
+!         if (wwn > wmink(n) .or. (precrk+precsk) > d00) then
           if (wwn > climit .or. (precrk+precsk) > d00) then
             comput(n) = .true.
           else
@@ -247,47 +203,32 @@
 !           rq(n) = max(1.0e-10, rq(n))           ! -- relative humidity---
 !
 !  the global qsat computation is done in pa
-            pres1   = pres(n) 
-!           qw      = es(n)
-            qw      = min(pres1, fpvs(tt(n)))
-            qw      = eps * qw / (pres1 + epsm1 * qw)
-            qw      = max(qw,epsq)
+            pres1 = pres(n) 
+!           qw    = es(n)
+            qw    = min(pres1, fpvs(tt(n)))
+            qw    = max(epsq, eps * qw / (pres1 + epsm1 * qw))
 !
-!           tmt15 = min(tmt0(n), cons_m15)
-!           ai    = 0.008855
-!           bi    = 1.0
-!           if (tmt0(n) .lt. -20.0) then
-!             ai = 0.007225
-!             bi = 0.9674
-!           endif
-!           qi   = qw * (bi + ai*min(tmt0(n),cons_0))
-!           qint = qw * (1.-0.00032*tmt15*(tmt15+15.))
-!
-            qi   = qw
-            qint = qw
+            qi    = qw
+            qint  = qw
 !           if (tmt0(n).le.-40.) qint = qi
 !
 !-------------------ice-water id number iw------------------------------
             if(tmt0(n) < -15.) then
+!           if(tmt0(n) < -20.) then
                fi = qk - u00k(i,k)*qi
                if(fi > d00 .or. wwn > climit) then
                   iwl(n) = 1
                else
                   iwl(n) = 0
                endif
-!           endif
             elseif (tmt0(n) >= 0.) then
                iwl(n) = 0
 !
-!           if(tmt0(n).lt.0.0.and.tmt0(n).ge.-15.0) then
             else
               iwl(n) = 0
               if(iwl1(n) == 1 .and. wwn > climit) iwl(n) = 1
             endif
 !
-!           if(tmt0(n).ge.0.) then
-!              iwl(n) = 0
-!           endif
 !----------------the satuation specific humidity------------------------
             fiw   = float(iwl(n))
             qc    = (h1-fiw)*qint + fiw*qi
@@ -297,39 +238,20 @@
             else
                rq(n) = qk / qc
             endif
-!----------------cloud cover ratio ccr----------------------------------
-            if(rq(n) < u00k(i,k)) then
-                   ccr(n) = d00
-            elseif(rq(n) >= us) then
-                   ccr(n) = us
-            else
-                 rqkll  = min(us,rq(n))
-                 ccr(n) = h1-sqrt((us-rqkll)/(us-u00k(i,k)))
-            endif
 !
           endif
         enddo
-!-------------------ice-water id number iwl------------------------------
-!       do n=1,ihpr
-!         if (comput(n) .and.  (ww(n) .gt. climit)) then
-!           if (tmt0(n) .lt. -15.0
-!    *         .or. (tmt0(n) .lt. 0.0 .and. iwl1(n) .eq. 1))
-!    *                                      iwl(n) = 1
-!             cll(ipr(n),k) = 1.0                           ! cloud cover!
-!             cll(ipr(n),k) = min(1.0, ww(n)*cclim(k))      ! cloud cover!
-!         endif
-!       enddo
 !
 !---   precipitation production --  auto conversion and accretion
 !
         do n=1,ihpr
-          if (comput(n) .and. ccr(n) > 0.0) then
+          i = ipr(n)
+          if (comput(n) .and. cll(i,k) > 0.0) then
             wws    = ww(n)
             cwmk   = max(cons_0, wws)
-            i      = ipr(n)
 !           amaxcm = max(cons_0, cwmk - wmink(n))
             if (iwl(n) == 1) then                 !  ice phase
-               amaxcm = max(cons_0, cwmk - wmini(i,k))
+               amaxcm    = max(cons_0, (cwmk - wmini(i,k)))
                expf      = dt * exp(0.025*tmt0(n))
                psaut     = min(cwmk, psautco(i)*expf*amaxcm)
                ww(n)     = ww(n) - psaut
@@ -344,13 +266,13 @@
 !
 !          for using sundqvist precip formulation of rain
 !
-               amaxcm    = max(cons_0, cwmk - wmink(n))
+               amaxcm    = max(cons_0, (cwmk - wmink(n)))
 !!             amaxcm    = cwmk
                tem1      = precsl1(n) + precrl1(n)
                tem2      = min(max(cons_0, 268.0-tt(n)), cons_20)
                tem       = (1.0+c1*sqrt(tem1*rdt)) * (1+c2*sqrt(tem2))
 !
-               tem2      = amaxcm * cmr * tem / max(ccr(n),cons_p01)
+               tem2      = amaxcm * cmr * tem / max(cll(i,k),cons_p01)
                tem2      = min(cons_50, tem2*tem2)
 !              praut     = c00  * tem * amaxcm * (1.0-exp(-tem2))
                praut     = (prautco(i)*dt) * tem * amaxcm
@@ -386,23 +308,24 @@
             i      = ipr(n)
             qk     = max(epsq,  qq(n))
             tmt0k  = max(cons_m30, tmt0(n))
-            precrk = max(cons_0,    precrl(n))
-            precsk = max(cons_0,    precsl(n))
-            amaxrq = max(cons_0,    u00k(i,k)-rq(n)) * conde(n)
+            precrk = max(cons_0,   precrl(n))
+            precsk = max(cons_0,   precsl(n))
+            amaxrq = max(cons_0,   u00k(i,k)-rq(n)) * conde(n)
+!    &             * (1.0 - cll(i,k))
 !----------------------------------------------------------------------
 ! increase the evaporation for strong/light prec
 !----------------------------------------------------------------------
             ppr    = ke * amaxrq * sqrt(precrk)
 !           ppr    = ke * amaxrq * sqrt(precrk*rdt)
-            if (tmt0(n) .ge. 0.) then
+            if (tmt0(n) >= 0.) then
               pps = 0.
             else
               pps = (crs1+crs2*tmt0k) * amaxrq * precsk / u00k(i,k)
             end if
 !---------------correct if over-evapo./cond. occurs--------------------
-            erk=precrk+precsk
-            if(rq(n).ge.1.0e-10)  erk = amaxrq * qk * rdt / rq(n)
-            if (ppr+pps .gt. abs(erk)) then
+            erk = precrk + precsk
+            if(rq(n) >= 1.0e-10)  erk = amaxrq * qk * rdt / rq(n)
+            if (ppr+pps > abs(erk)) then
                rprs   = erk / (precrk+precsk)
                ppr    = precrk * rprs
                pps    = precsk * rprs
@@ -423,12 +346,12 @@
 !--------------------melting of the snow--------------------------------
         do n=1,ihpr
           if (comput(n)) then
-            if (tmt0(n) .gt. 0.) then
+            if (tmt0(n) > 0.) then
                amaxps = max(cons_0,    precsl(n))
                psm1   = csm1 * tmt0(n) * tmt0(n) * amaxps
                psm2   = cws * cr * max(cons_0, ww(n)) * amaxps
                ppr    = (psm1 + psm2) * conde(n)
-               if (ppr .gt. amaxps) then
+               if (ppr > amaxps) then
                  ppr  = amaxps
                  psm1 = amaxps * rconde(n)
                endif

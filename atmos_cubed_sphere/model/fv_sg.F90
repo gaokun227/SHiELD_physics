@@ -101,7 +101,9 @@ contains
          rz = rvgas - rdgas          ! rz = zvir * rdgas
       endif
       sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-      if ( nwat > 2 ) then
+      if ( nwat == 2 ) then
+         liq_wat = get_tracer_index (MODEL_ATMOS, 'clwmr')
+      elseif ( nwat > 2 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
          ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
          cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
@@ -172,6 +174,12 @@ contains
           do i=is,ie
              cpm(i) = (1.-q0(i,k,sphum))*cp_air + q0(i,k,sphum)*cp_vapor
              cvm(i) = (1.-q0(i,k,sphum))*cv_air + q0(i,k,sphum)*cv_vap
+          enddo
+       elseif ( nwat==2 ) then
+          do i=is,ie
+             q_liq = q0(i,k,liq_wat) 
+             cpm(i) = (1.-(q0(i,k,sphum)+q_liq))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq
+             cvm(i) = (1.-(q0(i,k,sphum)+q_liq))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq
           enddo
        elseif ( nwat==3 ) then
           do i=is,ie
@@ -331,6 +339,12 @@ contains
             do i=is,ie
                cpm(i) = (1.-q0(i,kk,sphum))*cp_air + q0(i,kk,sphum)*cp_vapor
                cvm(i) = (1.-q0(i,kk,sphum))*cv_air + q0(i,kk,sphum)*cv_vap
+            enddo
+           elseif ( nwat == 2 ) then
+            do i=is,ie
+               q_liq = q0(i,kk,liq_wat)
+               cpm(i) = (1.-(q0(i,kk,sphum)+q_liq))*cp_air + q0(i,kk,sphum)*cp_vapor + q_liq*c_liq
+               cvm(i) = (1.-(q0(i,kk,sphum)+q_liq))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq
             enddo
            elseif ( nwat == 3 ) then
             do i=is,ie

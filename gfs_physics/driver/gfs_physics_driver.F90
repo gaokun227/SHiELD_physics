@@ -23,8 +23,7 @@ module gfs_physics_driver_mod
   use fms_io_mod,         only: restart_file_type, register_restart_field, &
                                 restore_state, save_restart, &
                                 get_mosaic_tile_file, read_data
-  use time_manager_mod,   only: time_type, get_time, operator (-), &
-                                time_manager_init, operator(*)
+  use time_manager_mod,   only: time_type, get_date, get_time, operator(-)
   use tracer_manager_mod, only: get_number_tracers
 
   use machine,            only: kind_phys
@@ -41,17 +40,34 @@ module gfs_physics_driver_mod
                                 diagnostics, tbd_ddt
 !--- GFS Physics share module ---
   use module_CONSTANTS,   only: pi
+  use physparam,          only: ipsd0
+  use mersenne_twister,   only: random_setseed, random_index, random_stat
+  use physcons,           only: dxmax, dxmin, dxinv
+  use ozne_def,           only: pl_pres, ozplin
+
+
 !-----------------------------------------------------------------------
   implicit none
   private
 
 !--- public interfaces ---
-  public  phys_rad_driver_init, radiation_driver, physics_driver, &
-          phys_rad_driver_end
+  public  phys_rad_driver_init, phys_rad_setup_step, radiation_driver, &
+          physics_driver, phys_rad_driver_end
 
 !--- public NUOPC GFS datatypes and data typing ---
   public  state_fields_in, state_fields_out, kind_phys
 
+   
+!--- data needed for prognostic ozone interpolation
+  type ozone_data
+    private
+    integer,              dimension(:), allocatable :: j1
+    integer,              dimension(:), allocatable :: j2
+    real(kind=kind_phys), dimension(:), allocatable :: ddy
+    real(kind=kind_phys), dimension(:), allocatable :: gaul
+  end type ozone_data
+
+  type(ozone_data), dimension(:), allocatable :: O3dat
 
 !--- module private data ---
 !--- NUOPC data types
@@ -86,9 +102,120 @@ module gfs_physics_driver_mod
 
    type(gfdl_diag_type), dimension(:), allocatable :: Diag
 
-
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
+
+!--- NAMELIST/CONFIGURATION parameters
+!--- convenience variables
+    integer :: lonr, latr
+    integer :: nsswr, nslwr   ! trigger aids for radiation
+
+!--- gfs initialization variables
+    integer :: ipt = 1 
+    integer :: latgfs = 1
+    real(kind=kind_phys) :: xkzm_m = 1.0
+    real(kind=kind_phys) :: xkzm_h = 1.0
+    real(kind=kind_phys) :: xkzm_s = 1.0
+    real(kind=kind_phys) :: evpco = 2.0e-5
+    real(kind=kind_phys) :: psautco(2) = (/6.0e-4,3.0e-4/)
+    real(kind=kind_phys) :: prautco(2) = (/1.0e-4, 1.0e-4/)
+    real(kind=kind_phys) :: wminco(2) = (/1.0e-5,1.0e-5/)
+    real(kind=kind_phys) :: clstp
+    real(kind=kind_phys) :: sup = 1.1
+    real(kind=kind_phys) :: fhswr = 3600.
+    real(kind=kind_phys) :: fhlwr = 3600.
+    logical :: lprnt = .false.   ! control flag for diagnostic print out (rad)
+    logical :: lssav = .true.    ! logical flag for store 3-d cloud field
+
+!--- namelist parameters ---
+    integer :: NFXR     = 39
+    integer :: ncld     = 1
+    integer :: ntcw     = 2
+    integer :: ntoz     = 3
+    integer :: levs     = 63
+    integer :: levr     = 0
+    integer :: me           ! set by call to mpp_pe
+    integer :: lsoil    = 4
+    integer :: lsm      = 1      ! NOAH LSM
+    integer :: nmtvr    = 14
+    integer :: nrcm     = 2    ! when using ras, will be computed
+    integer :: levozp   = 80  ! read from global_o3prdlos.f77
+    integer :: jcap     = 1    ! should not matter it is used by spherical 
+    integer :: num_p3d  = 4  ! Ferrier:3  Zhao:4 
+    integer :: num_p2d  = 3  ! Ferrier:1  Zhao:3
+    integer :: npdf3d   = 0   ! Zhao & pdfcld=.T.:3  -  else:0
+    integer :: pl_coeff = 4
+    integer :: ncw(2)   = (/20,120/)
+    real (kind=kind_phys) :: flgmin(2) = (/0.180,0.220/)
+    real (kind=kind_phys) :: crtrh(3) = (/0.90,0.90,0.90/)
+    real (kind=kind_phys) :: cdmbgwd(2) = (/2.0,0.25/)
+    real (kind=kind_phys) :: ccwf(2) = (/1.0,1.0/)
+    real (kind=kind_phys) :: dlqf(2) = (/0.0,0.0/)
+    real (kind=kind_phys) :: ctei_rm(2) = (/10.0,10.0/)
+    real (kind=kind_phys) :: cgwf(2) = (/0.5,0.05/)
+    real (kind=kind_phys) :: prslrd0 = 200.
+    logical :: ras          = .false.
+    logical :: pre_rad      = .false.
+    logical :: ldiag3d      = .false.
+    logical :: lgocart      = .false. 
+    logical :: cplflx       = .false.  
+    logical :: lssav_cpl    = .false.
+    logical :: flipv        = .true.
+    logical :: old_monin    = .false. 
+    logical :: cnvgwd       = .true.
+    logical :: shal_cnv     = .false.
+    logical :: sashal       = .true.
+    logical :: newsas       = .true.
+    logical :: cal_pre      = .true.
+    logical :: mom4ice      = .false.
+    logical :: mstrat       = .false.
+    logical :: trans_trac   = .true.
+    integer :: nst_fcst     = 0
+    logical :: moist_adj    = .false.  ! Must be true to turn on moist convective
+    integer :: thermodyn_id = 1     ! idvm/10
+    integer :: sfcpress_id  = 2     ! idvm-(idvm/10)*10
+    logical :: gen_coord_hybrid = .false. ! in scrpt, could be T or F
+    logical :: lsidea       = .false.  
+    logical :: pdfcld       = .false.
+    logical :: shcnvcw      = .false.
+    logical :: redrag       = .true.
+    logical :: hybedmf      = .false.
+    logical :: dspheat      = .false.
+    logical :: cscnv        = .false.
+    integer :: nctp       = 20
+    integer :: ntke       = 0
+    logical :: do_shoc    = .false.
+    logical :: shocaftcnv = .false.
+    integer :: ntot3d     = 4
+    integer :: ntot2d     = 3
+! Radiation option control parameters
+    integer :: ictm     = 1 
+    integer :: isol     = 2
+    integer :: ico2     = 2 
+    integer :: iaer     = 111
+    integer :: ialb     = 0 
+    integer :: iems     = 0 
+    integer :: iovr_sw  = 1
+    integer :: iovr_lw  = 1
+    integer :: isubc_sw = 2
+    integer :: isubc_lw = 2
+    logical :: crick_proof  = .false.
+    logical :: ccnorm       = .false.
+    logical :: norad_precip = .false.  ! This is effective only for Ferrier/Moorthi
+
+! rad_save
+    integer :: iflip = 1         ! surface to toa
+
+! interface props
+    logical :: SW0 = .false.
+    logical :: SWB = .false.
+    logical :: LW0 = .false.
+    logical :: LWB = .false.
+
+    logical :: debug = .false.
+
+!--- namelist ---
+   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -103,99 +230,52 @@ module gfs_physics_driver_mod
 !--- phys_rad_driver_init ---
 !    constructor for gfs_physics_driver_mod
 !---------------------------------------------------------------------
-  subroutine phys_rad_driver_init (Time, lon, lat, nlev, axes, Atm_block, &
-                                   State_in, State_out)
+  subroutine phys_rad_driver_init (Time, lon, lat, glon, glat, npz,       &
+                                   axes, dx, dy, area, indxmin, indxmax,  &
+                                   dt_phys, Atm_block, State_in, State_out)
     type(time_type),           intent(in) :: Time
-    real,    dimension(:,:),   intent(in) :: lon, lat
-    integer,                   intent(in) :: nlev
+    real,    dimension(:,:),   intent(in) :: lon, lat, dx, dy, area
+    integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
+    real (kind=kind_phys), intent(in) :: indxmin, indxmax, dt_phys
     type (block_control_type), intent(in) :: Atm_block
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
 !--- local variables
+    integer ::  ierr, io, unit, logunit, outunit
     integer :: nb, ibs, ibe, jbs, jbe, ngptc
-    integer :: i, j, ix
-    integer :: ntrac, ntp
-    integer          ::  ierr, io, unit, logunit, outunit
-!--- gfs initialization variables
-    integer :: kdt, jdate(8), ipt, latgfs, nnp, NFXR
-    real(kind=kind_phys) :: xkzm_m, xkzm_h, xkzm_s, evpco
-    real(kind=kind_phys) :: psautco(2), prautco(2), wminco(2)
-    real(kind=kind_phys) :: slag, sdec, cdec, sup, clstp
-    real(kind=kind_phys) :: solhr, solcon, dtp, dtf, dtlw, dtsw, deltim, fhour
-    logical :: lsswr, lslwr, lssav, lprnt, SW0, SWB, LW0, LWB
-
-!--- namelist parameters ---
-    integer :: ntcw
-    integer :: ncld
-    integer :: ntoz
-!rab    integer :: ntrac
-    integer :: levr
-    integer :: levs
-    integer :: me
-    integer :: lsoil
-    integer :: lsm = 1
-    integer :: nmtvr = 14
-    integer :: nrcm
-    integer :: levozp
-    integer :: lonr = 768
-    integer :: latr = 768
-    integer :: jcap = 0
-    integer :: num_p3d 
-    integer :: num_p2d
-    integer :: npdf3d
-    integer :: pl_coeff = 5
-    integer :: ncw(2)
-    real (kind=kind_phys) :: si(nlev+1) ! (levr+1)
-    real (kind=kind_phys) :: crtrh(3)
-    real (kind=kind_phys) :: cdmbgwd(2)
-    real (kind=kind_phys) :: ccwf(2)
-    real (kind=kind_phys) :: dlqf(2)
-    real (kind=kind_phys) :: ctei_rm(2)
-    real (kind=kind_phys) :: cgwf(2)
-    real (kind=kind_phys) :: prslrd0
+    integer :: i, j, ix, ntrac, ntp
+    integer :: jdate(8) = (/1, 1, 1, 0, 0, 0, 0, 0/)
+    integer :: idate(4) = (/0, 1, 1, 1/)
+    integer :: kdt = 0
+    integer :: nnp = 0
+    real(kind=kind_phys) :: solhr = 0.0   
+    real(kind=kind_phys) :: fhour = 0.
     real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
-    logical :: ras 
-    logical :: pre_rad
-    logical :: ldiag3d = .true.
-    logical :: lgocart = .false.
-    logical :: cplflx
-    logical :: lssav_cpl = .false.
-    logical :: flipv = .false.
-    logical :: old_monin = .false.
-    logical :: cnvgwd
-    logical :: shal_cnv
-    logical :: sashal
-    logical :: newsas
-    logical :: cal_pre
-    logical :: mom4ice
-    logical :: mstrat
-    logical :: trans_trac
-    integer :: nst_fcst = 0
-    logical :: moist_adj = .false.
-    integer :: thermodyn_id
-    integer :: sfcpress_id
-    logical :: gen_coord_hybrid
-    logical :: lsidea
-    logical :: pdfcld
-    logical :: shcnvcw
-    logical :: redrag
-    logical :: hybedmf
-    logical :: dspheat
-
-! Radiation option control parameters
-    integer :: ictm, isol, ico2, iaer, ialb, iems
-    integer :: iovr_sw, iovr_lw, isubc_sw, isubc_lw
-    logical :: sas_shal, crick_proof, ccnorm, norad_precip
-! rad_savei
-    integer :: idate(4) = (/1, 1, 0, 0/)
-    integer :: iflip = 0         ! toa to surface
-
-    levr = nlev
-
-!--- namelist ---
-   namelist / gfs_physics_nml / norad_precip
-
+    logical :: sas_shal
+    real (kind=kind_phys) :: si(64)
+    data si  /1.000000,      0.984375,      0.968750,      &
+              0.953125,      0.937500,      0.921875,      &
+              0.906250,      0.890625,      0.875000,      &
+              0.859375,      0.843750,      0.828125,      &
+              0.812500,      0.796875,      0.781250,      &
+              0.765625,      0.750000,      0.734375,      &
+              0.718750,      0.703125,      0.687500,      &
+              0.671875,      0.656250,      0.640625,      &
+              0.625000,      0.609375,      0.593750,      &
+              0.578125,      0.562500,      0.546875,      &
+              0.531250,      0.515625,      0.500000,      &
+              0.484375,      0.468750,      0.453125,      &
+              0.437500,      0.421875,      0.406250,      &
+              0.390625,      0.375000,      0.359375,      &
+              0.343750,      0.328125,      0.312500,      &
+              0.296875,      0.281250,      0.265625,      &
+              0.250000,      0.234375,      0.218750,      &
+              0.203125,      0.187500,      0.171875,      &
+              0.156250,      0.140625,      0.125000,      &
+              0.109375,      9.375000E-002, 7.812500E-002, &
+              6.250000E-002, 4.687500E-002, 3.125000E-002, &
+              1.562500E-002  / 
 
 !--- if routine has already been executed, return ---
     if (module_is_initialized) return
@@ -203,7 +283,14 @@ module gfs_physics_driver_mod
 !--- verify that the modules used by this module that are called ---
 !--- later in this subroutine have already been initialized ---
     call fms_init
- 
+
+    call get_date (Time, jdate(1), jdate(2), jdate(3),  &
+                         jdate(5), jdate(6), jdate(7))
+    idate(4) = jdate(1)
+    idate(3) = jdate(2)
+    idate(2) = jdate(3)
+    idate(1) = jdate(5)
+
 !--- read namelist  ---
 #ifdef INTERNAL_FILE_NML
     read (input_nml_file, nml=gfs_physics_nml, iostat=io)
@@ -223,7 +310,17 @@ module gfs_physics_driver_mod
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
     logunit = stdlog()
     if (mpp_pe() == mpp_root_pe() ) write(logunit, nml=gfs_physics_nml)
- 
+
+!--- set some configurational parameters that are derived from others
+    lonr = glon
+    latr = glat
+    nsswr = nint(fhswr/dt_phys)
+    nslwr = nint(fhlwr/dt_phys)
+    sas_shal = (sashal .and. (.not. ras))
+!--- read in ozone datasets for prognostic ozone interpolation
+!--- sets values for levozp, pl_coeff, pl_pres(=>Tbd_data%poz), ozplin
+    if (ntoz > 0 ) call read_o3data (levozp, pl_coeff)
+
 !--- define the model dimensions on the local processor ---
     call get_number_tracers (MODEL_ATMOS, num_tracers=ntrac, num_prog=ntp)
 
@@ -236,28 +333,35 @@ module gfs_physics_driver_mod
 
 !--- initialize physics ---
     unit = open_namelist_file ()
+
     me = mpp_pe()
-    call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, levs, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
-                          lonr, latr, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
+    dxmaxin = log(indxmax)
+    dxminin = log(indxmin)
+    dxinvin = 1.0/(dxmaxin-dxminin)
+    call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
+                          glon, glat, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
-                          gen_coord_hybrid, levr, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
+                          gen_coord_hybrid, npz, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
                           dxmaxin, dxminin, dxinvin, &
+                          ! NEW from nems_slg_shoc
+                          cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                           ! For radiation
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
                           iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                          sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip, unit)
+                          sas_shal,crick_proof,ccnorm,norad_precip,jdate,iflip,dt_phys,unit)
     call close_file (unit)
 
 !--- allocate and call the different storage items needed by GFS physics/radiation ---
-    allocate( Tbd_data(Atm_block%nblks))
-    allocate(Dyn_parms(Atm_block%nblks))
-    allocate(Gfs_diags(Atm_block%nblks))
-    allocate(Sfc_props(Atm_block%nblks))
-    allocate(Cld_props(Atm_block%nblks))
-    allocate(Rad_tends(Atm_block%nblks))
-    allocate(Intr_flds(Atm_block%nblks))
+    allocate (  Tbd_data(Atm_block%nblks) )
+    allocate ( Dyn_parms(Atm_block%nblks) )
+    allocate ( Gfs_diags(Atm_block%nblks) )
+    allocate ( Sfc_props(Atm_block%nblks) )
+    allocate ( Cld_props(Atm_block%nblks) )
+    allocate ( Rad_tends(Atm_block%nblks) )
+    allocate ( Intr_flds(Atm_block%nblks) )
+    if (ntoz > 0 ) allocate ( O3dat(Atm_block%nblks) )
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -265,14 +369,20 @@ module gfs_physics_driver_mod
       jbe = Atm_block%jbe(nb)
       ngptc = (ibe - ibs + 1) * (jbe - jbs + 1) 
 
+!--- allocate elements of O3dat for prognostic ozone
+      if (ntoz > 0 ) Then
+        allocate ( O3dat(nb)%j1  (ngptc) )
+        allocate ( O3dat(nb)%j2  (ngptc) )
+        allocate ( O3dat(nb)%ddy (ngptc) )
+        allocate ( O3dat(nb)%gaul(ngptc) )
+      endif
+
       call Tbd_data(nb)%set      (ngptc, Mdl_parms, xkzm_m, xkzm_h, xkzm_s, &
-                                  evpco, psautco, prautco, wminco)
-      call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, solcon,  &
-                                  dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, &
-                                  deltim, slag, sdec, cdec)
+                                  evpco, psautco, prautco, wminco, pl_pres)
+      call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, fhlwr, fhswr, &
+                                  lssav, ipt, lprnt, dt_phys)
       call Dyn_parms(nb)%setphys (ngptc, ngptc, solhr, kdt, lssav, latgfs, &
-                                  dtp, dtf, clstp, nnp, fhour, slag, &
-                                  sdec, cdec)
+                                  dt_phys, dt_phys, clstp, nnp, fhour)
       call Gfs_diags(nb)%setrad  (ngptc, NFXR)
       call Gfs_diags(nb)%setphys (ngptc, Mdl_parms)
       call Sfc_props(nb)%setrad  (ngptc, Mdl_parms, .FALSE.)  ! last argument determines gsm vs atmos-only
@@ -288,15 +398,25 @@ module gfs_physics_driver_mod
 
       !  populate static values that are grid dependent
       ix = 0 
-      do j=jbs,jbe
-       do i=ibs,ibe
+      do j=1,jbe-jbs+1
+       do i=1,ibe-ibs+1
         ix = ix + 1
+        Dyn_parms(nb)%area(ix) = area(i,j)
+        Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
+        Dyn_parms(nb)%dy(ix)   = 0.5*(dy(i,j)+dy(i+1,j))
         Dyn_parms(nb)%xlat(ix) = lat(i,j)*pi/180.0_kind_phys
         Dyn_parms(nb)%xlon(ix) = lon(i,j)*pi/180.0_kind_phys
         Dyn_parms(nb)%sinlat(ix) = sin(Dyn_parms(nb)%xlat(ix))
         Dyn_parms(nb)%coslat(ix) = sqrt(1.0_kind_phys - Dyn_parms(nb)%sinlat(ix)*Dyn_parms(nb)%sinlat(ix))
+!--- needed for setindxoz
+        O3dat(nb)%gaul(ix) = lat(i,j)
        enddo
       enddo
+
+!--- set up interpolation indices and weights for prognostic ozone interpolation
+      if (ntoz > 0) then
+        call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
+      endif
     enddo
 
 !--- read in surface data from chgres ---
@@ -308,9 +428,183 @@ module gfs_physics_driver_mod
 !--- mark the module as initialized ---
       module_is_initialized = .true.
 
+      if ( (debug) .and. (me==0) ) then
+         print *, "DEBUG IN DRIVER AFTER setup"
+         print *, "ntcw : ", Mdl_parms%ntcw
+         print *, "ncld : ", Mdl_parms%ncld
+         print *, "ntoz : ", Mdl_parms%ntoz
+         print *, "NTRAC : ", Mdl_parms%NTRAC
+         print *, "levs : ", Mdl_parms%levs
+         print *, "me : ", Mdl_parms%me
+         print *, "lsoil : ", Mdl_parms%lsoil
+         print *, "lsm : ", Mdl_parms%lsm
+         print *, "nmtvr : ", Mdl_parms%nmtvr
+         print *, "nrcm : ", Mdl_parms%nrcm
+         print *, "levozp : ", Mdl_parms%levozp
+         print *, "lonr : ", Mdl_parms%lonr
+         print *, "latr : ", Mdl_parms%latr
+         print *, "jcap : ", Mdl_parms%jcap
+         print *, "num_p3d : ", Mdl_parms%num_p3d
+         print *, "num_p2d : ", Mdl_parms%num_p2d
+         print *, "npdf3d : ", Mdl_parms%npdf3d
+         print *, "pl_coeff : ", Mdl_parms%pl_coeff
+         print *, "ncw : ", Mdl_parms%ncw
+         print *, "crtrh : ", Mdl_parms%crtrh
+         print *, "cdmbgwd : ", Mdl_parms%cdmbgwd
+         print *, "ccwf : ", Mdl_parms%ccwf
+         print *, "dlqf : ", Mdl_parms%dlqf
+         print *, "ctei_rm : ", Mdl_parms%ctei_rm
+         print *, "cgwf : ", Mdl_parms%cgwf
+         print *, "prslrd0 : ", Mdl_parms%prslrd0
+         print *, "ras : ", Mdl_parms%ras
+         print *, "pre_rad : ", Mdl_parms%pre_rad
+         print *, "ldiag3d : ", Mdl_parms%ldiag3d
+         print *, "lgocart : ", Mdl_parms%lgocart
+         print *, "lssav_cpl : ", Mdl_parms%lssav_cpl
+         print *, "flipv : ", Mdl_parms%flipv
+         print *, "old_monin : ", Mdl_parms%old_monin
+         print *, "cnvgwd : ", Mdl_parms%cnvgwd
+         print *, "shal_cnv : ", Mdl_parms%shal_cnv
+         print *, "sashal : ", Mdl_parms%sashal
+         print *, "newsas : ", Mdl_parms%newsas
+         print *, "cal_pre : ", Mdl_parms%cal_pre
+         print *, "mom4ice : ", Mdl_parms%mom4ice
+         print *, "mstrat : ", Mdl_parms%mstrat
+         print *, "trans_trac : ", Mdl_parms%trans_trac
+         print *, "nst_fcst : ", Mdl_parms%nst_fcst
+         print *, "moist_adj : ", Mdl_parms%moist_adj
+         print *, "thermodyn_id : ", Mdl_parms%thermodyn_id
+         print *, "sfcpress_id : ", Mdl_parms%sfcpress_id
+         print *, "gen_coord_hybrid : ", Mdl_parms%gen_coord_hybrid
+         print *, "levr : ", Mdl_parms%levr
+         print *, "lsidea : ", Mdl_parms%lsidea
+         print *, "pdfcld : ", Mdl_parms%pdfcld
+         print *, "shcnvcw : ", Mdl_parms%shcnvcw
+         print *, "redrag : ", Mdl_parms%redrag
+         print *, "hybedmf : ", Mdl_parms%hybedmf
+         print *, "dspheat : ", Mdl_parms%dspheat
+         print *, "dxmaxin : ", dxmaxin
+         print *, "dxminin : ", dxminin
+         print *, "dxinvin : ", dxinvin
+         print *, "si : ", si
+         print *, "ictm : ", ictm
+         print *, "isol : ", isol
+         print *, "ico2 : ", ico2
+         print *, "iaer : ", iaer
+         print *, "ialb : ", ialb
+         print *, "iems : ", iems
+         print *, "iovr_sw : ", iovr_sw
+         print *, "iovr_lw : ", iovr_lw
+         print *, "isubc_sw : ", isubc_sw
+         print *, "isubc_lw : ", isubc_lw
+         print *, "sas_shal : ", sas_shal
+         print *, "crick_proof : ", crick_proof
+         print *, "ccnorm : ", ccnorm
+         print *, "norad_precip : ", norad_precip
+         print *, "idate : ", Mdl_parms%idate
+         print *, "iflip : ", iflip
+       end if ! debug
+
   end subroutine phys_rad_driver_init
 !-----------------------------------------------------------------------
 
+
+
+!-------------------------------------------------------------------------      
+!--- phys_rad_setup_step ---
+!-------------------------------------------------------------------------      
+  subroutine phys_rad_setup_step (Time_init, Time, Time_next, Atm_block)
+    type(time_type),            intent(in) :: Time_init, Time, Time_next
+    type (block_control_type),  intent(in) :: Atm_block
+!   local variables
+    integer, parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
+    integer :: i, j, k, nb, ix
+    integer :: ibs, ibe, jbs, jbe, nx, ny, ngptc
+    integer :: sec, ipseed, jdate(8)
+    integer :: kdt
+    integer :: numrdm(lonr*latr*2)
+    type (random_stat) :: stat
+    real(kind=kind_phys) :: fhour
+    real(kind=kind_phys) :: work1, work2
+
+!--- set the date
+    call get_date (Time, jdate(1), jdate(2), jdate(3),  &
+                         jdate(5), jdate(6), jdate(7))
+
+    call get_time(Time - Time_init, sec)
+    fhour = real(sec)/3600.
+
+!--- may need this to repopulate sfc properties for AMIP runs
+!    call sfc_populate (Sfc_props)
+
+
+!--- set up random seed index for the whole tile in a reproducible way
+    if (isubc_lw==2 .or. isubc_sw==2) then
+      ipseed = mod(nint(100.0*sqrt(real(sec))), ipsdlim) + 1 + ipsd0
+      call random_setseed (ipseed, stat)
+      call random_index (ipsdlim, numrdm, stat)
+    endif
+
+    do nb = 1, Atm_block%nblks
+      ibs = Atm_block%ibs(nb)
+      ibe = Atm_block%ibe(nb)
+      jbs = Atm_block%jbs(nb)
+      jbe = Atm_block%jbe(nb)
+      nx = ibe-ibs+1
+      ny = jbe-jbs+1
+      ngptc = nx*ny
+
+!--- increment the time step number
+      Dyn_parms(nb)%kdt      = Dyn_parms(nb)%kdt + 1
+      Dyn_parms(nb)%nnp      = Dyn_parms(nb)%nnp + 1
+!--- set the current forecast hour
+      Dyn_parms(nb)%fhour    = fhour
+      Dyn_parms(nb)%jdate(:) = jdate(:)
+!--- set the solhr
+      Dyn_parms(nb)%solhr    = real(jdate(5))
+!--- radiation triggers
+      Dyn_parms(nb)%lsswr = (mod(Dyn_parms(nb)%kdt, nsswr) == 1)
+      Dyn_parms(nb)%lslwr = (mod(Dyn_parms(nb)%kdt, nslwr) == 1)
+! **************  Ken Campana Stuff  ********************************
+!...  set switch for saving convective clouds
+      if(Dyn_parms(nb)%lsswr) then
+        Dyn_parms(nb)%clstp = 1100                           !initialize,accumulate
+      else
+        Dyn_parms(nb)%clstp = 0100                           !accumulate
+      endif
+! **************  Ken Campana Stuff  ********************************
+
+!--- set the random seeds for each column
+      if (isubc_lw==2 .or. isubc_sw==2) then
+        ix = 0 
+        do j = 1,ny
+          do i = 1,nx
+            ix = ix + 1
+            Dyn_parms(nb)%icsdsw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
+            Dyn_parms(nb)%icsdlw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
+
+            if (Mdl_parms%num_p3d == 3) then
+              work1 = (Dyn_parms(nb)%dx(ix) - dxmin) * dxinv
+              work1 = max(0.0, min(1.0,work1))
+              Cld_props(nb)%flgmin(ix) = flgmin(1)*work1 + flgmin(2)*(1.0-work1)
+            else
+              Cld_props(nb)%flgmin(ix) = 0.0
+            endif
+          enddo
+        enddo
+      endif
+
+!--- interpolate coefficients for prognostic ozone calculation
+      if (ntoz > 0) then
+        call ozinterpol(Mdl_parms%me, ngptc, ngptc, Mdl_parms%idate, fhour, &
+                        O3dat(nb)%j1, O3dat(nb)%j2, ozplin, Tbd_data(nb)%prdout, &
+                        O3dat(nb)%ddy)
+      endif
+    enddo
+
+
+
+  end subroutine phys_rad_setup_step
 
 
 !-------------------------------------------------------------------------      
@@ -323,49 +617,9 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
-!need to populate anything needing help
-!    call sfc_populate (Sfc_props)
-
-!rab      if ( ISUBC_LW==2 .or. ISUBC_SW==2 ) then
-!rab!       ipseed = mod(nint(100.0*sqrt(fhour*3600)), ipsdlim) + 1 + ipsd0
-!rab        ipseed = mod(nint(100.0*sqrt(phour*3600)), ipsdlim) + 1 + ipsd0
-!rab
-!rab        call random_setseed                                             &
-!rab!  ---  inputs:
-!rab     &     ( ipseed,                                                    &
-!rab!  ---  outputs:
-!rab     &       stat                                                       &
-!rab     &      )
-!rab        call random_index                                               &
-!rab!  ---  inputs:
-!rab     &     ( ipsdlim,                                                   &
-!rab!  ---  outputs:
-!rab     &       numrdm, stat                                               &
-!rab     &     )
-!rab
-!rab        do k = 1, 2
-!rab          do j = 1, lats_node_r
-!rab            lat = global_lats_r(ipt_lats_node_r-1+j)
-!rab
-!rab            do i = 1, LONR
-!rab              ixseed(i,j,k) = numrdm(i+(lat-1)*LONR+(k-1)*LATR)
-!rab            enddo
-!rab          enddo
-!rab        enddo
-!rab      endif
-
 !--- call the nuopc radiation loop---
     call mpp_clock_begin(grrad_clk)
     do nb = 1, Atm_block%nblks
-
-
-!rab          if ( ISUBC_LW==2 .or. ISUBC_SW==2 ) then
-!rab            do i = 1, njeff
-!rab              Dyn_parms(nb)%icsdsw(i) = ixseed(lon+i-1,lan,1)
-!rab              Dyn_parms(nb)%icsdlw(i) = ixseed(lon+i-1,lan,2)
-!rab            enddo
-!rab          endif
-
 
 !
 !--- call the nuopc radiation routine for time-varying data ---
@@ -394,73 +648,11 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
-!rab   if (first) then
-!--- set up the random number streams needed or each column
-!rab        if (ras) call ras_init(levs, me)
-!rab        if (.not. newsas .or. cal_pre) then  ! random number needed for RAS and old SAS
-!rab          if (random_clds) then ! create random number tank
-!rab!                                 -------------------------
-!rab            seed0 = idate(1) + idate(2) + idate(3) + idate(4)
-!rab
-!rab            call random_setseed(seed0)
-!rab            call random_number(wrk)
-!rab            seed0 = seed0 + nint(wrk(1)*thousnd)
-!rab            if (me == 0) print *,' seed0=',seed0,' idate=',idate,
-!rab     &                           ' wrk=',wrk
-!rab!
-!rab            if (.not. allocated(rannum_tank))
-!rab     &                allocate (rannum_tank(lonr,maxran,lats_node_r))
-!rab            if (.not. allocated(rannum)) allocate (rannum(lonr*maxrs))
-!rab            lonrbm = lonr / maxsub
-!rab            if (me == 0) write(0,*)' maxran=',maxran,' maxrs=',maxrs,
-!rab     &          'maxsub=',maxsub,' lonrbm=',lonrbm,
-!rab     &          ' lats_node_r=',lats_node_r
-!rab            do j=1,lats_node_r
-!rab              iseedl = global_lats_r(ipt_lats_node_r-1+j) + seed0
-!rab              call random_setseed(iseedl)
-!rab              call random_number(rannum)
-!rab
-!rab!$omp parallel do  shared(j,lonr,lonrbm,rannum,rannum_tank)
-!rab!$omp+private(nrc,nnp,i,ii,k,kk)
-!rab              do nrc=1,maxrs
-!rab             nnp = (nrc-1)*lonr
-!rab                do k=1,maxsub
-!rab                  kk = k - 1
-!rab                  do i=1,lonr
-!rab                    ii = kk*lonrbm + i
-!rab                    if (ii > lonr) ii = ii - lonr
-!rab                    rannum_tank(i,nrc+kk*maxrs,j) = rannum(ii+nnp)
-!rab                  enddo
-!rab                enddo
-!rab              enddo
-!rab            enddo
-!rab            if (allocated(rannum)) deallocate (rannum)
-!rab          endif
-!rab        endif
-!rab   endif
-
-
 !--- call the nuopc physics loop---
     call mpp_clock_begin(gbphys_clk)
     do nb = 1, Atm_block%nblks
 
-!rab      nnp = 1
-!rab      if (.not. newsas .or. cal_pre) then
-!rab        if (random_clds) then
-!rab          nnr = (nnp-1)*nrcm
-!rab          do j=1,nrcm
-!rab            do i=1,njeff
-!rab              Tbd_data(nb)%(rann(i,j)=rannum_tank(lon+i-1,indxr(nnr+j),lan)
-!rab            enddo
-!rab          enddo
-!rab        else
-!rab          do j=1,nrcm
-!rab            do i=1,njeff
-!rab              Tbd_data(nb)%rann(i,j) = 0.6    ! This is useful for debugging
-!rab            enddo
-!rab          enddo
-!rab        endif
-!rab      endif
+      Tbd_data(nb)%dpshc(:) = 0.3d0 * Statein(nb)%prsi(:,1)
 
       call nuopc_phys_run (Statein(nb), Stateout(nb), Sfc_props(nb), &
                            Gfs_diags(nb), Intr_flds(nb), Cld_props(nb), &
@@ -501,36 +693,50 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- surface_props_input ---
 !-------------------------------------------------------------------------      
-  subroutine surface_props_input (Atm_block)
+  subroutine surface_props_input (Atm_block, GSM)
     type (block_control_type), intent(in) :: Atm_block
+    logical, intent(in), optional :: GSM
 !   local variables
     integer :: i, j, ibs, ibe, jbs, jbe, nct
-    integer :: funit, nb, nx, ny, ngptc
+    integer :: nb, nx, ny, ngptc
     integer :: start(4), nread(4)
-    character(len=32)  :: fname = 'INPUT/gfs_sfc.nc'
+    character(len=32)  :: fn_srf = 'INPUT/sfc_data.nc'
+    character(len=32)  :: fn_oro = 'INPUT/oro_data.nc'
     character(len=128) :: errmsg
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2 => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
     logical :: exists
 
-    call get_mosaic_tile_file (fname, fname, .FALSE.)
+    call get_mosaic_tile_file (fn_srf, fn_srf, .FALSE.)
+    call get_mosaic_tile_file (fn_oro, fn_oro, .FALSE.)
 
-    inquire(file=trim(fname), exist=exists)
+    inquire(file=trim(fn_srf), exist=exists)
     if (exists) then
-      errmsg = 'opening file '//trim(fname)//' for input'
+      errmsg = 'opening file '//trim(fn_srf)//' for input'
       call error_mesg ('phys_rad_driver_init', trim(errmsg), NOTE)
     else
-      errmsg = 'error opening file '//trim(fname)//' for input'
+      errmsg = 'error opening file '//trim(fn_srf)//' for input'
       call error_mesg ('phys_rad_driver_init', trim(errmsg), FATAL)
     endif
 
-    funit = open_file(trim(fname))
+    inquire(file=trim(fn_oro), exist=exists)
+    if (exists) then
+      errmsg = 'opening file '//trim(fn_oro)//' for input'
+      call error_mesg ('phys_rad_driver_init', trim(errmsg), NOTE)
+    else
+      errmsg = 'error opening file '//trim(fn_oro)//' for input'
+      call error_mesg ('phys_rad_driver_init', trim(errmsg), FATAL)
+    endif
 
     do nb = 1, Atm_block%nblks
-      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
-      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
-      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
-      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
+      ibs = Atm_block%ibs(nb)
+      ibe = Atm_block%ibe(nb)
+      jbs = Atm_block%jbs(nb)
+      jbe = Atm_block%jbe(nb)
+!rab      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
+!rab      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
+!rab      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
+!rab      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
       nx = (ibe - ibs + 1)
       ny = (jbe - jbs + 1) 
       ngptc = nx * ny
@@ -542,102 +748,156 @@ module gfs_physics_driver_mod
       nread(2) = ny
       nread(3) = 1
       nread(4) = 1
+
+!--- OROGRAPHY FILE
+!--- stddev
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,1)
+      call read_data(fn_oro,'stddev',var2,start,nread)
+      Sfc_props(nb)%hprim(1:ngptc) = Sfc_props(nb)%hprime2(1:ngptc,1)
+!--- convexity
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,2)
+      call read_data(fn_oro,'convexity',var2,start,nread)
+!--- oa1
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,3)
+      call read_data(fn_oro,'oa1',var2,start,nread)
+!--- oa2
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,4)
+      call read_data(fn_oro,'oa2',var2,start,nread)
+!--- oa3
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,5)
+      call read_data(fn_oro,'oa3',var2,start,nread)
+!--- oa4
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,6)
+      call read_data(fn_oro,'oa4',var2,start,nread)
+!--- ol1
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,7)
+      call read_data(fn_oro,'ol1',var2,start,nread)
+!--- ol2
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,8)
+      call read_data(fn_oro,'ol2',var2,start,nread)
+!--- ol3
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,9)
+      call read_data(fn_oro,'ol3',var2,start,nread)
+!--- ol4
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,10)
+      call read_data(fn_oro,'ol4',var2,start,nread)
+!--- theta
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,11)
+      call read_data(fn_oro,'theta',var2,start,nread)
+!--- gamma
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,12)
+      call read_data(fn_oro,'gamma',var2,start,nread)
+!--- sigma
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,13)
+      call read_data(fn_oro,'sigma',var2,start,nread)
+!--- elvmax
+      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,14)
+      call read_data(fn_oro,'elvmax',var2,start,nread)
+
+!--- SURFACE FILE
 !--- slmsk
       var2(1:nx,1:ny) => Sfc_props(nb)%slmsk(1:ngptc)
-      call read_data(fname,'slmsk',var2,start,nread)
-!--- oro (orog in sfc file)
+      call read_data(fn_srf,'slmsk',var2,start,nread)
+!--- oro (orog_filt in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%oro(1:ngptc)
-      call read_data(fname,'orog',var2,start,nread)
+      call read_data(fn_srf,'orog_filt',var2,start,nread)
+!--- oro_uf (orog_raw in sfc file)
+      var2(1:nx,1:ny) => Sfc_props(nb)%oro_uf(1:ngptc)
+      call read_data(fn_srf,'orog_raw',var2,start,nread)
 !--- tsfc (tsea in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%tsfc(1:ngptc)
-      call read_data(fname,'tsea',var2,start,nread)
+      call read_data(fn_srf,'tsea',var2,start,nread)
 !--- weasd (sheleg in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%weasd(1:ngptc)
-      call read_data(fname,'sheleg',var2,start,nread)
+      call read_data(fn_srf,'sheleg',var2,start,nread)
 !--- tg3
       var2(1:nx,1:ny) => Sfc_props(nb)%tg3(1:ngptc)
-      call read_data(fname,'tg3',var2,start,nread)
+      call read_data(fn_srf,'tg3',var2,start,nread)
 !--- zorl
       var2(1:nx,1:ny) => Sfc_props(nb)%zorl(1:ngptc)
-      call read_data(fname,'zorl',var2,start,nread)
-!--- alvsf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alvsf(1:ngptc)
-      call read_data(fname,'alvsf',var2,start,nread)
-!--- alvwf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alvwf(1:ngptc)
-      call read_data(fname,'alvwf',var2,start,nread)
-!--- alnsf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alnsf(1:ngptc)
-      call read_data(fname,'alnsf',var2,start,nread)
-!--- alnwf
-      var2(1:nx,1:ny) => Sfc_props(nb)%alnwf(1:ngptc)
-      call read_data(fname,'alnwf',var2,start,nread)
+      call read_data(fn_srf,'zorl',var2,start,nread)
+!rab      if (present(GSM)) then
+!rab        if (GSM) then
+!---     alvsf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alvsf(1:ngptc)
+          call read_data(fn_srf,'alvsf',var2,start,nread)
+!---     alvwf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alvwf(1:ngptc)
+          call read_data(fn_srf,'alvwf',var2,start,nread)
+!---     alnsf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alnsf(1:ngptc)
+          call read_data(fn_srf,'alnsf',var2,start,nread)
+!---     alnwf
+          var2(1:nx,1:ny) => Sfc_props(nb)%alnwf(1:ngptc)
+          call read_data(fn_srf,'alnwf',var2,start,nread)
+!---     facsf
+          var2(1:nx,1:ny) => Sfc_props(nb)%facsf(1:ngptc)
+          call read_data(fn_srf,'facsf',var2,start,nread)
+!---     facwf
+          var2(1:nx,1:ny) => Sfc_props(nb)%facwf(1:ngptc)
+          call read_data(fn_srf,'facwf',var2,start,nread)
+!rab        endif
+!rab      endif
 !--- vfrac
       var2(1:nx,1:ny) => Sfc_props(nb)%vfrac(1:ngptc)
-      call read_data(fname,'vfrac',var2,start,nread)
+      call read_data(fn_srf,'vfrac',var2,start,nread)
 !--- canopy
       var2(1:nx,1:ny) => Sfc_props(nb)%canopy(1:ngptc)
-      call read_data(fname,'canopy',var2,start,nread)
+      call read_data(fn_srf,'canopy',var2,start,nread)
 !--- f10m
       var2(1:nx,1:ny) => Sfc_props(nb)%f10m(1:ngptc)
-      call read_data(fname,'f10m',var2,start,nread)
+      call read_data(fn_srf,'f10m',var2,start,nread)
 !--- t2m
       var2(1:nx,1:ny) => Sfc_props(nb)%t2m(1:ngptc)
-      call read_data(fname,'t2m',var2,start,nread)
+      call read_data(fn_srf,'t2m',var2,start,nread)
 !--- q2m
       var2(1:nx,1:ny) => Sfc_props(nb)%q2m(1:ngptc)
-      call read_data(fname,'q2m',var2,start,nread)
+      call read_data(fn_srf,'q2m',var2,start,nread)
 !--- vtype
       var2(1:nx,1:ny) => Sfc_props(nb)%vtype(1:ngptc)
-      call read_data(fname,'vtype',var2,start,nread)
+      call read_data(fn_srf,'vtype',var2,start,nread)
 !--- stype
       var2(1:nx,1:ny) => Sfc_props(nb)%stype(1:ngptc)
-      call read_data(fname,'stype',var2,start,nread)
-!--- facsf
-      var2(1:nx,1:ny) => Sfc_props(nb)%facsf(1:ngptc)
-      call read_data(fname,'facsf',var2,start,nread)
-!--- facwf
-      var2(1:nx,1:ny) => Sfc_props(nb)%facwf(1:ngptc)
-      call read_data(fname,'facwf',var2,start,nread)
+      call read_data(fn_srf,'stype',var2,start,nread)
 !--- uustar
       var2(1:nx,1:ny) => Sfc_props(nb)%uustar(1:ngptc)
-      call read_data(fname,'uustar',var2,start,nread)
+      call read_data(fn_srf,'uustar',var2,start,nread)
 !--- ffmm
       var2(1:nx,1:ny) => Sfc_props(nb)%ffmm(1:ngptc)
-      call read_data(fname,'ffmm',var2,start,nread)
+      call read_data(fn_srf,'ffmm',var2,start,nread)
 !--- ffhh
       var2(1:nx,1:ny) => Sfc_props(nb)%ffhh(1:ngptc)
-      call read_data(fname,'ffhh',var2,start,nread)
+      call read_data(fn_srf,'ffhh',var2,start,nread)
 !--- hice
       var2(1:nx,1:ny) => Sfc_props(nb)%hice(1:ngptc)
-      call read_data(fname,'hice',var2,start,nread)
+      call read_data(fn_srf,'hice',var2,start,nread)
 !--- fice
       var2(1:nx,1:ny) => Sfc_props(nb)%fice(1:ngptc)
-      call read_data(fname,'fice',var2,start,nread)
+      call read_data(fn_srf,'fice',var2,start,nread)
 !--- tisfc
       var2(1:nx,1:ny) => Sfc_props(nb)%tisfc(1:ngptc)
-      call read_data(fname,'tisfc',var2,start,nread)
+      call read_data(fn_srf,'tisfc',var2,start,nread)
 !--- tprcp
       var2(1:nx,1:ny) => Tbd_data(nb)%tprcp(1:ngptc)
-      call read_data(fname,'tprcp',var2,start,nread)
+      call read_data(fn_srf,'tprcp',var2,start,nread)
 !--- srflag
       var2(1:nx,1:ny) => Tbd_data(nb)%srflag(1:ngptc)
-      call read_data(fname,'srflag',var2,start,nread)
+      call read_data(fn_srf,'srflag',var2,start,nread)
 !--- snowd (snwdph in the file)
       var2(1:nx,1:ny) => Sfc_props(nb)%snowd(1:ngptc)
-      call read_data(fname,'snwdph',var2,start,nread)
+      call read_data(fn_srf,'snwdph',var2,start,nread)
 !--- shdmin
       var2(1:nx,1:ny) => Sfc_props(nb)%shdmin(1:ngptc)
-      call read_data(fname,'shdmin',var2,start,nread)
+      call read_data(fn_srf,'shdmin',var2,start,nread)
 !--- shdmax
       var2(1:nx,1:ny) => Sfc_props(nb)%shdmax(1:ngptc)
-      call read_data(fname,'shdmax',var2,start,nread)
+      call read_data(fn_srf,'shdmax',var2,start,nread)
 !--- slope
       var2(1:nx,1:ny) => Sfc_props(nb)%slope(1:ngptc)
-      call read_data(fname,'slope',var2,start,nread)
+      call read_data(fn_srf,'slope',var2,start,nread)
 !--- snoalb
       var2(1:nx,1:ny) => Sfc_props(nb)%snoalb(1:ngptc)
-      call read_data(fname,'snoalb',var2,start,nread)
+      call read_data(fn_srf,'snoalb',var2,start,nread)
 !
 !--- 3D variables
       allocate(var3(1:nx,1:ny,1:Mdl_parms%lsoil))
@@ -650,8 +910,7 @@ module gfs_physics_driver_mod
       nread(3) = Mdl_parms%lsoil
       nread(4) = 1
 !--- stc
-      call read_data(fname,'stc',var3,start,nread)
-      call read_data(fname,'stc',var3)
+      call read_data(fn_srf,'stc',var3,start,nread)
       do j = 1, ny
        do i = 1, nx
          nct = (j-1)*nx + i
@@ -659,7 +918,7 @@ module gfs_physics_driver_mod
        enddo
       enddo
 !--- smc
-      call read_data(fname,'smc',var3,start,nread)
+      call read_data(fn_srf,'smc',var3,start,nread)
       do j = 1, ny
        do i = 1, nx
          nct = (j-1)*nx + i
@@ -667,22 +926,18 @@ module gfs_physics_driver_mod
        enddo
       enddo
 !--- slc
-      call read_data(fname,'slc',var3,start,nread)
+      call read_data(fn_srf,'slc',var3,start,nread)
       do j = 1, ny
        do i = 1, nx
          nct = (j-1)*nx + i
          Tbd_data(nb)%slc(nct,1:Mdl_parms%lsoil) = var3(i,j,1:Mdl_parms%lsoil)
        enddo
       enddo
+      deallocate(var3)
     enddo
 
-
 !--- nullify/deallocate any temporaries used
-      nullify(var2)
-      deallocate(var3)
-
-!--- close the file
-      call close_file(funit)
+    nullify(var2)
 
   end subroutine surface_props_input
 
@@ -1187,3 +1442,88 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 
 end module gfs_physics_driver_mod
+#ifdef JUNK
+ --- end subroutine nuopc_phys_init:
+ --- ntcw             =            3
+ --- ncld             =            1
+ --- ntoz             =            2
+ --- ntrac            =            3
+ --- levs             =           41
+ --- me               =            0
+ --- lsoil            =            4
+ --- lsm              =            1
+ --- nmtvr            =           14
+ --- nrcm             =            2
+ --- levozp           =           80
+ --- lonr             =        10242
+ --- latr             =            1
+ --- jcap             =            1
+ --- num_p3d          =            4
+ --- num_p2d          =            3
+ --- npdf3d           =            0
+ --- pl_coeff         =            4
+ --- ncw              =           20         120
+ --- crtrh            =   0.90000000000000002
+0.90000000000000002       0.90000000000000002
+ --- cdmbgwd          =    2.0000000000000000       0.25000000000000000
+ --- ccwf             =    1.0000000000000000        1.0000000000000000
+ --- dlqf             =    0.0000000000000000        0.0000000000000000
+ --- ctei_rm          =    10.000000000000000        10.000000000000000
+ --- cgwf             =   0.50000000000000000        5.0000000000000003E-002
+ --- prslrd0          =    200.00000000000000
+ --- ras              =  F
+ --- pre_rad          =  F
+ --- ldiag3d          =  F
+ --- lgocart          =  F
+ --- lssav_cpl        =  F
+ --- flipv            =  T
+ --- old_monin        =  F
+ --- cnvgwd           =  T
+ --- shal_cnv         =  F
+ --- sashal           =  T
+ --- newsas           =  T
+ --- cal_pre          =  T
+ --- mom4ice          =  F
+ --- mstrat           =  F
+ --- trans_trac       =  T
+ --- nst_fcst         =            0
+ --- moist_adj        =  F
+ --- thermodyn_id     =            1
+ --- sfcpress_id      =            2
+ --- gen_coord_hybrid =  T
+ --- levr             =           41
+ --- lsidea           =  F
+ --- pdfcld           =  F
+ --- shcnvcw          =  F
+ --- redrag           =  T
+ --- hybedmf          =  F
+ --- dspheat          =  F
+ --- dxmax            =   -16.118095650958320
+ --- dxmin            =   -9.8007901542977862
+ --- dxinv            =  -0.15829533660017264
+ --- cscnv            =  F
+ --- nctp             =           20
+ --- ntke             =            0
+ --- do_shoc          =  F
+ --- shocaftcnv       =  F
+ --- ntot3d           =            4
+ --- ntot2d           =            3
+ --- ictm             =            1
+ --- isol             =            2
+ --- ico2             =            2
+ --- iaer             =          111
+ --- ialb             =            0
+ --- iems             =            1
+ --- iovr_sw          =            1
+ --- iovr_lw          =            1
+ --- isubc_sw         =            2
+ --- isubc_lw         =            2
+ --- sas_shal         =  T
+ --- crick_proof      =  F
+ --- ccnorm           =  F
+ --- norad_precip     =  F
+ --- idate            =            0           1          10        2014
+ --- iflip            =            1
+ --- nlunit           =           35
+ --- end subroutine physics_init.
+#endif

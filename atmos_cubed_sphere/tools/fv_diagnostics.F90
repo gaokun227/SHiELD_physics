@@ -9,7 +9,7 @@ module fv_diagnostics_mod
  use fv_arrays_mod,    only: fv_atmos_type, fv_grid_type, fv_diag_type
  !!! CLEANUP needs removal?
  use fv_mapz_mod,      only: E_Flux, E_Flux_nest
- use fv_mp_mod,        only: mp_reduce_sum, mp_reduce_min, mp_reduce_max
+ use fv_mp_mod,        only: mp_reduce_sum, mp_reduce_min, mp_reduce_max, is_master
  use fv_eta_mod,        only: get_eta_level, gw_1d
  use fv_grid_utils_mod, only: g_sum
  use a2b_edge_mod,     only: a2b_ord2, a2b_ord4
@@ -108,6 +108,9 @@ contains
     call set_domain(Atm(1)%domain)  ! Set domain so that diag_manager can access tile information
 
          sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
+    if ( Atm(1)%flagstruct%nwat == 2 ) then
+         liq_wat = get_tracer_index (MODEL_ATMOS, 'clwmr')
+    endif
     if ( Atm(1)%flagstruct%nwat>=3 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
          ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
@@ -1033,11 +1036,11 @@ contains
             write(*,*) 'ENG Deficit (W/m**2)', trim(gn), '=', E_Flux
         endif
 
-           idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
-        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
-        if (master .and. abs(E_Flux_nest) > 0.)  then
-            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
-        endif
+!rab           idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
+!rab        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
+!rab        if (master .and. abs(E_Flux_nest) > 0.)  then
+!rab            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
+!rab        endif
 #endif
         call prt_maxmin('UA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, 1.)
         call prt_maxmin('VA', Atm(n)%va, isc, iec, jsc, jec, ngc, npz, 1.)
@@ -2258,6 +2261,8 @@ contains
       real qmin, qmax
       integer i,j,k
 
+      master = (mpp_pe()==mpp_root_pe()) .or. is_master()
+
       qmin = q(is,js,1)
       qmax = qmin
 
@@ -2297,6 +2302,8 @@ contains
 !
       real qmin, qmax, gmean
       integer i,j,k
+
+      master = (mpp_pe()==mpp_root_pe()) .or. is_master()
 
       qmin = q(is,js,1)
       qmax = qmin
@@ -2354,9 +2361,11 @@ contains
  endif
 
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,sphum  ), psq(is,js,sphum  ), domain) 
- if (nwat > 1) then
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat), domain)
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat), domain)
+ if (nwat == 2) then
+   call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat), domain)
+ elseif (nwat > 2 ) then
+   call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat), domain)
+   call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat), domain)
  endif
 
 ! Mean water vapor in the "stratosphere" (75 mb and above):

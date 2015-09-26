@@ -78,6 +78,7 @@
 !     PARAMETER (QI0=1.0E-5, QW0=1.0E-6)
 !!!   PARAMETER (C0I=1.0E-3)
       PARAMETER (C00I=1.0E-3)
+!     PARAMETER (C00I=2.0E-3)
 !     parameter (c0=1.0e-3)
 !     parameter (c0=1.5e-3)
 !!!   parameter (c0=2.0e-3)
@@ -86,7 +87,8 @@
       real(kind=kind_phys) TF, TCR, TCRF, TCL
 !     parameter (TF=130.16, TCR=160.16, TCRF=1.0/(TCR-TF),TCL=2.0)
 !     parameter (TF=230.16, TCR=260.16, TCRF=1.0/(TCR-TF))
-      parameter (TF=233.16, TCR=263.16, TCRF=1.0/(TCR-TF),TCL=2.0)
+!     parameter (TF=233.16, TCR=263.16, TCRF=1.0/(TCR-TF),TCL=2.0)
+      parameter (TF=258.16, TCR=273.16, TCRF=1.0/(TCR-TF),TCL=2.0)
 !
 !     For Tilting Angle Specification
 !
@@ -230,12 +232,12 @@
 !
 !
       subroutine rascnv(IM,    IX,     k,      dt,    dtf,  rannum      &
-     &,                 tin,   qin,    uin,    vin,   ccin,  trac       &
+     &,                 tin,   qin,    uin,    vin,   ccin,  trac, fscav&
      &,                 prsi,  prsl,   prsik,  prslk, phil,  phii       &
      &,                 KPBL,  CDRAG,  RAINC,  kbot,  ktop,  kcnv       &
      &,                 DDVEL, FLIPV,  facmb,  me,    garea, lmh, ccwfac&
      &,                 nrcm,  rhc,    ud_mf, dd_mf,  det_mf, dlqfac    &
-     &,                 lprnt, ipr, kdt, fscav)
+     &,                 lprnt, ipr, kdt)
 !    &,                 lprnt, ipr, kdt, fscav, ctei_r, ctei_rm)
 !
 !*********************************************************************
@@ -316,6 +318,7 @@
 !
       real                fscav_(trac+2)  ! Fraction scavenged per km
 !
+!     write(0,*)' fscav=',fscav,' trac=',trac
       fscav_ = 0.0                        ! By default no scavenging
       if (trac > 0) then
         do i=1,trac

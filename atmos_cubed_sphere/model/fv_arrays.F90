@@ -6,6 +6,7 @@ module fv_arrays_mod
   use horiz_interp_type_mod, only:  horiz_interp_type
   use mpp_domains_mod, only : nest_domain_type
   use mpp_mod, only: mpp_broadcast
+  use constants_mod, only: R_GRID
   public
 
   !Several 'auxiliary' structures are introduced here. These are for
@@ -13,9 +14,6 @@ module fv_arrays_mod
   !  contains one of each of these structures all memory management
   !   is performed by the module in question.
 
-
-!---variable for strong typing grid parameters
-  integer, parameter :: R_GRID=8
 
   integer, parameter:: max_step = 1000
   real, parameter:: real_big = 1.e30   ! big enough to cause blowup if used
@@ -29,10 +27,11 @@ module fv_arrays_mod
                          id_f15, id_f25, id_f35, id_f45,          &
            id_ppt, id_ts, id_tb, id_pmask, id_pmaskv2,            &
            id_delp, id_delz, id_zratio, id_ws, id_iw, id_lw,      &
-           id_qn, id_qp, id_mdt, id_aam, id_amdt
+           id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt
 
 ! Selected p-level fields from 3D variables:
- integer :: id_vort850, id_w850, id_x850, id_srh,  &
+ integer :: id_vort200, id_vort500, id_w500
+ integer :: id_vort850, id_w850, id_x850, id_srh, id_theta_e,  &
             id_w200, id_s200, id_sl12, id_sl13, id_w5km
 ! IPCC diag
  integer :: id_u10,  id_v10,  id_t10,  id_q10,  id_rh10,  id_omg10,  id_h10,  &
@@ -250,12 +249,14 @@ module fv_arrays_mod
 
    integer :: nord=1         ! 0: del-2, 1: del-4, 2: del-6, 3: del-8 divergence damping
                              ! Alternative setting for high-res: nord=1; d4_bg = 0.075
+   integer :: nord_tr=0      ! 0: del-2, 1: del-4, 2: del-6
    real    :: dddmp = 0.0    ! coefficient for del-2 divergence damping (0.2)
                              ! for C90 or lower: 0.2
    real    :: d2_bg = 0.0    ! coefficient for background del-2 divergence damping
    real    :: d4_bg = 0.16   ! coefficient for background del-4(6) divergence damping
                              ! for stability, d4_bg must be <=0.16 if nord=3
    real    :: vtdm4 = 0.0    ! coefficient for del-4 vorticity damping
+   real    :: trdm2 = 0.0    ! coefficient for del-2 tracer damping
    real    :: d2_bg_k1 = 4.         ! factor for d2_bg (k=1)
    real    :: d2_bg_k2 = 2.         ! factor for d2_bg (k=2)
    real    :: d2_divg_max_k1 = 0.15 ! d2_divg max value (k=1)
@@ -367,6 +368,8 @@ module fv_arrays_mod
    real    :: tau_h2o = 0.            ! Time scale (days) for ch4_chem
 
    real    :: d_con = 0.
+   real    :: ke_bg = 0.              ! background KE production (m^2/s^3) over a small step
+                                      ! Use this to conserve total energy if consv_te=0
    real    :: consv_te = 0.
    real    :: tau = 0.                ! Time scale (days) for Rayleigh friction
    real    :: rf_cutoff = 30.E2       ! cutoff pressure level for RF
@@ -412,7 +415,9 @@ module fv_arrays_mod
    logical :: nudge_ic = .false.      ! Perform nudging on IC
    logical :: ncep_ic = .false.       ! use NCEP ICs 
    logical :: nggps_ic = .false.      ! use NGGPS ICs 
-   logical :: gfs_phil = .false.      ! compute GFS specific geopotential inside of gfs_physics
+   logical :: gfs_phil = .false.      ! if .T., compute geopotential inside of GFS physics
+   logical :: use_new_ncep = .false.  ! use the NCEP ICs created after 2014/10/22, if want to read CWAT
+   logical :: use_ncep_phy = .false.  ! if .T., separate CWAT by weights of liq_wat and liq_ice in FV_IC
    logical :: fv_diag_ic = .false.    ! reconstruct IC from fv_diagnostics on lat-lon grid
    logical :: external_ic = .false.   ! use ICs from external sources; e.g. lat-lon FV core
                                       ! or NCEP re-analysis; both vertical remapping & horizontal
@@ -461,6 +466,7 @@ module fv_arrays_mod
      integer :: istag, jstag
 
      logical :: allocated = .false.
+     logical :: initialized = .false.
 
   end type fv_nest_BC_type_3D
 
@@ -472,6 +478,7 @@ module fv_arrays_mod
      integer :: istag, jstag
 
      logical :: allocated = .false.
+     logical :: initialized = .false.
 
   end type fv_nest_BC_type_4D
 
@@ -495,14 +502,15 @@ module fv_arrays_mod
      logical :: first_step = .true.
      integer :: refinement_of_global = 1
      integer :: npx_global
-     
+     integer :: upoff = 1 ! currently the same for all variables
+     integer :: isu = -999, ieu = -1000, jsu = -999, jeu = -1000 ! limits of update regions on coarse grid 
 
      type(nest_domain_type) :: nest_domain !Structure holding link from this grid to its parent
      type(nest_domain_type), allocatable :: nest_domain_all(:)
 
      !Interpolation arrays for grid nesting
-     integer, allocatable, dimension(:,:,:) :: ind_h, ind_u, ind_v
-     real, allocatable, dimension(:,:,:) :: wt_h, wt_u, wt_v
+     integer, allocatable, dimension(:,:,:) :: ind_h, ind_u, ind_v, ind_b
+     real, allocatable, dimension(:,:,:) :: wt_h, wt_u, wt_v, wt_b
      integer, allocatable, dimension(:,:,:) :: ind_update_h
 
      !These arrays are not allocated by allocate_fv_atmos_type; but instead
@@ -514,10 +522,13 @@ module fv_arrays_mod
      logical :: parent_of_twoway = .false.
    
      !These are for time-extrapolated BCs
-     type(fv_nest_BC_type_3D) :: delp_BC, u_BC, v_BC, uc_BC, vc_BC
+     type(fv_nest_BC_type_3D) :: delp_BC, u_BC, v_BC, uc_BC, vc_BC, divg_BC
      type(fv_nest_BC_type_3D), allocatable, dimension(:) :: q_BC
 #ifndef SW_DYNAMICS
      type(fv_nest_BC_type_3D) :: pt_BC, w_BC, delz_BC
+#ifdef USE_COND
+     type(fv_nest_BC_type_3D) :: q_con_BC
+#endif
 #endif
 
      !These are for tracer flux BCs
@@ -548,7 +559,7 @@ module fv_arrays_mod
   type fv_atmos_type
 
      logical :: allocated = .false.
-     logical :: dummy = .false.
+     logical :: dummy = .false. ! same as grids_on_this_pe(n)
      integer :: grid_number = 1
 
      !Timestep-related variables.
@@ -1072,6 +1083,10 @@ contains
        allocate(Atm%neststruct%wt_h(isd:ied,   jsd:jed,  4))
        allocate(Atm%neststruct%wt_u(isd:ied,   jsd:jed+1,4))
        allocate(Atm%neststruct%wt_v(isd:ied+1, jsd:jed,  4))
+#ifdef DIVG_BC
+       allocate(Atm%neststruct%ind_b(isd:ied+1,jsd:jed+1,4))
+       allocate(Atm%neststruct%wt_b(isd:ied+1, jsd:jed+1,4))
+#endif
 
        ns = Atm%neststruct%nsponge
 
@@ -1080,6 +1095,9 @@ contains
        call allocate_fv_nest_BC_type(Atm%neststruct%v_BC,Atm,ns,1,0,dummy)
        call allocate_fv_nest_BC_type(Atm%neststruct%uc_BC,Atm,ns,1,0,dummy)
        call allocate_fv_nest_BC_type(Atm%neststruct%vc_BC,Atm,ns,0,1,dummy)
+#ifdef DIVG_BC
+       call allocate_fv_nest_BC_type(Atm%neststruct%divg_BC,Atm,ns,1,1,dummy)
+#endif
 
        if (ncnst > 0) then
           allocate(Atm%neststruct%q_BC(ncnst))
@@ -1091,6 +1109,9 @@ contains
 #ifndef SW_DYNAMICS
 
        call allocate_fv_nest_BC_type(Atm%neststruct%pt_BC,Atm,ns,0,0,dummy)
+#ifdef USE_COND
+       call allocate_fv_nest_BC_type(Atm%neststruct%q_con_BC,Atm,ns,0,0,dummy)
+#endif
        if (.not.Atm%flagstruct%hydrostatic) then
           call allocate_fv_nest_BC_type(Atm%neststruct%w_BC,Atm,ns,0,0,dummy)
           call allocate_fv_nest_BC_type(Atm%neststruct%delz_BC,Atm,ns,0,0,dummy)
@@ -1290,11 +1311,18 @@ contains
        deallocate(Atm%neststruct%wt_u)
        deallocate(Atm%neststruct%wt_v)
 
+#ifdef DIVG_BC
+       deallocate(Atm%neststruct%ind_b)
+       deallocate(Atm%neststruct%wt_b)
+#endif
        call deallocate_fv_nest_BC_type(Atm%neststruct%delp_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%u_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%v_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%uc_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%vc_BC)
+#ifdef DIVG_BC
+       call deallocate_fv_nest_BC_type(Atm%neststruct%divg_BC)
+#endif
        if (allocated(Atm%neststruct%q_BC)) then
           do n=1,size(Atm%neststruct%q_BC)
              call deallocate_fv_nest_BC_type(Atm%neststruct%q_BC(n))
@@ -1303,6 +1331,9 @@ contains
 
 #ifndef SW_DYNAMICS
        call deallocate_fv_nest_BC_type(Atm%neststruct%pt_BC)
+#ifdef USE_COND
+       call deallocate_fv_nest_BC_type(Atm%neststruct%q_con_BC)
+#endif
        if (.not.Atm%flagstruct%hydrostatic) then
           call deallocate_fv_nest_BC_type(Atm%neststruct%w_BC)
           call deallocate_fv_nest_BC_type(Atm%neststruct%delz_BC)
@@ -1369,6 +1400,14 @@ subroutine allocate_fv_nest_BC_type_3D(BC,is,ie,js,je,isd,ied,jsd,jed,npx,npy,np
   if (ie == npx-1 .and. .not. dummy) then
      allocate(BC%east_t1(ie+1-ns+istag:ied+istag,jsd:jed+jstag,npz))
      allocate(BC%east_t0(ie+1-ns+istag:ied+istag,jsd:jed+jstag,npz))
+     do k=1,npz
+     do j=jsd,jed+jstag
+     do i=ie+1-ns+istag,ied+istag
+        BC%east_t1(i,j,k) = 0.
+        BC%east_t0(i,j,k) = 0.
+     enddo
+     enddo
+     enddo
   else
      allocate(BC%east_t1(1,1,npz))
      allocate(BC%east_t0(1,1,npz))
@@ -1377,6 +1416,14 @@ subroutine allocate_fv_nest_BC_type_3D(BC,is,ie,js,je,isd,ied,jsd,jed,npx,npy,np
   if (js == 1 .and. .not. dummy) then
      allocate(BC%south_t1(isd:ied+istag,jsd:js-1+ns,npz))
      allocate(BC%south_t0(isd:ied+istag,jsd:js-1+ns,npz))
+     do k=1,npz
+     do j=jsd,js-1+ns
+     do i=isd,ied+istag
+        BC%south_t1(i,j,k) = 0.
+        BC%south_t0(i,j,k) = 0.
+     enddo
+     enddo
+     enddo
   else
      allocate(BC%south_t1(1,1,npz))
      allocate(BC%south_t0(1,1,npz))
@@ -1385,6 +1432,14 @@ subroutine allocate_fv_nest_BC_type_3D(BC,is,ie,js,je,isd,ied,jsd,jed,npx,npy,np
   if (is == 1 .and. .not. dummy) then
      allocate(BC%west_t1(isd:is-1+ns,jsd:jed+jstag,npz))
      allocate(BC%west_t0(isd:is-1+ns,jsd:jed+jstag,npz))
+     do k=1,npz
+     do j=jsd,jed+jstag
+     do i=isd,is-1+ns
+        BC%west_t1(i,j,k) = 0.
+        BC%west_t0(i,j,k) = 0.
+     enddo
+     enddo
+     enddo
   else
      allocate(BC%west_t1(1,1,npz))
      allocate(BC%west_t0(1,1,npz))
@@ -1393,6 +1448,14 @@ subroutine allocate_fv_nest_BC_type_3D(BC,is,ie,js,je,isd,ied,jsd,jed,npx,npy,np
   if (je == npy-1 .and. .not. dummy) then
      allocate(BC%north_t1(isd:ied+istag,je+1-ns+jstag:jed+jstag,npz))
      allocate(BC%north_t0(isd:ied+istag,je+1-ns+jstag:jed+jstag,npz))
+     do k=1,npz
+     do j=je+1-ns+jstag,jed+jstag
+     do i=isd,ied+istag
+        BC%north_t1(i,j,k) = 0.
+        BC%north_t0(i,j,k) = 0.
+     enddo
+     enddo
+     enddo
   else
      allocate(BC%north_t1(1,1,npz))
      allocate(BC%north_t0(1,1,npz))

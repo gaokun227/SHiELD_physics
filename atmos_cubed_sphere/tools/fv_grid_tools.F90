@@ -1,7 +1,7 @@
 module fv_grid_tools_mod
 
-  use constants_mod, only: grav
-  use fv_arrays_mod, only: fv_atmos_type, fv_grid_type, fv_grid_bounds_type, R_GRID
+  use constants_mod, only: grav, omega, pi, cnst_radius=>radius, R_GRID
+  use fv_arrays_mod, only: fv_atmos_type, fv_grid_type, fv_grid_bounds_type
   use fv_grid_utils_mod, only: gnomonic_grids, great_circle_dist,  &
                            mid_pt_sphere, spherical_angle,     &
                                cell_center2, get_area, inner_prod, fill_ghost, &
@@ -40,8 +40,7 @@ module fv_grid_tools_mod
   private
 #include <netcdf.inc>
 
-  real(kind=R_GRID), parameter:: pi = 3.14159265358979323846d0
-  real(kind=R_GRID), parameter:: radius = 6371.d03 !meters
+  real(kind=R_GRID), parameter:: radius = cnst_radius
 
   real(kind=R_GRID) , parameter:: todeg = 180.0d0/pi          ! convert to degrees
   real(kind=R_GRID) , parameter:: torad = pi/180.0d0          ! convert to radians
@@ -53,8 +52,7 @@ module fv_grid_tools_mod
   logical :: write_grid_char_file = .false.
 
 
-  public :: todeg, missing, init_grid, &
-       broadcast_aligned_nest, spherical_to_cartesian
+  public :: todeg, missing, init_grid, spherical_to_cartesian
 
   !---- version number -----
   character(len=128) :: version = '$Id$'
@@ -495,7 +493,7 @@ contains
     e1     => Atm%gridstruct%e1
     e2     => Atm%gridstruct%e2
 
-    if (Atm%neststruct%nested) then
+    if (Atm%neststruct%nested .or. ANY(Atm%neststruct%child_grids)) then
         grid_global => Atm%grid_global
     else if( trim(grid_file) .NE. 'INPUT/grid_spec.nc') then
        allocate(grid_global(1-ng:npx  +ng,1-ng:npy  +ng,ndims,1:nregions))
@@ -976,6 +974,9 @@ contains
           dxAV  = dxAV  / ( (ceiling(npy/2.0))*(ceiling(npx/2.0)) )
           aspAV = aspAV / ( (ceiling(npy/2.0))*(ceiling(npx/2.0)) )
           write(*,*  ) ''
+#ifdef SMALL_EARTH
+          write(*,*) ' REDUCED EARTH: Radius is ', radius, ', omega is ', omega
+#endif
           write(*,*  ) ' Cubed-Sphere Grid Stats : ', npx,'x',npy,'x',nregions
           write(*,201) '      Grid Length               : min: ', dxN,' max: ', dxM,' avg: ', dxAV, ' min/max: ',dxN/dxM
           write(*,200) '      Deviation from Orthogonal : min: ',angN,' max: ',angM,' avg: ',angAV
@@ -984,7 +985,7 @@ contains
        endif
     endif!if gridtype > 3
 
-    if (Atm%neststruct%nested) then
+    if (Atm%neststruct%nested .or. ANY(Atm%neststruct%child_grids)) then
        nullify(grid_global)
     else if( trim(grid_file) .NE. 'INPUT/grid_spec.nc') then
        deallocate(grid_global)
@@ -1129,6 +1130,10 @@ contains
       integer, pointer, dimension(:,:,:) :: ind_h, ind_u, ind_v, ind_update_h
       real,    pointer, dimension(:,:,:) :: wt_h, wt_u, wt_v
 
+#ifdef DIVG_BC
+      integer, pointer, dimension(:,:,:) :: ind_b
+      real,    pointer, dimension(:,:,:) :: wt_b
+#endif
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
@@ -1159,6 +1164,10 @@ contains
       wt_u => Atm%neststruct%wt_u
       wt_v => Atm%neststruct%wt_v
 
+#ifdef DIVG_BC
+      ind_b => Atm%neststruct%ind_b
+      wt_b => Atm%neststruct%wt_b
+#endif
       call mpp_get_data_domain( Atm%parent_grid%domain, &
            isd_p,  ied_p,  jsd_p,  jed_p  )
       call mpp_get_global_domain( Atm%parent_grid%domain, &
@@ -1167,23 +1176,29 @@ contains
       allocate(p_grid_u(isg:ieg  ,jsg:jeg+1,1:2))
       allocate(p_grid_v(isg:ieg+1,jsg:jeg  ,1:2))
       allocate(pa_grid(isg:ieg,jsg:jeg  ,1:2))
-!      allocate(p_grid( isg:ieg+1, jsg:jeg+1,1:2) )
+      p_ind = -1000000000
+#ifdef DIVG_BC
       allocate(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2) )
       p_grid = 1.e25
-      p_ind = -1000000000
+#endif
 
          !Need to RECEIVE grid_global; matching mpp_send of grid_global from parent grid is in fv_control
-         call mpp_recv(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2), size(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2)), Atm%parent_grid%pelist(1))
-         
+      if( is_master() ) then
+#ifndef DIVG_BC
+         allocate(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2) )
+         p_grid = 1.e25
+#endif
+         p_ind = -1000000000
 
-      if (.not. is_master()) then
-         deallocate(p_grid)
-      else
+         call mpp_recv(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2), size(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2)), &
+                       Atm%parent_grid%pelist(1))
          !Check that the grid does not lie outside its parent
-         if ( joffset + floor( real(1-ng) / real(refinement) ) < 1 .or. &
-              ioffset + floor( real(1-ng) / real(refinement) ) < 1 .or. &
-              joffset + floor( real(npy+ng) / real(refinement) ) > Atm%parent_grid%npy .or. &
-              ioffset + floor( real(npx+ng) / real(refinement) ) > Atm%parent_grid%npx ) then
+         !3aug15: allows halo of nest to lie within halo of coarse grid.
+         !  NOTE: will this then work with the mpp_update_nest_fine?
+         if ( joffset + floor( real(1-ng) / real(refinement) ) < 1-ng .or. &
+              ioffset + floor( real(1-ng) / real(refinement) ) < 1-ng .or. &
+              joffset + floor( real(npy+ng) / real(refinement) ) > Atm%parent_grid%npy+ng .or. &
+              ioffset + floor( real(npx+ng) / real(refinement) ) > Atm%parent_grid%npx+ng ) then
             call mpp_error(FATAL, 'nested grid lies outside its parent')
          end if
 
@@ -1260,7 +1275,9 @@ contains
             end do
          end do
 
+#ifndef DIVG_BC
          deallocate(p_grid)
+#endif
 
 
 
@@ -1277,13 +1294,10 @@ contains
       call mpp_broadcast(  p_grid_v( isg:ieg+1, jsg:jeg  , :), &
            (ieg-isg+2)*(jeg-jsg+1)*ndims, mpp_root_pe())
 
-      !if two-way nested send p_ind to parent processes so they can set up ind_update_h in fv_control
-      if (Atm%neststruct%twowaynest .and. is_master()) then
-         do p=1,size(Atm%parent_grid%pelist)
-            call mpp_send(p_ind(1-ng:npx+ng, 1-ng:npy+ng, 1:2), size(p_ind(1-ng:npx+ng, 1-ng:npy+ng, 1:2)), Atm%parent_grid%pelist(p))
-         enddo
-      endif
-      call mpp_sync_self
+#ifdef DIVG_BC
+      call mpp_broadcast( p_grid(isg:ieg+1, jsg:jeg+1, :), &
+           (ieg-isg+2)*(jeg-jsg+2)*ndims, mpp_root_pe() )
+#endif
 
       do n=1,ndims
          do j=jsd,jed+1
@@ -1321,18 +1335,31 @@ contains
          end do
       end do
 
-         !!NEW IDEA: Instead of coming up with error-prone,
-         !! implementation-specific formulas for update indices,
-         !! we can just use the interpolation source indices to
-         !! get the update indices.
+#ifdef DIVG_BC
+      ind_b = -999999999
+      do j=jsd,jed+1
+      do i=isd,ied+1
+         ic = p_ind(i,j,1)
+         jc = p_ind(i,j,2)
+         imod = p_ind(i,j,3)
+         jmod = p_ind(i,j,4)
 
-         !Update_h contains the nested-grid indices of the co-located CORNER
-         !points; additional but simple processing is needed to then get the
-         !appropriate nested-grid indices for the h,u, or v points needed for updating (see fv_dynamics)
+         ind_b(i,j,1) = ic
+         ind_b(i,j,2) = jc
+         
+         ind_b(i,j,3) = imod
+         ind_b(i,j,4) = jmod
+      enddo
+      enddo
+#endif
 
          !In a concurrent simulation, p_ind was passed off to the parent processes above, so they can create ind_update_h
 
       ind_u = -99999999
+      !New BCs for wind components:
+      ! For aligned grid segments (mod(j-1,R) == 0) set 
+      !     identically equal to the coarse-grid value
+      ! Do linear interpolation in the y-dir elsewhere
 
       do j=jsd,jed+1
          do i=isd,ied
@@ -1340,6 +1367,9 @@ contains
             jc = p_ind(i,j,2)
             imod = p_ind(i,j,3)
 
+#ifdef NEW_BC
+            ind_u(i,j,1) = ic
+#else
             if (imod < refinement/2) then
 !!$               !!! DEBUG CODE
 !!$               print*, i, j, ic
@@ -1348,6 +1378,7 @@ contains
             else
                ind_u(i,j,1) = ic
             end if
+#endif
 
             ind_u(i,j,2) = jc
 
@@ -1364,16 +1395,19 @@ contains
 
             ind_v(i,j,1) = ic
 
+#ifdef NEW_BC
+            ind_v(i,j,2) = jc
+#else
             if (jmod < refinement/2) then
                ind_v(i,j,2) = jc - 1
             else
                ind_v(i,j,2) = jc
             end if
+#endif
 
          end do
       end do
 
-      !Update u and update v are not used; we only need update_h
 
 
       agrid(:,:,:) = -1.e25
@@ -1431,6 +1465,31 @@ contains
 
       deallocate(pa_grid)
 
+#ifdef DIVG_BC
+      do j=jsd,jed+1
+      do i=isd,ied+1
+         
+         ic = ind_b(i,j,1)
+         jc = ind_b(i,j,2)
+
+         dist1 = dist2side_latlon(p_grid(ic,jc,:),     p_grid(ic,jc+1,:),   grid(i,j,:))
+         dist2 = dist2side_latlon(p_grid(ic,jc+1,:),   p_grid(ic+1,jc+1,:), grid(i,j,:))
+         dist3 = dist2side_latlon(p_grid(ic+1,jc+1,:), p_grid(ic+1,jc,:),   grid(i,j,:))
+         dist4 = dist2side_latlon(p_grid(ic,jc,:),     p_grid(ic+1,jc,:),   grid(i,j,:))
+
+         wt_b(i,j,1)=dist2*dist3      ! ic,   jc    weight
+         wt_b(i,j,2)=dist3*dist4      ! ic,   jc+1  weight
+         wt_b(i,j,3)=dist4*dist1      ! ic+1, jc+1  weight
+         wt_b(i,j,4)=dist1*dist2      ! ic+1, jc    weight
+
+         sum=wt_b(i,j,1)+wt_b(i,j,2)+wt_b(i,j,3)+wt_b(i,j,4)
+         wt_b(i,j,:)=wt_b(i,j,:)/sum
+
+      enddo
+      enddo
+
+      deallocate(p_grid)
+#endif
 
 
       allocate(c_grid_u(isd:ied+1,jsd:jed,2))
@@ -1479,6 +1538,21 @@ contains
             end if
 
 
+#ifdef NEW_BC
+            !New vorticity-conserving weights. Note that for the C-grid winds these
+            ! become divergence-conserving weights!!
+            jmod = p_ind(i,j,4)
+            if (jmod == 0) then
+               wt_u(i,j,1) = 1. ; wt_u(i,j,2) = 0.
+            else
+               dist1 = dist2side_latlon(p_grid_u(ic,jc,:), p_grid_u(ic+1,jc,:), c_grid_v(i,j,:))
+               dist2 = dist2side_latlon(p_grid_u(ic,jc+1,:), p_grid_u(ic+1,jc+1,:), c_grid_v(i,j,:))
+               sum = dist1+dist2
+               wt_u(i,j,1) = dist2/sum
+               wt_u(i,j,2) = dist1/sum
+            endif
+            wt_u(i,j,3:4) = 0.
+#else
             dist1 = dist2side_latlon(p_grid_u(ic,jc,:)    ,p_grid_u(ic,jc+1,:),  c_grid_v(i,j,:))
             dist2 = dist2side_latlon(p_grid_u(ic,jc+1,:)  ,p_grid_u(ic+1,jc+1,:),c_grid_v(i,j,:))
             dist3 = dist2side_latlon(p_grid_u(ic+1,jc+1,:),p_grid_u(ic+1,jc,:),  c_grid_v(i,j,:))
@@ -1492,6 +1566,7 @@ contains
 
             sum=wt_u(i,j,1)+wt_u(i,j,2)+wt_u(i,j,3)+wt_u(i,j,4)
             wt_u(i,j,:)=wt_u(i,j,:)/sum
+#endif
 
          end do
       end do
@@ -1509,6 +1584,19 @@ contains
                print*, isg, ieg, jsg, jeg
             end if
 
+#ifdef NEW_BC
+            imod = p_ind(i,j,3)
+            if (imod == 0) then
+               wt_v(i,j,1) = 1. ; wt_v(i,j,4) = 0.
+            else
+               dist1 = dist2side_latlon(p_grid_v(ic,jc,:), p_grid_v(ic,jc+1,:), c_grid_u(i,j,:))
+               dist2 = dist2side_latlon(p_grid_v(ic+1,jc,:), p_grid_v(ic+1,jc+1,:), c_grid_u(i,j,:))
+               sum = dist1+dist2
+               wt_v(i,j,1) = dist2/sum
+               wt_v(i,j,4) = dist1/sum
+            endif
+            wt_v(i,j,2) = 0. ; wt_v(i,j,3) = 0.
+#else
             dist1 = dist2side_latlon(p_grid_v(ic,jc,:)    ,p_grid_v(ic,jc+1,:),  c_grid_u(i,j,:))
             dist2 = dist2side_latlon(p_grid_v(ic,jc+1,:)  ,p_grid_v(ic+1,jc+1,:),c_grid_u(i,j,:))
             dist3 = dist2side_latlon(p_grid_v(ic+1,jc+1,:),p_grid_v(ic+1,jc,:),  c_grid_u(i,j,:))
@@ -1521,9 +1609,40 @@ contains
 
             sum=wt_v(i,j,1)+wt_v(i,j,2)+wt_v(i,j,3)+wt_v(i,j,4)
             wt_v(i,j,:)=wt_v(i,j,:)/sum
+#endif
 
          end do
       end do
+!!$#ifdef DIVG_BC
+!!$      !B-grid weights
+!!$      do j=jsd,jed+1
+!!$         do i=isd,ied+1
+!!$
+!!$            ic = ind_b(i,j,1)
+!!$            jc = ind_b(i,j,2)
+!!$
+!!$            if (ic+1 > ieg .or. ic < isg .or. jc+1 > jeg+1 .or. jc < jsg) then
+!!$               print*, 'IND_V ', i, j, ' OUT OF BOUNDS'
+!!$               print*, ic, jc
+!!$               print*, isg, ieg, jsg, jeg
+!!$            end if
+!!$
+!!$            dist1 = dist2side_latlon(p_grid(ic,jc,:)    ,p_grid(ic,jc+1,:),  grid(i,j,:))
+!!$            dist2 = dist2side_latlon(p_grid(ic,jc+1,:)  ,p_grid(ic+1,jc+1,:),grid(i,j,:))
+!!$            dist3 = dist2side_latlon(p_grid(ic+1,jc+1,:),p_grid(ic+1,jc,:),  grid(i,j,:))
+!!$            dist4 = dist2side_latlon(p_grid(ic,jc,:)  ,p_grid(ic+1,jc,:),    grid(i,j,:))
+!!$
+!!$            wt_b(i,j,1)=dist2*dist3      ! ic,   jc    weight
+!!$            wt_b(i,j,2)=dist3*dist4      ! ic,   jc+1  weight
+!!$            wt_b(i,j,3)=dist4*dist1      ! ic+1, jc+1  weight
+!!$            wt_b(i,j,4)=dist1*dist2      ! ic+1, jc    weight
+!!$
+!!$            sum=wt_b(i,j,1)+wt_b(i,j,2)+wt_b(i,j,3)+wt_b(i,j,4)
+!!$            wt_b(i,j,:)=wt_b(i,j,:)/sum
+!!$
+!!$         end do
+!!$      end do
+!!$#endif
 
 
       deallocate(c_grid_u)
@@ -2203,80 +2322,6 @@ contains
 
   end subroutine mirror_grid
 
-!----------------------------------------------------------------------- 
-
-    subroutine broadcast_aligned_nest(Atm)
-
-      !SEND grid_global to child grids; RECEIVE ind_p from child grids, and set up ind_update_h
-
-      type(fv_atmos_type), intent(INOUT), target :: Atm
-
-      integer :: isd_p, ied_p, jsd_p, jed_p
-      integer :: isg, ieg, jsg, jeg
-      integer :: ic, jc, imod, jmod
-      integer :: p, i, j
-      integer, allocatable :: p_ind(:,:,:)
-
-      integer, pointer :: parent_tile
-
-      parent_tile => Atm%neststruct%parent_tile
-
-      call mpp_get_global_domain( Atm%parent_grid%domain, &
-           isg, ieg, jsg, jeg)
-
-      if (mpp_pe() == Atm%parent_grid%pelist(1)) then
-         do p=1,size(Atm%pelist)
-!!$         !!! DEBUG CODE
-!!$         print*, 'SEND: ', mpp_pe(), size(Atm%parent_grid%grid_global(isg-ng:ieg+1+ng,jsg-ng:jeg+1+ng,1:2,parent_tile)), Atm%pelist(p)
-!!$         !!! END DEBUG CODE
-            call mpp_send(Atm%parent_grid%grid_global(isg-ng:ieg+1+ng,jsg-ng:jeg+1+ng,1:2,parent_tile), &
-                 size(Atm%parent_grid%grid_global(isg-ng:ieg+1+ng,jsg-ng:jeg+1+ng,1:2,parent_tile)), &
-                 Atm%pelist(p)) !send to p_ind in setup_aligned_nest
-            call mpp_sync_self
-         enddo
-      endif
-
-      if (Atm%neststruct%twowaynest) then
-
-         !Also need to receive P_IND from child grids to set up ind_update_h
-         isd_p = Atm%parent_grid%bd%isd
-         ied_p = Atm%parent_grid%bd%ied
-         jsd_p = Atm%parent_grid%bd%jsd
-         jed_p = Atm%parent_grid%bd%jed
-         !               allocate(Atm%ind_update_h(isd_p:ied_p+1,jsd_p:jed_p+1,2))
-         allocate(p_ind(1-ng:Atm%npx+ng,1-ng:Atm%npy+ng,1:2))
-!!$         !!! DEBUG CODE
-!!$         print*, 'RECEIVE: ', mpp_pe(), size(p_ind)
-!!$         !!! END DEBUG CODE
-         call mpp_recv(p_ind,size(p_ind),Atm%pelist(1)) !receiving from p_ind setup_aligned_grids 
-         call mpp_sync_self
-
-         Atm%neststruct%ind_update_h = 1000000
-
-         if (Atm%parent_grid%tile == Atm%neststruct%parent_tile) then
-            do j=1,Atm%npy
-            do i=1,Atm%npx
-
-               ic = p_ind(i,j,1)
-               jc = p_ind(i,j,2)
-               
-               if (ic < isd_p .or. ic > ied_p .or. jc < jsd_p .or. jc > jed_p) cycle
-               
-               if (i < Atm%neststruct%ind_update_h(ic,jc,1) .and. &
-                    j < Atm%neststruct%ind_update_h(ic,jc,2) ) then
-                  Atm%neststruct%ind_update_h(ic,jc,:) = (/i, j/)
-               end if
-
-            end do
-            end do
-         end if
-
-         deallocate(p_ind)
-
-      end if
-
-
-    end subroutine broadcast_aligned_nest
 
 
 

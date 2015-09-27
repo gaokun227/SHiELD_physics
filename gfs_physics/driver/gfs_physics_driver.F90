@@ -215,7 +215,7 @@ module gfs_physics_driver_mod
     logical :: debug = .false.
 
 !--- namelist ---
-   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr
+   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -1442,88 +1442,3 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 
 end module gfs_physics_driver_mod
-#ifdef JUNK
- --- end subroutine nuopc_phys_init:
- --- ntcw             =            3
- --- ncld             =            1
- --- ntoz             =            2
- --- ntrac            =            3
- --- levs             =           41
- --- me               =            0
- --- lsoil            =            4
- --- lsm              =            1
- --- nmtvr            =           14
- --- nrcm             =            2
- --- levozp           =           80
- --- lonr             =        10242
- --- latr             =            1
- --- jcap             =            1
- --- num_p3d          =            4
- --- num_p2d          =            3
- --- npdf3d           =            0
- --- pl_coeff         =            4
- --- ncw              =           20         120
- --- crtrh            =   0.90000000000000002
-0.90000000000000002       0.90000000000000002
- --- cdmbgwd          =    2.0000000000000000       0.25000000000000000
- --- ccwf             =    1.0000000000000000        1.0000000000000000
- --- dlqf             =    0.0000000000000000        0.0000000000000000
- --- ctei_rm          =    10.000000000000000        10.000000000000000
- --- cgwf             =   0.50000000000000000        5.0000000000000003E-002
- --- prslrd0          =    200.00000000000000
- --- ras              =  F
- --- pre_rad          =  F
- --- ldiag3d          =  F
- --- lgocart          =  F
- --- lssav_cpl        =  F
- --- flipv            =  T
- --- old_monin        =  F
- --- cnvgwd           =  T
- --- shal_cnv         =  F
- --- sashal           =  T
- --- newsas           =  T
- --- cal_pre          =  T
- --- mom4ice          =  F
- --- mstrat           =  F
- --- trans_trac       =  T
- --- nst_fcst         =            0
- --- moist_adj        =  F
- --- thermodyn_id     =            1
- --- sfcpress_id      =            2
- --- gen_coord_hybrid =  T
- --- levr             =           41
- --- lsidea           =  F
- --- pdfcld           =  F
- --- shcnvcw          =  F
- --- redrag           =  T
- --- hybedmf          =  F
- --- dspheat          =  F
- --- dxmax            =   -16.118095650958320
- --- dxmin            =   -9.8007901542977862
- --- dxinv            =  -0.15829533660017264
- --- cscnv            =  F
- --- nctp             =           20
- --- ntke             =            0
- --- do_shoc          =  F
- --- shocaftcnv       =  F
- --- ntot3d           =            4
- --- ntot2d           =            3
- --- ictm             =            1
- --- isol             =            2
- --- ico2             =            2
- --- iaer             =          111
- --- ialb             =            0
- --- iems             =            1
- --- iovr_sw          =            1
- --- iovr_lw          =            1
- --- isubc_sw         =            2
- --- isubc_lw         =            2
- --- sas_shal         =  T
- --- crick_proof      =  F
- --- ccnorm           =  F
- --- norad_precip     =  F
- --- idate            =            0           1          10        2014
- --- iflip            =            1
- --- nlunit           =           35
- --- end subroutine physics_init.
-#endif

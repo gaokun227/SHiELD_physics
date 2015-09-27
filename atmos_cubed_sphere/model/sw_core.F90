@@ -16,7 +16,7 @@
   real, parameter:: t11=27./28., t12=-13./28., t13=3./7., t14=6./7., t15=3./28.
   real, parameter:: s11=11./14., s13=-13./14., s14=4./7., s15=3./14.
   real, parameter:: near_zero = 1.E-9     ! for KE limiter
-  real, parameter:: big_number = 1.E8
+  real, parameter:: big_number = 1.E30
 !----------------------
 ! PPM volume mean form:
 !----------------------
@@ -51,7 +51,7 @@
   character(len=128) :: tagname = '$Name$'
 
       private
-      public :: c_sw, d_sw, fill_4corners, del6_vt_flux
+      public :: c_sw, d_sw, fill_4corners, del6_vt_flux, divergence_corner, divergence_corner_nest
 
   contains
 
@@ -481,7 +481,7 @@
  
    subroutine d_sw(delpc, delp,  ptc,   pt, u,  v, w, uc,vc, &
                    ua, va, divg_d, xflux, yflux, cx, cy,              &
-                   crx_adv, cry_adv,  xfx_adv, yfx_adv, q_con, z_rat, heat_source,    &
+                   crx_adv, cry_adv,  xfx_adv, yfx_adv, q_con, z_rat, kgb, heat_source,    &
                    zvir, sphum, nq, q, k, km, inline_q,  &
                    dt, hord_tr, hord_mt, hord_vt, hord_tm, hord_dp, nord,   &
                    nord_v, nord_w, nord_t, dddmp, d2_bg, d4_bg, damp_v, damp_w, &
@@ -495,7 +495,7 @@
       integer, intent(IN):: sphum, nq, k, km
       real   , intent(IN):: dt, dddmp, d2_bg, d4_bg, d_con
       real   , intent(IN):: zvir
-      real,    intent(in):: damp_v, damp_w, damp_t
+      real,    intent(in):: damp_v, damp_w, damp_t, kgb
       type(fv_grid_bounds_type), intent(IN) :: bd
       real, intent(inout):: divg_d(bd%isd:bd%ied+1,bd%jsd:bd%jed+1) ! divergence
       real, intent(IN), dimension(bd%isd:bd%ied,  bd%jsd:bd%jed):: z_rat
@@ -926,6 +926,7 @@
 
         if ( .not. hydrostatic ) then
             if ( damp_w>1.E-5 ) then
+                 dd8 = kgb*abs(dt)
                  damp4 = (damp_w*da_min_c)**(nord_w+1)
                  call del6_vt_flux(nord_w, npx, npy, damp4, w, wk, fx2, fy2, gridstruct, bd)
                 do j=js,je
@@ -933,7 +934,7 @@
                       dw(i,j) = (fx2(i,j)-fx2(i+1,j)+fy2(i,j)-fy2(i,j+1))*rarea(i,j)
 ! 0.5 * [ (w+dw)**2 - w**2 ] = w*dw + 0.5*dw*dw
 !                   heat_source(i,j) = -d_con*dw(i,j)*(w(i,j)+0.5*dw(i,j))
-                    heat_source(i,j) = -dw(i,j)*(w(i,j)+0.5*dw(i,j))
+                    heat_source(i,j) = dd8 - dw(i,j)*(w(i,j)+0.5*dw(i,j))
                    enddo
                 enddo
             endif
@@ -2238,14 +2239,27 @@ end subroutine divergence_corner_nest
              endif
         endif
       endif
+!vectorization and 2dx filter added by S-J
+       do i=is-1, ie+1
+          if ( bl(i)*br(i) < 0. ) then
+               extm(i) = .false.
+          else
+               extm(i) = .true.
+          endif
+       enddo
+
+!DEC$ VECTOR ALWAYS
        do i=is,ie+1
           if( c(i,j)>0. ) then
               cfl = c(i,j)*rdx(i-1,j)
-              flux(i,j) = u(i-1,j) + (1.-cfl)*(br(i-1)-cfl*(bl(i-1)+br(i-1)))
+              xt = u(i-1,j)
+              flux(i,j) = xt + (1.-cfl)*(br(i-1)-cfl*(bl(i-1)+br(i-1)))
           else
               cfl = c(i,j)*rdx(i,j)
-              flux(i,j) = u(i,  j) + (1.+cfl)*(bl(i  )+cfl*(bl(i  )+br(i  )))
+              xt = u(i,j)
+              flux(i,j) = xt + (1.+cfl)*(bl(i  )+cfl*(bl(i  )+br(i  )))
           endif
+          if ( extm(i-1).and.extm(i) ) flux(i,j) = xt
        enddo
      enddo
 
@@ -2712,15 +2726,30 @@ end subroutine divergence_corner_nest
      endif
    endif
 
+!vectorization and 2dx filter added by S-J
+   do j=js-1,je+1
+      do i=is,ie+1
+         if( bl(i,j)*br(i,j) < 0. ) then
+             extm(i,j) = .false.
+         else
+             extm(i,j) = .true.
+         endif
+      enddo
+   enddo
+
+!DEC$ VECTOR ALWAYS
    do j=js,je+1
       do i=is,ie+1
          if(c(i,j)>0.) then
             cfl = c(i,j)*rdy(i,j-1)
-            flux(i,j) = v(i,j-1) + (1.-cfl)*(br(i,j-1)-cfl*(bl(i,j-1)+br(i,j-1)))
+            xt = v(i,j-1)
+            flux(i,j) = xt + (1.-cfl)*(br(i,j-1)-cfl*(bl(i,j-1)+br(i,j-1)))
          else
             cfl = c(i,j)*rdy(i,j)
-            flux(i,j) = v(i,j  ) + (1.+cfl)*(bl(i,j  )+cfl*(bl(i,j  )+br(i,j  )))
+            xt = v(i,j)
+            flux(i,j) = xt + (1.+cfl)*(bl(i,j  )+cfl*(bl(i,j  )+br(i,j  )))
          endif
+         if ( extm(i,j-1).and.extm(i,j) ) flux(i,j) = xt
       enddo
    enddo
 

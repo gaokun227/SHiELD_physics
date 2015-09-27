@@ -1,6 +1,6 @@
  module test_cases_mod
 
-      use constants_mod,     only: cnst_radius=>radius, pi, omega, grav, kappa, rdgas, cp_air, rvgas
+      use constants_mod,     only: cnst_radius=>radius, pi, omega, grav, kappa, rdgas, cp_air, rvgas, R_GRID
       use init_hydro_mod,    only: p_var, hydro_eq
       use fv_mp_mod,         only: ng, is_master,        &
                                    is,js,ie,je, isd,jsd,ied,jed, &
@@ -20,11 +20,13 @@
       use mpp_parameter_mod, only: AGRID_PARAM=>AGRID,CGRID_NE_PARAM=>CGRID_NE, &
                                    SCALAR_PAIR
       use fv_sg_mod,         only: qsmith
-     use fv_diagnostics_mod, only: prt_maxmin, ppme
+     use fv_diagnostics_mod, only: prt_maxmin, ppme, eqv_pot
 !!! DEBUG CODE
      use mpp_mod, only: mpp_pe, mpp_chksum, stdout
 !!! END DEBUG CODE
-      use fv_arrays_mod,         only: fv_grid_type, fv_flags_type, fv_grid_bounds_type, R_GRID
+      use fv_arrays_mod,         only: fv_grid_type, fv_flags_type, fv_grid_bounds_type
+      use tracer_manager_mod,    only: get_tracer_index
+      use field_manager_mod,     only: MODEL_ATMOS
       implicit none
       private
 
@@ -38,7 +40,8 @@
 !                    5 = Zonal geostrophically balanced flow over an isolated mountain
 !                    6 = Rossby Wave number 4 
 !                    7 = Barotropic instability
-!                    8 = Potential flow (as in 5 but no rotation and initially at rest)
+!                    !   8 = Potential flow (as in 5 but no rotation and initially at rest)
+!                    8 = "Soliton" propagation twin-vortex along equator
 !                    9 = Polar vortex
 !                   10 = hydrostatically balanced 3D test with idealized mountain
 !                   11 = Use this for cold starting the climate model with USGS terrain
@@ -66,6 +69,7 @@
 !                   55 = TC 
 !                  101 = 3D non-hydrostatic Large-Eddy-Simulation (LES) with hybrid_z IC
 
+      integer :: sphum, theta_d
       real(kind=R_GRID), parameter :: radius = cnst_radius
       real(kind=R_GRID), parameter :: one = 1.d0
       integer :: test_case
@@ -1221,6 +1225,7 @@
 !         call pv_entropy(is, ie, js, je, ng, npz, q(is:ie,js:je,:,2), f0, pt, pkz, delp, grav)
 
       case(8)
+#ifdef USE_OLD
 !----------------------------
 ! Non-rotating potential flow
 !----------------------------
@@ -1245,6 +1250,81 @@
          enddo
          u  = 0.;   v = 0.
          f0 = 0.;  fC = 0.
+         initWindsCase= -1
+#endif
+!----------------------------
+! Soliton twin-vortex
+!----------------------------
+        if ( is_master() ) write(*,*) 'Initialzing case-8: soliton twin cycolne...'
+        f0 = 0.;  fC = 0.          ! non-rotating planet setup
+        phis = 0.0                 ! flat terrain
+        gh0  = 5.E3*Grav
+        do j=js,je
+           do i=is,ie
+              delp(i,j,1) = gh0
+           enddo
+        enddo
+
+! Initiate the westerly-wind-burst:
+        ubar = 50.       ! maxmium wind speed (m/s)
+        r0 = 750.e3
+! #1 1: westerly
+        p0(1) = pi*0.5
+        p0(2) = 0.
+
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,1) = utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,1) = utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+
+! #1 2: easterly
+        p0(1) = p0(1) + pi
+        p0(2) = 0.
+
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,1) = v(i,j,1) - utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,1) = u(i,j,1) - utmp*inner_prod(e1,ex)
+           enddo
+        enddo
          initWindsCase= -1
 
       case(9)
@@ -1504,16 +1584,21 @@
 
     if ( .not. adiabatic ) then
     !Set up moisture
+         sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
          pcen(1) = PI/9.
          pcen(2) = 2.0*PI/9. 
-!$OMP parallel do default(none) shared(is,ie,js,je,npz,pe,q,agrid,pcen) &
+!$OMP parallel do default(none) shared(sphum,is,ie,js,je,npz,pe,q,agrid,pcen,delp,peln) &
 !$OMP                          private(ptmp) 
          do k=1,npz
          do j=js,je
          do i=is,ie
             !r = great_circle_dist(pcen, agrid(i,j,:), radius)
-            ptmp = 0.5*(pe(i,k,j)+pe(i,k+1,j)) - 100000.
-            q(i,j,k,1) = 0.021*exp(-(agrid(i,j,2)/pcen(2))**4.)*exp(-(ptmp/34000.)**2.)
+            !ptmp = 0.5*(pe(i,k,j)+pe(i,k+1,j)) - 100000.
+            !q(i,j,k,1) = 0.021*exp(-(agrid(i,j,2)/pcen(2))**4.)*exp(-(ptmp/34000.)**2.)
+            ptmp = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j)) - 100000.
+            q(i,j,k,sphum) = 0.021*exp(-(agrid(i,j,2)/pcen(2))**4.)*exp(-(ptmp/34000.)**2.)
+! SJL:
+!           q(i,j,k,sphum) = max(1.e-25, q(i,j,k,sphum))
          enddo
          enddo
          enddo
@@ -1607,12 +1692,12 @@
             T_mean = T_0 * eta(z)**(RDGAS*lapse_rate/Grav)
             if (eta_t > eta(z)) T_mean = T_mean + delta_T*(eta_t - eta(z))**5.0
 
-! 230  format(i4.4,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14)
+ 230  format(i4.4,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14)
             press = ptop
             do zz=1,z
                press = press + delp(is,js,zz)
             enddo
-!            if (is_master()) write(*,230) z, eta(z), press/100., T_mean
+            if (is_master()) write(*,230) z, eta(z), press/100., T_mean
             do j=js,je
                do i=is,ie
 ! A-grid cell center: i,j
@@ -2435,7 +2520,7 @@
          ptop = ak(1)
 
          !Need to set up uniformly-spaced levels
-         p1 = (/3.*pi/2., 0./)
+         p1(1) = 3.*pi/2. ; p1(2) =  0.
          r0 = 0.75*pi
          zetam = pi/16.
 
@@ -2484,7 +2569,7 @@
          enddo
          enddo
 
-      else if ( test_case==30 .or.  test_case==31 .or. test_case==32 ) then
+      else if ( abs(test_case)==30 .or.  abs(test_case)==31 .or. abs(test_case)==32 ) then
 !------------------------------------
 ! Super-Cell; with or with rotation
 !------------------------------------
@@ -3012,19 +3097,217 @@
         enddo
       endif
 
-      else if (test_case == 55) then
+      else if (test_case == 44) then    ! Lock-exchange K-H instability on a very large-scale
+
+         !Background state
+         p00 = 1000.e2
+         ps(:,:) = p00
+         phis = 0.0
+         u(:,:,:) = 0.
+         v(:,:,:) = 0.
+         q(:,:,:,:) = 0.
+
+         if (adiabatic) then
+             zvir = 0.
+         else
+             zvir = rvgas/rdgas - 1.
+         endif
+
+! Initialize delta-P
+        do z=1,npz
+            do j=js,je
+               do i=is,ie
+                  delp(i,j,z) = ak(z+1)-ak(z) + ps(i,j)*(bk(z+1)-bk(z))
+               enddo
+            enddo
+         enddo
+         
+         do j=js,je
+            do i=is,ie
+               pe(i,1,j) = ptop
+               peln(i,1,j) = log(pe(i,1,j)) 
+                 pk(i,j,1) = exp(kappa*peln(i,1,j))
+            enddo
+            do k=2,npz+1
+            do i=is,ie
+                 pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
+               peln(i,k,j) = log(pe(i,k,j)) 
+                 pk(i,j,k) = exp(kappa*peln(i,k,j))
+            enddo
+            enddo
+         enddo
+
+         p1(1) = pi
+         p1(2) = 0.
+         r0 = 1000.e3     ! hurricane size
+
+         do k=1,npz
+         do j=js,je
+            do i=is,ie
+               pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+               dist = great_circle_dist( p0, agrid(i,j,1:2), radius ) 
+               if ( dist .le. r0 ) then
+                  pt(i,j,k) = 275.
+                  q(i,j,k,1) = 1.
+               else
+                  pt(i,j,k) = 265.
+                  q(i,j,k,1) = 0.
+               end if
+!              pt(i,j,k) = pt(i,j,k)*pkz(i,j,k)
+            enddo
+         enddo
+         enddo
+
+         if (.not.hydrostatic) then
+             do k=1,npz
+                do j=js,je
+                   do i=is,ie
+                      delz(i,j,k) = rdgas*pt(i,j,k)*(1.+zvir*q(i,j,k,1))/grav*log(pe(i,k,j)/pe(i,k+1,j))
+                         w(i,j,k) = 0.0
+                   enddo
+                enddo
+             enddo
+         endif
+
+      else if (test_case == 45 .or. test_case == 46) then    ! NGGPS test?
+
+! Background state
+         f0 = 0.;  fC = 0.
+         pt0 = 300.   ! potentil temperature
+         p00 = 1000.e2
+         ps(:,:) = p00
+         phis = 0.0
+         u(:,:,:) = 0.
+         v(:,:,:) = 0.
+         q(:,:,:,:) = 0.
+
+         if (adiabatic) then
+             zvir = 0.
+         else
+             zvir = rvgas/rdgas - 1.
+         endif
+
+! Initialize delta-P
+        do k=1,npz
+            do j=js,je
+               do i=is,ie
+                  delp(i,j,k) = ak(k+1)-ak(k) + ps(i,j)*(bk(k+1)-bk(k))
+               enddo
+            enddo
+         enddo
+         
+         do j=js,je
+            do i=is,ie
+               pe(i,1,j) = ptop
+               peln(i,1,j) = log(pe(i,1,j)) 
+                 pk(i,j,1) = exp(kappa*peln(i,1,j))
+            enddo
+            do k=2,npz+1
+            do i=is,ie
+                 pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
+               peln(i,k,j) = log(pe(i,k,j)) 
+                 pk(i,j,k) = exp(kappa*peln(i,k,j))
+            enddo
+            enddo
+         enddo
+
+! Initiate the westerly-wind-burst:
+        if (test_case == 46) then
+           ubar = 200.
+           r0 = 250.e3
+        else
+           ubar = 50.       ! Initial maxmium wind speed (m/s)
+           r0 = 500.e3
+        endif
+        p0(1) = pi*0.5
+        p0(2) = 0.
+
+     do k=1,npz
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,k) = utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,k) = utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+
+        do j=js,je
+           do i=is,ie
+              pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+#ifdef USE_PT
+              pt(i,j,k) = pt0/p00**kappa
+! Convert back to temperature:
+              pt(i,j,k) = pt(i,j,k)*pkz(i,j,k)
+#else
+              pt(i,j,k) = pt0
+#endif
+              q(i,j,k,1) = 0.
+           enddo
+        enddo
+
+     enddo
+
+#ifdef NEST_TEST
+     do k=1,npz
+     do j=js,je
+     do i=is,ie
+        q(i,j,k,:) = agrid(i,j,1)*0.180/pi
+     enddo
+     enddo
+     enddo
+#else
+     call checker_tracers(is,ie, js,je, isd,ied, jsd,jed,  &
+                          ncnst, npz, q, agrid(is:ie,js:je,1), agrid(is:ie,js:je,2), 9., 9.)
+#endif
+
+        if ( .not. hydrostatic ) then
+            do k=1,npz
+               do j=js,je
+                  do i=is,ie
+                     delz(i,j,k) = rdgas*pt(i,j,k)/grav*log(pe(i,k,j)/pe(i,k+1,j))
+                        w(i,j,k) = 0.0
+                  enddo
+               enddo
+            enddo
+         endif
+      else if (test_case == 55 .or. test_case == 56 .or. test_case == 57) then
 
          !Tropical cyclone test case: DCMIP 5X
 
-         !Background state
+         !test_case 56 initializes the environment
+         ! but no vortex
+
+         !test_case 57 uses a globally-uniform f-plane
 
          ! Initialize surface Pressure
          !Vortex perturbation
          p0(1) = 180. * pi / 180.
          p0(2) = 10. * pi / 180.
 
+         if (test_case == 56) then
+            dp = 0.
+            rp = 1.e25
+         else
          dp = 1115.
          rp = 282000.
+         endif
          p00 = 101500.
 
          ps = p00
@@ -3236,6 +3519,18 @@
 
          call prt_maxmin('PS', ps(is:ie,js:je), is, ie, js, je, 0, 1, 0.01)
 
+         if (test_case == 57) then
+            do j=jsd,jed+1
+               do i=isd,ied+1
+                  fC(i,j) = cor
+               enddo
+            enddo
+            do j=jsd,jed
+               do i=isd,ied
+                  f0(i,j) = cor
+               enddo
+            enddo            
+         endif
          
       endif !test_case
 

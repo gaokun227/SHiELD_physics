@@ -12,6 +12,7 @@ module tp_core_mod
  private
  public fv_tp_2d, pert_ppm, copy_corners
 
+ real, parameter:: ppm_fac = 1.5   !  between 1 and 2
  real, parameter:: r3 = 1./3.
  real, parameter:: near_zero = 1.E-25
  real, parameter:: ppm_limiter = 2.0
@@ -47,6 +48,7 @@ module tp_core_mod
   real, parameter:: p1 =  7./12.     ! 0.58333333
   real, parameter:: p2 = -1./12.
 !   q(i+0.5) = p1*(q(i-1)+q(i)) + p2*(q(i-2)+q(i+1))
+  integer:: is, ie, js, je, isd, ied, jsd, jed
 
 !---- version number -----
    character(len=128) :: version = '$Id$'
@@ -94,11 +96,6 @@ contains
 
    real, pointer, dimension(:,:) :: area, rarea
 
-   integer :: is, ie, js, je, isd, ied, jsd, jed
-
-   !! Initalize pointers
-   area    => gridstruct%area  
-   rarea   => gridstruct%rarea 
 
    is  = bd%is
    ie  = bd%ie
@@ -108,6 +105,9 @@ contains
    ied = bd%ied
    jsd = bd%jsd
    jed = bd%jed
+   !! Initalize pointers
+   area    => gridstruct%area  
+   rarea   => gridstruct%rarea 
 
    ord_in = hord
    ord_ou = hord
@@ -307,12 +307,6 @@ contains
    real   x0L, x0R, x1
    integer i, j
 
-   integer :: is, ie, js, je
-
-   is  = bd%is
-   ie  = bd%ie
-   js  = bd%js
-   je  = bd%je
 
    if (iord==1) then
 
@@ -341,34 +335,28 @@ contains
 !  NOW: interpolation to the edge (originally from PL07, appendix C) generalized first for variable dx, then for dx which differs between the two sides of the edge
 !--------------
         if ( is==1 ) then
-!             x0 = 0.5*(3.0*(q(0,j)+q(1,j))   &
-!                - (q(-1,j)+q(2,j)))/ ( 2.0 )
-!             x0 = 0.5*((2.*dxa(1,j)+dxa(2,j))*(q(0,j)+q(1,j))   &
-!                - dxa(1,j)*(q(-1,j)+q(2,j)))/ ( dxa(1,j)+dxa(2,j))
              x0L = 0.5*((2.*dxa(0,j)+dxa(-1,j))*(q(0,j))   &
                 - dxa(0,j)*(q(-1,j)))/ ( dxa(0,j)+dxa(-1,j))
              x0R = 0.5*((2.*dxa(1,j)+dxa(2,j))*(q(1,j))   &
                 - dxa(1,j)*(q(2,j)))/ ( dxa(1,j)+dxa(2,j))
-             x1 = s15*q(1,j) + s11*q(2,j) - s14*dm(2)
-           dm(1) = 0.5*(x1 - x0L - x0R)
-           dm(1) = sign( min(abs(dm(1)), max(q(1,j), x0L+x0R, x1) - q(1,j),   &
-                                q(1,j) - min(q(1,j), x0L+x0R, x1)), dm(1) )
 !
               x1 = s15*q(0,j) + s11*q(-1,j) + s14*dm(-1)
            dm(0) = 0.5*(x0R + x0L - x1)
            dm(0) = sign(min(abs(dm(0)), max(q(0,j), x0L+x0R, x1) - q(0,j),   &
                                q(0,j) - min(q(0,j), x0L+x0R, x1)),  dm(0))
+!
+             x1 = s15*q(1,j) + s11*q(2,j) - s14*dm(2)
+           dm(1) = 0.5*(x1 - x0L - x0R)
+           dm(1) = sign( min(abs(dm(1)), max(q(1,j), x0L+x0R, x1) - q(1,j),   &
+                                q(1,j) - min(q(1,j), x0L+x0R, x1)), dm(1) )
         endif
 
         if ( (ie+1)==npx ) then
-!              x0 = 0.5*(3.0*(q(npx-1,j)+q(npx,j))   &
-!                - (q(npx-2,j)+q(npx+1,j)))/( 2.0 )
-!              x0 = 0.5*( (2.*dxa(npx-1,j)+dxa(npx-2,j))*(q(npx-1,j)+q(npx,j))   &
-!                - dxa(npx-1,j)*(q(npx-2,j)+q(npx+1,j)))/( dxa(npx-1,j)+dxa(npx-2,j))
               x0L = 0.5*( (2.*dxa(npx-1,j)+dxa(npx-2,j))*(q(npx-1,j))   &
                 - dxa(npx-1,j)*(q(npx-2,j)))/( dxa(npx-1,j)+dxa(npx-2,j))
               x0R = 0.5*( (2.*dxa(npx,j)+dxa(npx+1,j))*(q(npx,j))   &
                 - dxa(npx,j)*(q(npx+1,j)))/( dxa(npx,j)+dxa(npx+1,j))
+!
               x1 = s15*q(npx-1,j) + s11*q(npx-2,j) + s14*dm(npx-2)
            dm(npx-1) = 0.5*(x0R + x0L - x1)
            dm(npx-1) = sign(min(abs(dm(npx-1)), max(q(npx-1,j), x0L+x0R, x1) - q(npx-1,j),  &
@@ -411,15 +399,9 @@ contains
  integer, intent(IN) :: grid_type
 ! !LOCAL VARIABLES:
  real   dm(ifirst:ilast,jfirst-2:jlast+2)
- real   x0L, x0R, x1
+ real   x0L, x0R, x1, xt
  integer i, j
 
-   integer :: is, ie, js, je
-
-   is  = bd%is
-   ie  = bd%ie
-   js  = bd%js
-   je  = bd%je
 
    if(jord==1) then
 
@@ -437,9 +419,9 @@ contains
 
       do j=jfirst-2,jlast+2
          do i=ifirst,ilast
-            dm(i,j) = 0.25*(q(i,j+1) - q(i,j-1))
-            dm(i,j) = sign(min(abs(dm(i,j)), max(q(i,j-1),q(i,j),q(i,j+1)) - q(i,j),  &
-                                    q(i,j) - min(q(i,j-1),q(i,j),q(i,j+1))), dm(i,j))
+            xt = 0.25*(q(i,j+1) - q(i,j-1))
+            dm(i,j) = sign(min(abs(xt), max(q(i,j-1),q(i,j),q(i,j+1)) - q(i,j),  &
+                               q(i,j) - min(q(i,j-1),q(i,j),q(i,j+1))), xt)
          enddo
       enddo
 !--------------
@@ -448,36 +430,30 @@ contains
     if (grid_type < 3 .and. .not. nested) then
       if( js==1 ) then
          do i=ifirst,ilast
-!            x0 = 0.5*(3.0*(q(i,0)+q(i,1))   &
-!               - (q(i,-1)+q(i,2))) / ( 2.0 )
-!            x0 = 0.5*((2.*dya(i,1)+dya(i,2))*(q(i,0)+q(i,1))   &
-!               -dya(i,1)*(q(i,-1)+q(i,2))) / ( dya(i,1)+dya(i,2) )
             x0L = 0.5*((2.*dya(i,0)+dya(i,-1))*(q(i,0))   &
                -dya(i,0)*(q(i,-1))) / ( dya(i,0)+dya(i,-1) )
             x0R = 0.5*((2.*dya(i,1)+dya(i,2))*(q(i,1))   &
                -dya(i,1)*(q(i,2))) / ( dya(i,1)+dya(i,2) )
-            x1 = s15*q(i,1) + s11*q(i,2) - s14*dm(i,2)
-            dm(i,1) = 0.5*(x1 - x0L - x0R)
-            dm(i,1) = sign(min(abs(dm(i,1)), max(q(i,1), x0L+x0R, x1) - q(i,1),  &
-                                    q(i,1) - min(q(i,1), x0L+x0R, x1)), dm(i,1))
 !
             x1 = s15*q(i,0) + s11*q(i,-1) + s14*dm(i,-1)
             dm(i,0) = 0.5*(x0L + x0R - x1)
             dm(i,0) = sign(min(abs(dm(i,0)), max(q(i,0), x0L+x0R, x1) - q(i,0),   &
                                     q(i,0) - min(q(i,0), x0L+x0R, x1)), dm(i,0))
+!
+            x1 = s15*q(i,1) + s11*q(i,2) - s14*dm(i,2)
+            dm(i,1) = 0.5*(x1 - x0L - x0R)
+            dm(i,1) = sign(min(abs(dm(i,1)), max(q(i,1), x0L+x0R, x1) - q(i,1),  &
+                                    q(i,1) - min(q(i,1), x0L+x0R, x1)), dm(i,1))
          enddo
       endif
 
       if( (je+1)==npy ) then
          do i=ifirst,ilast
-!            x0 = 0.5*(3.0*(q(i,npy-1)+q(i,npy))  &
-!               - (q(i,npy-2)+q(i,npy+1)))/(2.0)
-!            x0 = 0.5*((2.*dya(i,npy-1)+dya(i,npy-2))*(q(i,npy-1)+q(i,npy))  &
-!               -dya(i,npy-1)*(q(i,npy-2)+q(i,npy+1)))/(dya(i,npy-1)+dya(i,npy-2))
             x0L = 0.5*((2.*dya(i,npy-1)+dya(i,npy-2))*(q(i,npy-1))  &
                -dya(i,npy-1)*(q(i,npy-2)))/(dya(i,npy-1)+dya(i,npy-2))
             x0R = 0.5*((2.*dya(i,npy)+dya(i,npy+1))*(q(i,npy))  &
                -dya(i,npy)*(q(i,npy+1)))/(dya(i,npy)+dya(i,npy+1))
+!
             x1 = s15*q(i,npy-1) + s11*q(i,npy-2) + s14*dm(i,npy-2)
             dm(i,npy-1) = 0.5*(x0L + x0R - x1)
             dm(i,npy-1) = sign(min(abs(dm(i,npy-1)), max(q(i,npy-1), x0L+x0R, x1) - q(i,npy-1),  &
@@ -761,11 +737,9 @@ contains
  real  dm(ifirst-2:ilast+2)
  real  dq(ifirst-3:ilast+2)
  logical extm(ifirst-2:ilast+2)
- integer i, j, is, ie, ie3, is1, ie1
+ integer i, j, ie3, is1, ie1
  real xt, pmp_1, lac_1, pmp_2, lac_2
 
- is = bd%is
- ie = bd%ie
 
  if ( .not. nested .and. grid_type<3 ) then
     is1 = max(3,is-1);  ie3 = min(npx-2,ie+2)
@@ -775,7 +749,7 @@ contains
                         ie1 = ie+1
  end if
 
- do j=jfirst,jlast
+ do 666 j=jfirst,jlast
 
     do i=ifirst-ng, ilast+ng
        q1(i) = q(i,j)
@@ -783,8 +757,9 @@ contains
 
   if ( abs(iord) < 8 ) then
 
-! ord = -5: linear scheme based on PPM 4th order interpolation
-! ord = -6: linear PPM with 2-delta filter
+! ord = -4: linear ppm scheme
+! ord = -5: quasi-linear PPM with interior 2-delta limiter
+! ord = -6: quasi-linear PPM with external 2-delta limiter
 ! ord = -7: (-6) with additional Positive definite constraint:
 
    do i=is1, ie3
@@ -815,12 +790,58 @@ contains
      endif
    endif
 
+   if ( iord==-4 ) then
+!DEC$ VECTOR ALWAYS
+      do i=ifirst,ilast+1
+! The following vectorized code is surprisingly slower (SJL testing on Theia)
+!!!      iu = i - ceiling(c(i,j))      ! iu = i-1  if C>0
+!!!      xt = q1(iu)
+!!!      r1 = abs(c(i,j))
+!!!      flux(i,j) = xt + (1.-r1)*(al(i)-xt-r1*(al(iu)+al(iu+1)-(xt+xt)))
+         if ( c(i,j) > 0. ) then
+              flux(i,j) = q1(i-1) + (1.-c(i,j))*(al(i)-q1(i-1)-c(i,j)*(al(i-1)+al(i)-2.*q1(i-1)))  
+         else
+              flux(i,j) = q1(i) + (1.+c(i,j))*(al(i)-q1(i)+c(i,j)*(al(i)+al(i+1)-2.*q1(i)))  
+         endif
+      enddo
+      goto 666
+   else
+! iord = -5, -6, -7
    if ( iord==-5 ) then
+!DEC$ VECTOR ALWAYS
       do i=ifirst-1,ilast+1
          bl(i) = al(i)   - q1(i)
          br(i) = al(i+1) - q1(i)
-      enddo
+          if ( bl(i)*br(i) < 0. ) then
+               extm(i) = .false.
    else
+               extm(i) = .true.
+          endif
+      enddo
+!DEC$ VECTOR ALWAYS
+       do i=ifirst,ilast+1
+!--- Slower on Theia --------------------------------
+!!!       iu = i - ceiling(c(i,j))
+!!!       xt = q1(iu)
+!!!       if ( extm(i-1) .and. extm(i) ) then
+!!!            flux(i,j) = xt
+!!!       else
+!!!            r1 = abs(c(i,j))
+!!!            flux(i,j) = xt + (1.-r1)*(al(i)-xt-r1*(bl(iu)+br(iu)))
+!!!       endif
+! The following is faster (Theia) - because the branching statement is simpler?
+          if ( c(i,j) > 0. ) then
+               xt = q1(i-1)
+               flux(i,j) = xt + (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
+   else
+               xt = q1(i)
+               flux(i,j) = xt + (1.+c(i,j))*(bl(i)+c(i,j)*(bl(i)+br(i)))
+          endif
+          if ( extm(i-1) .and. extm(i) ) flux(i,j) = xt
+       enddo
+       goto 666
+     else
+! iord = -6, -7
        do i=ifirst-3,ilast+2
           dq(i) = q1(i+1) - q1(i)
        enddo
@@ -831,6 +852,7 @@ contains
                extm(i) = .true.
           endif
        enddo
+!DEC$ VECTOR ALWAYS
        do i=ifirst-1,ilast+1
           if ( extm(i-1).and.extm(i).and.extm(i+1) ) then
                bl(i) = 0.
@@ -843,6 +865,7 @@ contains
 ! Additional positive definite constraint:
        if(iord==-7) call pert_ppm(ilast-ifirst+3, q1(ifirst-1), bl(ifirst-1), br(ifirst-1), 0)
    endif
+ endif
 
  else
 
@@ -863,6 +886,13 @@ contains
     if ( iord==-8 ) then
        do i=is1, ie1
           xt = 2.*dm(i)
+          bl(i) = -sign(min(abs(xt), abs(al(i  )-q1(i))), xt)
+          br(i) =  sign(min(abs(xt), abs(al(i+1)-q1(i))), xt)
+       enddo
+    elseif ( iord==-11 ) then
+! This is emulation of 2nd van Leer scheme using PPM codes
+       do i=is1, ie1
+          xt = ppm_fac*dm(i)
           bl(i) = -sign(min(abs(xt), abs(al(i  )-q1(i))), xt)
           br(i) =  sign(min(abs(xt), abs(al(i+1)-q1(i))), xt)
        enddo
@@ -931,7 +961,7 @@ contains
      endif
   enddo
 
- enddo
+666   continue
 
  end subroutine xppm0
 
@@ -956,11 +986,8 @@ contains
  real br(ifirst:ilast,jfirst-1:jlast+1)
  real dq(ifirst:ilast,jfirst-3:jlast+2)
  logical extm(ifirst:ilast,jfirst-2:jlast+2)
- real xt, pmp_1, lac_1, pmp_2, lac_2
- integer i, j, js, je, js1, je3, je1
-
-   js = bd%js
-   je = bd%je
+ real xt, pmp_1, lac_1, pmp_2, lac_2, r1
+ integer i, j, js1, je3, je1, ju
 
    if ( .not.nested .and. grid_type < 3 ) then
 ! Cubed-sphere:
@@ -974,8 +1001,9 @@ contains
 
 if ( abs(jord) < 8 ) then
 
-! ord = -5: linear scheme based on PPM 4th order interpolation
-! ord = -6: linear PPM with 2-delta filter
+! ord = -4: linear scheme based on PPM 4th order interpolation
+! ord = -5: quasi-linear PPM with interior 2-delta limiter
+! ord = -6: quasi-linear PPM with external 2-delta limiter
 ! ord = -7: (-6) with additional Positive definite constraint:
 
    do j=js1, je3
@@ -1016,15 +1044,61 @@ if ( abs(jord) < 8 ) then
       endif
    endif
 
+   if ( jord==-4 ) then
+      do j=jfirst,jlast+1
+!DEC$ VECTOR ALWAYS
+         do i=ifirst,ilast
+! The following is slower (Theia) ---------
+!!!         ju = j - ceiling(c(i,j))
+!!!         xt = q(i,ju)
+!!!         r1 = abs(c(i,j))
+!!!         flux(i,j) = xt + (1.-r1)*(al(i,j)-xt-r1*(al(i,ju)+al(i,ju+1)-(xt+xt)))
+            if ( c(i,j) > 0. ) then
+                 flux(i,j) = q(i,j-1) + (1.-c(i,j))*(al(i,j)-q(i,j-1)-c(i,j)*(al(i,j-1)+al(i,j)-2.*q(i,j-1)))
+            else
+                 flux(i,j) = q(i,j) + (1.+c(i,j))*(al(i,j)-q(i,j)+c(i,j)*(al(i,j)+al(i,j+1)-2.*q(i,j)))
+            endif
+         enddo
+      enddo
+      return
+   else
    if ( jord==-5 ) then
 
       do j=jfirst-1,jlast+1
+!DEC$ VECTOR ALWAYS
          do i=ifirst,ilast
-            bl(i,j) = al(i,j  ) - q(i,j)
-            br(i,j) = al(i,j+1) - q(i,j)
+            if ( (al(i,j)-q(i,j))*(al(i,j+1)-q(i,j)) < 0. ) then
+                 extm(i,j) = .false.
+            else
+                 extm(i,j) = .true.
+            endif
          enddo
       enddo
 
+       do j=jfirst,jlast+1
+!DEC$ VECTOR ALWAYS
+          do i=ifirst,ilast
+!--- Slower on Theia --------------------------------
+!!!          ju = j - ceiling(c(i,j))
+!!!          xt = q(i,ju)
+!!!          if ( extm(i,j-1) .and. extm(i,j) ) then
+!!!             flux(i,j) = xt
+!!!          else
+!!!                    r1 = abs(c(i,j))
+!!!             flux(i,j) = xt + (1.-r1)*(al(i,j)-xt-r1*(al(i,ju)+al(i,ju+1)-(xt+xt)))
+!!!          endif
+!--- Slower on Theia --------------------------------
+             if ( c(i,j) > 0. ) then
+                  xt = q(i,j-1)
+                  flux(i,j) = xt + (1.-c(i,j))*(al(i,j)-xt-c(i,j)*(al(i,j-1)+al(i,j)-(xt+xt)))
+             else
+                  xt = q(i,j)
+                  flux(i,j) = xt + (1.+c(i,j))*(al(i,j)-xt+c(i,j)*(al(i,j)+al(i,j+1)-(xt+xt)))
+             endif
+             if ( extm(i,j-1) .and. extm(i,j) ) flux(i,j) = xt
+          enddo
+       enddo
+       return
    else
 
       do j=jfirst-3,jlast+2
@@ -1042,6 +1116,7 @@ if ( abs(jord) < 8 ) then
          enddo
       enddo
       do j=jfirst-1,jlast+1
+!DEC$ VECTOR ALWAYS
          do i=ifirst,ilast
             if ( extm(i,j-1) .and. extm(i,j) .and. extm(i,j+1) ) then
                  bl(i,j) = 0.
@@ -1062,6 +1137,7 @@ if ( abs(jord) < 8 ) then
 
    endif
 
+   endif
 else
 ! Monotonic constraints:
 ! ord = 8: PPM with Lin's PPM fast monotone constraint
@@ -1084,6 +1160,14 @@ else
        do j=js1,je1
           do i=ifirst,ilast
              xt = 2.*dm(i,j)
+             bl(i,j) = -sign(min(abs(xt), abs(al(i,j)-q(i,j))),   xt)
+             br(i,j) =  sign(min(abs(xt), abs(al(i,j+1)-q(i,j))), xt)
+          enddo
+       enddo
+  elseif ( jord==-11 ) then
+       do j=js1,je1
+          do i=ifirst,ilast
+             xt = ppm_fac*dm(i,j)
              bl(i,j) = -sign(min(abs(xt), abs(al(i,j)-q(i,j))),   xt)
              br(i,j) =  sign(min(abs(xt), abs(al(i,j+1)-q(i,j))), xt)
           enddo
@@ -1186,7 +1270,7 @@ endif
 ! !OUTPUT PARAMETERS:
  real   , INTENT(OUT) :: flux(ifirst:ilast+1,jfirst:jlast) !  Flux
 ! Local
- logical extm(ifirst-2:ilast+2)
+ logical smth(ifirst-2:ilast+2)
  real dm1(ifirst-2:ilast+2)
  real  al(ifirst-1:ilast+2)
  real  bl(ifirst-1:ilast+1)
@@ -1197,12 +1281,6 @@ endif
  real xt, x1, x0, x0L, x0R
  integer i, j, is3, ie3, it
  
- integer :: is, ie, js, je
-
- is  = bd%is
- ie  = bd%ie
- js  = bd%js
- je  = bd%je
 
  x0 = big_number
 
@@ -1368,14 +1446,13 @@ endif
           enddo
           do i=is-2, ie+2
              if ( dq(i-1)*dq(i) > 0. ) then
-                  extm(i) = .false.
+                  smth(i) = .false.
              else
-                  extm(i) = .true.
+                  smth(i) = .true.
              endif
           enddo
           do i=is3, ie3
-!            if ( extm(i) .and. (extm(i-1) .or. extm(i+1)) ) then
-             if ( extm(i-1) .and. extm(i) .and. extm(i+1) ) then
+             if ( smth(i-1) .and. smth(i) .and. smth(i+1) ) then
 ! 2-delta-wave filter:
                   bl(i) = 0.
                   br(i) = 0.
@@ -1422,8 +1499,6 @@ endif
            x0R = 0.5*( (2.*dxa(npx,j)+dxa(npx+1,j))*(q(npx,j))   &
                 - dxa(npx,j)*(q(npx+1,j)))/( dxa(npx,j)+dxa(npx+1,j))
              bl(npx-2) = p1*(q(npx-2,j)+q(npx-3,j)) + p2*(q(npx-4,j)+q(npx-1,j)) - q(npx-2,j)
-!             xt = x0L*sin_sg(npx-1,j,3) + x0R*sin_sg(npx,j,1)
-!             xt = 2.*xt / (sin_sg(npx,j,1) + sin_sg(npx-1,j,3))
              xt = x0L + x0R
 
              br(npx-1) = xt - q(npx-1,j)
@@ -1803,7 +1878,7 @@ endif
  logical, intent(IN) :: nested
  integer, intent(IN) :: grid_type
 ! Local:
- logical extm(ifirst:ilast,jfirst-2:jlast+2)
+ logical smth(ifirst:ilast,jfirst-2:jlast+2)
  real al(ifirst:ilast,jfirst-1:jlast+2)
  real bl(ifirst:ilast,jfirst-1:jlast+1)
  real br(ifirst:ilast,jfirst-1:jlast+1)
@@ -1813,12 +1888,6 @@ endif
  real xt, x0, x1, x0L, x0R
  integer i, j, js3, je3, jt
 
-  integer :: is, ie, js, je
-
- is  = bd%is
- ie  = bd%ie
- js  = bd%js
- je  = bd%je
 
  if (nested) then
     js3 = js-1;        je3 = je+1
@@ -2013,9 +2082,9 @@ endif
    do j=js-2,je+2
       do i=ifirst,ilast
          if ( dq(i,j-1)*dq(i,j) > 0. ) then
-              extm(i,j) = .false.
+              smth(i,j) = .false.
          else
-              extm(i,j) = .true.
+              smth(i,j) = .true.
          endif
       enddo
    enddo
@@ -2023,7 +2092,7 @@ endif
    do j=js3,je3 
    !do j=max(3,js-1),min(npy-3,je+1)
       do i=ifirst,ilast
-         if ( extm(i,j-1) .and. extm(i,j) .and. extm(i,j+1) ) then
+         if ( smth(i,j-1) .and. smth(i,j) .and. smth(i,j+1) ) then
 ! 2-delta-wave filter
               bl(i,j) = 0.
               br(i,j) = 0.
@@ -2045,8 +2114,6 @@ endif
             x0R = 0.5*((2.*dya(i,1)+dya(i,2))*(q(i,1))   &
                -dya(i,1)*(q(i,2))) / ( dya(i,1)+dya(i,2) )
             xt = x0L + x0R
-!            xt = ( x0L*sin_sg(i,0,4) + x0R*sin_sg(i,1,2) ) 
-!            xt = 2.*xt / ( sin_sg(i,0,4) + sin_sg(i,1,2) )
             bl(i,1) = xt - q(i,1)
             br(i,0) = xt - q(i,0)
 
@@ -2078,8 +2145,6 @@ endif
             x0R = 0.5*((2.*dya(i,npy)+dya(i,npy+1))*(q(i,npy))  &
                -dya(i,npy)*(q(i,npy+1)))/(dya(i,npy)+dya(i,npy+1))
             xt = x0L + x0R
-!            xt = x0L*sin_sg(i,npy-1,4) + x0R*sin_sg(i,npy,2)
-!            xt = 2.*xt /( sin_sg(i,npy-1,4) + sin_sg(i,npy,2) )
             br(i,npy-1) = xt - q(i,npy-1)
             bl(i,npy  ) = xt - q(i,npy)
 
@@ -2608,6 +2673,7 @@ endif
             da1 = al(i) - ar(i)
             da2 = da1**2
             a6da = 3.*(al(i)+ar(i))*da1
+! abs(a6da) > da2 --> 3.*abs(al+ar) > abs(al-ar)
             if( a6da < -da2 ) then
                 ar(i) = -2.*al(i)
             elseif( a6da > da2 ) then
@@ -2650,12 +2716,6 @@ endif
    real, pointer, dimension(:,:)   :: rarea, dx, dy, rdxc, rdyc
    real, pointer, dimension(:,:,:) :: sin_sg
 
-   integer :: is, ie, js, je
-
-   is  = bd%is
-   ie  = bd%ie
-   js  = bd%js
-   je  = bd%je
 
    rarea    => gridstruct%rarea  
    dx       => gridstruct%dx     

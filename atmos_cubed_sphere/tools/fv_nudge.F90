@@ -8,7 +8,7 @@ module fv_nwp_nudge_mod
 
  use external_sst_mod,  only: i_sst, j_sst, sst_ncep, sst_anom, forecast_mode
  use diag_manager_mod,  only: register_diag_field, send_data
- use constants_mod,     only: pi, grav, rdgas, cp_air, kappa, cnst_radius =>radius
+ use constants_mod,     only: pi, grav, rdgas, cp_air, kappa, cnst_radius =>radius, R_GRID
  use fms_mod,           only: write_version_number, open_namelist_file, &
                               check_nml_error, file_exist, close_file
 !use fms_io_mod,        only: field_size
@@ -25,7 +25,7 @@ module fv_nwp_nudge_mod
  use fv_timing_mod,     only: timing_on, timing_off
 
  use sim_nc_mod,        only: open_ncfile, close_ncfile, get_ncdim1, get_var1_double, get_var3_r4, get_var1_real
- use fv_arrays_mod,     only: fv_grid_type, fv_grid_bounds_type, fv_nest_type, R_GRID
+ use fv_arrays_mod,     only: fv_grid_type, fv_grid_bounds_type, fv_nest_type
 
  implicit none
  private

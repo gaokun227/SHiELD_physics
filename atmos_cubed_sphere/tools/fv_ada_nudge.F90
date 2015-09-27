@@ -18,7 +18,7 @@ module fv_ada_nudge_mod
 
  use external_sst_mod,  only: i_sst, j_sst, sst_ncep, sst_anom, forecast_mode
  use diag_manager_mod,  only: register_diag_field, send_data
- use constants_mod,     only: pi, grav, rdgas, cp_air, kappa, cnst_radius => radius, seconds_per_day
+ use constants_mod,     only: pi, grav, rdgas, cp_air, kappa, cnst_radius => radius, seconds_per_day, R_GRID
  use fms_mod,           only: write_version_number, open_namelist_file, &
                               check_nml_error, file_exist, close_file
 !use fms_io_mod,        only: field_size
@@ -41,7 +41,7 @@ module fv_ada_nudge_mod
  use fv_timing_mod,     only: timing_on, timing_off
 
  use sim_nc_mod,        only: open_ncfile, close_ncfile, get_ncdim1, _GET_VAR1, get_var3_r4, get_var2_r4
- use fv_arrays_mod,     only: fv_grid_type, fv_grid_bounds_type, fv_nest_type, R_GRID
+ use fv_arrays_mod,     only: fv_grid_type, fv_grid_bounds_type, fv_nest_type
 
  use fms_io_mod, only: register_restart_field, restart_file_type, restore_state
  use fms_io_mod, only: save_restart, get_mosaic_tile_file
@@ -3785,9 +3785,9 @@ endif
             fx(i,j) = dy(i,j)*sina_u(i,j)*(q(i-1,j,k)-q(i,j,k))*rdxc(i,j)
          enddo
          if (is == 1) fx(i,j) = dy(is,j)*(q(is-1,j,k)-q(is,j,k))*rdxc(is,j)* &
-            0.5*(sin_sg(1,1,j) + sin_sg(3,0,j))
+            0.5*(sin_sg(1,j,1) + sin_sg(0,j,3))
          if (ie+1 == npx) fx(i,j) = dy(ie+1,j)*(q(ie,j,k)-q(ie+1,j,k))*rdxc(ie+1,j)* &
-            0.5*(sin_sg(1,npx,j) + sin_sg(3,npx-1,j))
+            0.5*(sin_sg(npx,j,1) + sin_sg(npx-1,j,3))
       enddo
 
       if(nt>0) call copy_corners(q(isd,jsd,k), npx, npy, 2, nested, bd, &
@@ -3796,7 +3796,7 @@ endif
          if (j == 1 .OR. j == npy) then
             do i=is-nt,ie+nt
                fy(i,j) = dx(i,j)*(q(i,j-1,k)-q(i,j,k))*rdyc(i,j) &
-                    *0.5*(sin_sg(2,i,j) + sin_sg(4,i,j-1) )
+                    *0.5*(sin_sg(i,j,2) + sin_sg(i,j-1,4) )
             enddo
          else
             do i=is-nt,ie+nt

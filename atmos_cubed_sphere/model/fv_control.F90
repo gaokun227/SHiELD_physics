@@ -6,7 +6,7 @@
 
 module fv_control_mod
 
-   use constants_mod,       only: pi, kappa, radius, grav, rdgas
+   use constants_mod,       only: pi, kappa, radius, grav, rdgas, R_GRID
    use field_manager_mod,   only: MODEL_ATMOS
    use fms_mod,             only: write_version_number, open_namelist_file, &
                                   check_nml_error, close_file, file_exist
@@ -25,10 +25,10 @@ module fv_control_mod
 
    use fv_io_mod,           only: fv_io_exit
    use fv_restart_mod,      only: fv_restart_init, fv_restart_end
-   use fv_arrays_mod,       only: fv_atmos_type, allocate_fv_atmos_type, deallocate_fv_atmos_type, R_GRID
+   use fv_arrays_mod,       only: fv_atmos_type, allocate_fv_atmos_type, deallocate_fv_atmos_type
    use fv_grid_utils_mod,   only: grid_utils_init, grid_utils_end, ptop_min
    use fv_eta_mod,          only: set_eta
-   use fv_grid_tools_mod,   only: init_grid, broadcast_aligned_nest
+   use fv_grid_tools_mod,   only: init_grid
    use fv_mp_mod,           only: mp_start, mp_assign_gid, domain_decomp
    use fv_mp_mod,           only: ng, switch_current_Atm
    use fv_mp_mod,           only: broadcast_domains, mp_barrier, is_master, setup_master
@@ -40,6 +40,7 @@ module fv_control_mod
    use mpp_domains_mod,     only: mpp_get_C2F_index, mpp_get_F2C_index, mpp_broadcast_domain
    use mpp_domains_mod,     only: CENTER, CORNER, NORTH, EAST, WEST, SOUTH
    use mpp_mod,             only: mpp_send, mpp_sync, mpp_transmit, mpp_set_current_pelist, mpp_declare_pelist, mpp_root_pe, mpp_recv, mpp_sync_self, mpp_broadcast, read_input_nml
+   use fv_diagnostics_mod,  only: fv_diag_init_gn
 
    implicit none
    private
@@ -69,10 +70,12 @@ module fv_control_mod
    real    , pointer :: z_min 
 
    integer , pointer :: nord
+   integer , pointer :: nord_tr
    real    , pointer :: dddmp 
    real    , pointer :: d2_bg 
    real    , pointer :: d4_bg 
    real    , pointer :: vtdm4 
+   real    , pointer :: trdm2 
    real    , pointer :: d2_bg_k1 
    real    , pointer :: d2_bg_k2 
    real    , pointer :: d2_divg_max_k1 
@@ -134,6 +137,7 @@ module fv_control_mod
    real    , pointer :: tau_h2o 
 
    real    , pointer :: d_con 
+   real    , pointer :: ke_bg
    real    , pointer :: consv_te 
    real    , pointer :: tau 
    real    , pointer :: rf_cutoff
@@ -166,6 +170,8 @@ module fv_control_mod
    logical , pointer :: ncep_ic 
    logical , pointer :: nggps_ic 
    logical , pointer :: gfs_phil
+   logical , pointer :: use_new_ncep 
+   logical , pointer :: use_ncep_phy 
    logical , pointer :: fv_diag_ic 
    logical , pointer :: external_ic 
    character(len=128) , pointer :: res_latlon_dynamics
@@ -213,14 +219,19 @@ module fv_control_mod
    real :: umax = 350.           ! max wave speed for grid_type>3
    integer :: parent_grid_num = -1
 
+   integer :: halo_update_type = 1 ! 1 for two-interfaces non-block
+                            ! 2 for block
+                            ! 3 for four-interfaces non-block
+   namelist /mpi_nml/ dumm  ! Use of this namelist is deprecated; filled with a dummy variable
    namelist /fv_grid_nml/ grid_name, grid_file
    namelist /fv_core_nml/npx, npy, ntiles, npz, npz_rst, layout, io_layout, ncnst, nwat,  &
                          use_logp, p_fac, a_imp, k_split, n_split, m_split, q_split, print_freq, do_schmidt,      &
                          hord_mt, hord_vt, hord_tm, hord_dp, hord_tr, shift_fac, stretch_fac, target_lat, target_lon, &
                          kord_mt, kord_wz, kord_tm, kord_tr, fv_debug, fv_land, nudge, do_sat_adj, do_f3d, &
-                         external_ic, ncep_ic, nggps_ic, fv_diag_ic, res_latlon_dynamics, res_latlon_tracers, &
-                         scale_z, w_max, z_min, dddmp, d2_bg, d4_bg, vtdm4, d_ext, beta, non_ortho, n_sponge, &
-                         warm_start, adjust_dry_mass, mountain, d_con, nord, convert_ke, use_old_omega, &
+                         external_ic, ncep_ic, nggps_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
+                         res_latlon_dynamics, res_latlon_tracers, & scale_z, w_max, z_min, &
+                         dddmp, d2_bg, d4_bg, vtdm4, trdm2, d_ext, beta, non_ortho, n_sponge, &
+                         warm_start, adjust_dry_mass, mountain, d_con, ke_bg, nord, nord_tr, convert_ke, use_old_omega, &
                          dry_mass, grid_type, do_Held_Suarez, do_reed_physics, reed_cond_only, &
                          consv_te, fill, filter_phys, fill_dp, fill_wz, consv_am, &
                          range_warn, dwind_2d, inline_q, z_tracer, reproduce_sum, adiabatic, do_vort_damp, no_dycore,   &
@@ -232,7 +243,7 @@ module fv_control_mod
                          phys_hydrostatic, make_hybrid_z, old_divg_damp, add_noise, &
                          nested, twowaynest, parent_grid_num, parent_tile, &
                          refinement, nestbctype, nestupdate, nsponge, s_weight, &
-                         ioffset, joffset, check_negative, nudge_ic, gfs_phil
+                         ioffset, joffset, check_negative, nudge_ic, halo_update_type, gfs_phil
 
    namelist /test_case_nml/test_case,alpha
 
@@ -253,9 +264,8 @@ module fv_control_mod
 ! tracers
    integer :: num_family          ! output of register_tracers
 
-   integer :: isd_p, ied_p, jsd_p, jed_p, isg, ieg, jsg, jeg
+   integer :: isc_p, iec_p, jsc_p, jec_p, isg, ieg, jsg, jeg, upoff, jind
    integer :: ic, jc
-   integer, allocatable :: p_ind(:,:,:)
 
    gid = mpp_pe()
 
@@ -343,6 +353,7 @@ module fv_control_mod
                endif
                if (nord==2) write(*,*) 'Internal mode del-6 background diff=', d4_bg
                if (nord==3) write(*,*) 'Internal mode del-8 background diff=', d4_bg
+               write(*,*) 'tracer del-2 diff=', trdm2
 
                write(*,*) 'Vorticity del-4 (m**4/s)=', (vtdm4*Atm(n)%gridstruct%da_min)**2/sdt*1.E-6
                write(*,*) 'beta=', beta
@@ -372,48 +383,72 @@ module fv_control_mod
                call mpp_get_global_domain( Atm(n)%parent_grid%domain, &
                     isg, ieg, jsg, jeg)
 
+               !FIXME: Should replace this by generating the global grid (or at least one face thereof) on the 
+               ! nested PEs instead of sending it around.
                if (gid == Atm(n)%parent_grid%pelist(1)) then
-                  do p=1,size(Atm(n)%pelist)
                      call mpp_send(Atm(n)%parent_grid%grid_global(isg-ng:ieg+1+ng,jsg-ng:jeg+1+ng,1:2,parent_tile), &
                           size(Atm(n)%parent_grid%grid_global(isg-ng:ieg+1+ng,jsg-ng:jeg+1+ng,1:2,parent_tile)), &
-                          Atm(n)%pelist(p)) !send to p_ind in setup_aligned_nest
-                     call mpp_sync_self
-                  enddo
+                       Atm(n)%pelist(1)) !send to p_ind in setup_aligned_nest
+                  call mpp_sync_self()
                endif
 
                if (Atm(n)%neststruct%twowaynest) then
 
-                  !Also need to receive P_IND from child grids to set up ind_update_h
-                  isd_p = Atm(n)%parent_grid%bd%isd
-                  ied_p = Atm(n)%parent_grid%bd%ied
-                  jsd_p = Atm(n)%parent_grid%bd%jsd
-                  jed_p = Atm(n)%parent_grid%bd%jed
-                  !               allocate(Atm(n)%ind_update_h(isd_p:ied_p+1,jsd_p:jed_p+1,2))
-                  allocate(p_ind(1-ng:npx+ng,1-ng:npy+ng,1:2))
-                  call mpp_recv(p_ind,size(p_ind),Atm(n)%pelist(1)) !receiving from p_ind setup_aligned_grids 
-                  call mpp_sync_self
+                  !This in reality should be very simple. With the
+                  ! restriction that only the compute domain data is
+                  ! sent from the coarse grid, we can compute
+                  ! exactly which coarse grid cells should use
+                  ! which nested-grid data. We then don't need to send around p_ind.
 
-                  Atm(n)%neststruct%ind_update_h = 1000000
+                  Atm(n)%neststruct%ind_update_h = -99999
 
                   if (Atm(n)%parent_grid%tile == Atm(n)%neststruct%parent_tile) then
-                     do j=1,npy
-                        do i=1,npx
 
-                           ic = p_ind(i,j,1)
-                           jc = p_ind(i,j,2)
+                     isc_p = Atm(n)%parent_grid%bd%isc
+                     iec_p = Atm(n)%parent_grid%bd%iec
+                     jsc_p = Atm(n)%parent_grid%bd%jsc
+                     jec_p = Atm(n)%parent_grid%bd%jec
+                     upoff = Atm(n)%neststruct%upoff
 
-                           if (ic < isd_p .or. ic > ied_p .or. jc < jsd_p .or. jc > jed_p) cycle
+                     Atm(n)%neststruct%jsu = jsc_p
+                     Atm(n)%neststruct%jeu = jsc_p-1
+                     do j=jsc_p,jec_p+1
+                        if (j < joffset+upoff) then
+                           do i=isc_p,iec_p+1
+                              Atm(n)%neststruct%ind_update_h(i,j,2) = -9999
+                           enddo
+                           Atm(n)%neststruct%jsu = Atm(n)%neststruct%jsu + 1
+                        elseif (j > joffset + (npy-1)/refinement - upoff) then
+                           do i=isc_p,iec_p+1
+                              Atm(n)%neststruct%ind_update_h(i,j,2) = -9999
+                           enddo
+                        else
+                           jind = (j - joffset)*refinement + 1
+                           do i=isc_p,iec_p+1
+                              Atm(n)%neststruct%ind_update_h(i,j,2) = jind
+                           enddo
+                           if ( (j < joffset + (npy-1)/refinement - upoff) .and. j <= jec_p)  Atm(n)%neststruct%jeu = j
+                        endif
+                        !write(mpp_pe()+4000,*) j, joffset, upoff, Atm(n)%neststruct%ind_update_h(isc_p,j,2)
+                     enddo
 
-                           if (i < Atm(n)%neststruct%ind_update_h(ic,jc,1) .and. &
-                                j < Atm(n)%neststruct%ind_update_h(ic,jc,2) ) then
-                              Atm(n)%neststruct%ind_update_h(ic,jc,:) = (/i, j/)
+                     Atm(n)%neststruct%isu = isc_p
+                     Atm(n)%neststruct%ieu = isc_p-1
+                     do i=isc_p,iec_p+1
+                        if (i < ioffset+upoff) then
+                           Atm(n)%neststruct%ind_update_h(i,:,1) = -9999
+                           Atm(n)%neststruct%isu = Atm(n)%neststruct%isu + 1
+                        elseif (i > ioffset + (npx-1)/refinement - upoff) then
+                           Atm(n)%neststruct%ind_update_h(i,:,1) = -9999
+                        else
+                           Atm(n)%neststruct%ind_update_h(i,:,1) = (i-ioffset)*refinement + 1
+                           if ( (i < ioffset + (npx-1)/refinement - upoff) .and. i <= iec_p) Atm(n)%neststruct%ieu = i
                            end if
+                        !write(mpp_pe()+5000,*) i, ioffset, upoff, Atm(n)%neststruct%ind_update_h(i,jsc_p,1)
+                     enddo
 
-                        end do
-                     end do
                   end if
 
-                  deallocate(p_ind)
 
                end if
 
@@ -536,6 +571,9 @@ module fv_control_mod
          call switch_current_Atm(Atm(n), .false.)
          call setup_pointers(Atm(n))
          Atm(n)%grid_number = n
+         if (grids_on_this_pe(n)) then
+            call fv_diag_init_gn(Atm(n))
+         endif
 
 #ifdef INTERNAL_FILE_NML
          if (size(Atm) > 1) then
@@ -717,7 +755,7 @@ module fv_control_mod
          if ( m_split==0 ) then
               m_split = 1. + abs(dt_atmos)/real(k_split*n_split*p_split)
          endif
-         if(is_master()) write(*,196) 'm_split is set to ', m_split
+         if(is_master()) write(*,198) 'm_split is set to ', m_split
          if(is_master()) then
             write(*,*) 'Off center implicit scheme param=', a_imp
             write(*,*) ' p_fac=', p_fac
@@ -725,11 +763,10 @@ module fv_control_mod
       endif
 
       if(is_master()) then
-         write(*,199) 'Using n_sponge : ', n_sponge
+         if (n_sponge >= 0) write(*,199) 'Using n_sponge : ', n_sponge
          write(*,197) 'Using non_ortho : ', non_ortho
       endif
 
- 196  format(A,i4.4)
  197  format(A,l7)
  198  format(A,i2.2,A,i4.4,'x',i4.4,'x',i1.1,'-',f9.3)
  199  format(A,i2.2)
@@ -751,7 +788,7 @@ module fv_control_mod
       if (ANY(Atm(n)%pelist == gid)) then
             call mpp_set_current_pelist(Atm(n)%pelist)
             call mpp_get_current_pelist(Atm(n)%pelist, commID=commID)
-            call mp_start(commID)
+            call mp_start(commID,halo_update_type)
       endif
 
       if (Atm(n)%neststruct%nested) then
@@ -808,6 +845,7 @@ module fv_control_mod
 !!$                 "Flux-form nested BCs (nestbctype > 1) requires npx and npy to be one more than a multiple of the refinement ratio.")
 !!$            Atm(n)%parent_grid%neststruct%do_flux_BCs = .true.
 !!$            if (Atm(n)%neststruct%nestbctype == 3 .or. Atm(n)%neststruct%nestbctype == 4) Atm(n)%parent_grid%neststruct%do_2way_flux_BCs = .true.
+            Atm(n)%neststruct%upoff = 0
          endif
 
       end if
@@ -978,10 +1016,12 @@ module fv_control_mod
      w_max                         => Atm%flagstruct%w_max
      z_min                         => Atm%flagstruct%z_min
      nord                          => Atm%flagstruct%nord
+     nord_tr                       => Atm%flagstruct%nord_tr
      dddmp                         => Atm%flagstruct%dddmp
      d2_bg                         => Atm%flagstruct%d2_bg
      d4_bg                         => Atm%flagstruct%d4_bg
      vtdm4                         => Atm%flagstruct%vtdm4
+     trdm2                         => Atm%flagstruct%trdm2
      d2_bg_k1                      => Atm%flagstruct%d2_bg_k1
      d2_bg_k2                      => Atm%flagstruct%d2_bg_k2
      d2_divg_max_k1                => Atm%flagstruct%d2_divg_max_k1
@@ -1035,6 +1075,7 @@ module fv_control_mod
      nt_phys                       => Atm%flagstruct%nt_phys
      tau_h2o                       => Atm%flagstruct%tau_h2o
      d_con                         => Atm%flagstruct%d_con
+     ke_bg                         => Atm%flagstruct%ke_bg
      consv_te                      => Atm%flagstruct%consv_te
      tau                           => Atm%flagstruct%tau
      rf_cutoff                     => Atm%flagstruct%rf_cutoff
@@ -1066,6 +1107,8 @@ module fv_control_mod
      ncep_ic                       => Atm%flagstruct%ncep_ic
      nggps_ic                      => Atm%flagstruct%nggps_ic
      gfs_phil                      => Atm%flagstruct%gfs_phil
+     use_new_ncep                  => Atm%flagstruct%use_new_ncep
+     use_ncep_phy                  => Atm%flagstruct%use_ncep_phy
      fv_diag_ic                    => Atm%flagstruct%fv_diag_ic
      external_ic                   => Atm%flagstruct%external_ic
 

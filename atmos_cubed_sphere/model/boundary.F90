@@ -1713,10 +1713,11 @@ contains
  end subroutine nested_grid_BC_apply_intT
 
  subroutine update_coarse_grid_mpp_2d(var_coarse, var_nest, nest_domain, ind_update, dx, dy, area, &
-      isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n, npx, npy, &
+      isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n, isu, ieu, jsu, jeu, npx, npy, &
       istag, jstag, r, nestupdate, upoff, nsponge, parent_proc, child_proc, parent_grid)
 
    integer, intent(IN) :: isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n
+   integer, intent(IN) :: isu, ieu, jsu, jeu
    integer, intent(IN) :: istag, jstag, r, nestupdate, upoff, nsponge
    integer, intent(IN) :: ind_update(isd_p:ied_p+1,jsd_p:jed_p+1,2)
    integer, intent(IN) :: npx, npy
@@ -1735,9 +1736,12 @@ contains
    if (child_proc .and. size(var_nest) > 1) var_nest_3d(is_n:ie_n+istag,js_n:je_n+jstag,1) = var_nest(is_n:ie_n+istag,js_n:je_n+jstag)
    if (parent_proc .and. size(var_coarse) > 1) var_coarse_3d(isd_p:ied_p+istag,jsd_p:jed_p,1) = var_coarse(isd_p:ied_p+istag,jsd_p:jed_p+jstag)
 
-   call update_coarse_grid_mpp(var_coarse_3d, var_nest_3d, nest_domain, ind_update, dx, dy, area, &
-      isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n, npx, npy, 1, &
-      istag, jstag, r, nestupdate, upoff, nsponge, parent_proc, child_proc, parent_grid)
+   call update_coarse_grid_mpp(var_coarse_3d, var_nest_3d, &
+        nest_domain, ind_update, dx, dy, area, &
+        isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n, &
+        isu, ieu, jsu, jeu, npx, npy, 1, &
+        istag, jstag, r, nestupdate, upoff, nsponge, &
+        parent_proc, child_proc, parent_grid)
 
    if (size(var_coarse) > 1 .and. parent_proc) var_coarse(isd_p:ied_p+istag,jsd_p:jed_p+jstag) = var_coarse_3d(isd_p:ied_p+istag,jsd_p:jed_p,1)
 
@@ -1745,7 +1749,8 @@ contains
 
 
   subroutine update_coarse_grid_mpp(var_coarse, var_nest, nest_domain, ind_update, dx, dy, area, &
-      isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n, npx, npy, npz, &
+      isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n, &
+      isu, ieu, jsu, jeu, npx, npy, npz, &
       istag, jstag, r, nestupdate, upoff, nsponge, parent_proc, child_proc, parent_grid)
 
    !This routine assumes the coarse and nested grids are properly
@@ -1753,6 +1758,7 @@ contains
    ! coarse-grid points coincide with nested-grid points
 
    integer, intent(IN) :: isd_p, ied_p, jsd_p, jed_p, is_n, ie_n, js_n, je_n
+   integer, intent(IN) :: isu, ieu, jsu, jeu
    integer, intent(IN) :: istag, jstag, npx, npy, npz, r, nestupdate, upoff, nsponge
    integer, intent(IN) :: ind_update(isd_p:ied_p+1,jsd_p:jed_p+1,2)
    real, intent(IN)    :: var_nest(is_n:ie_n+istag,js_n:je_n+jstag,npz)
@@ -1795,23 +1801,12 @@ contains
 !! IF an area average (for istag == jstag == 0) or a linear average then multiply in the areas before sending data
    if (istag == 0 .and. jstag == 0) then
       select case (nestupdate)
-      case (0,3,4,5)
-         
-         do k=1,npz
-         do j=js_n,je_n
-         do i=is_n,ie_n
-
-            var_nest_send(i,j,k) = var_nest(i,j,k)
-
-         end do
-         end do
-         end do
-
       case (1,2,6,7,8)
          
          do k=1,npz
          do j=js_n,je_n
          do i=is_n,ie_n
+
 
             var_nest_send(i,j,k) = var_nest(i,j,k)*area(i,j)
 
@@ -1823,23 +1818,12 @@ contains
    else if (istag == 0 .and. jstag > 0) then
 
       select case (nestupdate) 
-      case (0,2,3,4,5)
-
-         do k=1,npz
-         do j=js_n,je_n+1
-         do i=is_n,ie_n
-
-            var_nest_send(i,j,k) = var_nest(i,j,k)
-            
-         end do
-         end do
-         end do
-
       case (1,6,7,8)
 
          do k=1,npz
          do j=js_n,je_n+1
          do i=is_n,ie_n
+
 
             var_nest_send(i,j,k) = var_nest(i,j,k)*dx(i,j)
             
@@ -1855,17 +1839,6 @@ contains
 
    else if (istag > 0 .and. jstag == 0) then
       select case (nestupdate) 
-      case (0,2,3,4,5)
-
-         do k=1,npz
-         do j=js_n,je_n
-         do i=is_n,ie_n+1
-
-            var_nest_send(i,j,k) = var_nest(i,j,k)
-
-         end do
-         end do
-         end do
 
       case (1,6,7,8)   !averaging update; in-line average for face-averaged values instead of areal average
 
@@ -1899,47 +1872,24 @@ contains
    s = r/2 !rounds down (since r > 0)
    qr = r*upoff + nsponge - s
 
-   if (parent_proc) then
+   if (parent_proc .and. .not. (ieu < isu .or. jeu < jsu)) then
    if (istag == 0 .and. jstag == 0) then
 
       select case (nestupdate) 
-      case (0,3,4,5) !Interpolation update (0 = all variables, 4 = not on delp or q, 3 = only on winds, 5 = "remap-update")
-
-         do k=1,npz
-         do j=jsd_p,jed_p
-         do i=isd_p,ied_p
-
-            in = ind_update(i,j,1)
-            jn = ind_update(i,j,2)
-
-            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-s,ie_f) .or. &
-                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr-s,je_f)) cycle
-
-            if (mod(r,2) == 1) then
-               val = nest_dat(in+s,jn+s,k)
-            else
-               !SUBTRACTING 1 because the first index LARGER THAN the median half-index is jn+s
-               val = 0.25*( &
-                    nest_dat(in+s,jn+s,k)   + nest_dat(in+s-1,jn+s,k) + &
-                    nest_dat(in+s,jn+s-1,k) + nest_dat(in+s-1,jn+s-1,k) )
-            end if
-            var_coarse(i,j,k) = val
-
-         end do
-         end do
-         end do
-
       case (1,2,6,7,8) ! 1 = Conserving update on all variables; 2 = conserving update for cell-centered values; 6 = conserving remap-update
 
          do k=1,npz
-         do j=jsd_p,jed_p
-         do i=isd_p,ied_p
+         do j=jsu,jeu
+         do i=isu,ieu
 
             in = ind_update(i,j,1)
             jn = ind_update(i,j,2)
 
-            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-r+1,ie_f) .or. &
-                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr-r+1,je_f)) cycle
+!!$            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-r+1,ie_f) .or. &
+!!$                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr-r+1,je_f)) then
+!!$               write(mpp_pe()+3000,'(A, 14I6)') 'SKIP: ', i, j, in, jn, 1+qr, is_f, ie_f, js_f, je_f, npy-1-qr-r+1, isu, ieu, jsu, jeu
+!!$               cycle
+!!$            endif
 
             val = 0.
             do jnj=jn,jn+r-1
@@ -1970,39 +1920,20 @@ contains
 
 
       select case (nestupdate) 
-      case (0,2,3,4,5)
-
-         do k=1,npz
-         do j=jsd_p,jed_p+1
-         do i=isd_p,ied_p
-
-            in = ind_update(i,j,1)
-            jn = ind_update(i,j,2)
-
-            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-s,ie_f) .or. &
-                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr+1-s,je_f)) cycle
-
-            if (mod(r,2) == 1) then
-               val = nest_dat(in+s,jn,k)
-            else
-               val = 0.5*(nest_dat(in+s,jn,k) + nest_dat(in+s-1,jn,k) )
-            end if
-            var_coarse(i,j,k) = val
-         end do
-         end do
-         end do
-
       case (1,6,7,8)
 
          do k=1,npz
-         do j=jsd_p,jed_p+1
-         do i=isd_p,ied_p
+         do j=jsu,jeu+1
+         do i=isu,ieu
 
             in = ind_update(i,j,1)
             jn = ind_update(i,j,2)
 
-            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-r+1,ie_f) .or. &
-                 jn < max(1+qr+s,js_f) .or. jn > min(npy-1-qr-s+1,je_f)) cycle
+!!$            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-r+1,ie_f) .or. &
+!!$                 jn < max(1+qr+s,js_f) .or. jn > min(npy-1-qr-s+1,je_f)) then
+!!$               write(mpp_pe()+3000,'(A, 14I)') 'SKIP u: ', i, j, in, jn, 1+qr, is_f, ie_f, js_f, je_f, npy-1-qr-s+1, isu, ieu, jsu, jeu
+!!$               cycle
+!!$            endif
 
             val = 0.
                do ini=in,in+r-1
@@ -2025,40 +1956,20 @@ contains
    else if (istag > 0 .and. jstag == 0) then
 
       select case (nestupdate) 
-      case (0,2,3,4,5)
-
-         do k=1,npz
-         do j=jsd_p,jed_p
-         do i=isd_p,ied_p+1
-
-            in = ind_update(i,j,1)
-            jn = ind_update(i,j,2)
-
-            if (in < max(1+qr,is_f) .or. in > min(npx-1-qr-s+1,ie_f) .or. &
-                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr-s,je_f)) cycle
-
-            if (mod(r,2) == 1) then
-               val = nest_dat(in,jn+s,k)
-            else
-               val = 0.5*(nest_dat(in,jn+s,k)+nest_dat(in,jn+s-1,k))
-            end if
-            var_coarse(i,j,k) = val
-
-         end do
-         end do
-         end do
-
       case (1,6,7,8)   !averaging update; in-line average for face-averaged values instead of areal average
 
          do k=1,npz
-         do j=jsd_p,jed_p
-         do i=isd_p,ied_p+1
+         do j=jsu,jeu
+         do i=isu,ieu+1
 
             in = ind_update(i,j,1)
             jn = ind_update(i,j,2)
 
-            if (in < max(1+qr+s,is_f) .or. in > min(npx-1-qr-s+1,ie_f) .or. &
-                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr-r+1,je_f)) cycle
+!!$            if (in < max(1+qr+s,is_f) .or. in > min(npx-1-qr-s+1,ie_f) .or. &
+!!$                 jn < max(1+qr,js_f) .or. jn > min(npy-1-qr-r+1,je_f)) then
+!!$               write(mpp_pe()+3000,'(A, 14I6)') 'SKIP v: ', i, j, in, jn, 1+qr, is_f, ie_f, js_f, je_f, npx-1-qr-s+1, isu, ieu, jsu, jeu
+!!$               cycle
+!!$            endif
 
             val = 0.
             do jnj=jn,jn+r-1

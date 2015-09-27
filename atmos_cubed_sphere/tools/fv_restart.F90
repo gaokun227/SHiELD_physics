@@ -31,8 +31,8 @@ module fv_restart_mod
   ! for the model.
   !</DESCRIPTION>
 
-  use constants_mod,       only: kappa, pi, omega, rdgas, grav, rvgas, cp_air, radius
-  use fv_arrays_mod,       only: fv_atmos_type, fv_nest_type, fv_grid_bounds_type, R_GRID
+  use constants_mod,       only: kappa, pi, omega, rdgas, grav, rvgas, cp_air, radius, R_GRID
+  use fv_arrays_mod,       only: fv_atmos_type, fv_nest_type, fv_grid_bounds_type
   use fv_io_mod,           only: fv_io_init, fv_io_read_restart, fv_io_write_restart, &
                                  remap_restart, fv_io_register_restart, fv_io_register_nudge_restart, &
                                  fv_io_register_restart_BCs, fv_io_register_restart_BCs_NH, fv_io_write_BCs, fv_io_read_BCs
@@ -135,76 +135,86 @@ contains
     cold_start_grids(:) = cold_start
     do n = 1, ntileMe
 
-      if (Atm(n)%neststruct%nested) then
-        write(fname,'(A, I2.2, A)') 'INPUT/fv_core.res.nest', Atm(n)%grid_number, '.nc'
-        if (is_master()) print*, 'Searching for nested grid restart file ', trim(fname)
-        cold_start_grids(n) = .not. file_exist(fname)
-      endif
-
-      if (.not. grids_on_this_pe(n)) then
-        !Even if this grid is not on this PE, if it has child grids we must send
-        !along the data that is needed. 
-        if (Atm(n)%neststruct%nested) then
+       if (Atm(n)%neststruct%nested) then
+          write(fname,'(A, I2.2, A)') 'INPUT/fv_core.res.nest', Atm(n)%grid_number, '.nc'
           if (Atm(n)%flagstruct%external_ic) then
-            !Need to set up topography halo. The halo has linearly interpolated
-            !topo instead of high-resolution topo, to be consistent with
-            !linear interpolation in the halo.
-            call nested_grid_BC(Atm(n)%phis, Atm(n)%parent_grid%phis, Atm(n)%neststruct%nest_domain, &
-                     Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                     Atm(n)%npx, Atm(n)%npy, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)
-          endif
-          if (cold_start_grids(n)) then
-            call fill_nested_grid_data(Atm(n:n), .false.)
-          end if
-          if (Atm(n)%flagstruct%make_nh) then
-            call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
-                     Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                     Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)
-            call nested_grid_BC(Atm(n)%w, Atm(n)%parent_grid%w, Atm(n)%neststruct%nest_domain, &
-                     Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                     Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)
-          endif
-        endif
-        cycle
+             if (is_master()) print*, 'External IC set on grid', Atm(n)%grid_number, ', re-initializing grid'
+             cold_start_grids(n) = .true.
+          else
+          if (is_master()) print*, 'Searching for nested grid restart file ', trim(fname)
+          cold_start_grids(n) = .not. file_exist(fname)
+       endif
        endif
 
+       if (.not. grids_on_this_pe(n)) then
+          
+          !Even if this grid is not on this PE, if it has child grids we must send
+          !along the data that is needed. 
+
+          if (Atm(n)%neststruct%nested) then
+             if ((cold_start_grids(n)) .or. Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .false.)
+             if (cold_start_grids(n)) then
+                call fill_nested_grid_topo(Atm(n))
+                call fill_nested_grid_data(Atm(n:n), .false.)
+             end if
+
+             if (Atm(n)%flagstruct%make_nh) then
+                call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
+                     Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+                     Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)
+                call nested_grid_BC(Atm(n)%w, Atm(n)%parent_grid%w, Atm(n)%neststruct%nest_domain, &
+                     Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+                     Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)
+             endif
+
+
+          endif
+
+          cycle
+
+       endif
        !This call still appears to be necessary to get isd, etc. correct
        call switch_current_Atm(Atm(n))
 
-       npz     = Atm(1)%npz
-       npz_rst = Atm(1)%flagstruct%npz_rst
+    npz     = Atm(1)%npz
+    npz_rst = Atm(1)%flagstruct%npz_rst
 
-       !--- call fv_io_register_restart to register restart field to be written out in fv_io_write_restart
-       call fv_io_register_restart(Atm(n)%domain,Atm(n:n))
-       if (Atm(n)%neststruct%nested) call fv_io_register_restart_BCs(Atm(n))
-       if( .not.cold_start_grids(n) .and. (.not. Atm(n)%flagstruct%external_ic) ) then
-         if ( npz_rst /= 0 .and. npz_rst /= npz ) then
-!          Remap vertically the prognostic variables for the chosen vertical resolution
-           if ( is_master() ) then
-             write(*,*) ' '
-             write(*,*) '***** Important Note from FV core ********************'
-             write(*,*) 'Remapping dynamic IC from', npz_rst, 'levels to ', npz,'levels'
-             write(*,*) '***** End Note from FV core **************************'
-             write(*,*) ' '
-           endif
-           call remap_restart( Atm(n)%domain, Atm(n:n) )
-           if( is_master() ) write(*,*) 'Done remapping dynamical IC'
-         else
-           if( is_master() ) write(*,*) 'Warm starting, calling fv_io_restart'
-           call fv_io_read_restart(Atm(n)%domain,Atm(n:n))
-         endif
-       endif
+    !--- call fv_io_register_restart to register restart field to be written out in fv_io_write_restart
+    call fv_io_register_restart(Atm(n)%domain,Atm(n:n))
+    if (Atm(n)%neststruct%nested) call fv_io_register_restart_BCs(Atm(n))
+    if( .not.cold_start_grids(n) .and. (.not. Atm(n)%flagstruct%external_ic) ) then
+
+
+        if ( npz_rst /= 0 .and. npz_rst /= npz ) then
+!            Remap vertically the prognostic variables for the chosen vertical resolution
+             if( is_master() ) then
+                 write(*,*) ' '
+                 write(*,*) '***** Important Note from FV core ********************'
+                 write(*,*) 'Remapping dynamic IC from', npz_rst, 'levels to ', npz,'levels'
+                 write(*,*) '***** End Note from FV core **************************'
+                 write(*,*) ' '
+             endif
+             call remap_restart( Atm(n)%domain, Atm(n:n) )
+             if( is_master() ) write(*,*) 'Done remapping dynamical IC'
+        else
+             if( is_master() ) write(*,*) 'Warm starting, calling fv_io_restart'
+             call fv_io_read_restart(Atm(n)%domain,Atm(n:n))
+        endif
+    endif
 
 !---------------------------------------------------------------------------------------------
 ! Read, interpolate (latlon to cubed), then remap vertically with terrain adjustment if needed
 !---------------------------------------------------------------------------------------------
-       if ( Atm(n)%flagstruct%external_ic ) then
+    if (Atm(n)%neststruct%nested) then
+       if (cold_start_grids(n)) call fill_nested_grid_topo(Atm(n))
+    endif
+    if ( Atm(n)%flagstruct%external_ic ) then
          if( is_master() ) write(*,*) 'Calling get_external_ic'
          call get_external_ic(Atm(n:n), Atm(n)%domain, cold_start_grids(n)) 
          if( is_master() ) write(*,*) 'IC generated from the specified external source'
-       endif
+    endif
 
-       seconds = 0; days = 0   ! Restart needs to be modified to record seconds and days.
+    seconds = 0; days = 0   ! Restart needs to be modified to record seconds and days.
 
 ! Notes by Jeff D.
   ! This logic doesn't work very well.
@@ -217,58 +227,61 @@ contains
        ncnst = Atm(n)%ncnst
        isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
 
-       ! Init model data
-       if(.not.cold_start_grids(n))then  ! This is not efficient stacking if there are really more tiles than 1.
+      ! Init model data
+      if (Atm(n)%neststruct%nested) then
+         if ((cold_start_grids(n)) .or. Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .true.)
+      endif
+      if(.not.cold_start_grids(n))then
          Atm(N)%neststruct%first_step = .false.
-         if ( Atm(n)%flagstruct%mountain ) then
+          if (Atm(n)%neststruct%nested) then
+             if ( npz_rst /= 0 .and. npz_rst /= npz ) then
+                call setup_nested_boundary_halo(Atm(n)) 
+             else
+                call fv_io_read_BCs(Atm(n))
+                !Following line to make sure u and v are consistent across processor subdomains
+                call mpp_update_domains(Atm(n)%u, Atm(n)%v, Atm(n)%domain, gridtype=DGRID_NE, complete=.true.)
+             endif
+          endif
+        if ( Atm(n)%flagstruct%mountain ) then
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! !!! Additional terrain filter -- should not be called repeatedly !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-           if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
-             if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
-               call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
-                           Atm(n)%gridstruct%area_64, Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
-                           Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
-                           Atm(n)%flagstruct%n_zs_filter, cnst_0p20*Atm(n)%gridstruct%da_min, &
-                           .false., oro_g, Atm(n)%neststruct%nested, Atm(n)%domain, Atm(n)%bd)
-               if ( is_master() ) write(*,*) 'Warning !!! del-2 terrain filter has been applied ', &
-                           Atm(n)%flagstruct%n_zs_filter, ' times'
-             else if( Atm(n)%flagstruct%nord_zs_filter == 4 ) then
-               call del4_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, Atm(n)%gridstruct%area_64, &
-                           Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
-                           Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
-                           Atm(n)%flagstruct%n_zs_filter, .false., oro_g, Atm(n)%neststruct%nested, &
-                           Atm(n)%domain, Atm(n)%bd)
-               if ( is_master() ) write(*,*) 'Warning !!! del-4 terrain filter has been applied ', &
-                           Atm(n)%flagstruct%n_zs_filter, ' times'
-             endif
-           endif
+            if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
+              if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
+                   call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
+                                          Atm(n)%gridstruct%area_64, Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
+                                          Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
+                                          Atm(n)%flagstruct%n_zs_filter, cnst_0p20*Atm(n)%gridstruct%da_min, &
+                                          .false., oro_g, Atm(n)%neststruct%nested, Atm(n)%domain, Atm(n)%bd)
+                   if ( is_master() ) write(*,*) 'Warning !!! del-2 terrain filter has been applied ', &
+                        Atm(n)%flagstruct%n_zs_filter, ' times'
+              else if( Atm(n)%flagstruct%nord_zs_filter == 4 ) then
+                   call del4_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, Atm(n)%gridstruct%area_64, &
+                                          Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
+                                          Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
+                                          Atm(n)%flagstruct%n_zs_filter, .false., oro_g, Atm(n)%neststruct%nested, &
+                                          Atm(n)%domain, Atm(n)%bd)
+                 if ( is_master() ) write(*,*) 'Warning !!! del-4 terrain filter has been applied ', &
+                      Atm(n)%flagstruct%n_zs_filter, ' times'
+              endif
+            endif
 
-           call mpp_update_domains( Atm(n)%phis, Atm(n)%domain, complete=.true. )
-         else
-           Atm(n)%phis = 0.
-           if( is_master() ) write(*,*) 'phis set to zero'
+            call mpp_update_domains( Atm(n)%phis, Atm(n)%domain, complete=.true. )
+        else
+             Atm(n)%phis = 0.
+            if( is_master() ) write(*,*) 'phis set to zero'
          endif !mountain
 
-         if (Atm(n)%neststruct%nested) then
-           if ( npz_rst /= 0 .and. npz_rst /= npz ) then
-             call setup_nested_boundary_halo(Atm(n)) 
-           else
-             call fv_io_read_BCs(Atm(n))
-             !Following line to make sure u and v are consistent across processor subdomains
-             call mpp_update_domains(Atm(n)%u, Atm(n)%v, Atm(n)%domain, gridtype=DGRID_NE, complete=.true.)
-           endif
-         endif
 
 #ifdef SW_DYNAMICS
-         Atm(n)%pt(:,:,:)=1.
+        Atm(n)%pt(:,:,:)=1.
 #else
-         if ( .not.Atm(n)%flagstruct%hybrid_z ) then
+        if ( .not.Atm(n)%flagstruct%hybrid_z ) then
            if(Atm(n)%ptop/=Atm(n)%ak(1)) call mpp_error(FATAL,'FV restart: ptop not equal Atm(n)%ak(1)')
-         else
+        else
            Atm(n)%ptop = Atm(n)%ak(1);  Atm(n)%ks = 0
-         endif
-         call p_var(npz,         isc,         iec,       jsc,     jec,   Atm(n)%ptop,     ptop_min,  &
+        endif
+        call p_var(npz,         isc,         iec,       jsc,     jec,   Atm(n)%ptop,     ptop_min,  &
                    Atm(n)%delp, Atm(n)%delz, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe, Atm(n)%peln,   &
                    Atm(n)%pk,   Atm(n)%pkz, kappa, Atm(n)%q, Atm(n)%ng, &
                    ncnst,  Atm(n)%gridstruct%area_64, Atm(n)%flagstruct%dry_mass,  &
@@ -277,188 +290,187 @@ contains
                    Atm(n)%flagstruct%nwat, Atm(n)%domain, Atm(n)%flagstruct%make_nh)
 
 #endif
-         if ( grid_type < 7 .and. grid_type /= 4 ) then
+        if ( grid_type < 7 .and. grid_type /= 4 ) then
 ! Fill big values in the non-existing corner regions:
 !          call fill_ghost(Atm(n)%phis, Atm(n)%npx, Atm(n)%npy, big_number)
            do j=jsd,jed+1
-             do i=isd,ied+1
-               Atm(n)%gridstruct%fc(i,j) = 2.*omega*( -cos(Atm(n)%gridstruct%grid(i,j,1))* &
-                                    cos(Atm(n)%gridstruct%grid(i,j,2))*sin(alpha) + &
+           do i=isd,ied+1
+              Atm(n)%gridstruct%fc(i,j) = 2.*omega*( -cos(Atm(n)%gridstruct%grid(i,j,1))*cos(Atm(n)%gridstruct%grid(i,j,2))*sin(alpha) + &
                                     sin(Atm(n)%gridstruct%grid(i,j,2))*cos(alpha) )
-             enddo
+           enddo
            enddo
            do j=jsd,jed
-             do i=isd,ied
-               Atm(n)%gridstruct%f0(i,j) = 2.*omega*( -cos(Atm(n)%gridstruct%agrid(i,j,1))*&
-                                    cos(Atm(n)%gridstruct%agrid(i,j,2))*sin(alpha) + &
+           do i=isd,ied
+             Atm(n)%gridstruct%f0(i,j) = 2.*omega*( -cos(Atm(n)%gridstruct%agrid(i,j,1))*cos(Atm(n)%gridstruct%agrid(i,j,2))*sin(alpha) + &
                                     sin(Atm(n)%gridstruct%agrid(i,j,2))*cos(alpha) )
-             enddo
            enddo
-         else
+           enddo
+        else
            f00 = 2.*omega*sin(Atm(n)%flagstruct%deglat/180.*pi)
            do j=jsd,jed+1
-             do i=isd,ied+1
-               Atm(n)%gridstruct%fc(i,j) = f00
-             enddo
+              do i=isd,ied+1
+                 Atm(n)%gridstruct%fc(i,j) = f00
+              enddo
            enddo
            do j=jsd,jed
-             do i=isd,ied
-               Atm(n)%gridstruct%f0(i,j) = f00
-             enddo
+              do i=isd,ied
+                 Atm(n)%gridstruct%f0(i,j) = f00
+              enddo
            enddo
-         endif
-       else
-         if ( Atm(n)%flagstruct%warm_start ) then
-           call mpp_error(FATAL, 'FV restart files not found; set warm_start = .F. if cold_start is desired.')
-         endif
+        endif
+     else
+       if ( Atm(n)%flagstruct%warm_start ) then
+         call mpp_error(FATAL, 'FV restart files not found; set warm_start = .F. if cold_start is desired.')
+      endif
 ! Cold start
-         if ( Atm(n)%flagstruct%make_hybrid_z ) then
-           hybrid = .false.
-         else
-           hybrid = Atm(n)%flagstruct%hybrid_z
-         endif
-         if (grid_type < 4) then
-           if ( .not. Atm(n)%flagstruct%external_ic ) then
-             call init_case(Atm(n)%u,Atm(n)%v,Atm(n)%w,Atm(n)%pt,Atm(n)%delp,Atm(n)%q, &
-                            Atm(n)%phis, Atm(n)%ps,Atm(n)%pe, Atm(n)%peln,Atm(n)%pk,Atm(n)%pkz, &
-                            Atm(n)%uc,Atm(n)%vc, Atm(n)%ua,Atm(n)%va,        & 
-                            Atm(n)%ak, Atm(n)%bk, Atm(n)%gridstruct, Atm(n)%flagstruct,&
-                            Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ng, &
-                            ncnst, Atm(n)%flagstruct%nwat,  &
-                            Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles, &
-                            Atm(n)%flagstruct%dry_mass, &
-                            Atm(n)%flagstruct%mountain,       &
-                            Atm(n)%flagstruct%moist_phys, Atm(n)%flagstruct%hydrostatic, &
-                            hybrid, Atm(n)%delz, Atm(n)%ze0, &
-                            Atm(n)%flagstruct%adiabatic, Atm(n)%ks, Atm(n)%neststruct%npx_global, &
-                            Atm(n)%ptop, Atm(n)%domain, Atm(n)%tile, Atm(n)%bd)
-           endif
-         elseif (grid_type == 4) then
-           call init_double_periodic(Atm(n)%u,Atm(n)%v,Atm(n)%w,Atm(n)%pt, &
-                                     Atm(n)%delp,Atm(n)%q,Atm(n)%phis, Atm(n)%ps,Atm(n)%pe, &
-                                     Atm(n)%peln,Atm(n)%pk,Atm(n)%pkz, &
-                                     Atm(n)%uc,Atm(n)%vc, Atm(n)%ua,Atm(n)%va,        & 
-                                     Atm(n)%ak, Atm(n)%bk, &
-                                     Atm(n)%gridstruct, Atm(n)%flagstruct, &
-                                     Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ng, &
-                                     ncnst, Atm(n)%flagstruct%nwat,  &
-                                     Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles, &
-                                     Atm(n)%flagstruct%dry_mass, Atm(n)%flagstruct%mountain, &
-                                     Atm(n)%flagstruct%moist_phys, Atm(n)%flagstruct%hydrostatic, &
-                                     hybrid, Atm(n)%delz, Atm(n)%ze0, Atm(n)%ks, Atm(n)%ptop, &
-                                     Atm(n)%domain, Atm(n)%tile, Atm(n)%bd)
-           if( is_master() ) write(*,*) 'Doubly Periodic IC generated'
-         elseif (grid_type == 5 .or. grid_type == 6) then
-           call init_latlon(Atm(n)%u,Atm(n)%v,Atm(n)%pt,Atm(n)%delp,Atm(n)%q,&
-                            Atm(n)%phis, Atm(n)%ps,Atm(n)%pe, &
-                            Atm(n)%peln,Atm(n)%pk,Atm(n)%pkz, &
-                            Atm(n)%uc,Atm(n)%vc, Atm(n)%ua,Atm(n)%va,        &
-                            Atm(n)%ak, Atm(n)%bk, Atm(n)%gridstruct, &
-                            Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ng, ncnst, &
-                            Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles, &
-                            Atm(n)%flagstruct%dry_mass, &
-                            Atm(n)%flagstruct%mountain,       &
-                            Atm(n)%flagstruct%moist_phys, hybrid, Atm(n)%delz, &
-                            Atm(n)%ze0, Atm(n)%domain, Atm(n)%tile)
-         endif
-
-         if ( Atm(n)%flagstruct%fv_land ) then
-           do j=jsc,jec
-             do i=isc,iec
-               Atm(n)%sgh(i,j) = sgh_g(i,j)
-               Atm(n)%oro(i,j) = oro_g(i,j)
-             enddo
-           enddo
-         endif
-
-         !Set up nested grids
-         !Currently even though we do fill in the nested-grid IC from
-         ! init_case or external_ic we appear to overwrite it using
-         !  coarse-grid data
-         if (Atm(n)%neststruct%nested) call fill_nested_grid_data(Atm(n:n))
-
-       endif  !end cold_start check
- 
-       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh .and. Atm(n)%neststruct%nested) then
-         call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
-                 Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                 Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
-         call nested_grid_BC(Atm(n)%w, Atm(n)%parent_grid%w, Atm(n)%neststruct%nest_domain, &
-                 Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                 Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
-         call fv_io_register_restart_BCs_NH(Atm(n)) !needed to register nested-grid BCs not registered earlier
+       if ( Atm(n)%flagstruct%make_hybrid_z ) then
+         hybrid = .false.
+       else
+         hybrid = Atm(n)%flagstruct%hybrid_z
        endif
+         if (grid_type < 4) then
+            if ( .not. Atm(n)%flagstruct%external_ic ) then
+            call init_case(Atm(n)%u,Atm(n)%v,Atm(n)%w,Atm(n)%pt,Atm(n)%delp,Atm(n)%q, &
+                           Atm(n)%phis, Atm(n)%ps,Atm(n)%pe, Atm(n)%peln,Atm(n)%pk,Atm(n)%pkz, &
+                           Atm(n)%uc,Atm(n)%vc, Atm(n)%ua,Atm(n)%va,        & 
+                           Atm(n)%ak, Atm(n)%bk, Atm(n)%gridstruct, Atm(n)%flagstruct,&
+                           Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ng, &
+                           ncnst, Atm(n)%flagstruct%nwat,  &
+                           Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles, &
+                           Atm(n)%flagstruct%dry_mass, &
+                           Atm(n)%flagstruct%mountain,       &
+                           Atm(n)%flagstruct%moist_phys, Atm(n)%flagstruct%hydrostatic, &
+                           hybrid, Atm(n)%delz, Atm(n)%ze0, &
+                           Atm(n)%flagstruct%adiabatic, Atm(n)%ks, Atm(n)%neststruct%npx_global, &
+                           Atm(n)%ptop, Atm(n)%domain, Atm(n)%tile, Atm(n)%bd)
+            endif
+         elseif (grid_type == 4) then
+            call init_double_periodic(Atm(n)%u,Atm(n)%v,Atm(n)%w,Atm(n)%pt, &
+                                      Atm(n)%delp,Atm(n)%q,Atm(n)%phis, Atm(n)%ps,Atm(n)%pe, &
+                                      Atm(n)%peln,Atm(n)%pk,Atm(n)%pkz, &
+                                      Atm(n)%uc,Atm(n)%vc, Atm(n)%ua,Atm(n)%va,        & 
+                                      Atm(n)%ak, Atm(n)%bk, &
+                                      Atm(n)%gridstruct, Atm(n)%flagstruct, &
+                                      Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ng, &
+                                      ncnst, Atm(n)%flagstruct%nwat,  &
+                                      Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles, &
+                                      Atm(n)%flagstruct%dry_mass, Atm(n)%flagstruct%mountain, &
+                                      Atm(n)%flagstruct%moist_phys, Atm(n)%flagstruct%hydrostatic, &
+                                      hybrid, Atm(n)%delz, Atm(n)%ze0, Atm(n)%ks, Atm(n)%ptop, &
+                                      Atm(n)%domain, Atm(n)%tile, Atm(n)%bd)
+            if( is_master() ) write(*,*) 'Doubly Periodic IC generated'
+         elseif (grid_type == 5 .or. grid_type == 6) then
+            call init_latlon(Atm(n)%u,Atm(n)%v,Atm(n)%pt,Atm(n)%delp,Atm(n)%q,&
+                             Atm(n)%phis, Atm(n)%ps,Atm(n)%pe, &
+                             Atm(n)%peln,Atm(n)%pk,Atm(n)%pkz, &
+                             Atm(n)%uc,Atm(n)%vc, Atm(n)%ua,Atm(n)%va,        &
+                             Atm(n)%ak, Atm(n)%bk, Atm(n)%gridstruct, &
+                             Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ng, ncnst, &
+                             Atm(n)%flagstruct%ndims, Atm(n)%flagstruct%ntiles, &
+                             Atm(n)%flagstruct%dry_mass, &
+                             Atm(n)%flagstruct%mountain,       &
+                             Atm(n)%flagstruct%moist_phys, hybrid, Atm(n)%delz, &
+                             Atm(n)%ze0, Atm(n)%domain, Atm(n)%tile)
+         endif
 
-    end do
+        if ( Atm(n)%flagstruct%fv_land ) then
+             do j=jsc,jec
+                do i=isc,iec
+                   Atm(n)%sgh(i,j) = sgh_g(i,j)
+                   Atm(n)%oro(i,j) = oro_g(i,j)
+                enddo
+             enddo
+        endif
+
+
+        !Set up nested grids
+        !Currently even though we do fill in the nested-grid IC from
+        ! init_case or external_ic we appear to overwrite it using
+        !  coarse-grid data
+        if (Atm(n)%neststruct%nested) then
+           call fill_nested_grid_data(Atm(n:n))
+        end if
+
+     endif  !end cold_start check
+
+         if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh .and. Atm(n)%neststruct%nested) then
+            call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
+                 Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+                 Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
+            call nested_grid_BC(Atm(n)%w, Atm(n)%parent_grid%w, Atm(n)%neststruct%nest_domain, &
+                 Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+                 Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
+            call fv_io_register_restart_BCs_NH(Atm(n)) !needed to register nested-grid BCs not registered earlier
+         endif
+
+  end do
+
 
     do n = ntileMe,1,-1
-      if (.not. grids_on_this_pe(n)) then
-        if (Atm(n)%neststruct%nested .and. cold_start_grids(n)) call fill_nested_grid_data_end(Atm(n), .false.)
-        cycle
-      endif
-      if (Atm(n)%neststruct%nested .and. cold_start_grids(n)) call fill_nested_grid_data_end(Atm(n))
+       if (Atm(n)%neststruct%nested .and. cold_start_grids(n)) call fill_nested_grid_data_end(Atm(n), grids_on_this_pe(n))
     end do
 
     do n = 1, ntileMe
-      if (.not. grids_on_this_pe(n)) cycle
+       if (.not. grids_on_this_pe(n)) cycle
 
-      isd = Atm(n)%bd%isd
-      ied = Atm(n)%bd%ied
-      jsd = Atm(n)%bd%jsd
-      jed = Atm(n)%bd%jed
-      ncnst = Atm(n)%ncnst
-      ntprog = size(Atm(n)%q,4)
-      ntdiag = size(Atm(n)%qdiag,4)
-      isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
+       isd = Atm(n)%bd%isd
+       ied = Atm(n)%bd%ied
+       jsd = Atm(n)%bd%jsd
+       jed = Atm(n)%bd%jed
+       ncnst = Atm(n)%ncnst
+       ntprog = size(Atm(n)%q,4)
+       ntdiag = size(Atm(n)%qdiag,4)
+       isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
+
 
 !---------------------------------------------------------------------------------------------
 ! Transform the (starting) Eulerian vertical coordinate from sigma-p to hybrid_z
-      if ( Atm(n)%flagstruct%hybrid_z ) then
-        if ( Atm(n)%flagstruct%make_hybrid_z ) then
+     if ( Atm(n)%flagstruct%hybrid_z ) then
+       if ( Atm(n)%flagstruct%make_hybrid_z ) then
           allocate ( dz1(npz) )
           if( npz==32 ) then
-            call compute_dz_L32(npz, ztop, dz1)
+              call compute_dz_L32(npz, ztop, dz1)
           else
-            ztop = 45.E3
-            call compute_dz_var(npz, ztop, dz1)
+              ztop = 45.E3
+              call compute_dz_var(npz, ztop, dz1)
           endif
           call set_hybrid_z(isc, iec, jsc, jec, Atm(n)%ng, npz, ztop, dz1, rgrav,  &
                             Atm(n)%phis, Atm(n)%ze0)
           deallocate ( dz1 )
 !         call prt_maxmin('ZE0', Atm(n)%ze0,  isc, iec, jsc, jec, 0, npz, 1.E-3)
 !         call prt_maxmin('DZ0', Atm(n)%delz, isc, iec, jsc, jec, 0, npz, 1.   )
-        endif
-!       call make_eta_level(npz, Atm(n)%pe, area, Atm(n)%ks, Atm(n)%ak, Atm(n)%bk, Atm(n)%ptop)
-      endif
+       endif
+!      call make_eta_level(npz, Atm(n)%pe, area, Atm(n)%ks, Atm(n)%ak, Atm(n)%bk, Atm(n)%ptop)
+     endif
 !---------------------------------------------------------------------------------------------
 
-      if (Atm(n)%flagstruct%add_noise > 0.) then
+     if (Atm(n)%flagstruct%add_noise > 0.) then
         write(errstring,'(A, E16.9)') "Adding thermal noise of amplitude ", Atm(n)%flagstruct%add_noise
         call mpp_error(NOTE, errstring)
         call random_seed
         npts = 0
         sumpertn = 0.
         do k=1,npz
-          do j=jsc,jec
-            do i=isc,iec
-              call random_number(pertn)
-              Atm(n)%pt(i,j,k) = Atm(n)%pt(i,j,k) + pertn*Atm(n)%flagstruct%add_noise
-              npts = npts + 1
-              sumpertn = sumpertn + pertn*Atm(n)%flagstruct%add_noise ** 2
-            enddo
-          enddo
+        do j=jsc,jec
+        do i=isc,iec
+           call random_number(pertn)
+           Atm(n)%pt(i,j,k) = Atm(n)%pt(i,j,k) + pertn*Atm(n)%flagstruct%add_noise
+           npts = npts + 1
+           sumpertn = sumpertn + pertn*Atm(n)%flagstruct%add_noise ** 2
+        enddo
+        enddo
         enddo
         call mpp_update_domains(Atm(n)%pt, Atm(n)%domain)
         call mpp_sum(sumpertn)
         call mpp_sum(npts)
         write(errstring,'(A, E16.9)') "RMS added noise: ", sqrt(sumpertn/npts)
         call mpp_error(NOTE, errstring)
-      endif
+     endif
 
       if (Atm(n)%grid_number > 1) then
-        write(gn,'(A2, I1)') " g", Atm(n)%grid_number
+         write(gn,'(A2, I1)') " g", Atm(n)%grid_number
       else
-        gn = ''
+         gn = ''
       end if
 
       unit = stdout()
@@ -491,8 +503,8 @@ contains
 
 ! Check tracers:
       do i=1, ntprog
-        call get_tracer_names ( MODEL_ATMOS, i, tname )
-        call pmaxmn_g(trim(tname), Atm(n)%q(isd:ied,jsd:jed,1:npz,i:i), isc, iec, jsc, jec, npz, &
+          call get_tracer_names ( MODEL_ATMOS, i, tname )
+          call pmaxmn_g(trim(tname), Atm(n)%q(isd:ied,jsd:jed,1:npz,i:i), isc, iec, jsc, jec, npz, &
                         1., Atm(n)%gridstruct%area_64, Atm(n)%domain)
       enddo
 #endif
@@ -500,42 +512,42 @@ contains
       call prt_maxmin('V ', Atm(n)%v(isc:iec,jsc:jec,1:npz), isc, iec, jsc, jec, 0, npz, 1.)
 
       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh ) then
-        Atm(n)%w = 0.
-        if ( .not.Atm(n)%flagstruct%hybrid_z ) then
-          do k=1,npz
-            do j=jsc,jec
-              do i=isc,iec
-                Atm(n)%delz(i,j,k) = (rdgas*rgrav)*Atm(n)%pt(i,j,k)*(Atm(n)%peln(i,k,j)-Atm(n)%peln(i,k+1,j))
-              enddo
-            enddo
-          enddo
-        endif
+         Atm(n)%w = 0.
+         if ( .not.Atm(n)%flagstruct%hybrid_z ) then
+             do k=1,npz
+                do j=jsc,jec
+                   do i=isc,iec
+                      Atm(n)%delz(i,j,k) = (rdgas*rgrav)*Atm(n)%pt(i,j,k)*(Atm(n)%peln(i,k,j)-Atm(n)%peln(i,k+1,j))
+                   enddo
+                enddo
+             enddo
+         endif
       endif
 
       if ( .not.Atm(n)%flagstruct%hydrostatic )   &
-           call pmaxmn_g('W ', Atm(n)%w, isc, iec, jsc, jec, npz, 1., Atm(n)%gridstruct%area_64, Atm(n)%domain)
+      call pmaxmn_g('W ', Atm(n)%w, isc, iec, jsc, jec, npz, 1., Atm(n)%gridstruct%area_64, Atm(n)%domain)
 
       if (is_master()) write(unit,*)
 
 !--------------------------------------------
 ! Initialize surface winds for flux coupler:
 !--------------------------------------------
-      if ( .not. Atm(n)%flagstruct%srf_init ) then
+    if ( .not. Atm(n)%flagstruct%srf_init ) then
          call cubed_to_latlon(Atm(n)%u, Atm(n)%v, Atm(n)%ua, Atm(n)%va, &
               Atm(n)%gridstruct, &
               Atm(n)%npx, Atm(n)%npy, npz, 1, &              
               Atm(n)%gridstruct%grid_type, Atm(n)%domain, &
               Atm(n)%gridstruct%nested, Atm(n)%flagstruct%c2l_ord, Atm(n)%bd)
          do j=jsc,jec
-           do i=isc,iec
-             Atm(n)%u_srf(i,j) = Atm(n)%ua(i,j,npz)
-             Atm(n)%v_srf(i,j) = Atm(n)%va(i,j,npz)
-           enddo
+            do i=isc,iec
+               Atm(n)%u_srf(i,j) = Atm(n)%ua(i,j,npz)
+               Atm(n)%v_srf(i,j) = Atm(n)%va(i,j,npz)
+            enddo
          enddo
          Atm(n)%flagstruct%srf_init = .true.
-       endif
+    endif
 
-     end do   ! n_tile
+    end do   ! n_tile
 
   end subroutine fv_restart
   ! </SUBROUTINE> NAME="fv_restart"
@@ -546,11 +558,12 @@ contains
     logical, INTENT(IN), OPTIONAL :: proc_in
     real, allocatable :: g_dat(:,:,:), g_dat2(:,:,:)
     real, allocatable :: pt_coarse(:,:,:)
-    integer i,j,k,nq, sphum, ncnst, istart, iend, npz
+    integer i,j,k,nq, sphum, ncnst, istart, iend, npz, nwat
     integer isc, iec, jsc, jec, isd, ied, jsd, jed, is, ie, js, je
     integer isd_p, ied_p, jsd_p, jed_p, isc_p, iec_p, jsc_p, jec_p, isg, ieg, jsg,jeg, npx_p, npy_p
     real zvir
     logical process
+   integer :: liq_wat, ice_wat, rainwat, snowwat, graupel
 
     if (PRESENT(proc_in)) then
        process = proc_in
@@ -566,6 +579,17 @@ contains
     isc = Atm%bd%isc; iec = Atm%bd%iec; jsc = Atm%bd%jsc; jec = Atm%bd%jec
     is  = Atm%bd%is ; ie  = Atm%bd%ie ; js  = Atm%bd%js ; je  = Atm%bd%je
     npz     = Atm%npz    
+    nwat = Atm%flagstruct%nwat
+
+   if (nwat>=3 ) then
+      liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+      ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+   endif
+   if ( nwat==6 ) then
+      rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+      snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+      graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+   endif
 
     call mpp_get_data_domain( Atm%parent_grid%domain, &
          isd_p,  ied_p,  jsd_p,  jed_p  )
@@ -597,6 +621,8 @@ contains
     !are more consistent with those on the interior (ie the exactly-known
     !values) than the crude values given through linear interpolation.
 
+    !For real topography cases, or in cases in which the coarse-grid topo
+    ! is smoothed, we fill the boundary halo with the coarse-grid topo.
 
 #ifndef SW_DYNAMICS
     !pt --- actually temperature
@@ -703,6 +729,90 @@ contains
        end do
     end if
 
+#ifdef USE_COND
+    if (is == 1) then
+       do k=1,npz
+          do j=jsd,jed
+             do i=isd,0
+#ifdef USE_NWAT3
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
+#else
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
+                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
+#endif
+             end do
+          end do
+       end do
+    end if
+
+    if (js == 1) then
+       if (is == 1) then
+          istart = is
+       else
+          istart = isd
+       end if
+       if (ie == Atm%npx-1) then
+          iend = ie
+       else
+          iend = ied
+       end if
+
+       do k=1,npz
+          do j=jsd,0
+             do i=istart,iend
+#ifdef USE_NWAT3
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
+#else
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
+                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
+#endif
+             end do
+          end do
+       end do
+    end if
+
+    if (ie == Atm%npx-1) then
+       do k=1,npz
+          do j=jsd,jed
+             do i=Atm%npx,ied
+#ifdef USE_NWAT3
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
+#else
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
+                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
+#endif
+             end do
+          end do
+       end do
+    end if
+
+    if (je == Atm%npy-1) then
+       if (is == 1) then
+          istart = is
+       else
+          istart = isd
+       end if
+       if (ie == Atm%npx-1) then
+          iend = ie
+       else
+          iend = ied
+       end if
+
+       do k=1,npz
+          do j=Atm%npy,jed
+             do i=istart,iend
+#ifdef USE_NWAT3
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
+#else
+                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
+                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
+#endif
+             end do
+          end do
+       end do
+    end if
+
+#endif
     end if !process
 
     deallocate(pt_coarse)
@@ -759,6 +869,72 @@ contains
 
   end subroutine setup_nested_boundary_halo
 
+  subroutine fill_nested_grid_topo_halo(Atm, proc_in)
+
+    type(fv_atmos_type), intent(INOUT) :: Atm
+    logical, intent(IN), OPTIONAL :: proc_in
+    integer :: isg, ieg, jsg, jeg
+
+    if (.not. Atm%neststruct%nested) return
+
+    call mpp_get_global_domain( Atm%parent_grid%domain, &
+         isg, ieg, jsg, jeg)
+
+    if (is_master()) print*, '  FILLING NESTED GRID HALO WITH INTERPOLATED TERRAIN'
+    call nested_grid_BC(Atm%phis, Atm%parent_grid%phis, Atm%neststruct%nest_domain, &
+         Atm%neststruct%ind_h, Atm%neststruct%wt_h, 0, 0, &
+         Atm%npx, Atm%npy, Atm%bd, isg, ieg, jsg, jeg, proc_in=proc_in)
+    
+  end subroutine fill_nested_grid_topo_halo
+
+  subroutine fill_nested_grid_topo(Atm) 
+
+    type(fv_atmos_type), intent(INOUT) :: Atm
+    real, allocatable :: g_dat(:,:,:)
+    integer :: p, sending_proc
+    integer :: isd_p, ied_p, jsd_p, jed_p
+    integer :: isg, ieg, jsg,jeg
+
+    if (.not. Atm%neststruct%nested) return
+
+    call mpp_get_global_domain( Atm%parent_grid%domain, &
+         isg, ieg, jsg, jeg)
+    call mpp_get_data_domain( Atm%parent_grid%domain, &
+         isd_p,  ied_p,  jsd_p,  jed_p  )
+
+    allocate(g_dat( isg:ieg, jsg:jeg, 1) )
+    call timing_on('COMM_TOTAL')
+
+    !!! FIXME: For whatever reason this code CRASHES if the lower-left corner
+    !!!        of the nested grid lies within the first PE of a grid tile.
+
+    sending_proc = Atm%parent_grid%pelist(1) + (Atm%neststruct%parent_tile-1)*Atm%parent_grid%npes_per_tile
+    if (Atm%neststruct%parent_proc .and. Atm%neststruct%parent_tile == Atm%parent_grid%tile) then
+       call mpp_global_field( &
+            Atm%parent_grid%domain, &
+            Atm%parent_grid%phis(isd_p:ied_p,jsd_p:jed_p), g_dat(isg:,jsg:,1), position=CENTER)
+       if (mpp_pe() == sending_proc) then 
+          do p=1,size(Atm%pelist)
+             call mpp_send(g_dat,size(g_dat),Atm%pelist(p))
+          enddo
+       endif
+    endif
+
+    if (ANY(Atm%pelist == mpp_pe())) then
+       call mpp_recv(g_dat, size(g_dat), sending_proc)
+    endif
+
+    call timing_off('COMM_TOTAL')
+    call fill_nested_grid(Atm%phis, g_dat(isg:,jsg:,1), &
+         Atm%neststruct%ind_h, Atm%neststruct%wt_h, &
+         0, 0,  isg, ieg, jsg, jeg, Atm%bd)
+
+    call mpp_sync_self
+
+    deallocate(g_dat)
+
+
+  end subroutine fill_nested_grid_topo
 
   subroutine fill_nested_grid_data(Atm, proc_in)
 
@@ -819,15 +995,6 @@ contains
        enddo
 
        call mpp_update_domains( Atm(1)%gridstruct%f0, Atm(1)%domain )
-
-    endif
-    if (test_case == 11 .or. test_case == -999) then
-       if (is_master()) print*, '  FILLING NESTED GRID HALO WITH INTERPOLATED TERRAIN'
-       !!! NOTE: If the model hangs here it could be because external_ic = .F. but no restart files have been provided
-                call nested_grid_BC(Atm(1)%phis, Atm(1)%parent_grid%phis, Atm(1)%neststruct%nest_domain, &
-                     Atm(1)%neststruct%ind_h, Atm(1)%neststruct%wt_h, 0, 0, &
-                     Atm(1)%npx, Atm(1)%npy, Atm(1)%bd, isg, ieg, jsg, jeg, proc_in=process)
-
 
     endif
 
@@ -1191,13 +1358,16 @@ contains
 
     !NOW: what we do is to update the nested-grid terrain to the coarse grid,
     !to ensure consistency between the two grids.
+    if ( process ) call mpp_update_domains(Atm%phis, Atm%domain, complete=.true.)
     if (Atm%neststruct%twowaynest) then
        if (ANY(Atm%parent_grid%pelist == mpp_pe()) .or. Atm%neststruct%child_proc) then
           call update_coarse_grid(Atm%parent_grid%phis, &
                Atm%phis, Atm%neststruct%nest_domain, &
                Atm%neststruct%ind_update_h(isd_p:ied_p+1,jsd_p:jed_p+1,:), &
                Atm%gridstruct%dx, Atm%gridstruct%dy, Atm%gridstruct%area, &
-               isd_p, ied_p, jsd_p, jed_p, isd, ied, jsd, jed, Atm%npx, Atm%npy, 0, 0, &
+               isd_p, ied_p, jsd_p, jed_p, isd, ied, jsd, jed, &
+               Atm%neststruct%isu, Atm%neststruct%ieu, Atm%neststruct%jsu, Atm%neststruct%jeu, &
+               Atm%npx, Atm%npy, 0, 0, &
                Atm%neststruct%refinement, Atm%neststruct%nestupdate, 0, 0, &
                Atm%neststruct%parent_proc, Atm%neststruct%child_proc, Atm%parent_grid)
           Atm%parent_grid%neststruct%parent_of_twoway = .true.
@@ -1244,14 +1414,15 @@ contains
   ! <DESCRIPTION>
   !  Write out restart files registered through register_restart_file
   ! </DESCRIPTION>
-  subroutine fv_write_restart(Atm, timestamp)
+  subroutine fv_write_restart(Atm, grids_on_this_pe, timestamp)
     type(fv_atmos_type), intent(inout) :: Atm(:)
     character(len=*),    intent(in)    :: timestamp
-    integer :: n
+    logical, intent(IN) :: grids_on_this_pe(:)
+    integer n
 
+    call fv_io_write_restart(Atm, grids_on_this_pe, timestamp)
     do n=1,size(Atm)
-       call fv_io_write_restart(Atm(n:n), timestamp)
-       if (Atm(n)%neststruct%nested) then
+       if (Atm(n)%neststruct%nested .and. grids_on_this_pe(n)) then
           call fv_io_write_BCs(Atm(n))
        endif
     enddo
@@ -1347,8 +1518,11 @@ contains
 !     if (use_ncep_sst .or. Atm(1)%flagstruct%nudge) call fv_io_register_nudge_restart(Atm)
 
 
-      call fv_io_write_restart(Atm(n:n))
-      if (Atm(n)%neststruct%nested) call fv_io_write_BCs(Atm(n))
+   enddo
+
+   call fv_io_write_restart(Atm, grids_on_this_pe)
+   do n=1,ntileMe
+      if (Atm(n)%neststruct%nested .and. grids_on_this_pe(n)) call fv_io_write_BCs(Atm(n))
     end do
 
     module_is_initialized = .FALSE.
@@ -1372,7 +1546,11 @@ contains
   end subroutine fv_restart_end
   ! </SUBROUTINE> NAME="fv_restart_end"
 
- subroutine d2c_setup(u, v, uc, vc, dord4, &
+ subroutine d2c_setup(u, v, &
+#ifdef DIVG_BC
+      ua, va, &
+#endif
+	  uc, vc, dord4, &
       isd,ied,jsd,jed, is,ie,js,je, npx,npy, &
       grid_type, nested, &
       se_corner, sw_corner, ne_corner, nw_corner, &
@@ -1381,6 +1559,10 @@ contains
   logical, intent(in):: dord4
   real, intent(in) ::  u(isd:ied,jsd:jed+1)
   real, intent(in) ::  v(isd:ied+1,jsd:jed)
+#ifdef DIVG_BC
+  real, intent(out), dimension(isd:ied  ,jsd:jed  ):: ua
+  real, intent(out), dimension(isd:ied  ,jsd:jed  ):: va
+#endif
   real, intent(out), dimension(isd:ied+1,jsd:jed  ):: uc
   real, intent(out), dimension(isd:ied  ,jsd:jed+1):: vc
   integer, intent(in) :: isd,ied,jsd,jed, is,ie,js,je, npx,npy,grid_type
@@ -1437,6 +1619,14 @@ contains
         vtmp(i,j) = 0.5*(v(i,j)+v(i+1,j))
      enddo
 
+#ifdef DIVG_BC
+     do j=jsd,jed
+        do i=isd,ied
+           ua(i,j) = (utmp(i,j)-vtmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
+           va(i,j) = (vtmp(i,j)-utmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
+        enddo
+     enddo
+#endif
   else
 
      !----------
@@ -1496,6 +1686,14 @@ contains
         endif
 
      endif
+#ifdef DIVG_BC
+     do j=js-1-id,je+1+id
+        do i=is-1-id,ie+1+id
+           ua(i,j) = (utmp(i,j)-vtmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
+           va(i,j) = (vtmp(i,j)-utmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
+        enddo
+     enddo
+#endif
 
   end if
 

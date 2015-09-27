@@ -419,7 +419,7 @@ contains
   subroutine atmosphere_restart(timestamp)
     character(len=*),  intent(in) :: timestamp
 
-    call fv_write_restart(Atm, timestamp)
+    call fv_write_restart(Atm, grids_on_this_pe, timestamp)
 
   end subroutine atmosphere_restart
   ! </SUBROUTINE>
@@ -928,44 +928,48 @@ contains
        ix = ix + 1
        !  surface pressure
        Statein(nb)%pgr(ix) = Atm(mytile)%ps(i,j)
-       !  level pressure
-       Statein(nb)%prsi(ix,1:npz+1) = Atm(mytile)%pe(i,npz+1:1:-1,j)
-       !  layer temp, u, & v
-       Statein(nb)%tgrs(ix,1:npz) = Atm(mytile)%pt(i,j,npz:1:-1)
-       Statein(nb)%ugrs(ix,1:npz) = Atm(mytile)%ua(i,j,npz:1:-1)
-       Statein(nb)%vgrs(ix,1:npz) = Atm(mytile)%va(i,j,npz:1:-1)
-       !  exner function pressure level/layer
-       Statein(nb)%prsik(ix,1:npz+1) = Atm(mytile)%pk (i,j,npz+1:1:-1)*pk0inv     ! level exner func pres
-       Statein(nb)%prslk(ix,1:npz  ) = Atm(mytile)%pkz(i,j,npz  :1:-1)*pk0inv    ! layer exner func pres 
-       !  layer vertical pressure velocity
-       Statein(nb)%vvl(ix,1:npz) = Atm(mytile)%omga(i,j,npz:1:-1)
-       !  layer tracers:  sphum, advected, non-advected
-       Statein(nb)%qgrs_rad(ix,1:npz)    = Atm(mytile)%q(i,j,npz:1:-1,sphum)
-       Statein(nb)%tracer(ix,1:npz,1:nq) = Atm(mytile)%q(i,j,npz:1:-1,:)
-       Statein(nb)%tracer(ix,1:npz,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz:1:-1,:)
        !-- level geopotential height
-!
-!RAB
-!RAB --- this is a tempporary fix to an issue where lakes/black sea can have geopotential .lt. 0
-!RAB --- negative geopotential causes issues in GFS physics sfc_diff - log(phil) 
-!RAB --- waiting on a fix from Laura Fowler/Michael Duda
-       Statein(nb)%phii(ix,1) = max(Atm(mytile)%phis(i,j),0.0)
-!RAB
+       !--- GFS physics assumes geopotential in a column is always zero at
+       !--- the surface and only the difference between layers is important.
+       Statein(nb)%phii(ix,1) = 0.0
 !
        do k = 1, npz
-         Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz-k+1)
+         !  level pressure
+         Statein(nb)%prsi(ix,k)  = Atm(mytile)%pe(i,npz+2-k,j)
+         !  exner function pressure
+         Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
+         Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,npz+1-k)*pk0inv   ! layer
+         !  layer temp, u, & v
+         Statein(nb)%tgrs(ix,k)  = Atm(mytile)%pt(i,j,npz+1-k)
+         Statein(nb)%ugrs(ix,k)  = Atm(mytile)%ua(i,j,npz+1-k)
+         Statein(nb)%vgrs(ix,k)  = Atm(mytile)%va(i,j,npz+1-k)
+         !  layer vertical pressure velocity
+         Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,npz+1-k)
+         !  layer tracers:  sphum, advected, non-advected
+         Statein(nb)%qgrs_rad(ix,k)    = Atm(mytile)%q(i,j,npz+1-k,sphum)
+         Statein(nb)%tracer(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,:)
+         Statein(nb)%tracer(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,:)
+         !-- level geopotential height
+         Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
        enddo
+
+       !  level pressure
+       Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
+       !  level exner function pressure
+       Statein(nb)%prsik(ix,npz+1) = Atm(mytile)%pk(i,j,1)*pk0inv
       enddo
      enddo
 
-     !  layer pressure
-     Statein(nb)%prsl(:,1:npz) = 0.5_kind_phys*(Statein(nb)%prsi(:,1:npz) + Statein(nb)%prsi(:,2:npz+1))
-     !  layer geopotential height
-     if (Atm(mytile)%flagstruct%gfs_phil) then
-       Statein(nb)%phil(:,1:npz) = 0.0
-     else
-       Statein(nb)%phil(:,1:npz) = 0.5_kind_phys*(Statein(nb)%phii(:,1:npz) + Statein(nb)%phii(:,2:npz+1))
-     endif
+     do k = 1, npz
+       !  layer pressure
+       Statein(nb)%prsl(:,k) = 0.5_kind_phys*(Statein(nb)%prsi(:,k) + Statein(nb)%prsi(:,k+1))
+       !  layer geopotential height
+       if (Atm(mytile)%flagstruct%gfs_phil) then
+         Statein(nb)%phil(:,k) = 0.0
+       else
+         Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
+       endif
+     enddo
      !  reset this parameter to 1 just to be safe
      Statein(nb)%adjtrc = 1.0_kind_phys
      !  set the physics version of qgrs which is the same as tracer if separate arrays are needed

@@ -2026,7 +2026,7 @@ end function register_restart_field_i3d_2level
 !-------------------------------------------------------------------------------
 function register_restart_region_r2d (fileObj, filename, fieldname, data, indices, global_size, &
                                       pelist, is_root_pe, longname, units, position, &
-                                      x_halo, y_halo, ishift, jshift, read_only)
+                                      x_halo, y_halo, ishift, jshift, read_only, mandatory)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   real,       dimension(:,:), intent(in), target :: data
@@ -2035,6 +2035,7 @@ function register_restart_region_r2d (fileObj, filename, fieldname, data, indice
   character(len=*), optional, intent(in)         :: longname, units
   integer,          optional, intent(in)         :: position, x_halo, y_halo, ishift, jshift
   logical,          optional, intent(in)         :: read_only
+  logical,          optional, intent(in)         :: mandatory
   integer :: index_field, l_position
   integer :: register_restart_region_r2d
 
@@ -2044,7 +2045,7 @@ function register_restart_region_r2d (fileObj, filename, fieldname, data, indice
   l_position = CENTER
   if (present(position)) l_position = position
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), 1, 1/), &
-                       index_field, no_domain=.true., position=l_position, longname=longname, units=units, &
+                       index_field, mandatory=mandatory, no_domain=.true., position=l_position, longname=longname, units=units, &
                        read_only=read_only)
   fileObj%p2dr(fileObj%var(index_field)%siz(4), index_field)%p => data
   fileObj%var(index_field)%ndim = 2
@@ -2080,7 +2081,7 @@ end function register_restart_region_r2d
 !-------------------------------------------------------------------------------
 function register_restart_region_r3d (fileObj, filename, fieldname, data, indices, global_size, &
                                       pelist, is_root_pe, longname, units, position, &
-                                      x_halo, y_halo, ishift, jshift, read_only)
+                                      x_halo, y_halo, ishift, jshift, read_only, mandatory)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   real,     dimension(:,:,:), intent(in), target :: data
@@ -2089,6 +2090,7 @@ function register_restart_region_r3d (fileObj, filename, fieldname, data, indice
   character(len=*), optional, intent(in)         :: longname, units
   logical,          optional, intent(in)         :: read_only
   integer,          optional, intent(in)         :: position, x_halo, y_halo, ishift, jshift
+  logical,          optional, intent(in)         :: mandatory
   integer :: index_field, l_position
   integer :: register_restart_region_r3d
 
@@ -2098,7 +2100,7 @@ function register_restart_region_r3d (fileObj, filename, fieldname, data, indice
   l_position = CENTER
   if (present(position)) l_position = position
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), size(data,3), 1/), &
-                       index_field, no_domain=.true., position=l_position, longname=longname, units=units, &
+                       index_field, mandatory=mandatory, no_domain=.true., position=l_position, longname=longname, units=units, &
                        read_only=read_only)
   fileObj%p3dr(fileObj%var(index_field)%siz(4), index_field)%p => data
   fileObj%var(index_field)%ndim = 3

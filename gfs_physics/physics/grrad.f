@@ -230,6 +230,7 @@
 
 !  ---  optional extra top layer on top of low ceiling models
 !     integer, parameter :: LTP = 0   ! no extra top layer
+!GFDL needs an extra top layer to account for the near infinite upper layer
       integer, parameter :: LTP = 1   ! add an extra top layer
       logical, parameter :: lextop = (LTP > 0)
 

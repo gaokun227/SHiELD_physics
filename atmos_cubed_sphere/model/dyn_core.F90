@@ -20,11 +20,11 @@ module dyn_core_mod
 #if defined (ADA_NUDGE)
   use fv_ada_nudge_mod,   only: breed_slp_inline_ada
 #else
-  use fv_nwp_nudge_mod,   only: breed_slp_inline
+  use fv_nwp_nudge_mod,   only: breed_slp_inline, do_adiabatic_init
 #endif
   use diag_manager_mod,   only: send_data
   use fv_arrays_mod,      only: fv_grid_type, fv_flags_type, fv_nest_type, fv_diag_type, fv_grid_bounds_type
-  use fv_arrays_mod,      only: R_GRID
+  use constants_mod,      only: R_GRID
 
   use boundary_mod,         only: extrapolation_BC,  nested_grid_BC_apply_intT
 
@@ -35,7 +35,7 @@ module dyn_core_mod
 implicit none
 private
 
-public :: dyn_core, del2_cubed
+public :: dyn_core, del2_cubed, init_ijk_mem
 
   real :: ptk, peln1, rgrav
   real :: d3_damp
@@ -76,7 +76,7 @@ contains
     real, intent(inout), dimension(bd%isd:bd%ied  ,bd%jsd:bd%jed+1,npz):: u  ! D grid zonal wind (m/s)
     real, intent(inout), dimension(bd%isd:bd%ied+1,bd%jsd:bd%jed  ,npz):: v  ! D grid meridional wind (m/s)
     real, intent(inout) :: w(   bd%isd:,bd%jsd:,1:)  ! vertical vel. (m/s)
-    real, intent(inout) ::  delz(bd%isd:,bd%jsd:,1:)  ! delta-height (m)
+    real, intent(inout) ::  delz(bd%isd:,bd%jsd:,1:)  ! delta-height (m, negative)
     real, intent(inout) :: cappa(bd%isd:,bd%jsd:,1:) ! moist kappa
     real, intent(inout) :: pt(  bd%isd:bd%ied  ,bd%jsd:bd%jed  ,npz)  ! temperature (K)
     real, intent(inout) :: delp(bd%isd:bd%ied  ,bd%jsd:bd%jed  ,npz)  ! pressure thickness (pascal)
@@ -96,8 +96,7 @@ contains
 !-----------------------------------------------------------------------
 ! Others:
     real,    parameter:: near0 = 1.E-8
-    real,    parameter:: huge_r = 1.E20
-    real,    parameter:: air_viscosity = 1.E-5   ! [m**2/sec] for T ~ 260 K
+    real,    parameter:: huge_r = 1.E40
 !-----------------------------------------------------------------------
     real, intent(out  ):: ws(bd%is:bd%ie,bd%js:bd%je)        ! w at surface
     real, intent(inout):: omga(bd%isd:bd%ied,bd%jsd:bd%jed,npz)    ! Vertical pressure velocity (pa/s)
@@ -145,7 +144,7 @@ contains
 !---------------------------------------
     integer :: i,j,k, it, iq, n_con
     integer :: iep1, jep1
-    real    :: beta, beta_d, damp_k, damp_w, damp_t,  d_con_k
+    real    :: beta, beta_d, damp_k, damp_w, damp_t,  d_con_k, kgb
     real    :: dt, dt2, rdt
     real    :: d2_divg, d3_divg
     real    :: k1k, kapag, tmcp, cpm
@@ -284,8 +283,6 @@ contains
                                         call timing_on('COMM_TRACER')
          if ( flagstruct%inline_q ) then
                       call start_group_halo_update(i_pack(10), q, domain)
-         elseif ( it==n_split ) then
-                      call start_group_halo_update(i_pack(10), q, domain)
          endif
                                        call timing_off('COMM_TRACER')
                                    call timing_off('COMM_TOTAL')
@@ -297,6 +294,19 @@ contains
                              call timing_off('COMM_TOTAL')
 
       if ( it==1 ) then
+		if (gridstruct%nested) then
+!$OMP parallel do default(none) shared(isd,ied,jsd,jed,npz,gz,zs,delz)
+         do j=jsd,jed
+            do i=isd,ied
+               gz(i,j,npz+1) = zs(i,j)
+            enddo
+            do k=npz,1,-1
+               do i=isd,ied
+                  gz(i,j,k) = gz(i,j,k+1) - delz(i,j,k)
+               enddo
+            enddo
+         enddo
+		else
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,gz,zs,delz)
          do j=js,je
             do i=is,ie
@@ -308,6 +318,7 @@ contains
                enddo
             enddo
          enddo
+	    endif
                              call timing_on('COMM_TOTAL')
          call start_group_halo_update(i_pack(5), gz,  domain)
                              call timing_off('COMM_TOTAL')
@@ -324,7 +335,6 @@ contains
      if ( it==1 ) then
                                        call timing_on('COMM_TOTAL')
           call complete_group_halo_update(i_pack(1), domain)
-          call complete_group_halo_update(i_pack(2), domain)
                                       call timing_off('COMM_TOTAL')
           beta_d = 0.
      else
@@ -485,6 +495,15 @@ contains
             neststruct%uc_BC, bctype=neststruct%nestbctype )
 
        !QUESTION: What to do with divgd in nested halo?
+#ifdef DIVG_BC
+            call nested_grid_BC_apply_intT(divgd, &
+                 1, 1, npx, npy, npz, bd, split_timestep_bc, real(n_split*flagstruct%k_split), &
+            neststruct%divg_BC, bctype=neststruct%nestbctype )
+!!$            if (is == 1 .and. js == 1) then
+!!$               do j=jsd,5
+!!$                  write(mpp_pe()+2000,*) j, divg(isd:5,j,1)
+!!$            endif
+#endif
 
       end if
 
@@ -503,13 +522,14 @@ contains
 !$OMP                                  crx,cry,xfx,yfx,q_con,zvir,sphum,nq,q,dt,bd,rdt,iep1,jep1, &
 !$OMP                                  heat_source)                                               &
 !$OMP                          private(nord_k, nord_w, nord_t, damp_k, damp_w, damp_t, d2_divg,   &
-!$OMP                                  hord_m, hord_v, hord_t, hord_p, wk, heat_s, d_con_k, z_rat)
+!$OMP                          kgb, hord_m, hord_v, hord_t, hord_p, wk, heat_s, d_con_k, z_rat)
     do k=1,npz
        hord_m = flagstruct%hord_mt
        hord_t = flagstruct%hord_tm
        hord_v = flagstruct%hord_vt
        hord_p = flagstruct%hord_dp
        nord_k = flagstruct%nord
+          kgb = flagstruct%ke_bg
        nord_v(k) = min(2, flagstruct%nord)
        damp_k = flagstruct%dddmp
        d2_divg = min(0.20, flagstruct%d2_bg*(1.-3.*tanh(0.1*log(pfull(k)/pfull(npz)))))
@@ -536,7 +556,7 @@ contains
                    d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k1)
                    nord_v(k) = 0   ! for delp, delz, and vorticity, sponger layers
 #ifndef HIWPP
-                   damp_vt(k) = d2_divg
+                   damp_vt(k) = 0.5*d2_divg
 #endif
                    nord_w = 0
                    damp_w = d2_divg
@@ -546,7 +566,7 @@ contains
                    d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k2)
                    nord_v(k) = 0
 #ifndef HIWPP
-                   damp_vt(k) = d2_divg
+                   damp_vt(k) = 0.5*d2_divg
 #endif
                    nord_w = 0
                    damp_w = d2_divg
@@ -556,12 +576,12 @@ contains
                    d2_divg = max(flagstruct%d2_bg, 0.2*flagstruct%d2_bg_k2)
                    nord_v(k) = 0
 #ifndef HIWPP
-                   damp_vt(k) = d2_divg
+                   damp_vt(k) = 0.5*d2_divg
 #endif
                    nord_w = 0
                    damp_w = d2_divg
               endif
-            if ( damp_vt(k) < 0.01 .and. nord_k>0 ) d_con_k = 0.
+!           if ( damp_vt(k) < 0.01 .and. nord_k>0 ) d_con_k = 0.
        else
            if( k <= flagstruct%n_sponge .and. npz>16 ) then
 ! Apply first order scheme for damping the sponge layer
@@ -621,7 +641,7 @@ contains
 #else
                   q_con(isd:,jsd:,1),  z_rat(isd,jsd),  &
 #endif
-                  heat_s, zvir, sphum, nq,  q,  k,  npz, flagstruct%inline_q,  dt,  &
+                  kgb, heat_s, zvir, sphum, nq,  q,  k,  npz, flagstruct%inline_q,  dt,  &
                   flagstruct%hord_tr, hord_m, hord_v, hord_t, hord_p,    &
                   nord_k, nord_v(k), nord_w, nord_t, damp_k, d2_divg, flagstruct%d4_bg,  &
                   damp_vt(k), damp_w, damp_t, d_con_k, hydrostatic, gridstruct, flagstruct, bd)
@@ -657,8 +677,8 @@ contains
     if( flagstruct%fill_dp ) call mix_dp(hydrostatic, w, delp, pt, npz, ak, bk, .false., flagstruct%fv_debug, bd)
 
                                                              call timing_on('COMM_TOTAL')
-    call start_group_halo_update(i_pack(1), delp, domain)
-    call start_group_halo_update(i_pack(2), pt,   domain)
+    call start_group_halo_update(i_pack(1), delp, domain, complete=.false.)
+    call start_group_halo_update(i_pack(1), pt,   domain, complete=.true.)
 #ifdef USE_COND
     call start_group_halo_update(i_pack(11), q_con, domain)
 #endif
@@ -688,7 +708,6 @@ contains
 
                                        call timing_on('COMM_TOTAL')
      call complete_group_halo_update(i_pack(1), domain)
-     call complete_group_halo_update(i_pack(2), domain)
 #ifdef USE_COND
      call complete_group_halo_update(i_pack(11), domain)
 #endif
@@ -698,11 +717,8 @@ contains
          call prt_mxm('delz',  delz, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
     endif
 
-     if ( hydrostatic ) then
-          call geopk(ptop, pe, peln, delp, pkc, gz, phis, pt, q_con, pkz, npz, akap, .false., &
-                     gridstruct%nested, .true., npx, npy, flagstruct%a2b_ord, bd)
-          !Want to move this block into the hydro/nonhydro branch above and merge the two if structures
-          if (gridstruct%nested) then
+    !Want to move this block into the hydro/nonhydro branch above and merge the two if structures
+    if (gridstruct%nested) then
        call nested_grid_BC_apply_intT(delp, &
             0, 0, npx, npy, npz, bd, split_timestep_BC+1, real(n_split*flagstruct%k_split), &
             neststruct%delp_BC, bctype=neststruct%nestbctype )
@@ -713,11 +729,20 @@ contains
             0, 0, npx, npy, npz, bd, split_timestep_BC+1, real(n_split*flagstruct%k_split), &
             neststruct%pt_BC, bctype=neststruct%nestbctype  )
 
+#ifdef USE_COND
+       call nested_grid_BC_apply_intT(q_con, &
+            0, 0, npx, npy, npz, bd, split_timestep_BC+1, real(n_split*flagstruct%k_split), &
+            neststruct%q_con_BC, bctype=neststruct%nestbctype  )       
+#endif
+
 #endif
 
     end if
+     if ( hydrostatic ) then
+          call geopk(ptop, pe, peln, delp, pkc, gz, phis, pt, q_con, pkz, npz, akap, .false., &
+                     gridstruct%nested, .true., npx, npy, flagstruct%a2b_ord, bd)
+       else
 #ifndef SW_DYNAMICS
-     else
                                             call timing_on('UPDATE_DZ')
         call update_dz_d(nord_v, damp_vt, flagstruct%hord_tm, is, ie, js, je, npz, ng, npx, npy, gridstruct%area,  &
                          gridstruct%rarea, dp_ref, zs, zh, crx, cry, xfx, yfx, delz, ws, rdt, gridstruct, bd)
@@ -745,12 +770,14 @@ contains
                          flagstruct%use_logp, remap_step, beta<-0.1)
                                                          call timing_off('Riem_Solver')
                                        call timing_on('COMM_TOTAL')
-        call start_group_halo_update(i_pack(4), zh ,  domain)
         if ( gridstruct%square_domain ) then
+          call start_group_halo_update(i_pack(4), zh ,  domain)
           call start_group_halo_update(i_pack(5), pkc,  domain, whalo=2, ehalo=2, shalo=2, nhalo=2)
         else
-          call start_group_halo_update(i_pack(5), pkc,  domain)
+          call start_group_halo_update(i_pack(4), zh ,  domain, complete=.false.)
+          call start_group_halo_update(i_pack(4), pkc,  domain, complete=.true.)
         endif
+                                       call timing_off('COMM_TOTAL')
         if ( remap_step )  &
         call pe_halo(is, ie, js, je, isd, ied, jsd, jed, npz, ptop, pe, delp)
 
@@ -768,7 +795,9 @@ contains
           call nest_halo_nh(ptop, grav, akap, cp, delp, delz, pt, phis, pkc, gz, pk3, npx, npy, npz, gridstruct%nested, .true., .true., .true., bd)
 
        endif
+        call timing_on('COMM_TOTAL')
         call complete_group_halo_update(i_pack(4), domain)
+        call timing_off('COMM_TOTAL')
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,gz,zh,grav)
         do k=1,npz+1
            do j=js-2,je+2
@@ -777,8 +806,11 @@ contains
               enddo
            enddo
         enddo
+        if ( gridstruct%square_domain ) then
+           call timing_on('COMM_TOTAL')
         call complete_group_halo_update(i_pack(5), domain)
                                        call timing_off('COMM_TOTAL')
+	    endif
 #endif SW_DYNAMICS
      endif    ! end hydro check
 
@@ -870,8 +902,8 @@ contains
                                                      call timing_on('COMM_TOTAL')
     if( it==n_split .and. gridstruct%grid_type<4 .and. .not. gridstruct%nested) then
 ! Prevent accumulation of rounding errors at overlapped domain edges:
-          call mpp_get_boundary(u, v, domain, wbuffery=wbuffer, ebuffery=ebuffer,  &
-                            sbufferx=sbuffer, nbufferx=nbuffer, gridtype=DGRID_NE )
+       call mpp_get_boundary(u, v, domain, ebuffery=ebuffer,  &
+                             nbufferx=nbuffer, gridtype=DGRID_NE )
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,u,nbuffer,v,ebuffer)
           do k=1,npz
              do i=is,ie
@@ -968,6 +1000,13 @@ contains
 !-----------------------------------------------------
   enddo   ! time split loop
 !-----------------------------------------------------
+    if ( nq > 0 .and. .not. flagstruct%inline_q ) then
+       call timing_on('COMM_TOTAL')
+       call timing_on('COMM_TRACER')
+       call start_group_halo_update(i_pack(10), q, domain)
+       call timing_off('COMM_TRACER')
+       call timing_off('COMM_TOTAL')
+     endif
 
   if ( flagstruct%fv_debug ) then
        if(is_master()) write(*,*) 'End of n_split loop'
@@ -1838,6 +1877,7 @@ do 1000 j=jfirst,jlast
       dpmin = 0.01 * ( ak(k+1)-ak(k) + (bk(k+1)-bk(k))*1.E5 )
       do i=ifirst, ilast
          if(delp(i,j,k) < dpmin) then
+            if (fv_debug) write(*,*) 'Mix_dp: ', i, j, k, mpp_pe(), delp(i,j,k), pt(i,j,k)
             ! Remap from below and mix pt
             dp = dpmin - delp(i,j,k)
             pt(i,j,k) = (pt(i,j,k)*delp(i,j,k) + pt(i,j,k+1)*dp) / dpmin
@@ -1853,6 +1893,7 @@ do 1000 j=jfirst,jlast
    dpmin = 0.01 * ( ak(km+1)-ak(km) + (bk(km+1)-bk(km))*1.E5 )
    do i=ifirst, ilast
       if(delp(i,j,km) < dpmin) then
+         if (fv_debug) write(*,*) 'Mix_dp: ', i, j, km, mpp_pe(), delp(i,j,km), pt(i,j,km)
          ! Remap from above and mix pt
          dp = dpmin - delp(i,j,km)
          pt(i,j,km) = (pt(i,j,km)*delp(i,j,km) + pt(i,j,km-1)*dp)/dpmin

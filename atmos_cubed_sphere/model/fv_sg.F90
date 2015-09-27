@@ -23,8 +23,7 @@ public  fv_dry_conv, qsmith, neg_adj3
    real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
 
 
-  real, parameter:: dc_vap0 =  cp_vapor - c_liq   ! = -2368.
-  real, parameter:: dc_vap1 =  cv_vap - c_liq
+  real, parameter:: dc_vap =  cp_vapor - c_liq   ! = -2368.
   real, parameter:: dc_ice =  c_liq - c_ice      ! = 2112.
   real, parameter:: hlv0 = 2.501e6   ! Emanual Appendix-2
   real, parameter:: hlf0 = 3.337e5   ! Emanual
@@ -34,8 +33,7 @@ public  fv_dry_conv, qsmith, neg_adj3
   real, parameter:: t1_min = 188.
   real, parameter:: t2_min = 165.
   real, parameter:: t3_max = 322.
-  real, parameter:: Lv0 =  hlv0 - dc_vap0*t_ice   ! = 3.147782e6
-  real, parameter:: Lv1 =  hlv0 - dc_vap1*t_ice
+  real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.147782e6
   real, parameter:: Li0 =  hlf0 - dc_ice*t_ice   ! = -2.431928e5 
 
   real, parameter:: zvir =  rvgas/rdgas - 1.     ! = 0.607789855
@@ -101,9 +99,7 @@ contains
          rz = rvgas - rdgas          ! rz = zvir * rdgas
       endif
       sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-      if ( nwat == 2 ) then
-         liq_wat = get_tracer_index (MODEL_ATMOS, 'clwmr')
-      elseif ( nwat > 2 ) then
+      if ( nwat > 2 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
          ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
          cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
@@ -125,7 +121,7 @@ contains
 !$OMP parallel do default(none) shared(im,is,ie,js,je,nq,km,qa,ta,sphum,ua,va,delp,peln,     &
 !$OMP                                  hydrostatic,pe,delz,g2,w,liq_wat,rainwat,ice_wat,  &
 !$OMP                                  snowwat,cv_air,m,graupel,pkz,rk,rz,fra,cld_amt,    &
-!$OMP                                  u_dt,rdt,v_dt,t_dt,q_dt,xvir,nwat)                 &
+!$OMP                                  u_dt,rdt,v_dt,xvir,nwat)                 &
 !$OMP                          private(kk,lcp2,icp2,tcp3,dh,dhs,dq,den,qs,qsw,dqsdt,qcon,q0, &
 !$OMP                                  t0,u0,v0,w0,h0,pm,gzh,tvm,tmp,cpm,cvm, q_liq,q_sol,&
 !$OMP                                  tv,gz,hd,te,ratio,pt1,pt2,tv1,tv2,ri_ref, ri,mc,km1)
@@ -175,12 +171,6 @@ contains
              cpm(i) = (1.-q0(i,k,sphum))*cp_air + q0(i,k,sphum)*cp_vapor
              cvm(i) = (1.-q0(i,k,sphum))*cv_air + q0(i,k,sphum)*cv_vap
           enddo
-       elseif ( nwat==2 ) then
-          do i=is,ie
-             q_liq = q0(i,k,liq_wat) 
-             cpm(i) = (1.-(q0(i,k,sphum)+q_liq))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq
-             cvm(i) = (1.-(q0(i,k,sphum)+q_liq))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq
-          enddo
        elseif ( nwat==3 ) then
           do i=is,ie
              q_liq = q0(i,k,liq_wat) 
@@ -213,7 +203,7 @@ contains
      if ( m==3 ) then
         if ( n==1) ratio = 0.25
         if ( n==2) ratio = 0.5
-        if ( n==3) ratio = 1.
+        if ( n==3) ratio = 0.999
      else
       ratio = real(n)/real(m)
      endif
@@ -340,12 +330,6 @@ contains
                cpm(i) = (1.-q0(i,kk,sphum))*cp_air + q0(i,kk,sphum)*cp_vapor
                cvm(i) = (1.-q0(i,kk,sphum))*cv_air + q0(i,kk,sphum)*cv_vap
             enddo
-           elseif ( nwat == 2 ) then
-            do i=is,ie
-               q_liq = q0(i,kk,liq_wat)
-               cpm(i) = (1.-(q0(i,kk,sphum)+q_liq))*cp_air + q0(i,kk,sphum)*cp_vapor + q_liq*c_liq
-               cvm(i) = (1.-(q0(i,kk,sphum)+q_liq))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq
-            enddo
            elseif ( nwat == 3 ) then
             do i=is,ie
                q_liq = q0(i,kk,liq_wat)
@@ -402,6 +386,7 @@ contains
 !----------------------
 ! Saturation adjustment
 !----------------------
+#ifndef HIWPP
   if ( nwat > 5 ) then
     do k=1, km
       if ( hydrostatic ) then
@@ -420,7 +405,7 @@ contains
            q_liq = q0(i,k,liq_wat) + q0(i,k,rainwat)
            q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat)
            cvm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cv_air + q0(i,k,sphum)*cv_vap + q_liq*c_liq + q_sol*c_ice
-           lcp2(i) = (Lv1+dc_vap1*t0(i,k)) / cvm(i)
+           lcp2(i) = (Lv0+dc_vap*t0(i,k)) / cvm(i)
            icp2(i) = (Li0+dc_ice*t0(i,k)) / cvm(i)
         enddo
       endif
@@ -449,22 +434,18 @@ contains
        enddo
     enddo
   endif
+#endif
 
    do k=1,km
       do i=is,ie
          u_dt(i,j,k) = rdt*(u0(i,k) - ua(i,j,k))
          v_dt(i,j,k) = rdt*(v0(i,k) - va(i,j,k))
-         t_dt(i,j,k) = 0.
            ta(i,j,k) = t0(i,k)   ! *** temperature updated ***
       enddo
       do iq=1,nq
-         if (iq .eq. cld_amt ) then
+         if (iq .ne. cld_amt ) then
             do i=is,ie
-               q_dt(i,j,k,iq) = 0.
-            enddo
-         else
-            do i=is,ie
-               q_dt(i,j,k,iq) = rdt*(q0(i,k,iq)-qa(i,j,k,iq))
+               qa(i,j,k,iq) = q0(i,k,iq)
             enddo
          endif 
       enddo
@@ -706,7 +687,7 @@ real, dimension(is:ie,js:je):: pt2, qv2, ql2, qi2, qs2, qr2, qg2, dp2, p2, icpk,
              q_liq = max(0., ql2(i,j) + qr2(i,j))
              q_sol = max(0., qi2(i,j) + qs2(i,j))
              cpm = (1.-(qv2(i,j)+q_liq+q_sol))*cv_air + qv2(i,j)*cv_vap + q_liq*c_liq + q_sol*c_ice
-             lcpk(i,j) = (Lv1+dc_vap1*pt2(i,j)) / cpm
+             lcpk(i,j) = (Lv0+dc_vap*pt2(i,j)) / cpm
              icpk(i,j) = (Li0+dc_ice*pt2(i,j)) / cpm
           enddo
        enddo

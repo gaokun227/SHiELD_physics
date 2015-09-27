@@ -560,7 +560,12 @@ module gfs_physics_driver_mod
       Dyn_parms(nb)%nnp      = Dyn_parms(nb)%nnp + 1
 !--- set the current forecast hour
       Dyn_parms(nb)%fhour    = fhour
-      Dyn_parms(nb)%jdate(:) = jdate(:)
+      Dyn_parms(nb)%jdate(1) = jdate(1)
+      Dyn_parms(nb)%jdate(2) = jdate(2)
+      Dyn_parms(nb)%jdate(3) = jdate(3)
+      Dyn_parms(nb)%jdate(5) = jdate(5)
+      Dyn_parms(nb)%jdate(6) = jdate(6)
+      Dyn_parms(nb)%jdate(7) = jdate(7)
 !--- set the solhr
       Dyn_parms(nb)%solhr    = real(jdate(5))
 !--- radiation triggers

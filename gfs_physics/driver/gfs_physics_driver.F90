@@ -284,11 +284,12 @@ module gfs_physics_driver_mod
 !--- later in this subroutine have already been initialized ---
     call fms_init
 
+    jdate = 0 
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
                          jdate(5), jdate(6), jdate(7))
     idate(4) = jdate(1)
-    idate(3) = jdate(2)
-    idate(2) = jdate(3)
+    idate(2) = jdate(2)
+    idate(3) = jdate(3)
     idate(1) = jdate(5)
 
 !--- read namelist  ---

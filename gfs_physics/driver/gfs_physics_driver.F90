@@ -315,7 +315,7 @@ module gfs_physics_driver_mod
 #endif
 
 !--- check to see if ozone calculation is being utilized and set ntoz appropriately
-    if (.not ozcalc) then
+    if (.not. ozcalc) then
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
       ntoz = -99
     else

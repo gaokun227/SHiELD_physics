@@ -550,6 +550,7 @@ module gfs_physics_driver_mod
     call get_time(Time_next - Time_init, sec)
     fhour = real(sec)/3600.
 
+
 !--- may need this to repopulate sfc properties for AMIP runs
 !    call sfc_populate (Sfc_props)
 
@@ -622,6 +623,8 @@ module gfs_physics_driver_mod
                         O3dat(nb)%ddy)
       endif
     enddo
+
+    if (mpp_pe() == mpp_root_pe()) write(6,*) ' starting timestep ',Dyn_parms(1)%kdt,', fhour ',fhour
 
   end subroutine phys_rad_setup_step
 

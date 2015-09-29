@@ -453,7 +453,7 @@ contains
       do j=jsd,jed
       do i=isd,0
 #ifdef USE_NWAT3
-         q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q(ice_wat)%west_t1(i,j,k)
+         q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q_BC(ice_wat)%west_t1(i,j,k)
 #else
          q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q_BC(ice_wat)%west_t1(i,j,k) + &
               q_BC(rainwat)%west_t1(i,j,k) + q_BC(snowwat)%west_t1(i,j,k) + q_BC(graupel)%west_t1(i,j,k)
@@ -479,7 +479,7 @@ contains
       do j=jsd,0
       do i=istart,iend
 #ifdef USE_NWAT3
-         q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q(ice_wat)%south_t1(i,j,k)
+         q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q_BC(ice_wat)%south_t1(i,j,k)
 #else
          q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q_BC(ice_wat)%south_t1(i,j,k) + &
               q_BC(rainwat)%south_t1(i,j,k) + q_BC(snowwat)%south_t1(i,j,k) + q_BC(graupel)%south_t1(i,j,k)
@@ -495,7 +495,7 @@ contains
       do j=jsd,jed
       do i=npx,ied
 #ifdef USE_NWAT3
-         q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q(ice_wat)%east_t1(i,j,k)
+         q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q_BC(ice_wat)%east_t1(i,j,k)
 #else
          q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q_BC(ice_wat)%east_t1(i,j,k) + &
               q_BC(rainwat)%east_t1(i,j,k) + q_BC(snowwat)%east_t1(i,j,k) + q_BC(graupel)%east_t1(i,j,k)
@@ -521,7 +521,7 @@ contains
       do j=npy,jed
       do i=istart,iend
 #ifdef USE_NWAT3
-         q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q(ice_wat)%north_t1(i,j,k)
+         q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q_BC(ice_wat)%north_t1(i,j,k)
 #else
          q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q_BC(ice_wat)%north_t1(i,j,k) + &
               q_BC(rainwat)%north_t1(i,j,k) + q_BC(snowwat)%north_t1(i,j,k) + q_BC(graupel)%north_t1(i,j,k)

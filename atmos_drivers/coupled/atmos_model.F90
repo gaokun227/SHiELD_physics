@@ -153,7 +153,8 @@ character(len=80) :: restart_format = 'atmos_coupled_mod restart format 01'
 logical :: do_netcdf_restart = .true.
 integer :: nxblocks = 1
 integer :: nyblocks = 1
-namelist /atmos_model_nml/ nxblocks, nyblocks, do_netcdf_restart
+logical :: surface_debug = .false.
+namelist /atmos_model_nml/ nxblocks, nyblocks, do_netcdf_restart, surface_debug
 
 !--- concurrent and decoupled radiation and physics variables
 type (state_fields_in),  dimension(:), allocatable :: Statein
@@ -217,7 +218,7 @@ subroutine update_atmos_radiation_physics (Atmos)
     call atmos_phys_driver_statein (Statein, Atm_block)
     call mpp_clock_end(stateClock)
 
-    call check_data ('FV DYNAMICS')
+    if (surface_debug) call check_data ('FV DYNAMICS')
 
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "setup step"
     call mpp_clock_begin(setupClock)
@@ -230,7 +231,7 @@ subroutine update_atmos_radiation_physics (Atmos)
     call radiation_driver (Atmos%time, Time_next, Atm_block, Statein)
     call mpp_clock_end(radClock)
 
-!rab    call check_data ('RADIATION')
+    if (surface_debug) call check_data ('RADIATION')
 
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "physics driver"
 !--- execute the GFS atmospheric physics subcomponent (RRTM)
@@ -238,7 +239,7 @@ subroutine update_atmos_radiation_physics (Atmos)
     call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)
     call mpp_clock_end(physClock)
 
-!rab    call check_data ('PHYSICS')
+    if (surface_debug) call check_data ('PHYSICS')
 
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "end of radiation and physics step"
 !-----------------------------------------------------------------------
@@ -531,7 +532,7 @@ subroutine update_atmos_model_state (Atmos)
 
     call mpp_set_current_pelist(Atmos%pelist, no_sync=.TRUE.)
 
-    call check_data ('STATE UPDATE')
+    if (surface_debug) call check_data ('STATE UPDATE')
 
  end subroutine update_atmos_model_state
 ! </SUBROUTINE>

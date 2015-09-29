@@ -2642,46 +2642,36 @@
 
          call dbgprint("entering nuopc_rad_run")
 
+         if(mdl_parm%num_p3d == 4 .and. mdl_parm%npdf3d == 3) then
+           write(6,*) "need to handle this case as in gloopr"
+           stop
+         else
+           cld_prop%deltaq(:,:) = 0.0
+           cld_prop%cnvw(:,:)   = 0.0
+           cld_prop%cnvc(:,:)   = 0.0
+         endif
 
-!!  ---  inputs:
-!     &     ( prsi,prsl,prslk,tgrs,qgrs,tracer,vvl,slmsk,                &
-!     &       xlon,xlat,tsfc,snowd,sncovr,snoalb,zorl,hprim,             &
-!     &       alvsf,alnsf,alvwf,alnwf,facsf,facwf,fice,tisfc,            &
-!     &       sinlat,coslat,solhr,jdate,solcon,                          &
-!     &       cv,cvt,cvb,fcice,frain,rrime,flgmin,                       &
-!     &       icsdsw,icsdlw, ntcw,ncld,ntoz, NTRAC,NFXR,                 &
-!     &       dtlw,dtsw, lsswr,lslwr,lssav,                              &
-!     &       IX, IM, LM, me, lprnt, ipt, kdt, deltaq,sup,cnvw,cnvc,     &
-!!  ---  outputs:
-!     &       htrsw,topfsw,sfcfsw,dswcmp,uswcmp,sfalb,coszen,coszdg,     &
-!     &       htrlw,topflw,sfcflw,tsflw,semis,cldcov,                    &
-!!  ---  input/output:
-!     &       fluxr                                                      &
-!!! ---  optional outputs:
-!     &,      htrlw0,htrsw0,htrswb,htrlwb                                &
-!     &     )
-
-             call grrad(statein%prsi, statein%prsl, statein%prslk, statein%tgrs, statein%qgrs_rad,   &
-                        statein%tracer, statein%vvl, sfc_prop%slmsk, dyn_parm%xlon, dyn_parm%xlat,     &
-                        sfc_prop%tsfc, sfc_prop%snowd, sfc_prop%sncovr, sfc_prop%snoalb, sfc_prop%zorl,    &
-                        sfc_prop%hprim, sfc_prop%alvsf, sfc_prop%alnsf, sfc_prop%alvwf, sfc_prop%alnwf,    &
-                        sfc_prop%facsf, sfc_prop%facwf, sfc_prop%fice, sfc_prop%tisfc, dyn_parm%sinlat,    &
-                        dyn_parm%coslat, dyn_parm%solhr, dyn_parm%jdate, dyn_parm%solcon, cld_prop%cv,     &
-                        cld_prop%cvt, cld_prop%cvb, cld_prop%fcice, cld_prop%frain, cld_prop%rrime,        &
-                        cld_prop%flgmin, dyn_parm%icsdsw, dyn_parm%icsdlw,                                 &
-                        mdl_parm%ntcw-1, mdl_parm%ncld, mdl_parm%ntoz-1,  &
-                        mdl_parm%NTRAC, diags%NFXR, dyn_parm%dtlw, dyn_parm%dtsw,       &
-                        dyn_parm%lsswr, dyn_parm%lslwr, dyn_parm%lssav, mdl_parm%shoc_cld, &
-                        dyn_parm%IX, dyn_parm%IM,          &
-                        mdl_parm%levs, mdl_parm%me, dyn_parm%lprnt, dyn_parm%ipt, dyn_parm%kdt,              &
-                        cld_prop%deltaq, cld_prop%sup, cld_prop%cnvw, cld_prop%cnvc,                       &
+         call grrad(statein%prsi, statein%prsl, statein%prslk, statein%tgrs, statein%qgrs_rad,   &
+                    statein%tracer, statein%vvl, sfc_prop%slmsk, dyn_parm%xlon, dyn_parm%xlat,     &
+                    sfc_prop%tsfc, sfc_prop%snowd, sfc_prop%sncovr, sfc_prop%snoalb, sfc_prop%zorl,    &
+                    sfc_prop%hprim, sfc_prop%alvsf, sfc_prop%alnsf, sfc_prop%alvwf, sfc_prop%alnwf,    &
+                    sfc_prop%facsf, sfc_prop%facwf, sfc_prop%fice, sfc_prop%tisfc, dyn_parm%sinlat,    &
+                    dyn_parm%coslat, dyn_parm%solhr, dyn_parm%jdate, dyn_parm%solcon, cld_prop%cv,     &
+                    cld_prop%cvt, cld_prop%cvb, cld_prop%fcice, cld_prop%frain, cld_prop%rrime,        &
+                    cld_prop%flgmin, dyn_parm%icsdsw, dyn_parm%icsdlw,                                 &
+                    mdl_parm%ntcw-1, mdl_parm%ncld, mdl_parm%ntoz-1,  &
+                    mdl_parm%NTRAC, diags%NFXR, dyn_parm%dtlw, dyn_parm%dtsw,       &
+                    dyn_parm%lsswr, dyn_parm%lslwr, dyn_parm%lssav, mdl_parm%shoc_cld, &
+                    dyn_parm%IX, dyn_parm%IM,          &
+                    mdl_parm%levs, mdl_parm%me, dyn_parm%lprnt, dyn_parm%ipt, dyn_parm%kdt,              &
+                    cld_prop%deltaq, cld_prop%sup, cld_prop%cnvw, cld_prop%cnvc,                       &
 ! Outputs
-                        rad_tend%htrsw, diags%topfsw, intrfc_fld%sfcfsw, diags%dswcmp, diags%uswcmp,    &
-                        rad_tend%sfalb, &
-                        rad_tend%coszen, rad_tend%coszdg, rad_tend%htrlw, diags%topflw, intrfc_fld%sfcflw,&
-                        rad_tend%tsflw, rad_tend%semis, cld_prop%cldcov, &
+                    rad_tend%htrsw, diags%topfsw, intrfc_fld%sfcfsw, diags%dswcmp, diags%uswcmp,    &
+                    rad_tend%sfalb, &
+                    rad_tend%coszen, rad_tend%coszdg, rad_tend%htrlw, diags%topflw, intrfc_fld%sfcflw,&
+                    rad_tend%tsflw, rad_tend%semis, cld_prop%cldcov, &
 ! In/Out
-                        diags%fluxr)
+                    diags%fluxr)
 
          call dbgprint("leaving nuopc_rad_run")
 
@@ -2714,6 +2704,8 @@
          intr%sfcnsw(:) = intr%sfcfsw(:)%dnfxc - intr%sfcfsw(:)%upfxc
          intr%sfcdsw(:) = intr%sfcfsw(:)%dnfxc
          intr%sfcdlw(:) = intr%sfcflw(:)%dnfxc
+         rad%dtdtr(:,:) = 0.0
+         rad%rqtk(:)    = 0.0
 
          call gbphys ( dyn%im, dyn%ix, mdl%levs, mdl%lsoil, mdl%lsm, mdl%ntrac,  &
                  mdl%ncld, mdl%ntoz, mdl%ntcw, mdl%ntke, mdl%nmtvr, mdl%nrcm, mdl%levozp,  &

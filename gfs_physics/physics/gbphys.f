@@ -1817,13 +1817,17 @@
 !  --- ...  ozone physics
 
       if (ntoz > 0 .and. ntrac >= ntoz) then
-!GFDL! PT - turn off ozone in physics for NGGPS testing 8/25/2015
-!GFDL        if (me == 0 .and. kdt < 5) then
-!GFDL          print *, "OZONE TURNED OFF IN GBPHYS - ozphys not called"
-!GFDL        end if
+        if (me == 0 .and. kdt < 5) then
+          print *, "OZONE turned ON in gbphys - ozphys being called"
+        end if
         call ozphys(ix,im,levs,ko3,dtp,gq0(1,1,ntoz),gq0(1,1,ntoz)      &
      &,             gt0, poz, prsl, prdout, pl_coeff, del, ldiag3d      &
      &,             dq3dt(1,1,6), me)
+      else
+! PT - turn off ozone in physics for NGGPS testing 8/25/2015
+        if (me == 0 .and. kdt < 5) then
+          print *, "OZONE turned OFF in gbphys - ozphys not called"
+        end if
       endif
 
 !  --- ...  to side-step the ozone physics

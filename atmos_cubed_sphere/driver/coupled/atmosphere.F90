@@ -947,10 +947,16 @@ contains
          Statein(nb)%vgrs(ix,k)  = Atm(mytile)%va(i,j,npz+1-k)
          !  layer vertical pressure velocity
          Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,npz+1-k)
+!SJL
+!SJL IF WE ARE GOING TO USE TRACER LIMITING, IT SHOULD OCCUR BELOW
+!SJL
          !  layer tracers:  sphum, advected, non-advected
          Statein(nb)%qgrs_rad(ix,k)    = Atm(mytile)%q(i,j,npz+1-k,sphum)
          Statein(nb)%tracer(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,:)
          Statein(nb)%tracer(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,:)
+!SJL
+!SJL IF WE ARE GOING TO USE TRACER LIMITING, IT SHOULD OCCUR ABOVE
+!SJL
          !-- level geopotential height
          Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
        enddo

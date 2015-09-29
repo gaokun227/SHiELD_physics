@@ -44,6 +44,8 @@ module gfs_physics_driver_mod
   use mersenne_twister,   only: random_setseed, random_index, random_stat
   use physcons,           only: dxmax, dxmin, dxinv
   use ozne_def,           only: pl_pres, ozplin
+!--- variables needed for calculating 'sncovr'
+  use namelist_soilveg,   only: salp_data, snupx
 
 
 !-----------------------------------------------------------------------
@@ -134,9 +136,10 @@ module gfs_physics_driver_mod
     integer :: NFXR     = 39
     integer :: ncld     = 1
     integer :: ntcw     = 2
-    integer :: ntoz     = 3
+    integer :: ntoz     = 4
+    logical :: ozcalc   = .false.
     integer :: levs     = 63
-    integer :: levr     = 0
+    integer :: levr     = 63
     integer :: me           ! set by call to mpp_pe
     integer :: lsoil    = 4
     integer :: lsm      = 1      ! NOAH LSM
@@ -218,7 +221,8 @@ module gfs_physics_driver_mod
     logical :: debug = .false.
 
 !--- namelist ---
-   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw
+   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
+                              ozcalc
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -309,6 +313,14 @@ module gfs_physics_driver_mod
  10   call close_file (unit)
     endif
 #endif
+
+!--- check to see if ozone calculation is being utilized and set ntoz appropriately
+    if (.not ozcalc) then
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
+      ntoz = -99
+    else
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is being calculated'
+    endif
 
 !--- write version number and namelist to log file ---
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
@@ -729,7 +741,7 @@ module gfs_physics_driver_mod
   subroutine surface_props_input (Atm_block, GSM)
     type (block_control_type), intent(in) :: Atm_block
     logical, intent(in), optional :: GSM
-!   local variables
+!--- local variables
     integer :: i, j, ibs, ibe, jbs, jbe, nct
     integer :: nb, nx, ny, ngptc
     integer :: start(4), nread(4)
@@ -740,6 +752,9 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
     logical :: exists
     real :: tsmin, tsmax, timin, timax
+!--- local variables for sncovr calculation
+    real(kind=kind_phys) :: vegtyp, rsnow
+
 
     call get_mosaic_tile_file (fn_srf, fn_srf, .FALSE.)
     call get_mosaic_tile_file (fn_oro, fn_oro, .FALSE.)
@@ -928,6 +943,20 @@ module gfs_physics_driver_mod
 !--- snoalb
       var2(1:nx,1:ny) => Sfc_props(nb)%snoalb(1:ngptc)
       call read_data(fn_srf,'snoalb',var2,start,nread)
+!--- sncovr
+!--- code taken directly from read_fix.f
+      do i=1,ngptc
+        Sfc_props(nb)%sncovr(i) = 0.0
+        if (Sfc_props(nb)%slmsk(i) > 0.001 .AND. abs(Sfc_props(nb)%vtype(i)) >= 0.5 ) then
+          vegtyp = Sfc_props(nb)%vtype(i)
+          rsnow  = 0.001*Sfc_props(nb)%weasd(i)/snupx(vegtyp)
+          if (0.001*Sfc_props(nb)%weasd(i) < snupx(vegtyp)) then
+            Sfc_props(nb)%sncovr(i) = 1.0 - ( exp(-salp_data*rsnow) - rsnow*exp(-salp_data))
+          else
+            Sfc_props(nb)%sncovr(i) = 1.0
+          endif
+        endif
+      enddo
 !
 !--- 3D variables
       allocate(var3(1:nx,1:ny,1:Mdl_parms%lsoil))

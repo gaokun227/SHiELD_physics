@@ -77,6 +77,7 @@
 
        real(kind=kind_phys) :: zero      = 0.0_kind_phys
        real(kind=kind_phys) :: clear_val = 0.0_kind_phys
+!rab       real(kind=kind_phys) :: clear_val = -9.9999e80
        real(kind=kind_phys) :: rann_init = 0.6_kind_phys
 
        ! Derived Data Types
@@ -2709,6 +2710,10 @@
 
 
          if (mdl%me .eq. 1) call dbgprint("entering nuopc_phys_run")
+
+         intr%sfcnsw(:) = intr%sfcfsw(:)%dnfxc - intr%sfcfsw(:)%upfxc
+         intr%sfcdsw(:) = intr%sfcfsw(:)%dnfxc
+         intr%sfcdlw(:) = intr%sfcflw(:)%dnfxc
 
          call gbphys ( dyn%im, dyn%ix, mdl%levs, mdl%lsoil, mdl%lsm, mdl%ntrac,  &
                  mdl%ncld, mdl%ntoz, mdl%ntcw, mdl%ntke, mdl%nmtvr, mdl%nrcm, mdl%levozp,  &

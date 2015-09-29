@@ -710,10 +710,12 @@ contains
      do j=jbs,jbe
       do i=ibs,ibe
        ix = ix + 1
-       u_dt(i,j,npz:1:-1)   = (Stateout(nb)%gu0(ix,1:npz) - Statein(nb)%ugrs(ix,1:npz))/dt_atmos
-       v_dt(i,j,npz:1:-1)   = (Stateout(nb)%gv0(ix,1:npz) - Statein(nb)%vgrs(ix,1:npz))/dt_atmos
-       t_dt(i,j,npz:1:-1)   = (Stateout(nb)%gt0(ix,1:npz) - Statein(nb)%tgrs(ix,1:npz))/dt_atmos
-       q_dt(i,j,npz:1:-1,:) = (Stateout(nb)%gq0(ix,1:npz,1:nq) - Statein(nb)%qgrs(ix,1:npz,1:nq))/dt_atmos
+       do k = 1, npz
+         u_dt(i,j,npz+1-k)   = (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k))/dt_atmos
+         v_dt(i,j,npz+1-k)   = (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k))/dt_atmos
+         t_dt(i,j,npz+1-k)   = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k))/dt_atmos
+         q_dt(i,j,npz+1-k,:) = (Stateout(nb)%gq0(ix,k,1:nq) - Statein(nb)%qgrs(ix,k,1:nq))/dt_atmos
+       enddo
       enddo
      enddo
 

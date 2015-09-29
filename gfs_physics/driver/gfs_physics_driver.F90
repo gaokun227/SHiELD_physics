@@ -11,7 +11,7 @@ module gfs_physics_driver_mod
   use block_control_mod,  only: block_control_type
   use diag_manager_mod,   only: register_diag_field, send_data
   use mpp_mod,            only: input_nml_file, mpp_pe, mpp_root_pe, &
-                                mpp_error, mpp_chksum
+                                mpp_error, mpp_chksum, mpp_min, mpp_max
   use field_manager_mod,  only: MODEL_ATMOS
   use fms_mod,            only: fms_init, stdout, stdlog, string,     &
                                 mpp_clock_id, mpp_clock_begin,        &
@@ -54,6 +54,8 @@ module gfs_physics_driver_mod
   public  phys_rad_driver_init, phys_rad_setup_step, radiation_driver, &
           physics_driver, phys_rad_driver_end
 
+  public skin_temp
+
 !--- public NUOPC GFS datatypes and data typing ---
   public  state_fields_in, state_fields_out, kind_phys
 
@@ -68,6 +70,7 @@ module gfs_physics_driver_mod
   end type ozone_data
 
   type(ozone_data), dimension(:), allocatable :: O3dat
+
 
 !--- module private data ---
 !--- NUOPC data types
@@ -532,7 +535,7 @@ module gfs_physics_driver_mod
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
                          jdate(5), jdate(6), jdate(7))
 
-    call get_time(Time - Time_init, sec)
+    call get_time(Time_next - Time_init, sec)
     fhour = real(sec)/3600.
 
 !--- may need this to repopulate sfc properties for AMIP runs
@@ -608,9 +611,33 @@ module gfs_physics_driver_mod
       endif
     enddo
 
-
-
   end subroutine phys_rad_setup_step
+
+  subroutine skin_temp(tmin, tmax, timax, timin, nblks)
+    real, intent(inout) :: tmin, tmax, timin, timax
+    integer, intent(in) :: nblks
+    integer :: nb
+    real :: tminl, tmaxl, timinl, timaxl
+
+    tmax = -99999.0
+    tmin = +99999.0
+    timax = -99999.0
+    timin = +99999.0
+    do nb = 1, nblks
+      tmaxl = maxval(Sfc_props(nb)%tsfc)
+      tminl = minval(Sfc_props(nb)%tsfc)
+      tmax = max (tmax, tmaxl)
+      tmin = min (tmin, tminl)
+      timaxl = maxval(Sfc_props(nb)%tisfc)
+      timinl = minval(Sfc_props(nb)%tisfc)
+      timax = max (timax, timaxl)
+      timin = min (timin, timinl)
+    enddo
+    call mpp_max(tmax)
+    call mpp_min(tmin)
+    call mpp_max(timax)
+    call mpp_min(timin)
+  end subroutine skin_temp
 
 
 !-------------------------------------------------------------------------      
@@ -712,6 +739,7 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2 => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
     logical :: exists
+    real :: tsmin, tsmax, timin, timax
 
     call get_mosaic_tile_file (fn_srf, fn_srf, .FALSE.)
     call get_mosaic_tile_file (fn_oro, fn_oro, .FALSE.)
@@ -739,10 +767,6 @@ module gfs_physics_driver_mod
       ibe = Atm_block%ibe(nb)
       jbs = Atm_block%jbs(nb)
       jbe = Atm_block%jbe(nb)
-!rab      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
-!rab      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
-!rab      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
-!rab      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
       nx = (ibe - ibs + 1)
       ny = (jbe - jbs + 1) 
       ngptc = nx * ny
@@ -945,6 +969,9 @@ module gfs_physics_driver_mod
 !--- nullify/deallocate any temporaries used
     nullify(var2)
 
+!rab    call skin_temp(tsmin, tsmax, timax, timin, Atm_block%nblks)
+!rab    if (Mdl_parms%me == 0 ) write(6,* ) ' RAD INIT- tsfc ', tsmax, tsmin
+!rab    if (Mdl_parms%me == 0 ) write(6,* ) ' RAD INIT-tisfc ', timax, timin
   end subroutine surface_props_input
 
 

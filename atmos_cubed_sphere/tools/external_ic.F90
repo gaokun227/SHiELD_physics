@@ -142,6 +142,7 @@ contains
       endif
 
       call prt_maxmin('PS', Atm(1)%ps, is, ie, js, je, ng, 1, 0.01)
+      call prt_maxmin('TS', Atm(1)%ts, is, ie, js, je, 0, 1, 1.)
       call prt_maxmin('T', Atm(1)%pt, is, ie, js, je, ng, Atm(1)%npz, 1.)
       call prt_maxmin('W', Atm(1)%w, is, ie, js, je, ng, Atm(1)%npz, 1.)
       call prt_maxmin('SPHUM', Atm(1)%q(:,:,:,1), is, ie, js, je, ng, Atm(1)%npz, 1.)

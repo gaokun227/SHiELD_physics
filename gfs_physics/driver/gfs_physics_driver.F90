@@ -11,7 +11,7 @@ module gfs_physics_driver_mod
   use block_control_mod,  only: block_control_type
   use diag_manager_mod,   only: register_diag_field, send_data
   use mpp_mod,            only: input_nml_file, mpp_pe, mpp_root_pe, &
-                                mpp_error, mpp_chksum
+                                mpp_error, mpp_chksum, mpp_min, mpp_max
   use field_manager_mod,  only: MODEL_ATMOS
   use fms_mod,            only: fms_init, stdout, stdlog, string,     &
                                 mpp_clock_id, mpp_clock_begin,        &
@@ -44,6 +44,8 @@ module gfs_physics_driver_mod
   use mersenne_twister,   only: random_setseed, random_index, random_stat
   use physcons,           only: dxmax, dxmin, dxinv
   use ozne_def,           only: pl_pres, ozplin
+!--- variables needed for calculating 'sncovr'
+  use namelist_soilveg,   only: salp_data, snupx
 
 
 !-----------------------------------------------------------------------
@@ -53,6 +55,8 @@ module gfs_physics_driver_mod
 !--- public interfaces ---
   public  phys_rad_driver_init, phys_rad_setup_step, radiation_driver, &
           physics_driver, phys_rad_driver_end
+
+  public skin_temp
 
 !--- public NUOPC GFS datatypes and data typing ---
   public  state_fields_in, state_fields_out, kind_phys
@@ -68,6 +72,7 @@ module gfs_physics_driver_mod
   end type ozone_data
 
   type(ozone_data), dimension(:), allocatable :: O3dat
+
 
 !--- module private data ---
 !--- NUOPC data types
@@ -131,9 +136,10 @@ module gfs_physics_driver_mod
     integer :: NFXR     = 39
     integer :: ncld     = 1
     integer :: ntcw     = 2
-    integer :: ntoz     = 3
+    integer :: ntoz     = 4
+    logical :: ozcalc   = .false.
     integer :: levs     = 63
-    integer :: levr     = 0
+    integer :: levr     = 63
     integer :: me           ! set by call to mpp_pe
     integer :: lsoil    = 4
     integer :: lsm      = 1      ! NOAH LSM
@@ -215,7 +221,8 @@ module gfs_physics_driver_mod
     logical :: debug = .false.
 
 !--- namelist ---
-   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr
+   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
+                              ozcalc
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -284,11 +291,12 @@ module gfs_physics_driver_mod
 !--- later in this subroutine have already been initialized ---
     call fms_init
 
+    jdate = 0 
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
                          jdate(5), jdate(6), jdate(7))
     idate(4) = jdate(1)
-    idate(3) = jdate(2)
-    idate(2) = jdate(3)
+    idate(2) = jdate(2)
+    idate(3) = jdate(3)
     idate(1) = jdate(5)
 
 !--- read namelist  ---
@@ -305,6 +313,14 @@ module gfs_physics_driver_mod
  10   call close_file (unit)
     endif
 #endif
+
+!--- check to see if ozone calculation is being utilized and set ntoz appropriately
+    if (.not. ozcalc) then
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
+      ntoz = -99
+    else
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is being calculated'
+    endif
 
 !--- write version number and namelist to log file ---
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
@@ -531,8 +547,9 @@ module gfs_physics_driver_mod
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
                          jdate(5), jdate(6), jdate(7))
 
-    call get_time(Time - Time_init, sec)
+    call get_time(Time_next - Time_init, sec)
     fhour = real(sec)/3600.
+
 
 !--- may need this to repopulate sfc properties for AMIP runs
 !    call sfc_populate (Sfc_props)
@@ -559,7 +576,12 @@ module gfs_physics_driver_mod
       Dyn_parms(nb)%nnp      = Dyn_parms(nb)%nnp + 1
 !--- set the current forecast hour
       Dyn_parms(nb)%fhour    = fhour
-      Dyn_parms(nb)%jdate(:) = jdate(:)
+      Dyn_parms(nb)%jdate(1) = jdate(1)
+      Dyn_parms(nb)%jdate(2) = jdate(2)
+      Dyn_parms(nb)%jdate(3) = jdate(3)
+      Dyn_parms(nb)%jdate(5) = jdate(5)
+      Dyn_parms(nb)%jdate(6) = jdate(6)
+      Dyn_parms(nb)%jdate(7) = jdate(7)
 !--- set the solhr
       Dyn_parms(nb)%solhr    = real(jdate(5))
 !--- radiation triggers
@@ -602,9 +624,35 @@ module gfs_physics_driver_mod
       endif
     enddo
 
-
+    if (mpp_pe() == mpp_root_pe()) write(6,*) ' starting timestep ',Dyn_parms(1)%kdt,', fhour ',fhour
 
   end subroutine phys_rad_setup_step
+
+  subroutine skin_temp(tmin, tmax, timax, timin, nblks)
+    real, intent(inout) :: tmin, tmax, timin, timax
+    integer, intent(in) :: nblks
+    integer :: nb
+    real :: tminl, tmaxl, timinl, timaxl
+
+    tmax = -99999.0
+    tmin = +99999.0
+    timax = -99999.0
+    timin = +99999.0
+    do nb = 1, nblks
+      tmaxl = maxval(Sfc_props(nb)%tsfc)
+      tminl = minval(Sfc_props(nb)%tsfc)
+      tmax = max (tmax, tmaxl)
+      tmin = min (tmin, tminl)
+      timaxl = maxval(Sfc_props(nb)%tisfc)
+      timinl = minval(Sfc_props(nb)%tisfc)
+      timax = max (timax, timaxl)
+      timin = min (timin, timinl)
+    enddo
+    call mpp_max(tmax)
+    call mpp_min(tmin)
+    call mpp_max(timax)
+    call mpp_min(timin)
+  end subroutine skin_temp
 
 
 !-------------------------------------------------------------------------      
@@ -696,7 +744,7 @@ module gfs_physics_driver_mod
   subroutine surface_props_input (Atm_block, GSM)
     type (block_control_type), intent(in) :: Atm_block
     logical, intent(in), optional :: GSM
-!   local variables
+!--- local variables
     integer :: i, j, ibs, ibe, jbs, jbe, nct
     integer :: nb, nx, ny, ngptc
     integer :: start(4), nread(4)
@@ -706,6 +754,10 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2 => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
     logical :: exists
+    real :: tsmin, tsmax, timin, timax
+!--- local variables for sncovr calculation
+    real(kind=kind_phys) :: vegtyp, rsnow
+
 
     call get_mosaic_tile_file (fn_srf, fn_srf, .FALSE.)
     call get_mosaic_tile_file (fn_oro, fn_oro, .FALSE.)
@@ -733,10 +785,6 @@ module gfs_physics_driver_mod
       ibe = Atm_block%ibe(nb)
       jbs = Atm_block%jbs(nb)
       jbe = Atm_block%jbe(nb)
-!rab      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
-!rab      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
-!rab      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
-!rab      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
       nx = (ibe - ibs + 1)
       ny = (jbe - jbs + 1) 
       ngptc = nx * ny
@@ -898,6 +946,20 @@ module gfs_physics_driver_mod
 !--- snoalb
       var2(1:nx,1:ny) => Sfc_props(nb)%snoalb(1:ngptc)
       call read_data(fn_srf,'snoalb',var2,start,nread)
+!--- sncovr
+!--- code taken directly from read_fix.f
+      do i=1,ngptc
+        Sfc_props(nb)%sncovr(i) = 0.0
+        if (Sfc_props(nb)%slmsk(i) > 0.001 .AND. abs(Sfc_props(nb)%vtype(i)) >= 0.5 ) then
+          vegtyp = Sfc_props(nb)%vtype(i)
+          rsnow  = 0.001*Sfc_props(nb)%weasd(i)/snupx(vegtyp)
+          if (0.001*Sfc_props(nb)%weasd(i) < snupx(vegtyp)) then
+            Sfc_props(nb)%sncovr(i) = 1.0 - ( exp(-salp_data*rsnow) - rsnow*exp(-salp_data))
+          else
+            Sfc_props(nb)%sncovr(i) = 1.0
+          endif
+        endif
+      enddo
 !
 !--- 3D variables
       allocate(var3(1:nx,1:ny,1:Mdl_parms%lsoil))
@@ -939,6 +1001,9 @@ module gfs_physics_driver_mod
 !--- nullify/deallocate any temporaries used
     nullify(var2)
 
+!rab    call skin_temp(tsmin, tsmax, timax, timin, Atm_block%nblks)
+!rab    if (Mdl_parms%me == 0 ) write(6,* ) ' RAD INIT- tsfc ', tsmax, tsmin
+!rab    if (Mdl_parms%me == 0 ) write(6,* ) ' RAD INIT-tisfc ', timax, timin
   end subroutine surface_props_input
 
 
@@ -1442,88 +1507,3 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 
 end module gfs_physics_driver_mod
-#ifdef JUNK
- --- end subroutine nuopc_phys_init:
- --- ntcw             =            3
- --- ncld             =            1
- --- ntoz             =            2
- --- ntrac            =            3
- --- levs             =           41
- --- me               =            0
- --- lsoil            =            4
- --- lsm              =            1
- --- nmtvr            =           14
- --- nrcm             =            2
- --- levozp           =           80
- --- lonr             =        10242
- --- latr             =            1
- --- jcap             =            1
- --- num_p3d          =            4
- --- num_p2d          =            3
- --- npdf3d           =            0
- --- pl_coeff         =            4
- --- ncw              =           20         120
- --- crtrh            =   0.90000000000000002
-0.90000000000000002       0.90000000000000002
- --- cdmbgwd          =    2.0000000000000000       0.25000000000000000
- --- ccwf             =    1.0000000000000000        1.0000000000000000
- --- dlqf             =    0.0000000000000000        0.0000000000000000
- --- ctei_rm          =    10.000000000000000        10.000000000000000
- --- cgwf             =   0.50000000000000000        5.0000000000000003E-002
- --- prslrd0          =    200.00000000000000
- --- ras              =  F
- --- pre_rad          =  F
- --- ldiag3d          =  F
- --- lgocart          =  F
- --- lssav_cpl        =  F
- --- flipv            =  T
- --- old_monin        =  F
- --- cnvgwd           =  T
- --- shal_cnv         =  F
- --- sashal           =  T
- --- newsas           =  T
- --- cal_pre          =  T
- --- mom4ice          =  F
- --- mstrat           =  F
- --- trans_trac       =  T
- --- nst_fcst         =            0
- --- moist_adj        =  F
- --- thermodyn_id     =            1
- --- sfcpress_id      =            2
- --- gen_coord_hybrid =  T
- --- levr             =           41
- --- lsidea           =  F
- --- pdfcld           =  F
- --- shcnvcw          =  F
- --- redrag           =  T
- --- hybedmf          =  F
- --- dspheat          =  F
- --- dxmax            =   -16.118095650958320
- --- dxmin            =   -9.8007901542977862
- --- dxinv            =  -0.15829533660017264
- --- cscnv            =  F
- --- nctp             =           20
- --- ntke             =            0
- --- do_shoc          =  F
- --- shocaftcnv       =  F
- --- ntot3d           =            4
- --- ntot2d           =            3
- --- ictm             =            1
- --- isol             =            2
- --- ico2             =            2
- --- iaer             =          111
- --- ialb             =            0
- --- iems             =            1
- --- iovr_sw          =            1
- --- iovr_lw          =            1
- --- isubc_sw         =            2
- --- isubc_lw         =            2
- --- sas_shal         =  T
- --- crick_proof      =  F
- --- ccnorm           =  F
- --- norad_precip     =  F
- --- idate            =            0           1          10        2014
- --- iflip            =            1
- --- nlunit           =           35
- --- end subroutine physics_init.
-#endif

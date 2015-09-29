@@ -1,7 +1,7 @@
  module fv_grid_utils_mod
  
 #include <fms_platform.h>
- use constants_mod,   only: omega
+ use constants_mod,   only: omega, pi, cnst_radius=>radius, R_GRID
  use mpp_mod,         only: FATAL, mpp_error, WARNING
  use external_sst_mod, only: i_sst, j_sst, sst_ncep, sst_anom
  use mpp_domains_mod, only: mpp_update_domains, DGRID_NE, mpp_global_sum
@@ -9,7 +9,7 @@
  use mpp_parameter_mod, only: AGRID_PARAM=>AGRID, CGRID_NE_PARAM=>CGRID_NE
  use mpp_parameter_mod, only: CORNER, SCALAR_PAIR
 
- use fv_arrays_mod,   only: fv_atmos_type, fv_grid_type, fv_grid_bounds_type, R_GRID
+ use fv_arrays_mod,   only: fv_atmos_type, fv_grid_type, fv_grid_bounds_type
  use fv_eta_mod,      only: set_eta
  use fv_mp_mod,       only: ng, is_master
  use fv_mp_mod,       only: mp_reduce_sum, mp_reduce_min, mp_reduce_max
@@ -29,8 +29,7 @@
  real, parameter::  big_number=1.d8
  real, parameter:: tiny_number=1.d-8
 
- real(kind=R_GRID), parameter :: pi = 3.14159265358979323846d0
- real(kind=R_GRID) :: radius=6371.d0 !km
+ real(kind=R_GRID) :: radius=cnst_radius
 
  real, parameter:: ptop_min=1.d-8
 

@@ -30,7 +30,7 @@ module atmos_model_mod
 
 use mpp_mod,            only: mpp_pe, mpp_root_pe, mpp_clock_id, mpp_clock_begin
 use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, mpp_error, mpp_chksum
-use mpp_mod,            only: mpp_set_current_pelist
+use mpp_mod,            only: mpp_set_current_pelist, mpp_min, mpp_max
 use mpp_domains_mod,    only: domain2d
 #ifdef INTERNAL_FILE_NML
 use mpp_mod,            only: input_nml_file
@@ -67,7 +67,7 @@ use gfs_physics_driver_mod, only: state_fields_in, state_fields_out, &
                                   kind_phys, phys_rad_driver_init, &
                                   phys_rad_driver_end, &
                                   phys_rad_setup_step, &
-                                  radiation_driver, physics_driver
+                                  radiation_driver, physics_driver, skin_temp
 
 !-----------------------------------------------------------------------
 
@@ -153,7 +153,8 @@ character(len=80) :: restart_format = 'atmos_coupled_mod restart format 01'
 logical :: do_netcdf_restart = .true.
 integer :: nxblocks = 1
 integer :: nyblocks = 1
-namelist /atmos_model_nml/ nxblocks, nyblocks, do_netcdf_restart
+logical :: surface_debug = .false.
+namelist /atmos_model_nml/ nxblocks, nyblocks, do_netcdf_restart, surface_debug
 
 !--- concurrent and decoupled radiation and physics variables
 type (state_fields_in),  dimension(:), allocatable :: Statein
@@ -207,6 +208,7 @@ subroutine update_atmos_radiation_physics (Atmos)
   type (atmos_data_type), intent(in) :: Atmos
 !--- local variables---
     type(time_type) :: Time_next
+    real :: tmax, tmin
 
     Time_next = Atmos%Time + Atmos%Time_step
 
@@ -215,6 +217,8 @@ subroutine update_atmos_radiation_physics (Atmos)
     call mpp_clock_begin(stateClock)
     call atmos_phys_driver_statein (Statein, Atm_block)
     call mpp_clock_end(stateClock)
+
+    if (surface_debug) call check_data ('FV DYNAMICS')
 
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "setup step"
     call mpp_clock_begin(setupClock)
@@ -227,17 +231,66 @@ subroutine update_atmos_radiation_physics (Atmos)
     call radiation_driver (Atmos%time, Time_next, Atm_block, Statein)
     call mpp_clock_end(radClock)
 
+    if (surface_debug) call check_data ('RADIATION')
+
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "physics driver"
 !--- execute the GFS atmospheric physics subcomponent (RRTM)
     call mpp_clock_begin(physClock)
     call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)
     call mpp_clock_end(physClock)
 
+    if (surface_debug) call check_data ('PHYSICS')
+
     if(mpp_pe() == mpp_root_pe() ) write(6,*) "end of radiation and physics step"
 !-----------------------------------------------------------------------
  end subroutine update_atmos_radiation_physics
 ! </SUBROUTINE>
 
+
+ subroutine check_data (name_str)
+    character(len=*), intent(in) :: name_str
+    real(kind=kind_phys) :: tsmax, tsmin, timax, timin
+    real(kind=kind_phys) :: t1max_l, t1min_l, t1max, t1min
+    real(kind=kind_phys) :: psmax_l, psmin_l, psmax, psmin
+    real(kind=kind_phys) :: plmax_l, plmin_l, plmax, plmin
+    integer :: nb
+   
+    t1max = -99999.0
+    t1min = +99999.0
+    psmax = -99999.0
+    psmin = +99999.0
+    plmax = -99999.0
+    plmin = +99999.0
+    do nb = 1,Atm_block%nblks
+      t1max_l = maxval(Statein(nb)%tgrs(:,1))
+      t1min_l = minval(Statein(nb)%tgrs(:,1))
+      t1max = max(t1max,t1max_l)
+      t1min = min(t1min,t1min_l)
+      psmax_l = maxval(Statein(nb)%pgr(:))
+      psmin_l = minval(Statein(nb)%pgr(:))
+      psmax = max(psmax,psmax_l)
+      psmin = min(psmin,psmin_l)
+      plmax_l = maxval(Statein(nb)%prsl(:,1))
+      plmin_l = minval(Statein(nb)%prsl(:,1))
+      plmax = max(plmax,plmax_l)
+      plmin = min(plmin,plmin_l)
+    enddo
+
+    if (mpp_pe() == mpp_root_pe()) write(6,*) 'after ',trim(name_str),' component'
+    call skin_temp (tsmin,tsmax, timax, timin, Atm_block%nblks)
+    if (mpp_pe() == mpp_root_pe()) write(6,*) '     GFS TSFC  max: ',tsmax,'   min: ',tsmin
+!rab    if (mpp_pe() == mpp_root_pe()) write(6,*) '     GFS TISFC max: ',timax,'   min: ',timin
+    call mpp_max(t1max)
+    call mpp_min(t1min)
+    if (mpp_pe() == mpp_root_pe()) write(6,*) '    GFDL TL1   max: ',t1max,'   min: ',t1min
+    call mpp_max(psmax)
+    call mpp_min(psmin)
+    if (mpp_pe() == mpp_root_pe()) write(6,*) '    GFDL PSFC  max: ',psmax,'   min: ',psmin
+    call mpp_max(plmax)
+    call mpp_min(plmin)
+    if (mpp_pe() == mpp_root_pe()) write(6,*) '    GFDL PL1   max: ',plmax,'   min: ',plmin
+
+ end subroutine check_data
 
 !#######################################################################
 ! <SUBROUTINE NAME="atmos_model_init">
@@ -458,7 +511,7 @@ subroutine update_atmos_model_state (Atmos)
 ! to update the model state after all concurrency is completed
   type (atmos_data_type), intent(inout) :: Atmos
 !--- local variables
-  integer :: blk
+  real :: tmax, tmin
 
     call set_atmosphere_pelist()
 
@@ -478,6 +531,8 @@ subroutine update_atmos_model_state (Atmos)
     call diag_send_complete(Atmos%Time_step)
 
     call mpp_set_current_pelist(Atmos%pelist, no_sync=.TRUE.)
+
+    if (surface_debug) call check_data ('STATE UPDATE')
 
  end subroutine update_atmos_model_state
 ! </SUBROUTINE>

@@ -101,7 +101,7 @@ contains
   real, intent(inout)::   peln(is:ie,km+1,js:je)     ! log(pe)
   real, intent(inout)::   dtdt(is:ie,js:je,km)
   real, intent(out)::    pkz(is:ie,js:je,km)       ! layer-mean pk for converting t to pt
-  real, intent(out)::     te(is:ie,js:je,km)
+  real, intent(out)::     te(isd:ied,jsd:jed,km)
 
 ! !DESCRIPTION:
 !
@@ -196,11 +196,9 @@ contains
                      q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
                      q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
 #endif
-!                    cappa(i,j,k) = rdgas/(rdgas + ((1.-(q(i,j,k,sphum)+q_liq+q_sol))*cv_air + q(i,j,k,sphum)*cv_vap +  &
-!                                                        q_liq*c_liq + q_sol*c_ice)/(1.+r_vir*q(i,j,k,sphum)))
+                     cappa(i,j,k) = rdgas/(rdgas + ((1.-(q(i,j,k,sphum)+q_liq+q_sol))*cv_air + q(i,j,k,sphum)*cv_vap +  &
+                                                         q_liq*c_liq + q_sol*c_ice)/(1.+r_vir*q(i,j,k,sphum)))
                      q_con(i,j,k) = q_liq + q_sol
-                     cvm = (1.-(q(i,j,k,sphum)+q_Con(i,j,k)))*cv_air+q(i,j,k,sphum)*cv_vap+q_liq*c_liq+q_sol*c_ice
-                     cappa(i,j,k) = rdgas/(rdgas + cvm*(1.-q_con(i,j,k))/(1.+r_vir*q(i,j,k,sphum)-q_con(i,j,k)))
                      pt(i,j,k) = rcp*pt(i,j,k)*exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                      pt(i,j,k) = rcp*pt(i,j,k)*exp(k1k*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
@@ -344,7 +342,7 @@ contains
 ! Map constituents
 !----------------
       if( nq > 5 ) then
-           call mapn_tracer(nq, km, km, pe1, pe2, q, dp2, kord_tr, j,     &
+           call mapn_tracer(nq, km, pe1, pe2, q, dp2, kord_tr, j,     &
                             is, ie, isd, ied, jsd, jed, 0., fill)
       elseif ( nq > 0 ) then
 ! Remap one tracer at a time
@@ -516,10 +514,8 @@ contains
             q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
 #endif
             q_con(i,j,k) = q_liq + q_sol
-!           cappa(i,j,k) = rdgas/(rdgas+((1.-q(i,j,k,sphum)-q_con(i,j,k))*cv_air + q(i,j,k,sphum)*cv_vap +  &
-!                                            q_liq*c_liq + q_sol*c_ice)/(1.+r_vir*q(i,j,k,sphum)))
-            cvm = (1.-(q(i,j,k,sphum)+q_con(i,j,k)))*cv_air+q(i,j,k,sphum)*cv_vap+q_liq*c_liq+q_sol*c_ice
-            cappa(i,j,k) = rdgas/(rdgas + cvm*(1.-q_con(i,j,k))/(1.+r_vir*q(i,j,k,sphum)-q_con(i,j,k)))
+            cappa(i,j,k) = rdgas/(rdgas+((1.-q(i,j,k,sphum)-q_con(i,j,k))*cv_air + q(i,j,k,sphum)*cv_vap +  &
+                                          q_liq*c_liq + q_sol*c_ice)/(1.+r_vir*q(i,j,k,sphum)))
             pkz(i,j,k) = exp(cappa(i,j,k)*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
             pkz(i,j,k) = exp(akap*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
@@ -627,11 +623,21 @@ if ( hybrid_z ) then
      call mpp_update_domains(ua , domain, complete=.true.)
    endif
 
+endif
 ! u-wind
 
 
-!$OMP parallel do default(none) shared(is,ie,js,je,km,ptop,u,gz,pe,ua,isd,ied,jsd,jed,kord_mt) &
-!$OMP                          private(pe1, pe2)
+!$OMP parallel default(none) shared(is,ie,js,je,km,ptop,u,v,pe,ua,isd,ied,jsd,jed,kord_mt, &
+!$OMP                               hybrid_z,te_2d,te,delp,remap_t,hydrostatic,hs,rg,pt,peln, &
+!$OMP                               cp,rsin2,cosa_s,delz,rainwat,liq_wat,ice_wat,snowwat,     &
+!$OMP                               graupel,q_con,r_vir,sphum,w,pk,pkz,rgama,last_step,consv, &
+!$OMP                               do_adiabatic_init,te_map,zsum1,zsum0,te0_2d,domain,   &
+!$OMP                               ng,gridstruct,E_Flux,pdt,dtmp,reproduce_sum,q, &
+!$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj)    &
+!$OMP                       private(pe0,pe1,pe2,pe3,q_liq, q_sol, cvm, gz, phis,tpe,tmp, dlnp,&
+!$OMP                               dpeln)
+if ( hybrid_z ) then
+!$OMP do 
    do j=js,je+1
       do i=is,ie
          pe1(i,1) = ptop
@@ -648,6 +654,7 @@ if ( hybrid_z ) then
                      km, pe2,   u,            &
                      is, ie, j, isd, ied, jsd, jed+1, -1, kord_mt)
    enddo
+!$OMP end do nowait 
 
 ! v-wind
 !$OMP parallel do default(none) shared(is,ie,js,je,ptop,pe,ua,km,v,gz,isd,ied,jsd,jed,kord_mt) &
@@ -669,6 +676,7 @@ if ( hybrid_z ) then
                      km, pe3,  v, is, ie+1,    &
                      j, isd, ied+1, jsd, jed, -1, kord_mt)
    enddo
+!$OMP end do nowait
 endif 
 !------------- Hybrid_z section ----------------------
 
@@ -754,7 +762,7 @@ endif
 #else
            cvm = cv_air
 #endif
-                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cvm*pt(i,j,k)/(1.+r_vir*q(i,j,k,sphum)-q_con(i,j,k)) + &
+                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cvm*pt(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k))) + &
 #else
                  te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cv_air*pt(i,j,k)/(1.+r_vir*q(i,j,k,sphum)) + &
 #endif
@@ -807,7 +815,7 @@ endif
                  q_con(i,j,k) = q(i,j,k,liq_wat) + q(i,j,k,rainwat) + q(i,j,k,ice_wat)  &
                               + q(i,j,k,snowwat) + q(i,j,k,graupel)
 #endif
-                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(rgama*pt(i,j,k)*pkz(i,j,k)/(1.+r_vir*q(i,j,k,sphum)-q_con(i,j,k)) + &
+                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(rgama*pt(i,j,k)*pkz(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k))) + &
 #else
                  te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(rgama*pt(i,j,k)*pkz(i,j,k)/(1.+r_vir*q(i,j,k,sphum)) + &
 #endif
@@ -838,6 +846,7 @@ endif
          enddo
       enddo
 
+!$OMP single
          tpe = consv*g_sum(domain, te_2d, is, ie, js, je, ng, gridstruct%area_64, 0)
       E_Flux = tpe / (grav*pdt*4.*pi*radius**2)    ! unit: W/m**2
                                                    ! Note pdt is "phys" time step
@@ -852,9 +861,12 @@ endif
 ! floating precision; this is fine for the TE correction
 !-------------------------------------------------------------------------------
       if ( reproduce_sum ) dtmp = real(dtmp, 4) ! convert to 4-byte real
+!$OMP end single
   else
+!$OMP single
       dtmp   = 0.
       E_Flux = 0.
+!$OMP end single
 #ifdef USE_COND
 !$OMP parallel do default(none) shared(is,ie,js,je,km,q_con,q,liq_wat,ice_wat, &
 !$OMP                                  rainwat,snowwat,graupel)
@@ -918,7 +930,7 @@ endif
                     dpeln(i,j) = peln(i,k+1,j) - peln(i,k,j)
                  enddo
               enddo
-              call sat_adj2(mdt, is, ie, js, je, ng, km, k, hydrostatic, consv>0., &
+              call sat_adj2(mdt, is, ie, js, je, ng, hydrostatic, consv>0., &
                             te(is,js,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
                             q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
                             q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel), q(isd,jsd,k,cld_amt), gridstruct%area(isd,jsd), &
@@ -983,9 +995,9 @@ endif
 #endif
            cvm = (1.-(q(i,j,k,sphum)+q_con(i,j,k)))*cv_air+q(i,j,k,sphum)*cv_vap+q_liq*c_liq+q_sol*c_ice
 
-                    pt(i,j,k) = (pt(i,j,k)+dtmp*cv_air/cvm*pkz(i,j,k))/(1.+r_vir*q(i,j,k,sphum)-q_con(i,j,k))
+           pt(i,j,k) = (pt(i,j,k)+dtmp*cv_air/cvm*pkz(i,j,k))/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k)))
 #else
-                    pt(i,j,k) = (pt(i,j,k)+dtmp*pkz(i,j,k))/(1.+r_vir*q(i,j,k,sphum)-q_con(i,j,k))
+           pt(i,j,k) = (pt(i,j,k)+dtmp*pkz(i,j,k))/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k)))
 #endif
 #else
                     pt(i,j,k) = (pt(i,j,k)+dtmp*pkz(i,j,k))/(1.+r_vir*q(i,j,k,sphum))
@@ -1029,6 +1041,7 @@ endif
         enddo
      endif
   endif
+!$OMP end parallel
 
 ! call cubed_to_latlon(u, v, ua, va, dx, dy, rdxa, rdya, km, 1, flagstruct%c2l_ord)
 
@@ -1051,7 +1064,7 @@ endif
    integer,  intent(in):: sphum, liq_wat, ice_wat, rainwat, snowwat, graupel
    real, intent(inout), dimension(isd:ied,jsd:jed,km):: ua, va
    real, intent(in), dimension(isd:ied,jsd:jed,km):: pt, delp
-   real, intent(in), dimension(isd:ied,jsd:jed,km,sphum):: q
+   real, intent(in), dimension(isd:ied,jsd:jed,km,*):: q
    real, intent(in), dimension(is:ie,js:je,km):: qc
    real, intent(inout)::  u(isd:ied,  jsd:jed+1,km)
    real, intent(inout)::  v(isd:ied+1,jsd:jed,  km)
@@ -1079,8 +1092,8 @@ endif
 !  call cubed_to_latlon(u, v, ua, va, dx, dy, rdxa, rdya, km, flagstruct%c2l_ord)
 
 !$OMP parallel do default(none) shared(is,ie,js,je,km,hydrostatic,hs,pt,qc,rg,peln,te_2d, &
-!$OMP                                  q,pe,delp,cp,rsin2_l,u,v,cosa_s_l,delz,moist_phys,w, &
-!$OMP                                  liq_wat,rainwat,ice_wat,snowwat,graupel,sphum)   &
+!$OMP                                  pe,delp,cp,rsin2_l,u,v,cosa_s_l,delz,moist_phys,w, &
+!$OMP                                  q,liq_wat,rainwat,ice_wat,snowwat,graupel,sphum)   &
 !$OMP                          private(phiz, tv, cvm, q_sol, q_liq)
   do j=js,je
 
@@ -1507,27 +1520,26 @@ endif
  end subroutine map1_ppm
 
 
- subroutine mapn_tracer(nq, km, kn, pe1, pe2, q1, dp2, kord, j,     &
+ subroutine mapn_tracer(nq, km, pe1, pe2, q1, dp2, kord, j,     &
                         i1, i2, isd, ied, jsd, jed, q_min, fill)
 ! !INPUT PARAMETERS:
-      integer, intent(in):: km                ! Original vertical dimension
-      integer, intent(in):: kn                ! Target vertical dimension
+      integer, intent(in):: km                ! vertical dimension
       integer, intent(in):: j, nq, i1, i2
       integer, intent(in):: isd, ied, jsd, jed
       integer, intent(in):: kord(nq)
       real, intent(in)::  pe1(i1:i2,km+1)     ! pressure at layer edges 
                                               ! (from model top to bottom surface)
                                               ! in the original vertical coordinate
-      real, intent(in)::  pe2(i1:i2,kn+1)     ! pressure at layer edges 
+      real, intent(in)::  pe2(i1:i2,km+1)     ! pressure at layer edges 
                                               ! (from model top to bottom surface)
                                               ! in the new vertical coordinate
-      real, intent(in)::  dp2(i1:i2,kn)
+      real, intent(in)::  dp2(i1:i2,km)
       real, intent(in)::  q_min
       logical, intent(in):: fill
       real, intent(inout):: q1(isd:ied,jsd:jed,km,nq) ! Field input
 ! !LOCAL VARIABLES:
       real:: q4(4,i1:i2,km,nq)
-      real:: q2(i1:i2,kn,nq) ! Field output
+      real:: q2(i1:i2,km,nq) ! Field output
       real:: qsum(nq)
       real:: dp1(i1:i2,km)
       real:: qs(i1:i2)
@@ -1552,7 +1564,7 @@ endif
 ! Mapping
       do 1000 i=i1,i2
          k0 = 1
-      do 555 k=1,kn
+      do 555 k=1,km
       do 100 l=k0,km
 ! locate the top edge: pe2(i,k)
       if(pe2(i,k) >= pe1(i,l) .and. pe2(i,k) <= pe1(i,l+1)) then
@@ -1610,11 +1622,11 @@ endif
 555   continue
 1000  continue
 
-  if (fill) call fillz(i2-i1+1, kn, nq, q2, dp2)
+  if (fill) call fillz(i2-i1+1, km, nq, q2, dp2)
 
   do iq=1,nq
-!    if (fill) call fillz(i2-i1+1, kn, 1, q2(i1,1,iq), dp2)
-     do k=1,kn
+!    if (fill) call fillz(i2-i1+1, km, 1, q2(i1,1,iq), dp2)
+     do k=1,km
         do i=i1,i2
            q1(i,j,k,iq) = q2(i,k,iq)
         enddo
@@ -1889,6 +1901,18 @@ endif
   enddo
  endif
 
+!----- Perfectly linear scheme --------------------------------
+ if ( abs(kord) > 16 ) then
+  do k=1,km
+     do i=i1,i2
+        a4(2,i,k) = q(i,k  )
+        a4(3,i,k) = q(i,k+1)
+        a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
+     enddo
+  enddo
+  return
+ endif
+!----- Perfectly linear scheme --------------------------------
 !------------------
 ! Apply constraints
 !------------------
@@ -2083,7 +2107,7 @@ endif
        enddo
      else      ! kord = 11, 12, 13
        do i=i1,i2
-         if ( extm(i,k) .and. (extm(i,k-1) .or. extm(i,k+1)) ) then
+         if ( extm(i,k) .and. (extm(i,k-1).or.extm(i,k+1).or.a4(1,i,k)<qmin) ) then
 ! Noisy region:
               a4(2,i,k) = a4(1,i,k)
               a4(3,i,k) = a4(1,i,k)
@@ -2197,6 +2221,18 @@ endif
      enddo
   enddo
  endif
+!----- Perfectly linear scheme --------------------------------
+ if ( abs(kord) > 16 ) then
+  do k=1,km
+     do i=i1,i2
+        a4(2,i,k) = q(i,k  )
+        a4(3,i,k) = q(i,k+1)
+        a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
+     enddo
+  enddo
+  return
+ endif
+!----- Perfectly linear scheme --------------------------------
 
 !------------------
 ! Apply constraints
@@ -2995,6 +3031,7 @@ endif
      enddo
   enddo
 
+! this OpenMP do-loop setup cannot work in it's current form....
 !$OMP parallel do default(none) shared(is,ie,js,je,km,ps,delp_r)
   do j=js,je
      do k=1,km

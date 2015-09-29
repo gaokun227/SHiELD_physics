@@ -24,7 +24,7 @@
       use mpp_domains_mod, only : NORTH, NORTH_EAST, EAST, SOUTH_EAST
       use mpp_domains_mod, only : SOUTH, SOUTH_WEST, WEST, NORTH_WEST
       use mpp_domains_mod, only : mpp_start_group_update, mpp_complete_group_update
-      use mpp_domains_mod, only : mpp_group_update_initialized
+      use mpp_domains_mod, only : mpp_group_update_initialized, mpp_do_group_update
       use mpp_domains_mod, only : mpp_create_group_update,mpp_reset_group_update_field
       use mpp_domains_mod, only : group_halo_update_type => mpp_group_update_type
       use mpp_parameter_mod, only : WUPDATE, EUPDATE, SUPDATE, NUPDATE, XUPDATE, YUPDATE
@@ -155,6 +155,7 @@
         MODULE PROCEDURE mp_gather_3d_r8
       END INTERFACE
 
+      integer :: halo_update_type = 1
 !---- version number -----
       character(len=128) :: version = '$Id$'
       character(len=128) :: tagname = '$Name$'
@@ -173,8 +174,9 @@ contains
 !
 !     mp_start :: Start SPMD processes
 !
-        subroutine mp_start(commID)
+        subroutine mp_start(commID, halo_update_type_in)
           integer, intent(in), optional :: commID
+          integer, intent(in), optional :: halo_update_type_in
 
          integer :: ios
          integer :: unit
@@ -184,6 +186,7 @@ contains
          if( PRESENT(commID) )then
              commglobal = commID
          end if
+         halo_update_type = halo_update_type_in
 
          numthreads = 1
 !$OMP PARALLEL
@@ -646,7 +649,7 @@ subroutine start_var_group_update_2d(group, array, domain, flags, position, whal
 
   is_complete = .TRUE.
   if(present(complete)) is_complete = complete
-  if(is_complete) then 
+  if(is_complete .and. halo_update_type == 1) then 
      call mpp_start_group_update(group, domain, d_type)
   endif
 
@@ -687,7 +690,7 @@ subroutine start_var_group_update_3d(group, array, domain, flags, position, whal
 
   is_complete = .TRUE.
   if(present(complete)) is_complete = complete
-  if(is_complete) then
+  if(is_complete .and. halo_update_type == 1 ) then
      call mpp_start_group_update(group, domain, d_type)
   endif
 
@@ -729,7 +732,7 @@ subroutine start_var_group_update_4d(group, array, domain, flags, position, whal
 
   is_complete = .TRUE.
   if(present(complete)) is_complete = complete
-  if(is_complete) then
+  if(is_complete .and. halo_update_type == 1 ) then
      call mpp_start_group_update(group, domain, d_type)
   endif
 
@@ -776,7 +779,7 @@ subroutine start_vector_group_update_2d(group, u_cmpt, v_cmpt, domain, flags, gr
 
   is_complete = .TRUE.
   if(present(complete)) is_complete = complete
-  if(is_complete) then
+  if(is_complete .and. halo_update_type == 1 ) then
      call mpp_start_group_update(group, domain, d_type)
   endif
 
@@ -821,7 +824,7 @@ subroutine start_vector_group_update_3d(group, u_cmpt, v_cmpt, domain, flags, gr
 
   is_complete = .TRUE.
   if(present(complete)) is_complete = complete
-  if(is_complete) then
+  if(is_complete .and. halo_update_type == 1) then
      call mpp_start_group_update(group, domain, d_type)
   endif
 
@@ -837,7 +840,11 @@ subroutine complete_group_halo_update(group, domain)
 !  (inout)   group - The data type that store information for group update. 
 !  (in)      domain - Contains domain decomposition information.
 
+  if( halo_update_type == 1 ) then
   call mpp_complete_group_update(group, domain, d_type)
+  else
+    call mpp_do_group_update(group, domain, d_type)
+  endif
 
 end subroutine complete_group_halo_update
 

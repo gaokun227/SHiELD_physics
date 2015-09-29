@@ -56,8 +56,28 @@ real :: realnumber
 !   (kg/m^3)*(cal/kg/deg C)(joules/cal) = (joules/m^3/deg C)
 ! </DATA>
 
-real, public, parameter :: RADIUS = 6376000.
-real, public, parameter :: OMEGA  = 7.292e-5 
+!---variable for strong typing grid parameters
+  integer, public, parameter :: R_GRID=8
+
+#ifdef SMALL_EARTH
+
+#ifdef HIWPP
+#ifdef SUPER_K
+  real(kind=R_GRID), private, parameter :: small_fac = 1._R_GRID/120._R_GRID
+#else
+  real(kind=R_GRID), private, parameter :: small_fac = 1._R_GRID/166.7_R_GRID
+#endif
+#else
+  real(kind=R_GRID), private, parameter :: small_fac = 1._R_GRID/ 10._R_GRID
+#endif
+
+  real(kind=R_GRID), public, parameter :: RADIUS = 6376000.0_R_GRID * small_fac
+  real, public, parameter :: OMEGA  = 7.292e-5 / small_fac
+#else
+  real(kind=R_GRID), public, parameter :: RADIUS = 6376000.0_R_GRID
+  real, public, parameter :: OMEGA  = 7.292e-5
+#endif
+
 real, public, parameter :: GRAV   = 9.8060226
 real, public, parameter :: RDGAS  = 287.04 
 real, public, parameter :: CP_AIR = 1004.6
@@ -221,9 +241,9 @@ real, public, parameter :: ALOGMIN     = -50.0
 
 real, public, parameter :: STEFAN  = 5.67051e-8 
 real, public, parameter :: VONKARM = 0.40     
-real, public, parameter :: PI      = 3.141592653589793
-real, public, parameter :: RAD_TO_DEG=180./PI
-real, public, parameter :: DEG_TO_RAD=PI/180.
+real, public, parameter :: PI      = 3.141592653589793_R_GRID
+real, public, parameter :: RAD_TO_DEG=180._R_GRID/PI
+real, public, parameter :: DEG_TO_RAD=PI/180._R_GRID
 real, public, parameter :: RADIAN  = RAD_TO_DEG
 real, public, parameter :: C2DBARS = 1.e-4
 real, public, parameter :: KELVIN  = 273.15

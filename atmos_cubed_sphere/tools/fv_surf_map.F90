@@ -5,14 +5,14 @@
                                    mpp_pe, mpp_root_pe, FATAL, error_mesg
       use mpp_mod,           only: get_unit, input_nml_file, mpp_error
       use mpp_domains_mod,   only: mpp_update_domains, domain2d
-      use constants_mod,     only: grav, radius, pi
+      use constants_mod,     only: grav, radius, pi, R_GRID
 
       use fv_grid_utils_mod, only: great_circle_dist, latlon2xyz, v_prod, normalize_vect
       use fv_grid_utils_mod, only: g_sum, global_mx, vect_cross
       use fv_mp_mod,         only: ng
       use fv_mp_mod,         only: mp_stop, mp_reduce_min, mp_reduce_max, is_master
       use fv_timing_mod,     only: timing_on, timing_off
-      use fv_arrays_mod,     only: fv_grid_bounds_type, R_GRID
+      use fv_arrays_mod,     only: fv_grid_bounds_type
 
       implicit none
 
@@ -81,7 +81,7 @@
 
       real(kind=R_GRID), intent(in):: grid(bd%is-ng:bd%ie+ng+1, bd%js-ng:bd%je+ng+1,2)
       real(kind=R_GRID), intent(in):: agrid(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng,2)
-      real, intent(IN):: sin_sg(9,bd%isd:bd%ied,bd%jsd:bd%jed)
+      real, intent(IN):: sin_sg(bd%isd:bd%ied,bd%jsd:bd%jed,9)
       real(kind=R_GRID), intent(IN):: stretch_fac
       logical, intent(IN) :: nested
       integer, intent(IN) :: npx_global
@@ -101,7 +101,7 @@
       real dx1, dx2, dy1, dy2, lats, latn, r2d
       real(kind=R_GRID) da_max
       real(kind=R_GRID) cd2
-      real zmean, z2mean, delg
+      real zmean, z2mean, delg, rgrav
 !     real z_sp, f_sp, z_np, f_np
       integer i, j, n, mdim, n_del2, n_del4
       integer igh, jt
@@ -111,6 +111,8 @@
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
+      real phis_coarse(bd%is:bd%ie, bd%js:bd%je)
+      real wt
 
       is  = bd%is
       ie  = bd%ie
@@ -120,8 +122,26 @@
       ied = bd%ied
       jsd = bd%jsd
       jed = bd%jed
+      if (nested) then
+      !Divide all by grav
+         rgrav = 1./grav
+         do j=jsd,jed
+            do i=isd,ied
+               phis(i,j) = phis(i,j)*rgrav
+            enddo
+         enddo
+         do j=js,je
+            do i=is,ie
+               phis_coarse(i,j) = phis(i,j)
+            enddo
+         enddo
+      endif
 
-      phis = 0.0
+      do j=js,je
+      do i=is,ie
+         phis(i,j) = 0.0
+      enddo
+      enddo
 
       call read_namelist
 
@@ -316,6 +336,23 @@
            write(*,*) '*** Mean variance', trim(grid_string), ' *** =', z2mean
       endif
 
+      !On a nested grid blend coarse-grid and nested-grid
+      ! orography near boundary, similar to WRF's approach.
+      ! This works only on the height of topography; assume
+      ! land fraction and sub-grid variance unchanged
+
+      ! Here, we blend in the four cells nearest to the boundary.
+      if (nested) then
+         if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
+         do j=js,je
+         do i=is,ie
+            wt = real(5 - min(i,j,npx-i,npy-j,5))/5.
+            phis(i,j) = (1.-wt)*phis(i,j) + wt*phis_coarse(i,j)
+
+         enddo
+         enddo
+      endif
+
       call global_mx(real(oro_g,kind=R_GRID), ng, da_min, da_max, bd)
       if ( is_master() ) write(*,*) 'ORO', trim(grid_string), ' min=', da_min, ' Max=', da_max
 
@@ -327,14 +364,10 @@
          
          cd2 = 0.20d0*da_min
          if ( npx_global>512 ) then
-           if ( npx_global<=721 ) then
+           if ( npx_global<=1001 ) then
               n_del2 = 1
-           elseif( npx_global <= 1001 ) then
-              n_del2 = 2
-           elseif( npx_global <= 2001 ) then
-              n_del2 = 4
            else
-              n_del2 = 6
+              n_del2 = 2
            endif
            call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del2, cd2, zero_ocean, oro_g, nested, domain, bd)
          endif
@@ -351,8 +384,12 @@
             n_del4 = 4
          elseif( mdim<=385 ) then
             n_del4 = 5
-         else
+         elseif( mdim<=769 ) then
             n_del4 = 6
+         elseif( mdim<=1025 ) then
+            n_del4 = 7
+         else
+            n_del4 = 8
          endif
          call del4_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del4, zero_ocean, oro_g, nested, domain, bd)
 
@@ -450,7 +487,7 @@
       real, intent(in)::  dy(bd%isd:bd%ied+1,bd%jsd:bd%jed)
       real, intent(in):: dxc(bd%isd:bd%ied+1,bd%jsd:bd%jed)
       real, intent(in):: dyc(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
-      real, intent(IN):: sin_sg(9,bd%isd:bd%ied,bd%jsd:bd%jed)
+      real, intent(IN):: sin_sg(bd%isd:bd%ied,bd%jsd:bd%jed,9)
       real, intent(in):: oro(bd%isd:bd%ied,  bd%jsd:bd%jed)        ! 0==water, 1==land
       logical, intent(IN) :: nested
       type(domain2d), intent(INOUT) :: domain
@@ -506,13 +543,13 @@
          if( n>1 ) call mpp_update_domains(q,domain,whalo=ng,ehalo=ng,shalo=ng,nhalo=ng)
          do j=js,je
             do i=is,ie+1
-               ddx(i,j) = 0.5*(sin_sg(3,i-1,j)+sin_sg(1,i,j))*dy(i,j)*(q(i-1,j)-q(i,j))/dxc(i,j)
+               ddx(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(q(i-1,j)-q(i,j))/dxc(i,j)
             enddo
          enddo
          do j=js,je+1
             do i=is,ie
                ddy(i,j) = dx(i,j)*(q(i,j-1)-q(i,j))/dyc(i,j) &
-                        *0.5*(sin_sg(4,i,j-1)+sin_sg(2,i,j))
+                        *0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))
             enddo
          enddo
 
@@ -550,7 +587,7 @@
       real, intent(in)::  dy(bd%isd:bd%ied+1,bd%jsd:bd%jed)
       real, intent(in):: dxc(bd%isd:bd%ied+1,bd%jsd:bd%jed)
       real, intent(in):: dyc(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
-      real, intent(IN):: sin_sg(9,bd%isd:bd%ied,bd%jsd:bd%jed)
+      real, intent(IN):: sin_sg(bd%isd:bd%ied,bd%jsd:bd%jed,9)
       real, intent(inout):: q(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng)
       logical, intent(IN) :: nested
       type(domain2d), intent(INOUT) :: domain
@@ -645,7 +682,7 @@
       do j=js,je
          do i=is,ie+1
             fx2(i,j) = 0.25*(diff(i-1,j)+diff(i,j))*dy(i,j)*(q(i-1,j)-q(i,j))/dxc(i,j)          &
-                           *(sin_sg(1,i,j)+sin_sg(3,i-1,j))
+                           *(sin_sg(i,j,1)+sin_sg(i-1,j,3))
          enddo
       enddo
 
@@ -653,7 +690,7 @@
       do j=js,je+1
          do i=is,ie
             fy2(i,j) = 0.25*(diff(i,j-1)+diff(i,j))*dx(i,j)*(q(i,j-1)-q(i,j))/dyc(i,j) &
-                           *(sin_sg(2,i,j)+sin_sg(4,i,j-1))
+                           *(sin_sg(i,j,2)+sin_sg(i,j-1,4))
          enddo
       enddo
 
@@ -699,7 +736,7 @@
 !     call copy_corners(d2, npx, npy, 1)
       do j=js,je
          do i=is,ie+1
-            fx4(i,j) = 0.5*(sin_sg(3,i-1,j)+sin_sg(1,i,j))*dy(i,j)*(d2(i,j)-d2(i-1,j))/dxc(i,j)-fx2(i,j)
+            fx4(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i,j)-d2(i-1,j))/dxc(i,j)-fx2(i,j)
          enddo
       enddo
 
@@ -707,7 +744,7 @@
       do j=js,je+1
          do i=is,ie
             fy4(i,j) = dx(i,j)*(d2(i,j)-d2(i,j-1))/dyc(i,j) &
-                     *0.5*(sin_sg(2,i,j)+sin_sg(4,i,j-1))-fy2(i,j)
+                     *0.5*(sin_sg(i,j,2)+sin_sg(i,j-1,4))-fy2(i,j)
          enddo
       enddo
 

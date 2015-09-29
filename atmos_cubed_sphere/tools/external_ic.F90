@@ -68,6 +68,7 @@ contains
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
+      integer :: sphum, liq_wat, ice_wat, o3mr
 
       is  = Atm(1)%bd%is
       ie  = Atm(1)%bd%ie
@@ -141,11 +142,19 @@ contains
       endif
 
       call prt_maxmin('PS', Atm(1)%ps, is, ie, js, je, ng, 1, 0.01)
+      call prt_maxmin('TS', Atm(1)%ts, is, ie, js, je, 0, 1, 1.)
       call prt_maxmin('T', Atm(1)%pt, is, ie, js, je, ng, Atm(1)%npz, 1.)
       call prt_maxmin('W', Atm(1)%w, is, ie, js, je, ng, Atm(1)%npz, 1.)
       call prt_maxmin('SPHUM', Atm(1)%q(:,:,:,1), is, ie, js, je, ng, Atm(1)%npz, 1.)
-      call prt_maxmin('O3MR', Atm(1)%q(:,:,:,2), is, ie, js, je, ng, Atm(1)%npz, 1.)
-      call prt_maxmin('CLWMR', Atm(1)%q(:,:,:,3), is, ie, js, je, ng, Atm(1)%npz, 1.)
+      if ( Atm(1)%flagstruct%nggps_ic ) then
+        sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
+        o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
+        liq_wat   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+        ice_wat   = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+        call prt_maxmin('liq_wat', Atm(1)%q(:,:,:,liq_wat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        call prt_maxmin('ice_wat', Atm(1)%q(:,:,:,ice_wat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        call prt_maxmin('O3MR', Atm(1)%q(:,:,:,o3mr), is, ie, js, je, ng, Atm(1)%npz, 1.)
+      endif
 
       call p_var(Atm(1)%npz,  is, ie, js, je, Atm(1)%ak(1),  ptop_min,         &
                  Atm(1)%delp, Atm(1)%delz, Atm(1)%pt, Atm(1)%ps,               &
@@ -698,7 +707,7 @@ contains
       allocate (ua  (is:ie,js:je,levp))
       allocate (va  (is:ie,js:je,levp))
       allocate (omga(is:ie,js:je,levp))
-      allocate (q (is:ie,js:je,levp,ntrac))
+      allocate (q (is:ie,js:je,levp,ntracers))
       do n = 1,size(Atm(:))
 !--- read in surface temperature (k) and land-frac
         ! surface skin temperature
@@ -740,10 +749,10 @@ contains
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
 
         ! prognostic tracers
-        do nt = 1, ntrac
+        do nt = 1, ntracers
           call get_tracer_names(MODEL_ATMOS, nt, tracer_name)
           id_res = register_restart_field (GFS_restart, fn_gfs_ics, trim(tracer_name), q(:,:,:,nt), &
-                                           domain=Atm(n)%domain)
+                                           mandatory=.false.,domain=Atm(n)%domain)
         enddo
 
         ! initialize all tracers to default values prior to being input
@@ -783,7 +792,7 @@ contains
           Atm(n)%ua  (is:ie,js:je,1:npz) = ua  (is:ie,js:je,itoa:levp)
           Atm(n)%va  (is:ie,js:je,1:npz) = va  (is:ie,js:je,itoa:levp)
           Atm(n)%omga(is:ie,js:je,1:npz) = omga(is:ie,js:je,itoa:levp)
-          Atm(n)%q   (is:ie,js:je,1:npz,1:ntrac) = q(is:ie,js:je,itoa:levp,1:ntrac)
+          Atm(n)%q   (is:ie,js:je,1:npz,1:ntracers) = q(is:ie,js:je,itoa:levp,1:ntracers)
  
           call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), &
                                dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
@@ -806,7 +815,7 @@ contains
             Atm(n)%bk(:) = bk_sj(:)
           endif
           ! call vertical remapping algorithms
-          call remap_scalar_nggps(is, js, levp, npz, ntprog, ntrac, ak(:), bk(:), ps, zs, &
+          call remap_scalar_nggps(is, js, levp, npz, ntprog, ntracers, ak(:), bk(:), ps, zs, &
                                   t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
         endif
@@ -1468,8 +1477,8 @@ contains
 
 
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
+  clwmr   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
   o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
-  clwmr   = get_tracer_index(MODEL_ATMOS, 'clwmr')
 
   if (mpp_pe()==1) then
     print *, 'sphum = ', sphum
@@ -1653,7 +1662,7 @@ contains
 
 
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
-  clwmr   = get_tracer_index(MODEL_ATMOS, 'clwmr')
+  clwmr   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
   o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
 
   if (mpp_pe()==1) then

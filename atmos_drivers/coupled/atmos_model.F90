@@ -154,7 +154,9 @@ logical :: do_netcdf_restart = .true.
 integer :: nxblocks = 1
 integer :: nyblocks = 1
 logical :: surface_debug = .false.
-namelist /atmos_model_nml/ nxblocks, nyblocks, do_netcdf_restart, surface_debug
+logical :: dycore_only = .false.
+namelist /atmos_model_nml/ nxblocks, nyblocks, do_netcdf_restart, surface_debug, &
+                           dycore_only
 
 !--- concurrent and decoupled radiation and physics variables
 type (state_fields_in),  dimension(:), allocatable :: Statein
@@ -209,6 +211,7 @@ subroutine update_atmos_radiation_physics (Atmos)
 !--- local variables---
     type(time_type) :: Time_next
     real :: tmax, tmin
+    integer :: nb
 
     Time_next = Atmos%Time + Atmos%Time_step
 
@@ -220,28 +223,38 @@ subroutine update_atmos_radiation_physics (Atmos)
 
     if (surface_debug) call check_data ('FV DYNAMICS')
 
-    if(mpp_pe() == mpp_root_pe() ) write(6,*) "setup step"
-    call mpp_clock_begin(setupClock)
-    call phys_rad_setup_step (Atmos%Time_init, Atmos%Time, Time_next, Atm_block)
-    call mpp_clock_end(setupClock)
+    if (dycore_only) then
+      do nb = 1,Atm_block%nblks
+        Stateout(nb)%gu0 = Statein(nb)%ugrs
+        Stateout(nb)%gv0 = Statein(nb)%vgrs
+        Stateout(nb)%gt0 = Statein(nb)%tgrs
+        Stateout(nb)%gq0 = Statein(nb)%qgrs
+      enddo
+    else
+      if(mpp_pe() == mpp_root_pe() ) write(6,*) "setup step"
+      call mpp_clock_begin(setupClock)
+      call phys_rad_setup_step (Atmos%Time_init, Atmos%Time, Time_next, Atm_block)
+      call mpp_clock_end(setupClock)
 
-    if(mpp_pe() == mpp_root_pe() ) write(6,*) "radiation driver"
+      if(mpp_pe() == mpp_root_pe() ) write(6,*) "radiation driver"
 !--- execute the GFS atmospheric radiation subcomponent (RRTM)
-    call mpp_clock_begin(radClock)
-    call radiation_driver (Atmos%time, Time_next, Atm_block, Statein)
-    call mpp_clock_end(radClock)
+      call mpp_clock_begin(radClock)
+      call radiation_driver (Atmos%time, Time_next, Atm_block, Statein)
+      call mpp_clock_end(radClock)
 
-    if (surface_debug) call check_data ('RADIATION')
+      if (surface_debug) call check_data ('RADIATION')
 
-    if(mpp_pe() == mpp_root_pe() ) write(6,*) "physics driver"
+      if(mpp_pe() == mpp_root_pe() ) write(6,*) "physics driver"
 !--- execute the GFS atmospheric physics subcomponent (RRTM)
-    call mpp_clock_begin(physClock)
-    call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)
-    call mpp_clock_end(physClock)
+      call mpp_clock_begin(physClock)
+      call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)
+      call mpp_clock_end(physClock)
 
-    if (surface_debug) call check_data ('PHYSICS')
+      if (surface_debug) call check_data ('PHYSICS')
 
-    if(mpp_pe() == mpp_root_pe() ) write(6,*) "end of radiation and physics step"
+      if(mpp_pe() == mpp_root_pe() ) write(6,*) "end of radiation and physics step"
+    endif
+
 !-----------------------------------------------------------------------
  end subroutine update_atmos_radiation_physics
 ! </SUBROUTINE>
@@ -279,7 +292,6 @@ subroutine update_atmos_radiation_physics (Atmos)
     if (mpp_pe() == mpp_root_pe()) write(6,*) 'after ',trim(name_str),' component'
     call skin_temp (tsmin,tsmax, timax, timin, Atm_block%nblks)
     if (mpp_pe() == mpp_root_pe()) write(6,*) '     GFS TSFC  max: ',tsmax,'   min: ',tsmin
-!rab    if (mpp_pe() == mpp_root_pe()) write(6,*) '     GFS TISFC max: ',timax,'   min: ',timin
     call mpp_max(t1max)
     call mpp_min(t1min)
     if (mpp_pe() == mpp_root_pe()) write(6,*) '    GFDL TL1   max: ',t1max,'   min: ',t1min

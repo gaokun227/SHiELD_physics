@@ -933,7 +933,7 @@ contains
        !-- level geopotential height
        !--- GFS physics assumes geopotential in a column is always zero at
        !--- the surface and only the difference between layers is important.
-       Statein(nb)%phii(ix,1) = 0.0
+       Statein(nb)%phii(ix,:) = 0.0
 !
        do k = 1, npz
          !  level pressure
@@ -958,7 +958,9 @@ contains
 !SJL IF WE ARE GOING TO USE TRACER LIMITING, IT SHOULD OCCUR ABOVE
 !SJL
          !-- level geopotential height
-         Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
+         if (.not. Atm(mytile)%flagstruct%hydrostatic) then
+           Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
+         endif
        enddo
 
        !  level pressure

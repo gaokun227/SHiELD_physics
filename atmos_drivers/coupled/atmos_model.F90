@@ -372,45 +372,45 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 ! initialize atmospheric model -----
 
 !---------- initialize atmospheric dynamics -------
-    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
-                          Atmos%grid)
+   call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
+                         Atmos%grid)
 
 !-----------------------------------------------------------------------
 !---- allocate space ----
-    call atmosphere_resolution (nlon, nlat, global=.false.)
-    call atmosphere_resolution (mlon, mlat, global=.true.)
-    call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
-    call atmosphere_domain (Atmos%domain)
-    call get_atmosphere_axes (Atmos%axes)
-    call get_atmosphere_grid (Atmos%dxmax, Atmos%dxmin)
-    call atmosphere_boundary (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
-    call atmosphere_grid_center (Atmos%lon, Atmos%lat)
+   call atmosphere_resolution (nlon, nlat, global=.false.)
+   call atmosphere_resolution (mlon, mlat, global=.true.)
+   call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
+   call atmosphere_domain (Atmos%domain)
+   call get_atmosphere_axes (Atmos%axes)
+   call get_atmosphere_grid (Atmos%dxmax, Atmos%dxmin)
+   call atmosphere_boundary (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
+   call atmosphere_grid_center (Atmos%lon, Atmos%lat)
 
 !-----------------------------------------------------------------------
 !--- before going any further check definitions for 'blocks'
 !-----------------------------------------------------------------------
-    call atmosphere_control_data (isc, iec, jsc, jec, nlev, p_hydro, hydro)
-    call define_blocks ('atmos_model', Atm_block, isc, iec, jsc, jec, nlev, &
-                        nxblocks, nyblocks, block_message)
-    allocate(Statein (Atm_block%nblks))
-    allocate(Stateout(Atm_block%nblks))
+   call atmosphere_control_data (isc, iec, jsc, jec, nlev, p_hydro, hydro)
+   call define_blocks ('atmos_model', Atm_block, isc, iec, jsc, jec, nlev, &
+                       nxblocks, nyblocks, block_message)
+   allocate(Statein (Atm_block%nblks))
+   allocate(Stateout(Atm_block%nblks))
 
 !---------- initialize physics -------
-    call phys_rad_driver_init(Atmos%Time,         &
-                              Atmos%lon(:,:),     &
-                              Atmos%lat(:,:),     &
-                              mlon,               &
-                              mlat,               &
-                              nlev,               &
-                              Atmos%axes,         &
-                              Atmos%grid%dx,      &
-                              Atmos%grid%dy,      &
-                              Atmos%grid%area,    &
-                              Atmos%dxmin,        &
-                              Atmos%dxmax,        &
-                              dt_phys,            &
-                              Atm_block,          &
-                              Statein, Stateout) 
+   call phys_rad_driver_init(Atmos%Time,         &
+                             Atmos%lon(:,:),     &
+                             Atmos%lat(:,:),     &
+                             mlon,               &
+                             mlat,               &
+                             nlev,               &
+                             Atmos%axes,         &
+                             Atmos%grid%dx,      &
+                             Atmos%grid%dy,      &
+                             Atmos%grid%area,    &
+                             Atmos%dxmin,        &
+                             Atmos%dxmax,        &
+                             dt_phys,            &
+                             Atm_block,          &
+                             Statein, Stateout) 
 
 !-----------------------------------------------------------------------
 !------ get initial state for dynamics -------

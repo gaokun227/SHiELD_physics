@@ -420,12 +420,12 @@ module gfs_physics_driver_mod
         Dyn_parms(nb)%area(ix) = area(i,j)
         Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
         Dyn_parms(nb)%dy(ix)   = 0.5*(dy(i,j)+dy(i+1,j))
-        Dyn_parms(nb)%xlat(ix) = lat(i,j)*pi/180.0_kind_phys
-        Dyn_parms(nb)%xlon(ix) = lon(i,j)*pi/180.0_kind_phys
-        Dyn_parms(nb)%sinlat(ix) = sin(Dyn_parms(nb)%xlat(ix))
+        Dyn_parms(nb)%xlat(ix) = lat(i,j)
+        Dyn_parms(nb)%xlon(ix) = lon(i,j)
+        Dyn_parms(nb)%sinlat(ix) = sin(lat(i,j))
         Dyn_parms(nb)%coslat(ix) = sqrt(1.0_kind_phys - Dyn_parms(nb)%sinlat(ix)*Dyn_parms(nb)%sinlat(ix))
 !--- needed for setindxoz
-        O3dat(nb)%gaul(ix) = lat(i,j)
+        O3dat(nb)%gaul(ix) = lat(i,j)*180.0_kind_phys/pi
        enddo
       enddo
 

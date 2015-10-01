@@ -958,11 +958,15 @@ contains
 !SJL IF WE ARE GOING TO USE TRACER LIMITING, IT SHOULD OCCUR ABOVE
 !SJL
          !-- level geopotential height
-         if (.not. Atm(mytile)%flagstruct%hydrostatic) then
+         if (Atm(mytile)%flagstruct%hydrostatic) then
+           Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
+                       Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &
+                       (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))
+
+         else
            Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
          endif
        enddo
-
        !  level pressure
        Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
        !  level exner function pressure

@@ -279,7 +279,7 @@ CONTAINS
    ie1 = ie + 1
 
 !$OMP parallel do default(none) shared(js,je,is1,ie1,km,delp,pef,ptop,gz,rgrav,w3,pt,rcp, &
-!$OMP                                  a_imp,dt,gama,akap,ws,p_fac,scale_m,ms,hs)         &
+!$OMP                                  a_imp,dt,gama,akap,ws,p_fac,scale_m,ms,hs,q_con,cappa) &
 !$OMP                          private(cp2,gm2, dm, dz2, w2, pm2, pt2, pe2, pem, peg)
    do 2000 j=js-1, je+1
 
@@ -341,11 +341,7 @@ CONTAINS
 
       do k=2,km+1
          do i=is1, ie1
-#ifdef GAS_HYDRO_P
-            pef(i,j,k) = pe2(i,k) + peg(i,k)  ! add hydrostatic gas-component
-#else
             pef(i,j,k) = pe2(i,k) + pem(i,k)  ! add hydrostatic full-component
-#endif
          enddo
       enddo
 
@@ -408,7 +404,7 @@ CONTAINS
 
 !$OMP parallel do default(none) shared(is,ie,js,je,km,delp,ptop,peln1,pk3,ptk,akap,rgrav,zh,pt, &
 !$OMP                                  w,rcp,a_imp,dt,gama,ws,p_fac,scale_m,ms,delz,last_call,  &
-!$OMP                                  peln,pk,fp_out,ppe,use_logp,zs,pe )                      &
+!$OMP                                  peln,pk,fp_out,ppe,use_logp,zs,pe,cappa,q_con )          &
 !$OMP                          private(cp2, gm2, dm, dz2, pm2, pt2, pem, peg, pelng, pe2, peln2, w2)
    do 2000 j=js, je
 
@@ -440,11 +436,7 @@ CONTAINS
             peg(i,k) = peg(i,k-1) + dm(i,k-1)*(1.-q_con(i,j,k-1))
             pelng(i,k) = log(peg(i,k))
 #endif
-#ifdef GAS_HYDRO_P
-            pk3(i,j,k) = exp(akap*pelng(i,k))
-#else
             pk3(i,j,k) = exp(akap*peln2(i,k))
-#endif
          enddo
       enddo
 
@@ -846,10 +838,10 @@ CONTAINS
 
  end subroutine RIM_2D
 
- subroutine SIM3_solver(dt,  is,  ie, km, rgas, gama, cappa, pe2, dm,   &
+ subroutine SIM3_solver(dt,  is,  ie, km, rgas, gama, kappa, pe2, dm,   &
                         pem, w2, dz2, pt2, ws, alpha, p_fac, scale_m)
    integer, intent(in):: is, ie, km
-   real, intent(in):: dt, rgas, gama, cappa, alpha, p_fac, scale_m
+   real, intent(in):: dt, rgas, gama, kappa, alpha, p_fac, scale_m
    real, intent(in   ), dimension(is:ie,km):: dm, pt2
    real, intent(in )::  ws(is:ie)
    real, intent(in ), dimension(is:ie,km+1):: pem
@@ -867,7 +859,7 @@ CONTAINS
       t2 = beta / alpha
      t1g = gama * 2.*(alpha*dt)**2
      rdt = 1. / dt
-   capa1 = cappa - 1.
+   capa1 = kappa - 1.
    r2g = grav / 2.
    r6g = grav / 6.
 
@@ -996,11 +988,11 @@ CONTAINS
 
  end subroutine SIM3_solver
 
- subroutine SIM3p0_solver(dt,  is,  ie, km, rgas, gama, cappa, pe2, dm, &
+ subroutine SIM3p0_solver(dt,  is,  ie, km, rgas, gama, kappa, pe2, dm, &
                           pem, w2, dz2, pt2, ws, p_fac, scale_m)
 ! Sa SIM3, but for beta==0
    integer, intent(in):: is, ie, km
-   real, intent(in):: dt, rgas, gama, cappa, p_fac, scale_m
+   real, intent(in):: dt, rgas, gama, kappa, p_fac, scale_m
    real, intent(in   ), dimension(is:ie,km):: dm, pt2
    real, intent(in )::  ws(is:ie)
    real, intent(in ):: pem(is:ie,km+1)
@@ -1015,7 +1007,7 @@ CONTAINS
 
      t1g = 2.*gama*dt**2
      rdt = 1. / dt
-   capa1 = cappa - 1.
+   capa1 = kappa - 1.
    r2g = grav / 2.
    r6g = grav / 6.
 
@@ -1589,8 +1581,15 @@ CONTAINS
 
  end subroutine edge_profile
 
- subroutine nest_halo_nh(ptop, grav, kappa, cp, delp, delz, pt, phis, pkc, gz, pk3, &
-         npx, npy, npz, nested, pkc_pertn, computepk3, fullhalo, bd)
+ subroutine nest_halo_nh(ptop, grav, kappa, cp, delp, delz, pt, phis, &
+#ifdef USE_COND
+      q_con, &
+#ifdef MOIST_CAPPA
+      cappa, &
+#endif
+#endif
+      pkc, gz, pk3, &
+      npx, npy, npz, nested, pkc_pertn, computepk3, fullhalo, bd)
 
       !INPUT: delp, delz, pt
       !OUTPUT: gz, pkc, pk3 (optional)
@@ -1600,6 +1599,12 @@ CONTAINS
       type(fv_grid_bounds_type), intent(IN) :: bd
       real, intent(IN) :: phis(bd%isd:bd%ied,bd%jsd:bd%jed)
       real, intent(IN),  dimension(bd%isd:bd%ied,bd%jsd:bd%jed,npz):: pt, delp, delz
+#ifdef USE_COND
+      real, intent(IN),  dimension(bd%isd:bd%ied,bd%jsd:bd%jed,npz):: q_con
+#ifdef MOIST_CAPPA
+      real, intent(INOUT),  dimension(bd%isd:bd%ied,bd%jsd:bd%jed,npz):: cappa
+#endif
+#endif
       real, intent(INOUT), dimension(bd%isd:bd%ied,bd%jsd:bd%jed,npz+1):: gz, pkc, pk3
 
       integer :: i,j,k
@@ -1607,8 +1612,12 @@ CONTAINS
       real :: rcp
       real :: ptk, rgrav, rkap
       real :: peln1
+      real :: kapag
 
       real, dimension(bd%isd:bd%ied, npz+1, bd%jsd:bd%jed ) :: pe, peln
+#ifdef USE_COND
+      real, dimension(bd%isd:bd%ied, npz+1 ) :: peg, pelng
+#endif
       real, dimension(bd%isd:bd%ied, npz) :: gam, bb, dd, pkz
       real, dimension(bd%isd:bd%ied, npz-1) :: g_rat
       real, dimension(bd%isd:bd%ied) :: bet
@@ -1643,7 +1652,7 @@ CONTAINS
       ptk = ptop ** kappa
       rkap = 1./kappa
       peln1 = log(ptop)
-
+      kapag = - kappa * rgrav
 
       !NOTE: Compiler does NOT like this sort of nested-grid BC code. Is it trying to do some ugly optimization?
 
@@ -1665,11 +1674,19 @@ CONTAINS
             do i=ifirst,0
                pe(i,1,j) = ptop
                peln(i,1,j) = peln1
+#ifdef USE_COND
+               peg(i,1) = ptop
+               pelng(i,1) = peln1
+#endif
             enddo
             do k=2,npz+1
                do i=ifirst,0
                   pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
                   peln(i,k,j) = log(pe(i,k,j))
+#ifdef USE_COND
+                  peg(i,k) = peg(i,k-1) + delp(i,j,k-1)*(1.-q_con(i,j,k-1))
+                  pelng(i,k) = log(peg(i,k))
+#endif
                enddo
             enddo
 
@@ -1677,16 +1694,23 @@ CONTAINS
             do k=1,npz
                do i=ifirst,0
                   !Full p
+#ifdef MOIST_CAPPA
+                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+#else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+#endif
                   !hydro
+#ifdef USE_COND
+                  pm = (peg(i,k+1)-peg(i,k))/(pelng(i,k+1)-pelng(i,k))
+#else
                   pm = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
+#endif
                   !Remove hydro cell-mean pressure
                   pkz(i,k) = pkz(i,k) - pm
                enddo
             enddo
 
-            !Reversible interpolation on layer NH pressure perturbation
-            !                 to recover  edge NH pressure perturbation
+            !pressure solver
             do k=1,npz-1
                do i=ifirst,0
                   g_rat(i,k) = delp(i,j,k)/delp(i,j,k+1)
@@ -1732,7 +1756,7 @@ CONTAINS
                enddo
             endif
 
-            !pk3 if necessary
+            !pk3 if necessary; doesn't require condenstate loading calculation
             if (computepk3) then
                do i=ifirst,0
                   pk3(i,j,1) = ptk
@@ -1766,11 +1790,19 @@ CONTAINS
             do i=npx,ilast
                pe(i,1,j) = ptop
                peln(i,1,j) = peln1
+#ifdef USE_COND
+               peg(i,1) = ptop
+               pelng(i,1) = peln1
+#endif
             enddo
             do k=2,npz+1
                do i=npx,ilast
                   pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
                   peln(i,k,j) = log(pe(i,k,j))
+#ifdef USE_COND
+                  peg(i,k) = peg(i,k-1) + delp(i,j,k-1)*(1.-q_con(i,j,k-1))
+                  pelng(i,k) = log(peg(i,k))
+#endif
                enddo
             enddo
 
@@ -1778,16 +1810,23 @@ CONTAINS
             do k=1,npz
                do i=npx,ilast
                   !Full p
+#ifdef MOIST_CAPPA
+                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+#else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+#endif
                   !hydro
+#ifdef USE_COND
+                  pm = (peg(i,k+1)-peg(i,k))/(pelng(i,k+1)-pelng(i,k))
+#else
                   pm = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
+#endif
                   !Remove hydro cell-mean pressure
                   pkz(i,k) = pkz(i,k) - pm
                enddo
             enddo
 
-            !Reversible interpolation on layer NH pressure perturbation
-            !                 to recover  edge NH pressure perturbation
+            !pressure solver
             do k=1,npz-1
                do i=npx,ilast
                   g_rat(i,k) = delp(i,j,k)/delp(i,j,k+1)
@@ -1863,11 +1902,19 @@ CONTAINS
             do i=ifirst,ilast
                pe(i,1,j) = ptop
                peln(i,1,j) = peln1
+#ifdef USE_COND
+               peg(i,1) = ptop
+               pelng(i,1) = peln1
+#endif
             enddo
             do k=2,npz+1
                do i=ifirst,ilast
                   pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
                   peln(i,k,j) = log(pe(i,k,j))
+#ifdef USE_COND
+                  peg(i,k) = peg(i,k-1) + delp(i,j,k-1)*(1.-q_con(i,j,k-1))
+                  pelng(i,k) = log(peg(i,k))
+#endif
                enddo
             enddo
 
@@ -1875,7 +1922,17 @@ CONTAINS
             do k=1,npz
                do i=ifirst,ilast
                   !Full p
+#ifdef MOIST_CAPPA
+                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+#else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+#endif
+                  !hydro
+#ifdef USE_COND
+                  pm = (peg(i,k+1)-peg(i,k))/(pelng(i,k+1)-pelng(i,k))
+#else
+                  pm = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
+#endif
                   !hydro
                   pm = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
                   !Remove hydro cell-mean pressure
@@ -1883,8 +1940,7 @@ CONTAINS
                enddo
             enddo
 
-            !Reversible interpolation on layer NH pressure perturbation
-            !                 to recover  edge NH pressure perturbation
+            !pressure solver
             do k=1,npz-1
                do i=ifirst,ilast
                   g_rat(i,k) = delp(i,j,k)/delp(i,j,k+1)
@@ -1964,11 +2020,19 @@ CONTAINS
             do i=ifirst,ilast
                pe(i,1,j) = ptop
                peln(i,1,j) = peln1
+#ifdef USE_COND
+               peg(i,1) = ptop
+               pelng(i,1) = peln1
+#endif
             enddo
             do k=2,npz+1
                do i=ifirst,ilast
                   pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
                   peln(i,k,j) = log(pe(i,k,j))
+#ifdef USE_COND
+                  peg(i,k) = peg(i,k-1) + delp(i,j,k-1)*(1.-q_con(i,j,k-1))
+                  pelng(i,k) = log(peg(i,k))
+#endif
                enddo
             enddo
 
@@ -1976,7 +2040,17 @@ CONTAINS
             do k=1,npz
                do i=ifirst,ilast
                   !Full p
+#ifdef MOIST_CAPPA
+                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+#else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+#endif
+                  !hydro
+#ifdef USE_COND
+                  pm = (peg(i,k+1)-peg(i,k))/(pelng(i,k+1)-pelng(i,k))
+#else
+                  pm = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
+#endif
                   !hydro
                   pm = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
                   !Remove hydro cell-mean pressure

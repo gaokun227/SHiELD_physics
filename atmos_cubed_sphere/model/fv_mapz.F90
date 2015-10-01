@@ -23,7 +23,7 @@ module fv_mapz_mod
   real, parameter:: cv_air =  cp_air - rdgas ! = rdgas * (7/2-1) = 2.5*rdgas=717.68
   real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0.C
   real, parameter:: c_liq = 4190.
-  real(kind=4) :: E_Flux, E_Flux_Nest
+  real(kind=4) :: E_Flux = 0., E_Flux_Nest = 0.
   private
 
   public compute_total_energy, Lagrangian_to_Eulerian,    &

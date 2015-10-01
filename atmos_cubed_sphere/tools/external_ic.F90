@@ -144,7 +144,7 @@ contains
       call prt_maxmin('PS', Atm(1)%ps, is, ie, js, je, ng, 1, 0.01)
       call prt_maxmin('TS', Atm(1)%ts, is, ie, js, je, 0, 1, 1.)
       call prt_maxmin('T', Atm(1)%pt, is, ie, js, je, ng, Atm(1)%npz, 1.)
-      call prt_maxmin('W', Atm(1)%w, is, ie, js, je, ng, Atm(1)%npz, 1.)
+      if (.not.Atm(1)%flagstruct%hydrostatic) call prt_maxmin('W', Atm(1)%w, is, ie, js, je, ng, Atm(1)%npz, 1.)
       call prt_maxmin('SPHUM', Atm(1)%q(:,:,:,1), is, ie, js, je, ng, Atm(1)%npz, 1.)
       if ( Atm(1)%flagstruct%nggps_ic ) then
         sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
@@ -680,6 +680,8 @@ contains
 
 !--- read in the number of tracers in the NCEP NGGPS ICs
       call read_data ('INPUT/'//trim(fn_gfs_ctl), 'ntrac', ntrac, no_domain=.TRUE.)
+      if (ntrac > ntracers) call mpp_error(FATAL,'==> External_ic::get_nggps_ic: more NGGPS tracers &
+                                 &than defined in field_table '//trim(fn_gfs_ctl)//' for NGGPS IC')
 
 !--- read in ak and bk from the gfs control file using fms_io read_data ---
       allocate (wk2(levp+1,2))
@@ -794,11 +796,11 @@ contains
           Atm(n)%omga(is:ie,js:je,1:npz) = omga(is:ie,js:je,itoa:levp)
           Atm(n)%q   (is:ie,js:je,1:npz,1:ntracers) = q(is:ie,js:je,itoa:levp,1:ntracers)
  
-          call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), &
+          if (.not.Atm(n)%flagstruct%hydrostatic) then
+            call get_w_from_omga(is, js, npz, ak(itoa:levp+1), bk(itoa:levp+1), ps(:,:), &
                                dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
+          endif
 
-          ! populate the haloes of Atm(:)%phis
-          call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
           ! map the A-grid winds onto the D-grid winds
           call cubed_a2d (Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ua, Atm(n)%va, Atm(n)%u, Atm(n)%v, &
                           Atm(n)%gridstruct, Atm(n)%domain, Atm(n)%bd )
@@ -819,6 +821,8 @@ contains
                                   t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
         endif
+      ! populate the haloes of Atm(:)%phis
+      call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
       enddo
 
       Atm(1)%flagstruct%make_nh = .false.
@@ -1826,11 +1830,13 @@ contains
 ! map omega
 !-------------------------------------------------------------
       call mappm(km, pe0, omgap, npz, pe1, qn1, is,ie, 0, 11, Atm%ptop)
-      do k=1,npz
-         do i=is,ie
+      if ( .not. Atm%flagstruct%hydrostatic .and. Atm%flagstruct%nggps_ic ) then
+        do k=1,npz
+          do i=is,ie
             atm%w(i,j,k) = qn1(i,k)/atm%delp(i,j,k)*atm%delz(i,j,k)
-         enddo
-      enddo
+          enddo
+        enddo
+      endif
 
 5000 continue
 

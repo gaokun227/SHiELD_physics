@@ -801,8 +801,6 @@ contains
                                dp(:,:,itoa:levp), t(:,:,itoa:levp), omga(:,:,itoa:levp),Atm(n))
           endif
 
-          ! populate the haloes of Atm(:)%phis
-          call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
           ! map the A-grid winds onto the D-grid winds
           call cubed_a2d (Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ua, Atm(n)%va, Atm(n)%u, Atm(n)%v, &
                           Atm(n)%gridstruct, Atm(n)%domain, Atm(n)%bd )
@@ -823,6 +821,8 @@ contains
                                   t(:,:,:), q(:,:,:,:),omga(:,:,:),Atm(n))
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
         endif
+      ! populate the haloes of Atm(:)%phis
+      call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
       enddo
 
       Atm(1)%flagstruct%make_nh = .false.

@@ -906,9 +906,10 @@ contains
    type (block_control_type),            intent(in)    :: Atm_block
 !--- local variables
    integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum
+   real(kind=kind_phys), parameter :: qmin = 1.0e-10   
    real(kind=kind_phys) :: pk0inv
 
-   pk0inv = 1.0_kind_phys/(100000._kind_phys**kappa)
+   pk0inv = (1.0_kind_phys/100000._kind_phys**kappa)
 
    sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
 
@@ -948,16 +949,23 @@ contains
          !  layer vertical pressure velocity
          Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,npz+1-k)
 !SJL
-!SJL IF WE ARE GOING TO USE TRACER LIMITING, IT SHOULD OCCUR BELOW
+!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR BELOW
+!SJL     gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
 !SJL
-         !  layer tracers:  sphum, advected, non-advected
-         Statein(nb)%qgrs_rad(ix,k)    = Atm(mytile)%q(i,j,npz+1-k,sphum)
-         Statein(nb)%tracer(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,:)
-         Statein(nb)%tracer(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,:)
+         !  layer sphum for radiation with GFS limiter applied
+         Statein(nb)%qgrs_rad(ix,k)    = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
 !SJL
-!SJL IF WE ARE GOING TO USE TRACER LIMITING, IT SHOULD OCCUR ABOVE
+!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
 !SJL
-         !-- level geopotential height
+         !  layer tracers for radiation excluding sphum
+         Statein(nb)%tracer(ix,k,1:nq-1) = Atm(mytile)%q(i,j,npz+1-k,2:nq)
+         Statein(nb)%tracer(ix,k,nq:ncnst-1) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
+
+         !  raw tracers for gbphoys
+         Statein(nb)%qgrs(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,1:nq)
+         Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
+
+         !  level geopotential height
          if (Atm(mytile)%flagstruct%hydrostatic) then
            Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
                        Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &

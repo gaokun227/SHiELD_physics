@@ -953,7 +953,7 @@
              allocate(this%prslk    (IX,Model%levs))
              allocate(this%tgrs     (IX,Model%levs))
              allocate(this%qgrs_rad (IX,Model%levs))
-             allocate(this%tracer   (IX,Model%levs,Model%ntrac))
+             allocate(this%tracer   (IX,Model%levs,Model%ntrac-1))
              allocate(this%vvl      (IX,Model%levs))
 
              this%prsi     = clear_val
@@ -991,16 +991,12 @@
 !rab             this%tgrs
 !rab             this%vvl
 !is qgrs the same as tracer in state_fld_setrad_in
-             if (allocated(this%tracer)) then
-               this%qgrs => this%tracer
-             else
-               allocate(this%qgrs(IX,Model%levs,Model%ntrac))
-             endif
 
           ! The following not in radiation
              allocate(this%pgr   (IX))
              allocate(this%ugrs  (IX,Model%levs))
              allocate(this%vgrs  (IX,Model%levs))
+             allocate(this%qgrs  (IX,Model%levs,Model%ntrac))
              allocate(this%prsik (IX,Model%levs+1))
              allocate(this%phii  (IX,Model%levs+1))
              allocate(this%phil  (IX,Model%levs))
@@ -1008,6 +1004,7 @@
              this%pgr   = clear_val
              this%ugrs  = clear_val
              this%vgrs  = clear_val
+             this%qgrs  = clear_val
              this%prsik = clear_val
              this%phii  = clear_val
              this%phil  = clear_val
@@ -2660,7 +2657,7 @@
                     cld_prop%cvt, cld_prop%cvb, cld_prop%fcice, cld_prop%frain, cld_prop%rrime,        &
                     cld_prop%flgmin, dyn_parm%icsdsw, dyn_parm%icsdlw,                                 &
                     mdl_parm%ntcw-1, mdl_parm%ncld, mdl_parm%ntoz-1,  &
-                    mdl_parm%NTRAC, diags%NFXR, dyn_parm%dtlw, dyn_parm%dtsw,       &
+                    mdl_parm%NTRAC-1, diags%NFXR, dyn_parm%dtlw, dyn_parm%dtsw,       &
                     dyn_parm%lsswr, dyn_parm%lslwr, dyn_parm%lssav, mdl_parm%shoc_cld, &
                     dyn_parm%IX, dyn_parm%IM,          &
                     mdl_parm%levs, mdl_parm%me, dyn_parm%lprnt, dyn_parm%ipt, dyn_parm%kdt,              &

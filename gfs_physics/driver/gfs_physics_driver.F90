@@ -602,11 +602,13 @@ module gfs_physics_driver_mod
         do j = 1,ny
           do i = 1,nx
             ix = ix + 1
-            Dyn_parms(nb)%icsdsw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
-            Dyn_parms(nb)%icsdlw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
+!rab            Dyn_parms(nb)%icsdsw(ix) = 100
+!rab            Dyn_parms(nb)%icsdlw(ix) = 100
+            Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
+            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
 
             if (Mdl_parms%num_p3d == 3) then
-              work1 = (Dyn_parms(nb)%dx(ix) - dxmin) * dxinv
+              work1 = (log(Dyn_parms(nb)%dx(ix)) - dxmin) * dxinv
               work1 = max(0.0, min(1.0,work1))
               Cld_props(nb)%flgmin(ix) = flgmin(1)*work1 + flgmin(2)*(1.0-work1)
             else
@@ -624,7 +626,12 @@ module gfs_physics_driver_mod
       endif
     enddo
 
-    if (mpp_pe() == mpp_root_pe()) write(6,*) ' starting timestep ',Dyn_parms(1)%kdt,', fhour ',fhour
+    if (mpp_pe() == mpp_root_pe()) then
+      write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour
+      write(6,101) '   lsswr ',Dyn_parms(1)%lsswr,'  lslwr ',Dyn_parms(1)%lslwr
+    endif
+ 100 format (a,i5.5,a,f10.4)
+ 101 format (a,L5,a,L5)
 
   end subroutine phys_rad_setup_step
 
@@ -665,6 +672,8 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
+    if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lsswr) then
+
 !--- call the nuopc radiation loop---
     call mpp_clock_begin(grrad_clk)
     do nb = 1, Atm_block%nblks
@@ -679,6 +688,9 @@ module gfs_physics_driver_mod
                           Mdl_parms, Dyn_parms(nb))
     enddo
     call mpp_clock_end(grrad_clk)
+    else
+     if (Mdl_parms%me == 0) write(6,*)  'Not a radiation step'
+    endif
 
   end subroutine radiation_driver
 !-------------------------------------------------------------------------      

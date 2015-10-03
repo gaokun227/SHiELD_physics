@@ -637,7 +637,7 @@ endif
 !$OMP                       private(pe0,pe1,pe2,pe3,q_liq, q_sol, cvm, gz, phis,tpe,tmp, dlnp,&
 !$OMP                               dpeln)
 if ( hybrid_z ) then
-!$OMP do 
+!$OMP do
    do j=js,je+1
       do i=is,ie
          pe1(i,1) = ptop
@@ -657,8 +657,7 @@ if ( hybrid_z ) then
 !$OMP end do nowait 
 
 ! v-wind
-!$OMP parallel do default(none) shared(is,ie,js,je,ptop,pe,ua,km,v,gz,isd,ied,jsd,jed,kord_mt) &
-!$OMP                          private(pe0, pe3)
+!$OMP do
    do j=js,je
       do i=is,ie+1
          pe0(i,1) = ptop
@@ -680,7 +679,7 @@ if ( hybrid_z ) then
 endif 
 !------------- Hybrid_z section ----------------------
 
-!$OMP parallel do default(none) shared(is,ie,js,je,km,pe,ua)
+!$OMP do
   do k=2,km
      do j=js,je
         do i=is,ie
@@ -694,7 +693,7 @@ endif
   if( last_step .and. consv > 0.  .and. (.not.do_adiabatic_init)  ) then
 
     if ( te_map ) then
-!$OMP parallel do default(none) shared(is,ie,js,je,km,te_2d,te,delp)
+!$OMP do
       do j=js,je
           do i=is,ie
              te_2d(i,j) = te(i,j,1)*delp(i,j,1)
@@ -706,11 +705,7 @@ endif
           enddo
       enddo
     else
-!$OMP parallel do default(none) shared(is,ie,js,je,km,remap_t,hydrostatic,hs,rg,pt,peln, &
-!$OMP                                  te_2d,pe,delp,cp,rsin2,u,v,cosa_s,delz,rainwat,   &
-!$OMP                                  liq_wat,ice_wat,snowwat,graupel,q_con,r_vir,      &
-!$OMP                                  sphum,w,pk,pkz,rgama)                             &
-!$OMP                          private(q_liq, q_sol, cvm, gz, phis)
+!$OMP do
       do j=js,je
       if ( remap_t ) then
          if ( hydrostatic ) then
@@ -829,7 +824,7 @@ endif
       enddo   ! openMP j-loop
     endif
 
-!$OMP parallel do default(none) shared(is,ie,js,je,zsum1,pkz,delp,km,zsum0,ptop,pk,te_2d,te0_2d)
+!$OMP do
       do j=js,je
          do i=is,ie
             zsum1(i,j) = pkz(i,j,1)*delp(i,j,1)
@@ -868,8 +863,7 @@ endif
       E_Flux = 0.
 !$OMP end single
 #ifdef USE_COND
-!$OMP parallel do default(none) shared(is,ie,js,je,km,q_con,q,liq_wat,ice_wat, &
-!$OMP                                  rainwat,snowwat,graupel)
+!$OMP do
       do k=1,km
          do j=js,je
          do i=is,ie
@@ -886,9 +880,7 @@ endif
   endif        ! end consv check
 
   if ( te_map ) then !kord_mt >= 0
-!$OMP parallel do default(none) shared(is,ie,js,je,km,hs,te,rsin2,u,v,cosa_s,rg,peln, &
-!$OMP                                  cp,pe,delp,pt,pkz,dtmp) &
-!$OMP                          private(gz, tpe, tmp, dlnp)
+!$OMP do
       do j=js,je
          do i=is,ie
             gz(i) = hs(i,j)
@@ -919,11 +911,7 @@ endif
 #else
           if ( do_sat_adj ) then
                                            call timing_on('sat_adj2')
-!$OMP parallel do default(none) shared(is,ie,js,je,km,peln,ng,mdt,hydrostatic,consv,te, &
-!$OMP                                  q,isd,jsd,sphum,liq_wat,ice_wat,rainwat,snowwat, &
-!$OMP                                  graupel,cld_amt,gridstruct,delz,pt,delp,         &
-!$OMP                                  q_con,cappa,dtdt,out_dt,last_step,pkz,rrg,akap ) &
-!$OMP                          private(dpeln)
+!$OMP do
            do k=1,km
               do j=js,je
                  do i=is,ie
@@ -953,7 +941,7 @@ endif
               endif
            enddo    ! OpenMP k-loop
            if ( consv > 0. ) then
-!$OMP parallel do default(none) shared(is,ie,js,je,km,te_2d,te,te0_2d)
+!$OMP do
                 do j=js,je
                    do k=1,km
                       do i=is,ie
@@ -968,7 +956,7 @@ endif
         endif
         if ( last_step ) then
          if ( hydrostatic ) then
-!$OMP parallel do default(none) shared(is,ie,js,je,km,pt,dtmp,pkz,r_vir,q,sphum)
+!$OMP do
            do k=1,km
               do j=js,je
                  do i=is,ie
@@ -977,9 +965,7 @@ endif
               enddo
            enddo
          else
-!$OMP parallel do default(none) shared(is,ie,js,je,km,q,liq_wat,ice_wat,rainwat,snowwat, &
-!$OMP                                  graupel,q_con,pt,dtmp,pkz,r_vir,sphum )           &
-!$OMP                          private(q_liq, q_sol, cvm)
+!$OMP do
            do k=1,km
               do j=js,je
                  do i=is,ie
@@ -1007,9 +993,7 @@ endif
            enddo
          endif
         else
-!$OMP parallel do default(none) shared(is,ie,js,je,km,pt,cp,pkz,dtmp,q,liq_wat,ice_wat, &
-!$OMP                                  rainwat,snowwat,graupel,sphum,q_con) &
-!$OMP                          private(q_liq, q_sol, cvm)
+!$OMP do
            do k=1,km
               do j=js,je
                  do i=is,ie
@@ -1031,7 +1015,7 @@ endif
            enddo
         endif
     else
-!$OMP parallel do default(none) shared(is,ie,js,je,km,pt,cp,dtmp)
+!$OMP do
         do k=1,km
            do j=js,je
               do i=is,ie

@@ -1858,6 +1858,12 @@ c
           xmb(i) = -fld(i) / xk(i)
           xmb(i) = xmb(i) * scaldfunc(i)
           xmb(i) = min(xmb(i),xmbmax(i))
+!GFDL might be needed
+!GFDL          if (xmb(i) == 0) then
+!GFDL            write(6,*) '******** SASCNVN: GFDL fix triggered...********'
+!GFDL            cnvflg(i)=.false.
+!GFDL          endif
+!GFDL might be needed
         endif
       enddo
 !!

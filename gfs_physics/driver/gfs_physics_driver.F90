@@ -241,11 +241,12 @@ module gfs_physics_driver_mod
                                    axes, dx, dy, area, indxmin, indxmax,  &
                                    dt_phys, Atm_block, State_in, State_out)
     type(time_type),           intent(in) :: Time
-    real,    dimension(:,:),   intent(in) :: lon, lat, dx, dy, area
+    type (block_control_type), intent(in) :: Atm_block
+    !--  set "one"-based arrays to domain-based
+    real, dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
     real (kind=kind_phys), intent(in) :: indxmin, indxmax, dt_phys
-    type (block_control_type), intent(in) :: Atm_block
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
 !--- local variables
@@ -407,14 +408,15 @@ module gfs_physics_driver_mod
       call Rad_tends(nb)%set     (ngptc, Mdl_parms)
       call Intr_flds(nb)%setrad  (ngptc, Mdl_parms, SW0, SWB, LW0, LWB)
       call Intr_flds(nb)%setphys (ngptc, Mdl_parms)
-      call State_in(nb)%setrad   (ngptc, Mdl_parms)
-      call State_in(nb)%setphys  (ngptc, Mdl_parms)
       call State_out(nb)%setphys (ngptc, Mdl_parms)
+      ! setphys must be called prior to setrad
+      call State_in(nb)%setphys  (ngptc, Mdl_parms)
+      call State_in(nb)%setrad   (ngptc, Mdl_parms)
 
       !  populate static values that are grid dependent
       ix = 0 
-      do j=1,jbe-jbs+1
-       do i=1,ibe-ibs+1
+      do j=jbs,jbe
+       do i=ibs,ibe
         ix = ix + 1
         Dyn_parms(nb)%area(ix) = area(i,j)
         Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
@@ -673,20 +675,23 @@ module gfs_physics_driver_mod
 
     if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lsswr) then
 
-!--- call the nuopc radiation loop---
-    call mpp_clock_begin(grrad_clk)
-    do nb = 1, Atm_block%nblks
-
-!
 !--- call the nuopc radiation routine for time-varying data ---
-!        can this be run inside parallel-do or does it need to be outside
-!
-      call nuopc_rad_update (Mdl_parms, Dyn_parms(nb))
-      call nuopc_rad_run (Statein(nb), Sfc_props(nb), Gfs_diags(nb), &
-                          Intr_flds(nb), Cld_props(nb), Rad_tends(nb), &
-                          Mdl_parms, Dyn_parms(nb))
-    enddo
-    call mpp_clock_end(grrad_clk)
+      do nb = 1, Atm_block%nblks
+        call nuopc_rad_update (Mdl_parms, Dyn_parms(nb))
+      enddo
+
+!--- call the nuopc radiation loop---
+      call mpp_clock_begin(grrad_clk)
+!$OMP parallel do default (none) &
+!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props, &
+!$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends)          &
+!$             private (nb)
+      do nb = 1, Atm_block%nblks
+        call nuopc_rad_run (Statein(nb), Sfc_props(nb), Gfs_diags(nb), &
+                            Intr_flds(nb), Cld_props(nb), Rad_tends(nb), &
+                            Mdl_parms, Dyn_parms(nb))
+      enddo
+      call mpp_clock_end(grrad_clk)
     else
      if (Mdl_parms%me == 0) write(6,*)  'Not a radiation step'
     endif
@@ -709,6 +714,11 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc physics loop---
     call mpp_clock_begin(gbphys_clk)
+!$OMP parallel do default (none) &
+!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props,  &
+!$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
+!$                      Stateout) &
+!$             private (nb)
     do nb = 1, Atm_block%nblks
 
       Tbd_data(nb)%dpshc(:) = 0.3d0 * Statein(nb)%prsi(:,1)

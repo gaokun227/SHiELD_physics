@@ -79,10 +79,11 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
       integer :: months=0, days=0, hours=0, minutes=0, seconds=0
       integer :: dt_atmos = 0
       integer :: dt_ocean = 0
+      integer :: atmos_nthreads = 1
 
       namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                              months, days, hours, minutes, seconds,  &
-                             dt_atmos, dt_ocean
+                             dt_atmos, dt_ocean, atmos_nthreads
 
 !#######################################################################
 
@@ -149,6 +150,7 @@ contains
     
     logical, allocatable, dimension(:,:) :: mask
     real,    allocatable, dimension(:,:) :: glon_bnd, glat_bnd
+    integer :: omp_get_thread_num, get_cpu_affinity, base_cpu
 !-----------------------------------------------------------------------
 !----- initialization timing identifiers ----
 
@@ -224,6 +226,14 @@ contains
         end select
 
  endif
+
+!$      base_cpu = get_cpu_affinity()
+!$      call omp_set_num_threads(atmos_nthreads)
+!$OMP PARALLEL NUM_THREADS(atmos_nthreads)
+!$      call set_cpu_affinity( base_cpu + omp_get_thread_num() )
+!rab!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
+!rab!$        call flush(6)
+!$OMP END PARALLEL
 
     call set_calendar_type (calendar_type)
 

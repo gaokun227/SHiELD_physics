@@ -532,7 +532,7 @@
       use machine ,   only : kind_phys
       use physcons,   only : con_cp, con_fvirt, con_g, con_rd, con_rv,  &
      &                       con_hvap, con_hfus, con_rerth, con_pi
-     &,                      rhc_max, dxmin, dxinv, pa2mb, rlapse
+     &,                      rhc_max, dxmin, dxinv, pa2mb, rlapse,ozcalc
       use cs_conv, only : cs_convr
 
       implicit none
@@ -1816,7 +1816,7 @@
 
 !  --- ...  ozone physics
 
-      if (ntoz > 0 .and. ntrac >= ntoz) then
+      if (ntoz > 0 .and. ntrac >= ntoz .and. ozcalc) then
         if (me == 0 .and. kdt < 5) then
           print *, "OZONE turned ON in gbphys - ozphys being called"
         end if

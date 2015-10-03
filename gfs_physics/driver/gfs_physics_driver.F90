@@ -314,12 +314,11 @@ module gfs_physics_driver_mod
     endif
 #endif
 
-!--- check to see if ozone calculation is being utilized and set ntoz appropriately
-    if (.not. ozcalc) then
-      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
-      ntoz = -99
-    else
+!--- check to see if prognostic ozone calculation active
+    if (ozcalc) then
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is being calculated'
+    else
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
     endif
 
 !--- write version number and namelist to log file ---
@@ -335,7 +334,7 @@ module gfs_physics_driver_mod
     sas_shal = (sashal .and. (.not. ras))
 !--- read in ozone datasets for prognostic ozone interpolation
 !--- sets values for levozp, pl_coeff, pl_pres(=>Tbd_data%poz), ozplin
-    if (ntoz > 0 ) call read_o3data (levozp, pl_coeff)
+    call read_o3data (levozp, pl_coeff)
 
 !--- define the model dimensions on the local processor ---
     call get_number_tracers (MODEL_ATMOS, num_tracers=ntrac, num_prog=ntp)
@@ -360,7 +359,7 @@ module gfs_physics_driver_mod
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
                           gen_coord_hybrid, npz, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
-                          dxmaxin, dxminin, dxinvin, &
+                          dxmaxin, dxminin, dxinvin, ozcalc, &
                           ! NEW from nems_slg_shoc
                           cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                           ! For radiation
@@ -377,7 +376,7 @@ module gfs_physics_driver_mod
     allocate ( Cld_props(Atm_block%nblks) )
     allocate ( Rad_tends(Atm_block%nblks) )
     allocate ( Intr_flds(Atm_block%nblks) )
-    if (ntoz > 0 ) allocate ( O3dat(Atm_block%nblks) )
+    if (ozcalc) allocate ( O3dat(Atm_block%nblks) )
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -386,7 +385,7 @@ module gfs_physics_driver_mod
       ngptc = (ibe - ibs + 1) * (jbe - jbs + 1) 
 
 !--- allocate elements of O3dat for prognostic ozone
-      if (ntoz > 0 ) Then
+      if (ozcalc) Then
         allocate ( O3dat(nb)%j1  (ngptc) )
         allocate ( O3dat(nb)%j2  (ngptc) )
         allocate ( O3dat(nb)%ddy (ngptc) )
@@ -425,12 +424,12 @@ module gfs_physics_driver_mod
         Dyn_parms(nb)%sinlat(ix) = sin(lat(i,j))
         Dyn_parms(nb)%coslat(ix) = sqrt(1.0_kind_phys - Dyn_parms(nb)%sinlat(ix)*Dyn_parms(nb)%sinlat(ix))
 !--- needed for setindxoz
-        O3dat(nb)%gaul(ix) = lat(i,j)*180.0_kind_phys/pi
+        if (ozcalc) O3dat(nb)%gaul(ix) = lat(i,j)*180.0_kind_phys/pi
        enddo
       enddo
 
 !--- set up interpolation indices and weights for prognostic ozone interpolation
-      if (ntoz > 0) then
+      if (ozcalc) then
         call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
       endif
     enddo
@@ -602,11 +601,13 @@ module gfs_physics_driver_mod
         do j = 1,ny
           do i = 1,nx
             ix = ix + 1
-            Dyn_parms(nb)%icsdsw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
-            Dyn_parms(nb)%icsdlw(i) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
+!rab            Dyn_parms(nb)%icsdsw(ix) = 100
+!rab            Dyn_parms(nb)%icsdlw(ix) = 100
+            Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
+            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
 
             if (Mdl_parms%num_p3d == 3) then
-              work1 = (Dyn_parms(nb)%dx(ix) - dxmin) * dxinv
+              work1 = (log(Dyn_parms(nb)%dx(ix)) - dxmin) * dxinv
               work1 = max(0.0, min(1.0,work1))
               Cld_props(nb)%flgmin(ix) = flgmin(1)*work1 + flgmin(2)*(1.0-work1)
             else
@@ -617,14 +618,19 @@ module gfs_physics_driver_mod
       endif
 
 !--- interpolate coefficients for prognostic ozone calculation
-      if (ntoz > 0) then
+      if (ozcalc) then
         call ozinterpol(Mdl_parms%me, ngptc, ngptc, Mdl_parms%idate, fhour, &
                         O3dat(nb)%j1, O3dat(nb)%j2, ozplin, Tbd_data(nb)%prdout, &
                         O3dat(nb)%ddy)
       endif
     enddo
 
-    if (mpp_pe() == mpp_root_pe()) write(6,*) ' starting timestep ',Dyn_parms(1)%kdt,', fhour ',fhour
+    if (mpp_pe() == mpp_root_pe()) then
+      write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour
+      write(6,101) '   lsswr ',Dyn_parms(1)%lsswr,'  lslwr ',Dyn_parms(1)%lslwr
+    endif
+ 100 format (a,i5.5,a,f10.4)
+ 101 format (a,L5,a,L5)
 
   end subroutine phys_rad_setup_step
 
@@ -665,6 +671,8 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
+    if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lsswr) then
+
 !--- call the nuopc radiation loop---
     call mpp_clock_begin(grrad_clk)
     do nb = 1, Atm_block%nblks
@@ -679,6 +687,9 @@ module gfs_physics_driver_mod
                           Mdl_parms, Dyn_parms(nb))
     enddo
     call mpp_clock_end(grrad_clk)
+    else
+     if (Mdl_parms%me == 0) write(6,*)  'Not a radiation step'
+    endif
 
   end subroutine radiation_driver
 !-------------------------------------------------------------------------      

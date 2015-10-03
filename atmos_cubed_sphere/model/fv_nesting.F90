@@ -99,6 +99,10 @@ contains
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
 
+#ifdef MOIST_CAPPA
+      call mpp_error(FATAL, 'MOIST_CAPPA not yet implemented for nesting')
+#endif
+
       is  = bd%is
       ie  = bd%ie
       js  = bd%js

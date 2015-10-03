@@ -899,8 +899,6 @@ contains
  end subroutine adiabatic_init
 
 
-!rab subroutine atmos_phys_driver_statein (Time, Statein, Atm_block)
-!rab   type (time_type),                     intent(in)    :: Time
  subroutine atmos_phys_driver_statein (Statein, Atm_block)
    type (state_fields_in), dimension(:), intent(inout) :: Statein
    type (block_control_type),            intent(in)    :: Atm_block
@@ -917,85 +915,100 @@ contains
 !---------------------------------------------------------------------
 ! use most up to date atmospheric properties when running serially
 !---------------------------------------------------------------------
-!$OMP parallel do shared (Atm, Statein, npz, nq, ncnst, sphum) &
-!$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, ix)
+!$OMP parallel do default (none) & 
+!$OMP          shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, pk0inv, &
+!$OMP                   zvir, mytile) &
+!$OMP          private (nb, ibs, ibe, jbs, jbe, i, j, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
      jbs = Atm_block%jbs(nb)
      jbe = Atm_block%jbe(nb)
+
+     !-- level geopotential height
+     !--- GFS physics assumes geopotential in a column is always zero at
+     !--- the surface and only the difference between layers is important.
+     Statein(nb)%phii(:,:) = 0.0
+
+     !-- reset this parameter to 1 just to be safe
+     Statein(nb)%adjtrc = 1.0_kind_phys
      
      ix = 0 
      do j=jbs,jbe
-      do i=ibs,ibe
-       ix = ix + 1
-       !  surface pressure
-       Statein(nb)%pgr(ix) = Atm(mytile)%ps(i,j)
-       !-- level geopotential height
-       !--- GFS physics assumes geopotential in a column is always zero at
-       !--- the surface and only the difference between layers is important.
-       Statein(nb)%phii(ix,:) = 0.0
-!
-       do k = 1, npz
-         !  level pressure
-         Statein(nb)%prsi(ix,k)  = Atm(mytile)%pe(i,npz+2-k,j)
-         !  exner function pressure
-         Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
-         Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,npz+1-k)*pk0inv   ! layer
-         !  layer temp, u, & v
-         Statein(nb)%tgrs(ix,k)  = Atm(mytile)%pt(i,j,npz+1-k)
-         Statein(nb)%ugrs(ix,k)  = Atm(mytile)%ua(i,j,npz+1-k)
-         Statein(nb)%vgrs(ix,k)  = Atm(mytile)%va(i,j,npz+1-k)
-         !  layer vertical pressure velocity
-         Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,npz+1-k)
-!SJL
-!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR BELOW
-!SJL     gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
-!SJL
-         !  layer sphum for radiation with GFS limiter applied
-         Statein(nb)%qgrs_rad(ix,k)    = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
-!SJL
-!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
-!SJL
-         !  layer tracers for radiation excluding sphum
-         Statein(nb)%tracer(ix,k,1:nq-1) = Atm(mytile)%q(i,j,npz+1-k,2:nq)
-         Statein(nb)%tracer(ix,k,nq:ncnst-1) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
+       do i=ibs,ibe
+         ix = ix + 1
 
-         !  raw tracers for gbphoys
-         Statein(nb)%qgrs(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,1:nq)
-         Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
+         !--  surface pressure
+         Statein(nb)%pgr(ix) = Atm(mytile)%ps(i,j)
 
-         !  level geopotential height
-         if (Atm(mytile)%flagstruct%hydrostatic) then
-           Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
-                       Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &
-                       (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))
+         !--  level pressure at TOA
+         Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
 
-         else
-           Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
-         endif
+         !--  level exner function pressure at TOA
+         Statein(nb)%prsik(ix,npz+1) = Atm(mytile)%pk(i,j,1)*pk0inv
        enddo
-       !  level pressure
-       Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
-       !  level exner function pressure
-       Statein(nb)%prsik(ix,npz+1) = Atm(mytile)%pk(i,j,1)*pk0inv
-      enddo
      enddo
 
      do k = 1, npz
-       !  layer pressure
+       ix = 0 
+       do j=jbs,jbe
+         do i=ibs,ibe
+           ix = ix + 1
+
+           !--  level pressure
+            Statein(nb)%prsi(ix,k)  = Atm(mytile)%pe(i,npz+2-k,j)
+
+           !--  exner function pressure
+           Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
+           Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,npz+1-k)*pk0inv   ! layer
+
+           !--  layer temp, u, & v
+           Statein(nb)%tgrs(ix,k)  = Atm(mytile)%pt(i,j,npz+1-k)
+           Statein(nb)%ugrs(ix,k)  = Atm(mytile)%ua(i,j,npz+1-k)
+           Statein(nb)%vgrs(ix,k)  = Atm(mytile)%va(i,j,npz+1-k)
+
+           !--  layer vertical pressure velocity
+           Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,npz+1-k)
+!SJL
+!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR BELOW
+!SJL      gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
+!SJL
+           !--  layer sphum for radiation with GFS limiter applied
+           Statein(nb)%qgrs_rad(ix,k)    = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
+!SJL
+!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
+!SJL
+
+           !--  raw tracers for gbphoys
+           Statein(nb)%qgrs(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,1:nq)
+           Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
+ 
+           !--  level geopotential
+           if (Atm(mytile)%flagstruct%hydrostatic) then
+             !LMH  hydrostatic
+             Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
+                         Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &
+                         (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))
+           else
+             !  non-hydrostatic 
+             Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
+           endif
+         enddo
+       enddo
+     enddo
+
+     do k = 1, npz
+       !--  layer pressure
        Statein(nb)%prsl(:,k) = 0.5_kind_phys*(Statein(nb)%prsi(:,k) + Statein(nb)%prsi(:,k+1))
-       !  layer geopotential height
+
+       !--  layer geopotential
        if (Atm(mytile)%flagstruct%gfs_phil) then
+         !  allow GFS physics to calculate geopotential (hydrostatic assumption)
          Statein(nb)%phil(:,k) = 0.0
        else
          Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
        endif
      enddo
-     !  reset this parameter to 1 just to be safe
-     Statein(nb)%adjtrc = 1.0_kind_phys
-     !  set the physics version of qgrs which is the same as tracer if separate arrays are needed
-!rab Statein(nb)%qgrs(:,:,:) = Statein(nb)%tracer(:,:,;)
    enddo
 
  end subroutine atmos_phys_driver_statein

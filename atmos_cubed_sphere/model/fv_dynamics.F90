@@ -776,7 +776,11 @@ contains
           enddo
         else
                    do i=is-1,ie+1
+#ifdef HIWPP
+             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>15.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
+#else
              if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>30.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.1 )  then
+#endif
                   u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
              else
                   u2f(i,j,k) = 1.
@@ -803,7 +807,11 @@ contains
           enddo
         else
           do i=is,ie
+#ifdef HIWPP
+             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>15.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
+#else
              if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>30.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.1 )  then
+#endif
                   u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
              else
                   u2f(i,j,k) = 1.

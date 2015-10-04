@@ -1964,6 +1964,7 @@ contains
 
   call prt_maxmin('UT', ut, is, ie, js, je, ng, npz, 1.)
   call prt_maxmin('VT', vt, is, ie, js, je, ng, npz, 1.)
+  call prt_maxmin('UA_top',ut(:,:,1), is, ie, js, je, ng, 1, 1.)
 
 !----------------------------------------------
 ! winds: lat-lon ON A to Cubed-D transformation:

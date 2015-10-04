@@ -164,7 +164,11 @@ contains
       jsd = bd%jsd
       jed = bd%jed
 
+#ifdef SW_DYNAMICS
+    peln1 = 0.
+#else
     peln1 = log(ptop)
+#endif
     ptk = ptop ** akap
     dt  = bdt / real(n_split)
     dt2 = 0.5*dt
@@ -329,7 +333,9 @@ contains
 
 #ifdef SW_DYNAMICS
      if (test_case>1) then
+#ifdef USE_OLD
      if (test_case==9) call case9_forcing1(phis, time_total)
+#endif
 #endif
 
      if ( it==1 ) then
@@ -450,8 +456,15 @@ contains
               !Compute gz/pkc
               !NOTE: nominally only need to compute quantities one out in the halo for p_grad_c
               !(instead of entire halo)
-           call nest_halo_nh(ptop, grav, akap, cp, delpc, delz, ptc, phis, pkc, gz, pk3, &
-                   npx, npy, npz, gridstruct%nested, .false., .false., .false., bd)
+           call nest_halo_nh(ptop, grav, akap, cp, delpc, delz, ptc, phis, &
+#ifdef USE_COND
+                q_con, &
+#ifdef MOIST_CAPPA
+                cappa, &
+#endif
+#endif
+                pkc, gz, pk3, &
+                npx, npy, npz, gridstruct%nested, .false., .false., .false., bd)
 
            endif
 
@@ -465,7 +478,9 @@ contains
       call start_group_halo_update(i_pack(9), uc, vc, domain, gridtype=CGRID_NE)
                                                      call timing_off('COMM_TOTAL')
 #ifdef SW_DYNAMICS
+#ifdef USE_OLD
       if (test_case==9) call case9_forcing2(phis)
+#endif
       endif !test_case>1
 #endif
 
@@ -792,7 +807,14 @@ contains
                neststruct%delz_BC, bctype=neststruct%nestbctype  )
           
           !Compute gz/pkc/pk3; note that now pkc should be nonhydro pert'n pressure
-          call nest_halo_nh(ptop, grav, akap, cp, delp, delz, pt, phis, pkc, gz, pk3, npx, npy, npz, gridstruct%nested, .true., .true., .true., bd)
+          call nest_halo_nh(ptop, grav, akap, cp, delp, delz, pt, phis, &
+#ifdef USE_COND
+               q_con, &
+#ifdef MOIST_CAPPA
+               cappa, &
+#endif
+#endif
+               pkc, gz, pk3, npx, npy, npz, gridstruct%nested, .true., .true., .true., bd)
 
        endif
         call timing_on('COMM_TOTAL')
@@ -1963,7 +1985,7 @@ do 1000 j=jfirst,jlast
    end if
 
 !$OMP parallel do default(none) shared(jfirst,jlast,ifirst,ilast,pk,km,gz,hs,ptop,ptk, &
-!$OMP                                  js,je,is,ie,peln,peln1,pe,delp,akap,pt,CG,pkz) &
+!$OMP                                  js,je,is,ie,peln,peln1,pe,delp,akap,pt,CG,pkz,q_con) &
 !$OMP                          private(peg, pkg, p1d, logp)
    do 2000 j=jfirst,jlast
 

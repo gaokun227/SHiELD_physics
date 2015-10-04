@@ -22,7 +22,8 @@ module fv_diagnostics_mod
  use mpp_mod,            only: mpp_error, FATAL, stdlog, mpp_pe, mpp_root_pe
  use sat_vapor_pres_mod, only: compute_qs, lookup_es
 
- use fv_arrays_mod, only: max_step
+ use fv_arrays_mod, only: max_step 
+ use lin_cld_microphys_mod, only: wqs1, qsmith_init
 
  implicit none
  private
@@ -858,6 +859,7 @@ contains
 
     module_is_initialized=.true.
     istep = 0
+    if(idiag%id_theta_e >0 ) call qsmith_init
  end subroutine fv_diag_init
 
 
@@ -949,7 +951,7 @@ contains
     real    :: tot_mq, tmp, sar, slon, slat
     logical :: used
     logical :: bad_range
-    integer i,j,k, yr, mon, dd, hr, mn, days, seconds, nq
+    integer i,j,k, yr, mon, dd, hr, mn, days, seconds, nq, theta_d
     character(len=128)   :: tname
     real, parameter:: ws_0 = 16.   ! minimum max_wind_speed within the 7x7 search box
     real, parameter:: ws_1 = 20.
@@ -1046,12 +1048,12 @@ contains
             write(*,*) 'ENG Deficit (W/m**2)', trim(gn), '=', E_Flux
         endif
 
-!rab           idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
-!rab        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
-!rab        if (master .and. abs(E_Flux_nest) > 0.)  then
-!rab            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
-!rab            if (sphum_ll_fix /= 0.) write(*,*) 'sphum fixer on lowest level, minus 1: ', trim(gn), '=', sphum_ll_fix
-!rab        endif
+           idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
+        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
+        if (master .and. abs(E_Flux_nest) > 0.)  then
+            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
+            if (sphum_ll_fix /= 0.) write(*,*) 'sphum fixer on lowest level, minus 1: ', trim(gn), '=', sphum_ll_fix
+        endif
 #endif
         call prt_maxmin('UA_top', Atm(n)%ua(isc:iec,jsc:jec,1),    &
                         isc, iec, jsc, jec, 0, 1, 1.)
@@ -2114,6 +2116,17 @@ contains
                        isc, iec, jsc, jec, ngc, npz, Atm(n)%flagstruct%hydrostatic, Atm(n)%flagstruct%moist_phys)
           if( prt_minmax ) call prt_maxmin('Theta_E', a3, isc, iec, jsc, jec, 0, npz, 1.)
           used=send_data(idiag%id_theta_e, a3, Time)
+          theta_d = get_tracer_index (MODEL_ATMOS, 'theta_d')
+          if ( theta_d>0 ) then
+          do k=1,npz
+          do j=jsc,jec
+             do i=isc,iec
+                a3(i,j,k) =  Atm(n)%q(i,j,k,theta_d)/a3(i,j,k) - 1.
+             enddo
+          enddo
+          enddo
+          if( prt_minmax ) call prt_maxmin('Theta_Err (%)', a3, isc, iec, jsc, jec, 0, npz, 100.)
+          endif
        endif
 
        if(idiag%id_ppt> 0) then
@@ -2144,6 +2157,7 @@ contains
        endif
 
 
+#ifndef SW_DYNAMICS
         do itrac=1, Atm(n)%ncnst
           call get_tracer_names (MODEL_ATMOS, itrac, tname)
           if (idiag%id_tracer(itrac) > 0 .and. itrac .gt. nq) then
@@ -2183,6 +2197,8 @@ contains
         enddo
 
 
+
+#endif
 
    ! enddo  ! end ntileMe do-loop
 
@@ -3044,6 +3060,7 @@ subroutine rh_calc (pfull, t, qv, rh, do_cmip)
 
 end subroutine rh_calc
 
+#ifdef USE_BOLTON
 subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, npz, &
                    hydrostatic, moist)
 ! calculate the equvalent potential temperature
@@ -3061,9 +3078,9 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
 ! local
     real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
     real, parameter:: cappa_b = 0.2854
-    real:: cv_air, cappa, zvir
-    real:: p_mb(is:ie)
-    real :: r, e, t_l, rdg, pk0
+    real(kind=R_GRID):: cv_air, cappa, zvir
+    real(kind=R_GRID):: p_mb(is:ie)
+    real(kind=R_GRID) :: r, e, t_l, rdg, pk0
     integer :: i,j,k
 
     cv_air =  cp_air - rdgas
@@ -3103,8 +3120,10 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
 ! eq. 21 of Bolton 1980
           t_l = 2840./(3.5*log(pt(i,j,k))-log(e)-4.805)+55.
 ! get the equivalent potential temperature
-          theta_e(i,j,k) = pt(i,j,k)*(1000./p_mb(i))**(cappa*(1.-0.28e-3*r)) * &
+          theta_e(i,j,k) = pt(i,j,k)*exp((cappa*(1.-0.28e-3*r)*log(1000./p_mb(i))) * &
                            exp( (3.376/t_l-0.00254)*r*(1.+0.81e-3*r) )
+!          theta_e(i,j,k) = pt(i,j,k)*(1000./p_mb(i))**(cappa*(1.-0.28e-3*r)) * &
+!                           exp( (3.376/t_l-0.00254)*r*(1.+0.81e-3*r) )
           enddo
         else
           if ( hydrostatic ) then
@@ -3113,7 +3132,7 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
              enddo
           else
              do i = is,ie
-                theta_e(i,j,k) = pt(i,j,k)*(1000./p_mb(i))**kappa
+                theta_e(i,j,k) = exp(kappa*log(pt(i,j,k)*(1000./p_mb(i))))
              enddo
           endif
         endif
@@ -3121,6 +3140,82 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
     enddo   ! k-loop
 
 end subroutine eqv_pot
+#else
+subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, npz, &
+                   hydrostatic, moist)
+! calculate the equvalent potential temperature
+! Simplified form coded by SJL
+    integer, intent(in):: is,ie,js,je,ng,npz
+    real, intent(in), dimension(is-ng:ie+ng,js-ng:je+ng,npz):: pt, delp, q
+    real, intent(in), dimension(is-ng:     ,js-ng:     ,1: ):: delz
+    real, intent(in), dimension(is:ie,npz+1,js:je):: peln
+    real, intent(in):: pkz(is:ie,js:je,npz) 
+    logical, intent(in):: hydrostatic, moist
+! Output:
+    real, dimension(is:ie,js:je,npz), intent(out) :: theta_e  !< eqv pot
+! local
+    real, parameter:: tice = 273.16
+    real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+    real, parameter:: dc_vap = cp_vapor - c_liq     ! = -2344.    isobaric heating/cooling
+    real(kind=R_GRID), dimension(is:ie):: pd, rq, den, rh
+    real(kind=R_GRID) :: rdg, pk0, wfac
+    integer :: i,j,k
+
+    rdg = -rdgas/grav
+    pk0 = (1.E5) ** kappa
+
+    if ( moist ) then
+         wfac = 1.
+    else
+         wfac = 0.
+    endif
+
+!$OMP parallel do default(none) shared(wfac,moist,pk0,pkz,rdg,is,ie,js,je,npz,pt,q,delp,peln,delz,theta_e,hydrostatic)  &
+!$OMP  private(pd, rq, den, rh)
+    do k = 1,npz
+       do j = js,je
+
+        if ( hydrostatic ) then
+            do i=is,ie
+               rq(i) = max(0., wfac*q(i,j,k))
+               pd(i) = (1.-rq(i))*delp(i,j,k) / (peln(i,k+1,j) - peln(i,k,j))
+               den(i) = pd(i)/(rdgas*pt(i,j,k))
+            enddo
+        else
+! Dry pressure: p = r R T
+            do i=is,ie
+               rq(i) = max(0., wfac*q(i,j,k))
+               den(i) = -(1.-rq(i))*delp(i,j,k)/(grav*delz(i,j,k))  ! dry-air density
+               pd(i) = rdgas*den(i)*pt(i,j,k)   ! dry-air pressure
+            enddo
+        endif
+
+        if ( moist ) then
+            do i=is,ie
+               rq(i) = max(0., q(i,j,k))
+!              rh(i) = max(1.e-12, rq(i)/wqs1(pt(i,j,k),den(i)))   ! relative humidity
+!              theta_e(i,j,k) = exp(rq(i)/cp_air*((hlv+dc_vap*(pt(i,j,k)-tice))/pt(i,j,k) -   &
+!                                   rvgas*log(rh(i))) + kappa*log(1.e5/pd(i))) * pt(i,j,k)
+! Simplified form: (ignoring the RH term)
+               theta_e(i,j,k) = exp( rq(i)/(cp_air*pt(i,j,k))*(hlv+dc_vap*(pt(i,j,k)-tice)) +  &
+                                     kappa*log(1.e5/pd(i)) ) * pt(i,j,k)
+            enddo
+        else
+          if ( hydrostatic ) then
+             do i=is,ie
+                theta_e(i,j,k) = pt(i,j,k)*pk0/pkz(i,j,k)
+             enddo
+          else
+             do i=is,ie
+                theta_e(i,j,k) = exp(kappa*log(pt(i,j,k)*(1.e5/pd(i))))
+             enddo
+          endif
+        endif
+      enddo ! j-loop
+    enddo   ! k-loop
+
+end subroutine eqv_pot
+#endif
 
 !#######################################################################
 

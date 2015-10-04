@@ -113,6 +113,7 @@
   real(kind=kind_phys), parameter:: cb2mb   = 10.0, pa2mb   = 0.01
 
   real(kind=kind_phys) :: dxmax, dxmin, dxinv
+  logical :: ozcalc
 
 !........................................!
       end module physcons                !

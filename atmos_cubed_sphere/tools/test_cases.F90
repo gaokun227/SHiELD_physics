@@ -74,6 +74,8 @@
       real(kind=R_GRID), parameter :: one = 1.d0
       integer :: test_case
       real    :: alpha
+      integer :: Nsolitons
+      real    :: soliton_size = 750.e3, soliton_Umax = 50.
 
 ! Case 0 parameters
       real :: p0_c0 = 3.0
@@ -122,7 +124,7 @@
      integer, parameter :: interpOrder = 1
 
       public :: pz0, zz0
-      public :: test_case, alpha, tracer_test, wind_field
+      public :: test_case, alpha, tracer_test, wind_field, nsolitons, soliton_Umax, soliton_size
       public :: init_case, get_stats, check_courant_numbers
 #ifdef NCDF_OUTPUT
       public :: output, output_ncdf
@@ -1266,8 +1268,12 @@
         enddo
 
 ! Initiate the westerly-wind-burst:
-        ubar = 50.       ! maxmium wind speed (m/s)
-        r0 = 750.e3
+        ubar = soliton_Umax
+        r0   = soliton_size
+!!$        ubar = 200.       ! maxmium wind speed (m/s)
+!!$        r0 = 250.e3
+!!$        ubar = 50.       ! maxmium wind speed (m/s)
+!!$        r0 = 750.e3
 ! #1 1: westerly
         p0(1) = pi*0.5
         p0(2) = 0.
@@ -1328,6 +1334,7 @@
          initWindsCase= -1
 
       case(9)
+#ifdef USE_OLD
          jm1 = jm - 1
          DDP = PI/DBLE(jm1)
          DP  = DDP
@@ -1402,6 +1409,56 @@
 
          call get_case9_B(case9_B, agrid)
          AofT(:) = 0.0
+#else
+!----------------------------
+! Soliton twin-vortex
+!----------------------------
+        if ( is_master() ) write(*,*) 'Initialzing case-9: soliton cyclones...'
+        f0 = 0.;  fC = 0.          ! non-rotating planet setup
+        phis = 0.0                 ! flat terrain
+        gh0  = 5.E3*Grav
+        do j=js,je
+           do i=is,ie
+              delp(i,j,1) = gh0
+           enddo
+        enddo
+
+! Initiate the westerly-wind-burst:
+        ubar = soliton_Umax
+        r0   = soliton_size
+!!$        ubar = 200.       ! maxmium wind speed (m/s)
+!!$        r0 = 250.e3
+!!$        ubar = 50.       ! maxmium wind speed (m/s)
+!!$        r0 = 750.e3
+        p0(1) = pi*0.5
+        p0(2) = 0.
+
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,1) = utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,1) = utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+         initWindsCase= -1
+#endif
       end select
 !--------------- end s-w cases --------------------------
 
@@ -1832,13 +1889,24 @@
 
 
          if (.not. adiabatic) then
-            !Assume pt is virtual temperature at this point; then convert to regular temperature
-            zvir = rvgas/rdgas - 1.
-!$OMP parallel do default(none) shared(is,ie,js,je,npz,pt,zvir,q)
+           if ( .not.hydrostatic ) then
+!$OMP parallel do default(none) shared(is,ie,js,je,npz,pt,delz,peln,w)
             do k=1,npz
             do j=js,je
             do i=is,ie
-               pt(i,j,k) = pt(i,j,k)/(1. + zvir*q(i,j,k,1))
+               w(i,j,k) = 0.
+               delz(i,j,k) = rdgas/grav*pt(i,j,k)*(peln(i,k,j)-peln(i,k+1,j))
+            enddo
+            enddo
+            enddo
+           endif
+            !Assume pt is virtual temperature at this point; then convert to regular temperature
+            zvir = rvgas/rdgas - 1.
+!$OMP parallel do default(none) shared(sphum,is,ie,js,je,npz,pt,zvir,q)
+            do k=1,npz
+            do j=js,je
+            do i=is,ie
+               pt(i,j,k) = pt(i,j,k)/(1. + zvir*q(i,j,k,sphum))
             enddo
             enddo
             enddo
@@ -3212,13 +3280,15 @@
          enddo
 
 ! Initiate the westerly-wind-burst:
-        if (test_case == 46) then
-           ubar = 200.
-           r0 = 250.e3
-        else
-           ubar = 50.       ! Initial maxmium wind speed (m/s)
-           r0 = 500.e3
-        endif
+         ubar = soliton_Umax
+         r0 = soliton_size 
+!!$        if (test_case == 46) then
+!!$           ubar = 200.
+!!$           r0 = 250.e3
+!!$        else
+!!$           ubar = 50.       ! Initial maxmium wind speed (m/s)
+!!$           r0 = 500.e3
+!!$        endif
         p0(1) = pi*0.5
         p0(2) = 0.
 

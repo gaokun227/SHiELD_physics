@@ -126,7 +126,7 @@
 !
       real(kind=kind_phys) ozpljn(latsozp,levozp,pl_coeff,timeoz)
       real(kind=kind_phys) DDY(LATD)
-      real(kind=kind_phys) ozplout(levozp,LATD,pl_coeff)
+      real(kind=kind_phys) ozplout(LATD,levozp,pl_coeff)
       real(kind=kind_phys) RINC(5), rjday
       integer jdow, jdoy, jday
       real(4) rinc4(5)
@@ -179,7 +179,7 @@
             J1  = JINDX1(J)
             J2  = JINDX2(J)
             TEM = 1.0 - DDY(J)
-            ozplout(L,j,nc) = & 
+            ozplout(j,L,nc) = & 
             tx1*(TEM*ozplin(J1,L,nc,n1)+DDY(J)*ozplin(J2,L,nc,n1)) & 
           + tx2*(TEM*ozplin(J1,L,nc,n2)+DDY(J)*ozplin(J2,L,nc,n2))
           ENDDO

@@ -33,7 +33,7 @@ module fv_control_mod
    use fv_mp_mod,           only: ng, switch_current_Atm
    use fv_mp_mod,           only: broadcast_domains, mp_barrier, is_master, setup_master
 !!! CLEANUP: should be replaced by a getter function?
-   use test_cases_mod,      only: test_case, alpha
+   use test_cases_mod,      only: test_case, alpha, nsolitons, soliton_Umax, soliton_size
    use fv_timing_mod,       only: timing_on, timing_off, timing_init, timing_prt
    use mpp_domains_mod,     only: domain2D
    use mpp_domains_mod,     only: mpp_define_nest_domains, nest_domain_type, mpp_get_global_domain
@@ -229,7 +229,7 @@ module fv_control_mod
                          hord_mt, hord_vt, hord_tm, hord_dp, hord_tr, shift_fac, stretch_fac, target_lat, target_lon, &
                          kord_mt, kord_wz, kord_tm, kord_tr, fv_debug, fv_land, nudge, do_sat_adj, do_f3d, &
                          external_ic, ncep_ic, nggps_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
-                         res_latlon_dynamics, res_latlon_tracers, & scale_z, w_max, z_min, &
+                         res_latlon_dynamics, res_latlon_tracers, scale_z, w_max, z_min, &
                          dddmp, d2_bg, d4_bg, vtdm4, trdm2, d_ext, beta, non_ortho, n_sponge, &
                          warm_start, adjust_dry_mass, mountain, d_con, ke_bg, nord, nord_tr, convert_ke, use_old_omega, &
                          dry_mass, grid_type, do_Held_Suarez, do_reed_physics, reed_cond_only, &
@@ -245,7 +245,7 @@ module fv_control_mod
                          refinement, nestbctype, nestupdate, nsponge, s_weight, &
                          ioffset, joffset, check_negative, nudge_ic, halo_update_type, gfs_phil
 
-   namelist /test_case_nml/test_case,alpha
+   namelist /test_case_nml/test_case,alpha, nsolitons, soliton_Umax, soliton_size
 
  contains
 
@@ -825,7 +825,14 @@ module fv_control_mod
               1, npx-1, 1, npy-1,                  & !Grid cells, not points
               ioffset, ioffset + (npx-1)/refinement - 1, &
               joffset, joffset + (npy-1)/refinement - 1,         &
-              (/ (i,i=0,mpp_npes()-1)  /), 0, name="nest_domain") !What pelist to use?
+              (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 0, name="nest_domain") !What pelist to use?
+!rab         call mpp_define_nest_domains(Atm(n)%neststruct%nest_domain_for_BC, Atm(n)%domain, Atm(parent_grid_num)%domain, &
+!rab              7, parent_tile, &
+!rab              1, npx-1, 1, npy-1,                  & !Grid cells, not points
+!rab              ioffset, ioffset + (npx-1)/refinement - 1, &
+!rab              joffset, joffset + (npy-1)/refinement - 1,         &
+!rab              (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 0, name="nest_domain_for_BC") !What pelist to use?
+!              (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 2, name="nest_domain_for_BC") !What pelist to use?
 
          Atm(parent_grid_num)%neststruct%child_grids(n) = .true.
 
@@ -852,7 +859,7 @@ module fv_control_mod
 
       do nn=1,size(Atm)
          if (n == 1) allocate(Atm(nn)%neststruct%nest_domain_all(size(Atm)))
-         Atm(nn)%neststruct%nest_domain_all(n) = Atm(n)%neststruct%nest_domain
+!rab         Atm(nn)%neststruct%nest_domain_all(n) = Atm(n)%neststruct%nest_domain_for_BC
       enddo
 
    end do

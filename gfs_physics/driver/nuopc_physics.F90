@@ -62,7 +62,7 @@
        module nuopc_physics
 
        use machine,  only: kind_phys
-       use physcons, only: dxmax, dxmin, dxinv     ! lon lat dependant variables set in initialize
+       use physcons, only: dxmax, dxmin, dxinv, ozcalc  ! lon lat dependant variables set in initialize
        use funcphys, only: gfuncphys
        use module_microphysics, only: gsmconst
  
@@ -77,7 +77,7 @@
 
        real(kind=kind_phys) :: zero      = 0.0_kind_phys
        real(kind=kind_phys) :: clear_val = 0.0_kind_phys
-!rab       real(kind=kind_phys) :: clear_val = -9.9999e80
+!GFDL       real(kind=kind_phys) :: clear_val = -9.9999e80
        real(kind=kind_phys) :: rann_init = 0.6_kind_phys
 
        ! Derived Data Types
@@ -139,7 +139,7 @@
 !******************************************
        type tbd_ddt
 
-!rab         private
+!GFDL         private
 
 ! In
          real (kind=kind_phys), pointer :: dpshc (:) => null()     !              maximum pressure depth for shallow convection
@@ -236,7 +236,7 @@
 !******************************************
        type state_fields_in
 
-!rab         private
+!GFDL         private
 
          !! Inputs (also in rad)
          real (kind=kind_phys), pointer :: prsi  (:,:) => null()    ! model level pressure in Pa                     !
@@ -276,7 +276,7 @@
 !******************************************
        type state_fields_out
 
-!rab         private
+!GFDL         private
 
          !! Outputs (only in physics)
          real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  ! updated temperature 
@@ -299,7 +299,7 @@
 !******************************************
        type sfc_properties
 
-!rab         private
+!GFDL         private
 
          ! Inputs
          real (kind=kind_phys), pointer :: slmsk (:) => null()  ! sea/land mask array (sea:0,land:1,sea-ice:2)   !
@@ -362,7 +362,7 @@
 !******************************************
        type diagnostics
 
-!rab         private
+!GFDL         private
 
          integer :: NFXR                                           ! second dimension of input/output array fluxr   !
          logical :: first_rad  = .TRUE.     !  to allow first time allocation but subsequent calls to clear only
@@ -465,7 +465,7 @@
 !******************************************
        type interface_fields
 
-!rab         private
+!GFDL         private
 
          ! Radiation output only
          type (sfcfsw_type), pointer :: sfcfsw(:) => null()      ! sw radiation fluxes at sfc, components:        !
@@ -580,7 +580,7 @@
 ! ******************************************
        type cloud_properties
 
-!rab         private
+!GFDL         private
 
          ! grrad in
          ! gbphys inout
@@ -603,7 +603,7 @@
    
          ! grrad in
          ! gbphys inout
-!rab         real (kind=kind_phys), pointer :: sup  => null()         ! supersaturation in pdf cloud when t is very low
+!GFDL         real (kind=kind_phys), pointer :: sup  => null()         ! supersaturation in pdf cloud when t is very low
          real (kind=kind_phys) :: sup                    ! supersaturation in pdf cloud when t is very low
 
          ! gbphys inout
@@ -631,7 +631,7 @@
 !******************************************
        type radiation_tendencies
 
-!rab         private
+!GFDL         private
 
          !! Outputs from grrad
          real (kind=kind_phys), pointer :: htrsw (:,:) => null()  ! swh  total sky sw heating rate in k/sec
@@ -668,7 +668,7 @@
 !******************************************
        type dynamic_parameters
 
-!rab         private
+!GFDL         private
 
          real (kind=kind_phys), pointer :: xlon  (:) => null()  ! grid longitude in radians, ok for both 0->2pi  !
                                                                 ! or -pi -> +pi ranges                           !
@@ -736,7 +736,7 @@
 !******************************************
        type model_parameters
 
-!rab         private
+!GFDL         private
 
          integer :: ntcw        ! =0 no cloud condensate calculated
                                 ! >0 array index location for cloud condensate
@@ -838,11 +838,11 @@
 
       subroutine tbd_set (this, IX, Model, xkzm_m, xkzm_h, xkzm_s, &
                           evpco, psautco, prautco, wminco, pl_pres)
-!rab      subroutine tbd_set ( this, dpshc, prdout, poz, rann, xkzm_m, xkzm_h, xkzm_s, psautco,  &
-!rab                 prautco, evpco, wminco, &
-!rab                 acv, acvb, acvt, slc, smc, stc,  &
-!rab                 upd_mf, dwn_mf, det_mf, phy_f3d, phy_f2d, tprcp,  &
-!rab                 srflag, tref, z_c, c_0, c_d, w_0, w_d  ) 
+!GFDL      subroutine tbd_set ( this, dpshc, prdout, poz, rann, xkzm_m, xkzm_h, xkzm_s, psautco,  &
+!GFDL                 prautco, evpco, wminco, &
+!GFDL                 acv, acvb, acvt, slc, smc, stc,  &
+!GFDL                 upd_mf, dwn_mf, det_mf, phy_f3d, phy_f2d, tprcp,  &
+!GFDL                 srflag, tref, z_c, c_0, c_d, w_0, w_d  ) 
 
          implicit none
 
@@ -936,7 +936,7 @@
 !******************************************
 
        subroutine state_fld_setrad_in (this, IX, Model)
-!rab       subroutine state_fld_setrad_in (this, prsi, prsl, prslk, tgrs, qgrs_rad, tracer, vvl)
+!GFDL       subroutine state_fld_setrad_in (this, prsi, prsl, prslk, tgrs, qgrs_rad, tracer, vvl)
 
          implicit none
 
@@ -948,21 +948,32 @@
 
          select type (this)
            class is (state_fields_in)
-             allocate(this%prsi     (IX,Model%levs+1))
-             allocate(this%prsl     (IX,Model%levs))
-             allocate(this%prslk    (IX,Model%levs))
-             allocate(this%tgrs     (IX,Model%levs))
-             allocate(this%qgrs_rad (IX,Model%levs))
-             allocate(this%tracer   (IX,Model%levs,Model%ntrac))
-             allocate(this%vvl      (IX,Model%levs))
+!GFDL             allocate(this%prsi     (IX,Model%levs+1))
+!GFDL             allocate(this%prsl     (IX,Model%levs))
+!GFDL             allocate(this%prslk    (IX,Model%levs))
+!GFDL             allocate(this%tgrs     (IX,Model%levs))
+!GFDL             allocate(this%vvl      (IX,Model%levs))
+!GFDL             allocate(this%tracer   (IX,Model%levs,Model%ntrac-1))
+!GFDL
+!GFDL             this%prsi     = clear_val
+!GFDL             this%prsl     = clear_val
+!GFDL             this%prslk    = clear_val
+!GFDL             this%tgrs     = clear_val
+!GFDL             this%vvl      = clear_val
+!GFDL             this%tracer   = clear_val
 
-             this%prsi     = clear_val
-             this%prsl     = clear_val
-             this%prslk    = clear_val
-             this%tgrs     = clear_val
+             ! need to allocate qgrs_rad because of tracer limiting for sphum prior to radiation call
+             allocate(this%qgrs_rad (IX,Model%levs))
              this%qgrs_rad = clear_val
-             this%tracer   = clear_val
-             this%vvl      = clear_val
+
+             ! remaining tracers can point to physics tracer variable qgrs element 2 and up
+             if (associated(this%qgrs)) then
+               this%tracer => this%qgrs(:,:,2:)
+             else
+               write(6,*) 'need to call Type%setphys prior to calling Type%setrad'
+               stop
+             endif
+
          end select
 
        end subroutine
@@ -970,8 +981,8 @@
 
 
        subroutine state_fld_setphys_in (this, IX, Model)
-!rab       subroutine state_fld_setphys_in (this, prsi, prsl, prslk, tgrs, qgrs, vvl,       &
-!rab                                     pgr, ugrs, vgrs, prsik, phii, phil, adjtrc)
+!GFDL       subroutine state_fld_setphys_in (this, prsi, prsl, prslk, tgrs, qgrs, vvl,       &
+!GFDL                                     pgr, ugrs, vgrs, prsik, phii, phil, adjtrc)
 
          implicit none
 
@@ -984,23 +995,23 @@
          select type (this)
            class is (state_fields_in)
 
-!rab are these the same from state_fld_setrad_in
-!rab             this%prsi
-!rab             this%prsl
-!rab             this%prslk
-!rab             this%tgrs
-!rab             this%vvl
-!is qgrs the same as tracer in state_fld_setrad_in
-             if (allocated(this%tracer)) then
-               this%qgrs => this%tracer
-             else
-               allocate(this%qgrs(IX,Model%levs,Model%ntrac))
-             endif
+!GFDL are these the same from state_fld_setrad_in
+             allocate(this%prsi  (IX,Model%levs+1))
+             allocate(this%prsl  (IX,Model%levs))
+             allocate(this%prslk (IX,Model%levs))
+             allocate(this%tgrs  (IX,Model%levs))
+             allocate(this%vvl   (IX,Model%levs))
+             this%prsi     = clear_val
+             this%prsl     = clear_val
+             this%prslk    = clear_val
+             this%tgrs     = clear_val
+             this%vvl      = clear_val
 
-          ! The following not in radiation
+             ! The following not in radiation
              allocate(this%pgr   (IX))
              allocate(this%ugrs  (IX,Model%levs))
              allocate(this%vgrs  (IX,Model%levs))
+             allocate(this%qgrs  (IX,Model%levs,Model%ntrac))
              allocate(this%prsik (IX,Model%levs+1))
              allocate(this%phii  (IX,Model%levs+1))
              allocate(this%phil  (IX,Model%levs))
@@ -1008,12 +1019,13 @@
              this%pgr   = clear_val
              this%ugrs  = clear_val
              this%vgrs  = clear_val
+             this%qgrs  = clear_val
              this%prsik = clear_val
              this%phii  = clear_val
              this%phil  = clear_val
 
+             ! set adjtrc to 1.0_kind_phys by default
              allocate(this%adjtrc (Model%ntrac))
-           ! set adjtrc to 1.0_kind_phys by default
              this%adjtrc = 1.0_kind_phys
 
            ! class default
@@ -1025,7 +1037,7 @@
 
 
        subroutine state_fld_setphys_out (this, IX, Model)
-!rab       subroutine state_fld_setphys_out (this, gt0, gq0, gu0, gv0)
+!GFDL       subroutine state_fld_setphys_out (this, gt0, gq0, gu0, gv0)
 
          implicit none
 
@@ -1037,7 +1049,7 @@
 
          select type (this)
            class is (state_fields_out)
-          ! Outputs (only in physics)
+             ! Outputs (only in physics)
              allocate(this%gt0 (IX,Model%levs))
              allocate(this%gq0 (IX,Model%levs,Model%ntrac))
              allocate(this%gu0 (IX,Model%levs))
@@ -1084,9 +1096,9 @@
 ! Surface properties methods
 !******************************************
        subroutine sfc_prop_setrad (this, IX, Model, GSM)
-!rab       subroutine sfc_prop_setrad (this, slmsk, tsfc, snowd, sncovr, snoalb,      &
-!rab                                zorl, hprim, fice, tisfc,                      &
-!rab                                alvsf, alnsf, alvwf, alnwf, facsf, facwf )
+!GFDL       subroutine sfc_prop_setrad (this, slmsk, tsfc, snowd, sncovr, snoalb,      &
+!GFDL                                zorl, hprim, fice, tisfc,                      &
+!GFDL                                alvsf, alnsf, alvwf, alnwf, facsf, facwf )
                                 
          implicit none
 
@@ -1120,8 +1132,8 @@
              this%tisfc  = clear_val
 
              !!! GSM grrad.f ONLY
-!rab             if (present(GSM)) then
-!rab              if (GSM) then
+!GFDL             if (present(GSM)) then
+!GFDL              if (GSM) then
                allocate(this%alvsf (IX))
                allocate(this%alnsf (IX))
                allocate(this%alvwf (IX))
@@ -1135,8 +1147,8 @@
                this%alnwf = clear_val
                this%facsf = clear_val
                this%facwf = clear_val
-!rab              endif
-!rab             endif
+!GFDL              endif
+!GFDL             endif
 
          end select
 
@@ -1144,12 +1156,12 @@
 
 
        subroutine sfc_prop_setphys ( this, IX, Model)
-!rab       subroutine sfc_prop_setphys ( this,                                   &
-!rab                 hprime2, slope, shdmin, shdmax, snoalb, tg3, slmsk, vfrac,  &
-!rab                 vtype, stype, uustar, oro, oro_uf, hice, fice, tisfc,  &
-!rab                 tsea, snwdph, weasd, sncovr, zorl, canopy, ffmm, ffhh,  &
-!rab                 f10m, t2m, q2m                                          &
-!rab                 )
+!GFDL       subroutine sfc_prop_setphys ( this,                                   &
+!GFDL                 hprime2, slope, shdmin, shdmax, snoalb, tg3, slmsk, vfrac,  &
+!GFDL                 vtype, stype, uustar, oro, oro_uf, hice, fice, tisfc,  &
+!GFDL                 tsea, snwdph, weasd, sncovr, zorl, canopy, ffmm, ffhh,  &
+!GFDL                 f10m, t2m, q2m                                          &
+!GFDL                 )
          implicit none
 
          class(sfc_properties) :: this
@@ -1224,7 +1236,7 @@
 !******************************************
 ! Diagnostics methods
        subroutine diagnostics_setrad (this, IX, NFXR)
-!rab       subroutine diagnostics_setrad (this, NFXR, fluxr, topfsw, topflw, dswcmp, uswcmp)
+!GFDL       subroutine diagnostics_setrad (this, NFXR, fluxr, topfsw, topflw, dswcmp, uswcmp)
 
          implicit none
 
@@ -1262,16 +1274,16 @@
 
 
        subroutine diagnostics_setphys ( this, IX, Model)
-!rab       subroutine diagnostics_setphys ( this, srunoff, evbsa, evcwa,                     &
-!rab                          snohfa, transa, sbsnoa, snowca, soilm,                         &
-!rab                          tmpmin, tmpmax, dusfc, dvsfc, dtsfc, dqsfc, totprcp, gflux,    &
-!rab                          dlwsfc, ulwsfc, suntim, runoff, ep, cldwrk, dugwd, dvgwd,      &
-!rab                          psmean, cnvprcp, spfhmin, spfhmax, rain, rainc,                &
-!rab                          dt3dt, dq3dt, du3dt, dv3dt, dqdt_v,                            &
-!rab                          u10m, v10m, zlvl, psurf, hpbl, pwat, t1, q1,                   &
-!rab                          u1, v1, chh, cmm, dlwsfci, ulwsfci, dswsfci, uswsfci,          &
-!rab                          dusfci, dvsfci, dtsfci, dqsfci, gfluxi, epi, smcwlt2, smcref2, &
-!rab                          wet1, sr )
+!GFDL       subroutine diagnostics_setphys ( this, srunoff, evbsa, evcwa,                     &
+!GFDL                          snohfa, transa, sbsnoa, snowca, soilm,                         &
+!GFDL                          tmpmin, tmpmax, dusfc, dvsfc, dtsfc, dqsfc, totprcp, gflux,    &
+!GFDL                          dlwsfc, ulwsfc, suntim, runoff, ep, cldwrk, dugwd, dvgwd,      &
+!GFDL                          psmean, cnvprcp, spfhmin, spfhmax, rain, rainc,                &
+!GFDL                          dt3dt, dq3dt, du3dt, dv3dt, dqdt_v,                            &
+!GFDL                          u10m, v10m, zlvl, psurf, hpbl, pwat, t1, q1,                   &
+!GFDL                          u1, v1, chh, cmm, dlwsfci, ulwsfci, dswsfci, uswsfci,          &
+!GFDL                          dusfci, dvsfci, dtsfci, dqsfci, gfluxi, epi, smcwlt2, smcref2, &
+!GFDL                          wet1, sr )
 
          implicit none
 
@@ -1423,7 +1435,7 @@
 ! Interface Fields methods
 !******************************************
        subroutine interface_fld_setrad (this, IX, Model, SW0, SWB, LW0, LWB)
-!rab       subroutine interface_fld_setrad (this, sfcfsw, sfcflw, htrlw0, htrsw0, htrswb, htrlwb)
+!GFDL       subroutine interface_fld_setrad (this, sfcfsw, sfcflw, htrlw0, htrsw0, htrswb, htrlwb)
 
          use module_radsw_parameters, only: NBDSW
          use module_radlw_parameters, only: NBDLW
@@ -1467,14 +1479,14 @@
 
 
        subroutine interface_fld_setphys(this, IX, Model)
-!rab       subroutine interface_fld_setphys(this, sfcdsw, sfcnsw, sfcdlw, sfcnirbmu, sfcnirdfu, sfcvisbmu,         &
-!rab                 sfcvisdfu, sfcnirbmd, sfcnirdfd, sfcvisbmd, sfcvisdfd,                                        &
-!rab                 dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl, dlwsfc_cpl, dswsfc_cpl, dnirbm_cpl,               &
-!rab                 dnirdf_cpl, dvisbm_cpl, dvisdf_cpl, rain_cpl, nlwsfc_cpl, nswsfc_cpl, nnirbm_cpl, nnirdf_cpl, &
-!rab                 nvisbm_cpl, nvisdf_cpl, xt, xs, xu, xv, xz, zm, xtts, xzts, d_conv, ifd, dt_cool, Qrain,      &
-!rab                 dusfci_cpl, dvsfci_cpl, dtsfci_cpl, dqsfci_cpl, dlwsfci_cpl, dswsfci_cpl, dnirbmi_cpl, dnirdfi_cpl,      &
-!rab                 dvisbmi_cpl, dvisdfi_cpl, nlwsfci_cpl, nswsfci_cpl, nnirbmi_cpl, nnirdfi_cpl, nvisbmi_cpl, nvisdfi_cpl,  &
-!rab                 t2mi_cpl, q2mi_cpl, u10mi_cpl, v10mi_cpl, tseai_cpl, psurfi_cpl, oro_cpl, slmsk_cpl)
+!GFDL       subroutine interface_fld_setphys(this, sfcdsw, sfcnsw, sfcdlw, sfcnirbmu, sfcnirdfu, sfcvisbmu,         &
+!GFDL                 sfcvisdfu, sfcnirbmd, sfcnirdfd, sfcvisbmd, sfcvisdfd,                                        &
+!GFDL                 dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl, dlwsfc_cpl, dswsfc_cpl, dnirbm_cpl,               &
+!GFDL                 dnirdf_cpl, dvisbm_cpl, dvisdf_cpl, rain_cpl, nlwsfc_cpl, nswsfc_cpl, nnirbm_cpl, nnirdf_cpl, &
+!GFDL                 nvisbm_cpl, nvisdf_cpl, xt, xs, xu, xv, xz, zm, xtts, xzts, d_conv, ifd, dt_cool, Qrain,      &
+!GFDL                 dusfci_cpl, dvsfci_cpl, dtsfci_cpl, dqsfci_cpl, dlwsfci_cpl, dswsfci_cpl, dnirbmi_cpl, dnirdfi_cpl,      &
+!GFDL                 dvisbmi_cpl, dvisdfi_cpl, nlwsfci_cpl, nswsfci_cpl, nnirbmi_cpl, nnirdfi_cpl, nvisbmi_cpl, nvisdfi_cpl,  &
+!GFDL                 t2mi_cpl, q2mi_cpl, u10mi_cpl, v10mi_cpl, tseai_cpl, psurfi_cpl, oro_cpl, slmsk_cpl)
 
          implicit none
 
@@ -1640,8 +1652,8 @@
 ! Cloud properties methods
 !******************************************
        subroutine cld_prop_setrad (this, IX, Model, sup)
-!rab       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, &
-!rab                                   cldcov, deltaq, sup, cnvw, cnvc)
+!GFDL       subroutine cld_prop_setrad (this, cv, cvt, cvb, fcice, frain, rrime, &
+!GFDL                                   cldcov, deltaq, sup, cnvw, cnvc)
 
          implicit none
 
@@ -1697,14 +1709,14 @@
 
          call dbgprint("cld_prop_setphys")
 
-!rab are these the same from cld_prop_setrad
+!GFDL are these the same from cld_prop_setrad
          ! Input
-!rab         allocate(this%flgmin => flgmin
+!GFDL         allocate(this%flgmin => flgmin
          ! Input/output
          this%sup = sup
-!rab         allocate(this%cv      (IX))
-!rab         allocate(this%cvt     (IX))
-!rab         allocate(this%cvb     (IX))
+!GFDL         allocate(this%cv      (IX))
+!GFDL         allocate(this%cvt     (IX))
+!GFDL         allocate(this%cvb     (IX))
          allocate(this%cnvqc_v (IX,Model%levs))
 
        end subroutine
@@ -1716,8 +1728,8 @@
 
        subroutine rad_tend_set (this, IX, Model)
                                       ! swh                 ! hlw
-!rab       subroutine rad_tend_set (this, htrsw, sfalb, coszen, htrlw, tsflw, semis, coszdg,  &
-!rab                                rqtk, hlwd, dtdtr, swhc, hlwc )
+!GFDL       subroutine rad_tend_set (this, htrsw, sfalb, coszen, htrlw, tsflw, semis, coszdg,  &
+!GFDL                                rqtk, hlwd, dtdtr, swhc, hlwc )
                                 
          implicit none
 
@@ -1851,10 +1863,10 @@
 
        subroutine dyn_param_setrad (this, IX, IM, kdt, jdate, solhr, dtlw, dtsw, &
                                     lssav, ipt, lprnt, deltim)
-!rab       subroutine dyn_param_setrad (this, xlon, xlat, sinlat, coslat, solhr, &
-!rab                                    IX, IM, kdt, jdate, solcon, icsdsw, icsdlw, &
-!rab                                    dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, deltim, &
-!rab                                    slag, sdec, cdec)
+!GFDL       subroutine dyn_param_setrad (this, xlon, xlat, sinlat, coslat, solhr, &
+!GFDL                                    IX, IM, kdt, jdate, solcon, icsdsw, icsdlw, &
+!GFDL                                    dtlw, dtsw, lsswr, lslwr, lssav, ipt, lprnt, deltim, &
+!GFDL                                    slag, sdec, cdec)
  
          implicit none
 
@@ -1904,9 +1916,9 @@
 
        subroutine dyn_param_setphys (this, IX, IM, solhr, kdt, lssav, lat, dtp, dtf, &
                                      clstp, nnp, fhour)
-!rab       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
-!rab                                     kdt, lssav, lat, dtp, dtf, clstp,       &
-!rab                                     nnp, nlons, fhour, slag, sdec, cdec )
+!GFDL       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
+!GFDL                                     kdt, lssav, lat, dtp, dtf, clstp,       &
+!GFDL                                     nnp, nlons, fhour, slag, sdec, cdec )
          implicit none
 
          class(dynamic_parameters) :: this
@@ -1923,7 +1935,7 @@
 
          select type (this)
            class is (dynamic_parameters)
-!rab these are already done in setrad
+!GFDL these are already done in setrad
              if (.not.associated(this%xlon)) allocate(this%xlon   (IX))
              if (.not.associated(this%xlat)) allocate(this%xlat   (IX))
              if (.not.associated(this%area)) allocate(this%area   (IX))
@@ -1966,7 +1978,7 @@
                                  lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                                  mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
                                  gen_coord_hybrid, levr, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
-                                 dxmaxin, dxminin, dxinvin, &
+                                 dxmaxin, dxminin, dxinvin, ozcalcin, &
                                  ! NEW from nems_slg_shoc
                                  cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                                  ! For radiation
@@ -2049,6 +2061,7 @@
          logical :: shocaftcnv
 
          real(kind=kind_phys) :: dxmaxin, dxminin, dxinvin
+         logical :: ozcalcin
 
          ! For rad_initialize
          real (kind=kind_phys), intent(in) :: si(levr+1)
@@ -2146,6 +2159,7 @@
          dxmax = dxmaxin
          dxmin = dxminin
          dxinv = dxinvin
+         ozcalc = ozcalcin
 
 !/GFDL - had to add the following to get things working...
          call gfuncphys ()
@@ -2660,7 +2674,7 @@
                     cld_prop%cvt, cld_prop%cvb, cld_prop%fcice, cld_prop%frain, cld_prop%rrime,        &
                     cld_prop%flgmin, dyn_parm%icsdsw, dyn_parm%icsdlw,                                 &
                     mdl_parm%ntcw-1, mdl_parm%ncld, mdl_parm%ntoz-1,  &
-                    mdl_parm%NTRAC, diags%NFXR, dyn_parm%dtlw, dyn_parm%dtsw,       &
+                    mdl_parm%NTRAC-1, diags%NFXR, dyn_parm%dtlw, dyn_parm%dtsw,       &
                     dyn_parm%lsswr, dyn_parm%lslwr, dyn_parm%lssav, mdl_parm%shoc_cld, &
                     dyn_parm%IX, dyn_parm%IM,          &
                     mdl_parm%levs, mdl_parm%me, dyn_parm%lprnt, dyn_parm%ipt, dyn_parm%kdt,              &

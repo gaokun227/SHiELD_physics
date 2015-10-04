@@ -986,7 +986,7 @@ contains
     endif!if gridtype > 3
 
     if (Atm%neststruct%nested .or. ANY(Atm%neststruct%child_grids)) then
-       nullify(grid_global)
+    nullify(grid_global)
     else if( trim(grid_file) .NE. 'INPUT/grid_spec.nc') then
        deallocate(grid_global)
     endif
@@ -1295,8 +1295,8 @@ contains
            (ieg-isg+2)*(jeg-jsg+1)*ndims, mpp_root_pe())
 
 #ifdef DIVG_BC
-      call mpp_broadcast( p_grid(isg:ieg+1, jsg:jeg+1, :), &
-           (ieg-isg+2)*(jeg-jsg+2)*ndims, mpp_root_pe() )
+      call mpp_broadcast( p_grid(isg-ng:ieg+ng+1, jsg-ng:jeg+ng+1, :), &
+           (ieg-isg+2+2*ng)*(jeg-jsg+2+2*ng)*ndims, mpp_root_pe() )
 #endif
 
       do n=1,ndims
@@ -1331,6 +1331,8 @@ contains
             else
                ind_h(i,j,2) = jc
             end if
+            ind_h(i,j,3) = imod
+            ind_h(i,j,4) = jmod
 
          end do
       end do
@@ -1381,6 +1383,8 @@ contains
 #endif
 
             ind_u(i,j,2) = jc
+            ind_u(i,j,3) = imod
+            ind_u(i,j,4) = p_ind(i,j,4)
 
          end do
       end do
@@ -1405,6 +1409,8 @@ contains
             end if
 #endif
 
+            ind_v(i,j,4) = jmod
+            ind_v(i,j,3) = p_ind(i,j,3)
          end do
       end do
 

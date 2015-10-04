@@ -305,11 +305,19 @@ module fv_update_phys_mod
             do i=is,ie
 #ifdef USE_COND
 ! *** Activate this if Lin MP is used ***
+#ifdef USE_NWAT3
+                q_liq = q(i,j,k,liq_wat)
+                q_sol = q(i,j,k,ice_wat)
+                cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
+                       q_liq*c_liq + q_sol*c_ice
+                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#else
                 q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
                 q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
                 cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
                        q_liq*c_liq + q_sol*c_ice
                 pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#endif
 #else
                 pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
 #endif
@@ -322,11 +330,19 @@ module fv_update_phys_mod
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
 #ifdef USE_COND
+#ifdef USE_NWAT3
+                   q_liq = q(i,j,k,liq_wat)
+                   q_sol = q(i,j,k,ice_wat)
+                   cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
+                          q_liq*c_liq + q_sol*c_ice
+                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#else
                    q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
                    q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
                    cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
                           q_liq*c_liq + q_sol*c_ice
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#endif
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
 #endif
@@ -345,11 +361,19 @@ module fv_update_phys_mod
                do j=js,je
                   do i=is,ie
 #ifdef USE_COND
+#ifdef USE_NWAT3
+                     q_liq = q(i,j,k,liq_wat)
+                     q_sol = q(i,j,k,ice_wat)
+                     cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cv_air + q(i,j,k,sphum)*cv_vap +   &
+                          q_liq*c_liq + q_sol*c_ice
+                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#else
                      q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
                      q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
                      cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cv_air + q(i,j,k,sphum)*cv_vap +   &
                           q_liq*c_liq + q_sol*c_ice
                      pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#endif
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cv_air
 #endif

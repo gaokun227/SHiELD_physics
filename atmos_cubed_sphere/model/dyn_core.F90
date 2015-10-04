@@ -1985,7 +1985,7 @@ do 1000 j=jfirst,jlast
    end if
 
 !$OMP parallel do default(none) shared(jfirst,jlast,ifirst,ilast,pk,km,gz,hs,ptop,ptk, &
-!$OMP                                  js,je,is,ie,peln,peln1,pe,delp,akap,pt,CG,pkz) &
+!$OMP                                  js,je,is,ie,peln,peln1,pe,delp,akap,pt,CG,pkz,q_con) &
 !$OMP                          private(peg, pkg, p1d, logp)
    do 2000 j=jfirst,jlast
 

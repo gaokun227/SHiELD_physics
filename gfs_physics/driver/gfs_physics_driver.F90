@@ -109,6 +109,7 @@ module gfs_physics_driver_mod
 
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
+  integer :: lat_cs, lon_cs
 
 !--- NAMELIST/CONFIGURATION parameters
 !--- convenience variables
@@ -222,7 +223,7 @@ module gfs_physics_driver_mod
 
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
-                              ozcalc
+                              ozcalc,cdmbgwd
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -300,6 +301,13 @@ module gfs_physics_driver_mod
     idate(3) = jdate(3)
     idate(1) = jdate(5)
 
+!--- set the local variable for "lat" & "lon" per tile
+    lat_cs = glat
+    lon_cs = glon
+!--- set the GFS variable for "lat" & "lon" for the whole system
+    latr = 2*lat_cs
+    lonr = 4*lon_cs
+
 !--- read namelist  ---
 #ifdef INTERNAL_FILE_NML
     read (input_nml_file, nml=gfs_physics_nml, iostat=io)
@@ -328,8 +336,6 @@ module gfs_physics_driver_mod
     if (mpp_pe() == mpp_root_pe() ) write(logunit, nml=gfs_physics_nml)
 
 !--- set some configurational parameters that are derived from others
-    lonr = glon
-    latr = glat
     nsswr = nint(fhswr/dt_phys)
     nslwr = nint(fhlwr/dt_phys)
     sas_shal = (sashal .and. (.not. ras))
@@ -355,7 +361,7 @@ module gfs_physics_driver_mod
     dxminin = log(indxmin)
     dxinvin = 1.0/(dxmaxin-dxminin)
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
-                          glon, glat, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
+                          lonr, latr, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
@@ -539,7 +545,7 @@ module gfs_physics_driver_mod
     integer :: ibs, ibe, jbs, jbe, nx, ny, ngptc
     integer :: sec, ipseed, jdate(8)
     integer :: kdt
-    integer :: numrdm(lonr*latr*2)
+    integer :: numrdm(lon_cs*lat_cs*2)
     type (random_stat) :: stat
     real(kind=kind_phys) :: fhour
     real(kind=kind_phys) :: work1, work2
@@ -605,8 +611,8 @@ module gfs_physics_driver_mod
             ix = ix + 1
 !rab            Dyn_parms(nb)%icsdsw(ix) = 100
 !rab            Dyn_parms(nb)%icsdlw(ix) = 100
-            Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lonr)
-            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lonr + latr)
+            Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs)
+            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs + lat_cs)
 
             if (Mdl_parms%num_p3d == 3) then
               work1 = (log(Dyn_parms(nb)%dx(ix)) - dxmin) * dxinv

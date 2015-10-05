@@ -35,6 +35,7 @@ use mpp_io_mod,        only: mpp_open, mpp_close, &
                              MPP_NATIVE, MPP_RDONLY, MPP_DELETE
 
 use mpp_domains_mod,   only: mpp_get_global_domain, mpp_global_field, CORNER
+use memutils_mod,      only: print_memuse_stats
 
 use  diag_manager_mod, only: diag_manager_init, diag_manager_end, &
                              get_base_date, diag_manager_set_time_end
@@ -80,10 +81,11 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
       integer :: dt_atmos = 0
       integer :: dt_ocean = 0
       integer :: atmos_nthreads = 1
+      logical :: memuse_verbose = .false.
 
       namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                              months, days, hours, minutes, seconds,  &
-                             dt_atmos, dt_ocean, atmos_nthreads
+                             dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose
 
 !#######################################################################
 
@@ -98,6 +100,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call constants_init
 
  call coupler_init
+ call print_memuse_stats('after coupler init')
 
  call mpp_clock_end (initClock) !end initialization
  call mpp_clock_begin(mainClock) !begin main loop
@@ -109,12 +112,16 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
        Time_atmos = Time_atmos + Time_step_atmos
 
        call update_atmos_model_dynamics (Atm)
+       if (memuse_verbose) call print_memuse_stats('after atmos dynamics')
 
        call update_atmos_radiation_physics (Atm)
+       if (memuse_verbose) call print_memuse_stats('after radiation/physics')
 
        call update_atmos_model_state (Atm)
+       if (memuse_verbose) call print_memuse_stats('after update state')
 
   enddo
+  call print_memuse_stats('after full step')
 
  enddo
 
@@ -340,6 +347,7 @@ num_atmos_calls = Time_step_ocean / Time_step_atmos
 !------ initialize component models ------
 
       call  atmos_model_init (Atm,  Time_init, Time_atmos, Time_step_atmos)
+      call print_memuse_stats('after atmos model init')
 
       call mpp_get_global_domain(Atm%Domain, xsize=gnlon, ysize=gnlat)
       allocate ( glon_bnd(gnlon+1,gnlat+1), glat_bnd(gnlon+1,gnlat+1) )

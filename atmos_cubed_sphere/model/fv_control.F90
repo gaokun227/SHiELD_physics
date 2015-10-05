@@ -826,12 +826,12 @@ module fv_control_mod
               ioffset, ioffset + (npx-1)/refinement - 1, &
               joffset, joffset + (npy-1)/refinement - 1,         &
               (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 0, name="nest_domain") !What pelist to use?
-!rab         call mpp_define_nest_domains(Atm(n)%neststruct%nest_domain_for_BC, Atm(n)%domain, Atm(parent_grid_num)%domain, &
-!rab              7, parent_tile, &
-!rab              1, npx-1, 1, npy-1,                  & !Grid cells, not points
-!rab              ioffset, ioffset + (npx-1)/refinement - 1, &
-!rab              joffset, joffset + (npy-1)/refinement - 1,         &
-!rab              (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 0, name="nest_domain_for_BC") !What pelist to use?
+         call mpp_define_nest_domains(Atm(n)%neststruct%nest_domain, Atm(n)%domain, Atm(parent_grid_num)%domain, &
+              7, parent_tile, &
+              1, npx-1, 1, npy-1,                  & !Grid cells, not points
+              ioffset, ioffset + (npx-1)/refinement - 1, &
+              joffset, joffset + (npy-1)/refinement - 1,         &
+              (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 0, name="nest_domain") !What pelist to use?
 !              (/ (i,i=0,mpp_npes()-1)  /), extra_halo = 2, name="nest_domain_for_BC") !What pelist to use?
 
          Atm(parent_grid_num)%neststruct%child_grids(n) = .true.
@@ -859,7 +859,7 @@ module fv_control_mod
 
       do nn=1,size(Atm)
          if (n == 1) allocate(Atm(nn)%neststruct%nest_domain_all(size(Atm)))
-!rab         Atm(nn)%neststruct%nest_domain_all(n) = Atm(n)%neststruct%nest_domain_for_BC
+         Atm(nn)%neststruct%nest_domain_all(n) = Atm(n)%neststruct%nest_domain
       enddo
 
    end do

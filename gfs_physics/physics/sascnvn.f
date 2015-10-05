@@ -1858,12 +1858,6 @@ c
           xmb(i) = -fld(i) / xk(i)
           xmb(i) = xmb(i) * scaldfunc(i)
           xmb(i) = min(xmb(i),xmbmax(i))
-!GFDL might be needed
-          if (xmb(i) == 0) then
-            write(6,*) '******** SASCNVN: GFDL fix triggered...********'
-            cnvflg(i)=.false.
-          endif
-!GFDL might be needed
         endif
       enddo
 !!
@@ -1999,7 +1993,9 @@ c             if(islimsk(i) == 1) evef = 0.
                 delq(i) =  + qevap(i)/dt2
                 delqev(i) = delqev(i) + .001*dp*qevap(i)/g
               endif
-              dellaq(i,k) = dellaq(i,k) + delq(i) / xmb(i)
+!Commenting out the following line as per Jongil Han
+!"is included only for diagnostic purpose when it was first developed in 1995(?)."
+!GFDL              dellaq(i,k) = dellaq(i,k) + delq(i) / xmb(i)
               delqbar(i) = delqbar(i) + delq(i)*dp/g
               deltbar(i) = deltbar(i) + deltv(i)*dp/g
             endif

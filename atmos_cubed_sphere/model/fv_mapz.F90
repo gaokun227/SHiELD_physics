@@ -1049,7 +1049,7 @@ endif
    real, intent(inout), dimension(isd:ied,jsd:jed,km):: ua, va
    real, intent(in), dimension(isd:ied,jsd:jed,km):: pt, delp
    real, intent(in), dimension(isd:ied,jsd:jed,km,*):: q
-   real, intent(in), dimension(is:ie,js:je,km):: qc
+   real, intent(in), dimension(isd:ied,jsd:jed,km):: qc
    real, intent(inout)::  u(isd:ied,  jsd:jed+1,km)
    real, intent(inout)::  v(isd:ied+1,jsd:jed,  km)
    real, intent(in)::  w(isd:,jsd:,1:)   ! vertical velocity (m/s)

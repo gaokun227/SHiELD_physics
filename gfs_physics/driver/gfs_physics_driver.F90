@@ -14,8 +14,6 @@ module gfs_physics_driver_mod
                                 mpp_error, mpp_chksum, mpp_min, mpp_max
   use field_manager_mod,  only: MODEL_ATMOS
   use fms_mod,            only: fms_init, stdout, stdlog, string,     &
-                                mpp_clock_id, mpp_clock_begin,        &
-                                mpp_clock_end, CLOCK_MODULE_DRIVER,   &
                                 open_namelist_file, check_nml_error,  &
                                 file_exist, open_file, close_file,    &
                                 error_mesg, FATAL, WARNING, NOTE,     &
@@ -89,10 +87,6 @@ module gfs_physics_driver_mod
 !--- netcdf restart
   type(restart_file_type), pointer, save :: Phy_restart => NULL()
   type(restart_file_type), pointer, save :: Til_restart => NULL()
-
-
-!--- mpp clocks ids
-  integer :: gbphys_pre_clk, gbphys_clk, grrad_pre_clk, grrad_clk, diags_clk
 
 
 !--- diagnostic field ids and var-names
@@ -339,19 +333,13 @@ module gfs_physics_driver_mod
     nsswr = nint(fhswr/dt_phys)
     nslwr = nint(fhlwr/dt_phys)
     sas_shal = (sashal .and. (.not. ras))
+
 !--- read in ozone datasets for prognostic ozone interpolation
 !--- sets values for levozp, pl_coeff, pl_pres(=>Tbd_data%poz), ozplin
     call read_o3data (levozp, pl_coeff)
 
 !--- define the model dimensions on the local processor ---
     call get_number_tracers (MODEL_ATMOS, num_tracers=ntrac, num_prog=ntp)
-
-!--- initialize the clocks ---
-    grrad_pre_clk  = mpp_clock_id( '   GFS_Rad: pre        ', grain=CLOCK_MODULE_DRIVER )
-    grrad_clk      = mpp_clock_id( '   GFS_Rad: grrad      ', grain=CLOCK_MODULE_DRIVER )
-    gbphys_pre_clk = mpp_clock_id( '   GFS_Physics: pre    ', grain=CLOCK_MODULE_DRIVER )
-    gbphys_clk     = mpp_clock_id( '   GFS_Physics: gbphys ', grain=CLOCK_MODULE_DRIVER )
-    diags_clk      = mpp_clock_id( '   GFS: diagnostics    ', grain=CLOCK_MODULE_DRIVER )
 
 !--- initialize physics ---
     unit = open_namelist_file ()
@@ -634,11 +622,10 @@ module gfs_physics_driver_mod
     enddo
 
     if (mpp_pe() == mpp_root_pe()) then
-      write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour
-      write(6,101) '   lsswr ',Dyn_parms(1)%lsswr,'  lslwr ',Dyn_parms(1)%lslwr
+      write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour, &
+                   '  lsswr ',Dyn_parms(1)%lsswr,' lslwr ',Dyn_parms(1)%lslwr
     endif
- 100 format (a,i5.5,a,f10.4)
- 101 format (a,L5,a,L5)
+ 100 format (a,i5.5,a,f10.4,a,L1,a,L1)
 
   end subroutine phys_rad_setup_step
 
@@ -683,23 +670,28 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation routine for time-varying data ---
       do nb = 1, Atm_block%nblks
+        if ((Mdl_parms%me == 0) .and. (nb /= 1)) then
+          Mdl_parms%me = -99
+        endif
         call nuopc_rad_update (Mdl_parms, Dyn_parms(nb))
       enddo
+      if (mpp_pe() == mpp_root_pe()) Mdl_parms%me = mpp_pe()
 
 !--- call the nuopc radiation loop---
-      call mpp_clock_begin(grrad_clk)
 !$OMP parallel do default (none) &
-!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props, &
+!!!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props, &
+!$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends)          &
+!$             firstprivate (Mdl_parms)  &
 !$             private (nb)
       do nb = 1, Atm_block%nblks
+        if ((Mdl_parms%me == 0) .and. (nb /= 1)) then
+          Mdl_parms%me = -99
+        endif
         call nuopc_rad_run (Statein(nb), Sfc_props(nb), Gfs_diags(nb), &
                             Intr_flds(nb), Cld_props(nb), Rad_tends(nb), &
                             Mdl_parms, Dyn_parms(nb))
       enddo
-      call mpp_clock_end(grrad_clk)
-    else
-     if (Mdl_parms%me == 0) write(6,*)  'Not a radiation step'
     endif
 
   end subroutine radiation_driver
@@ -719,13 +711,18 @@ module gfs_physics_driver_mod
     integer :: nb
 
 !--- call the nuopc physics loop---
-    call mpp_clock_begin(gbphys_clk)
 !$OMP parallel do default (none) &
-!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props,  &
+!!!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props,  &
+!$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
 !$                      Stateout) &
+!$             firstprivate (Mdl_parms)  &
 !$             private (nb)
     do nb = 1, Atm_block%nblks
+
+      if ((Mdl_parms%me == 0) .and. (nb /= 1)) then
+        Mdl_parms%me = -99
+      endif
 
       Tbd_data(nb)%dpshc(:) = 0.3d0 * Statein(nb)%prsi(:,1)
 
@@ -734,11 +731,8 @@ module gfs_physics_driver_mod
                            Rad_tends(nb), Mdl_parms, Tbd_data(nb), &
                            Dyn_parms(nb))
     enddo
-    call mpp_clock_end(gbphys_clk)
 
-    call mpp_clock_begin(diags_clk)
     call gfs_diag_output (Time, Atm_block)
-    call mpp_clock_end(diags_clk)
 
   end subroutine physics_driver
 !-------------------------------------------------------------------------      

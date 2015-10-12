@@ -124,8 +124,13 @@ public atmos_model_restart
      type(coupler_2d_bc_type)      :: fields             ! array of fields used for additional tracers
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
                                                          ! to calculate gradient on cubic sphere grid.
-     real                          :: dxmax
-     real                          :: dxmin
+     real(kind=kind_phys)          :: dxmin
+     real(kind=kind_phys)          :: dxmax
+     real(kind=kind_phys), pointer, dimension(:,:) :: xlon
+     real(kind=kind_phys), pointer, dimension(:,:) :: xlat
+     real(kind=kind_phys), pointer, dimension(:,:) :: dx
+     real(kind=kind_phys), pointer, dimension(:,:) :: dy
+     real(kind=kind_phys), pointer, dimension(:,:) :: area
  end type atmos_data_type
 !</PUBLICTYPE >
 
@@ -297,7 +302,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   integer :: isc, iec, jsc, jec
   integer :: isd, ied, jsd, jed
   integer :: blk, ibs, ibe, jbs, jbe
-  real :: dt_phys
+  real(kind=kind_phys) :: dt_phys
   real, allocatable :: q(:,:,:,:), p_half(:,:,:)
   character(len=80) :: control
   character(len=64) :: filename, filename2
@@ -347,7 +352,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 !---------- initialize atmospheric dynamics -------
    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
-                         Atmos%grid)
+                         Atmos%grid, Atmos%dx, Atmos%dy, Atmos%area)
 
 !-----------------------------------------------------------------------
    call atmosphere_resolution (nlon, nlat, global=.false.)
@@ -357,7 +362,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call get_atmosphere_axes (Atmos%axes)
    call get_atmosphere_grid (Atmos%dxmax, Atmos%dxmin)
    call atmosphere_boundary (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
-   call atmosphere_grid_center (Atmos%lon, Atmos%lat)
+   allocate(Atmos%xlon(nlon, nlat))
+   allocate(Atmos%xlat(nlon, nlat))
+   call atmosphere_grid_center (Atmos%xlon, Atmos%xlat)
 
 !-----------------------------------------------------------------------
 !--- before going any further check definitions for 'blocks'
@@ -369,20 +376,20 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    allocate(Stateout(Atm_block%nblks))
 
 !---------- initialize physics -------
-   call phys_rad_driver_init(Atmos%Time,         &
-                             Atmos%lon(:,:),     &
-                             Atmos%lat(:,:),     &
-                             mlon,               &
-                             mlat,               &
-                             nlev,               &
-                             Atmos%axes,         &
-                             Atmos%grid%dx,      &
-                             Atmos%grid%dy,      &
-                             Atmos%grid%area,    &
-                             Atmos%dxmin,        &
-                             Atmos%dxmax,        &
-                             dt_phys,            &
-                             Atm_block,          &
+   call phys_rad_driver_init(Atmos%Time,        &
+                             Atmos%xlon(:,:),   &
+                             Atmos%xlat(:,:),   &
+                             mlon,              &
+                             mlat,              &
+                             nlev,              &
+                             Atmos%axes,        &
+                             Atmos%dx,          &
+                             Atmos%dy,          &
+                             Atmos%area,        &
+                             Atmos%dxmin,       &
+                             Atmos%dxmax,       &
+                             dt_phys,           &
+                             Atm_block,         &
                              Statein, Stateout) 
 
 !---- print version number to logfile ----

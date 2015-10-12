@@ -238,7 +238,7 @@ module gfs_physics_driver_mod
     type(time_type),           intent(in) :: Time
     type (block_control_type), intent(in) :: Atm_block
     !--  set "one"-based arrays to domain-based
-    real, dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
+    real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
     real (kind=kind_phys), intent(in) :: indxmin, indxmax, dt_phys
@@ -630,10 +630,10 @@ module gfs_physics_driver_mod
   end subroutine phys_rad_setup_step
 
   subroutine skin_temp(tmin, tmax, timax, timin, nblks)
-    real, intent(inout) :: tmin, tmax, timin, timax
+    real(kind=kind_phys), intent(inout) :: tmin, tmax, timin, timax
     integer, intent(in) :: nblks
     integer :: nb
-    real :: tminl, tmaxl, timinl, timaxl
+    real(kind=kind_phys) :: tminl, tmaxl, timinl, timaxl
 
     tmax = -99999.0
     tmin = +99999.0
@@ -1043,6 +1043,7 @@ module gfs_physics_driver_mod
     character(len=2) :: xtra
     character(len=11) :: mod_name = 'gfs_physics'
 
+#ifdef JUNK
     allocate(Diag(86+NFXR+Mdl_parms%pl_coeff))
 
     Diag(:)%id = 0
@@ -1493,6 +1494,7 @@ module gfs_physics_driver_mod
                                            axes(1:axes_l), Time, trim(Diag(num)%desc), &
                                            trim(Diag(num)%unit), missing_value=1.0d-30)
     enddo
+#endif
 
   end subroutine gfs_diag_register
 !-------------------------------------------------------------------------      
@@ -1510,6 +1512,7 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
     logical :: used
 
+#ifdef JUNK
 !--- call the nuopc physics loop---
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)-Atm_block%isc+1
@@ -1523,6 +1526,7 @@ module gfs_physics_driver_mod
       var2(1:nx,1:ny) => Gfs_diags(nb)%srunoff(1:ngptc)
       used=send_data(Diag(1)%id, var2, Time, is_in=ibs, js_in=jbs)
     enddo
+#endif
 
   end subroutine gfs_diag_output
 !-------------------------------------------------------------------------      

@@ -11,7 +11,7 @@ module atmosphere_mod
 ! FMS modules:
 !-----------------
 use block_control_mod,      only: block_control_type
-use constants_mod,          only: cp_air, rdgas, grav, rvgas, kappa, pstd_mks
+use constants_mod,          only: cp_air, rdgas, grav, rvgas, kappa, pstd_mks, R_GRID
 use time_manager_mod,       only: time_type, get_time, set_time, operator(+) 
 use fms_mod,                only: file_exist, open_namelist_file,    &
                                   close_file, error_mesg, FATAL,     &
@@ -128,9 +128,10 @@ contains
 
 
 
- subroutine atmosphere_init (Time_init, Time, Time_step, Grid_box)
-   type (time_type),      intent(in)    :: Time_init, Time, Time_step
-   type(grid_box_type),   intent(inout) :: Grid_box
+ subroutine atmosphere_init (Time_init, Time, Time_step, Grid_box, dx, dy, area)
+   type (time_type),    intent(in)    :: Time_init, Time, Time_step
+   type(grid_box_type), intent(inout) :: Grid_box
+   real(kind=kind_phys), pointer, dimension(:,:), intent(inout) :: dx, dy, area
 
 !--- local variables ---
    integer :: i, n
@@ -214,6 +215,12 @@ contains
      Grid_box%vlon  (i, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlon  (isc:iec ,  jsc:jec, i )
      Grid_box%vlat  (i, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlat  (isc:iec ,  jsc:jec, i )
    enddo
+   allocate (dx  (isc:iec  , jsc:jec+1))
+   allocate (dy  (isc:iec+1, jsc:jec  ))
+   allocate (area(isc:iec  , jsc:jec  ))
+   dx(isc:iec,jsc:jec+1) = Atm(mytile)%gridstruct%dx_64(isc:iec,jsc:jec+1)
+   dy(isc:iec+1,jsc:jec) = Atm(mytile)%gridstruct%dy_64(isc:iec+1,jsc:jec)
+   area(isc:iec,jsc:jec) = Atm(mytile)%gridstruct%area_64(isc:iec,jsc:jec)
 
 !----- allocate and zero out the dynamics (and accumulated) tendencies
    allocate( u_dt(isd:ied,jsd:jed,npz), &
@@ -471,14 +478,14 @@ contains
 !---------------------------------------------------------------
 !    returns the longitude and latitude cell centers
 !---------------------------------------------------------------
-    real,    intent(out) :: lon(:,:), lat(:,:)   ! Unit: radian
+    real(kind=kind_phys), intent(out) :: lon(:,:), lat(:,:)   ! Unit: radian
 ! Local data:
     integer i,j
 
     do j=jsc,jec
        do i=isc,iec
-          lon(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid(i,j,1)
-          lat(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid(i,j,2)
+          lon(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid_64(i,j,1)
+          lat(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid_64(i,j,2)
        enddo
     end do
 
@@ -526,7 +533,7 @@ contains
 
 
  subroutine get_atmosphere_grid (dxmax, dxmin)
-   real, intent(out) :: dxmax, dxmin
+   real(kind=R_GRID), intent(out) :: dxmax, dxmin
 
    dxmax = Atm(1)%gridstruct%da_max
    dxmin = Atm(1)%gridstruct%da_min

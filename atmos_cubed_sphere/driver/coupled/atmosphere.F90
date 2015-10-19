@@ -988,7 +988,8 @@ contains
              !LMH  hydrostatic
              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
                          Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &
-                         (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))
+                         (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))/ &
+                         (Atm(mytile)%pe(i,npz+2-k,j) + Atm(mytile)%pe(i,npz+1-k,j))*2.
            else
              !  non-hydrostatic 
              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav

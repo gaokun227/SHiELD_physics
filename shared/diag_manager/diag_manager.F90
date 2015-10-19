@@ -231,6 +231,7 @@ MODULE diag_manager_mod
   ! Public interfaces from diag_grid_mod
   PUBLIC :: diag_grid_init, diag_grid_end
   PUBLIC :: diag_manager_set_time_end, diag_send_complete
+  PUBLIC :: diag_send_complete_extra
   ! Public interfaces from diag_data_mod
   PUBLIC :: DIAG_FIELD_NOT_FOUND
 
@@ -3131,9 +3132,33 @@ CONTAINS
 
   END SUBROUTINE diag_manager_set_time_end
 
+
   !-----------------------------------------------------------------------
-  SUBROUTINE diag_send_complete(time_step, err_msg)
-    TYPE (time_type), INTENT(in)           :: time_step
+  SUBROUTINE diag_send_complete_extra(time) 
+    TYPE (time_type), INTENT(in) :: time
+    !--- local variables
+    integer :: file, j, freq, in_num, file_num, out_num
+
+    DO file = 1, num_files
+      freq = files(file)%output_freq
+      IF (freq == 0) then
+        DO j = 1, files(file)%num_fields
+          out_num = files(file)%fields(j)
+          in_num = output_fields(out_num)%input_field
+          IF ( (input_fields(in_num)%numthreads == 1) .AND. (input_fields(in_num)%active_omp_level.LE.1) ) CYCLE
+          file_num = output_fields(out_num)%output_file
+          CALL diag_data_out(file_num, out_num, &
+               & output_fields(out_num)%buffer, time)
+        ENDDO
+      ENDIF
+    ENDDO
+
+  END SUBROUTINE diag_send_complete_extra
+
+  !-----------------------------------------------------------------------
+  SUBROUTINE diag_send_complete(time_step, time_opt, err_msg)
+    TYPE (time_type), INTENT(in)            :: time_step
+    TYPE (time_type), INTENT(in),  optional :: time_opt
     character(len=*), INTENT(out), optional :: err_msg
 
     type(time_type)    :: next_time, time

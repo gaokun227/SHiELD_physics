@@ -44,7 +44,6 @@ use fms_mod,            only: check_nml_error
 use time_manager_mod,   only: time_type, operator(+), get_time, operator(-)
 use field_manager_mod,  only: MODEL_ATMOS
 use tracer_manager_mod, only: get_number_tracers, get_tracer_index, NO_TRACER
-use diag_manager_mod,   only: diag_send_complete
 use xgrid_mod,          only: grid_box_type
 use atmosphere_mod,     only: atmosphere_init
 use atmosphere_mod,     only: atmosphere_end
@@ -218,7 +217,7 @@ subroutine update_atmos_radiation_physics (Atmos)
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "radiation driver"
 !--- execute the GFS atmospheric radiation subcomponent (RRTM)
       call mpp_clock_begin(radClock)
-      call radiation_driver (Atmos%time, Time_next, Atm_block, Statein)
+      call radiation_driver (Atm_block, Statein)
       call mpp_clock_end(radClock)
 
       if (surface_debug) call check_data ('RADIATION')
@@ -226,7 +225,7 @@ subroutine update_atmos_radiation_physics (Atmos)
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "physics driver"
 !--- execute the GFS atmospheric physics subcomponent
       call mpp_clock_begin(physClock)
-      call physics_driver (Atmos%time, Time_next, Atm_block, Statein, Stateout)
+      call physics_driver (Time_next, Atmos%Time_init, Atm_block, Statein, Stateout)
       call mpp_clock_end(physClock)
 
       if (surface_debug) call check_data ('PHYSICS')
@@ -447,10 +446,6 @@ subroutine update_atmos_model_state (Atmos)
 
 !------ advance time ------
     Atmos % Time = Atmos % Time + Atmos % Time_step
-
-!----- Indicate to diag_manager to write diagnostics to file (if needed)
-!----- This is needed for a threaded run.
-    call diag_send_complete(Atmos%Time_step)
 
     if (surface_debug) call check_data ('STATE UPDATE')
 

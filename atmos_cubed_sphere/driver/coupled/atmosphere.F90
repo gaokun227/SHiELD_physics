@@ -963,7 +963,7 @@ contains
            ix = ix + 1
 
            !--  level pressure
-            Statein(nb)%prsi(ix,k)  = Atm(mytile)%pe(i,npz+2-k,j)
+           Statein(nb)%prsi(ix,k) = Atm(mytile)%pe(i,npz+2-k,j)
 
            !--  exner function pressure
            Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
@@ -981,21 +981,22 @@ contains
 !SJL      gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
 !SJL
            !--  layer sphum for radiation with GFS limiter applied
-           Statein(nb)%qgrs_rad(ix,k)    = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
+           Statein(nb)%qgrs_rad(ix,k) = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
 !SJL
 !SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
 !SJL
 
-           !--  raw tracers for gbphoys
-           Statein(nb)%qgrs(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,1:nq)
+           !--  raw tracers for gbphys
+           Statein(nb)%qgrs(ix,k,1:nq)       = Atm(mytile)%q    (i,j,npz+1-k,1:nq)
            Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
  
            !--  level geopotential
            if (Atm(mytile)%flagstruct%hydrostatic) then
              !LMH  hydrostatic
              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
-                         Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &
-                         (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))
+                         Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs(ix,k,sphum)) * &
+                         2.* (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j)) / & 
+                             (Atm(mytile)%pe(i,npz+2-k,j) + Atm(mytile)%pe(i,npz+1-k,j))
            else
              !  non-hydrostatic 
              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav

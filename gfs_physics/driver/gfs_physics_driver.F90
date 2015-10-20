@@ -9,7 +9,8 @@ module gfs_physics_driver_mod
 
 !--- FMS/GFDL modules ---
   use block_control_mod,  only: block_control_type
-  use diag_manager_mod,   only: register_diag_field, send_data
+  use diag_manager_mod,   only: register_diag_field, send_data, &
+                                diag_send_complete_extra
   use mpp_mod,            only: input_nml_file, mpp_pe, mpp_root_pe, &
                                 mpp_error, mpp_chksum, mpp_min, mpp_max
   use field_manager_mod,  only: MODEL_ATMOS
@@ -90,16 +91,26 @@ module gfs_physics_driver_mod
 
 
 !--- diagnostic field ids and var-names
+  type diag_data_type
+    integer :: is
+    integer :: js
+    real(kind=kind_phys), dimension(:,:),   pointer :: var2 => NULL()
+  end type diag_data_type
+
   type gfdl_diag_type
     private
     integer :: id
     integer :: axes
+    character(len=64)  :: mod_name
     character(len=64)  :: name
     character(len=128) :: desc
     character(len=64)  :: unit
+    type(diag_data_type), dimension(:), allocatable  :: data
    end type gfdl_diag_type
 
-   type(gfdl_diag_type), dimension(:), allocatable :: Diag
+   integer :: tot_diag_idx = 0 
+   integer, parameter :: DIAG_SIZE = 250
+   type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag
 
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
@@ -215,9 +226,12 @@ module gfs_physics_driver_mod
 
     logical :: debug = .false.
 
+    real(kind=kind_phys), dimension(240) :: fdiag
+    real(kind=kind_phys) :: fhzero = 6.
+
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
-                              ozcalc,cdmbgwd
+                              ozcalc,cdmbgwd,fdiag,fhzero
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -238,7 +252,7 @@ module gfs_physics_driver_mod
     type(time_type),           intent(in) :: Time
     type (block_control_type), intent(in) :: Atm_block
     !--  set "one"-based arrays to domain-based
-    real, dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
+    real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
     real (kind=kind_phys), intent(in) :: indxmin, indxmax, dt_phys
@@ -301,6 +315,8 @@ module gfs_physics_driver_mod
 !--- set the GFS variable for "lat" & "lon" for the whole system
     latr = 2*lat_cs
     lonr = 4*lon_cs
+!--- initialize fdiags to zero
+    fdiag = 0.
 
 !--- read namelist  ---
 #ifdef INTERNAL_FILE_NML
@@ -630,10 +646,10 @@ module gfs_physics_driver_mod
   end subroutine phys_rad_setup_step
 
   subroutine skin_temp(tmin, tmax, timax, timin, nblks)
-    real, intent(inout) :: tmin, tmax, timin, timax
+    real(kind=kind_phys), intent(inout) :: tmin, tmax, timin, timax
     integer, intent(in) :: nblks
     integer :: nb
-    real :: tminl, tmaxl, timinl, timaxl
+    real(kind=kind_phys) :: tminl, tmaxl, timinl, timaxl
 
     tmax = -99999.0
     tmin = +99999.0
@@ -659,8 +675,7 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- radiation_driver ---
 !-------------------------------------------------------------------------      
-  subroutine radiation_driver (Time, Time_next, Atm_block, Statein)
-    type(time_type),                         intent(in) :: Time, Time_next
+  subroutine radiation_driver (Atm_block, Statein)
     type (block_control_type),               intent(in) :: Atm_block
     type(state_fields_in),     dimension(:), intent(in) :: Statein
 !   local variables
@@ -679,7 +694,6 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
-!!!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props, &
 !$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends)          &
 !$             firstprivate (Mdl_parms)  &
@@ -702,22 +716,24 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- physics_driver ---
 !-------------------------------------------------------------------------      
-  subroutine physics_driver (Time, Time_next, Atm_block, Statein, Stateout)
-    type(time_type),                         intent(in)    :: Time, Time_next
+  subroutine physics_driver (Time_diag, Time_init, Atm_block, Statein, Stateout)
+    type(time_type),                         intent(in)    :: Time_diag, Time_init
     type (block_control_type),               intent(in)    :: Atm_block
     type(state_fields_in),     dimension(:), intent(in)    :: Statein
     type(state_fields_out),    dimension(:), intent(inout) :: Stateout
 !   local variables
-    integer :: nb
+    integer :: nb, nx, ny
+    real(kind=kind_phys) :: fhour
+    integer :: yr, mo, dy, hr, min, sc
 
+    fhour = Dyn_parms(1)%fhour
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
-!!!$             shared  (Atm_block, Mdl_parms, Dyn_parms, Statein, Sfc_props,  &
 !$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
-!$                      Stateout) &
-!$             firstprivate (Mdl_parms)  &
-!$             private (nb)
+!$                      Stateout, fdiag, fhzero, levs) &
+!$             firstprivate (Mdl_parms, fhour, Time_diag)  &
+!$             private (nb, nx, ny)
     do nb = 1, Atm_block%nblks
 
       if ((Mdl_parms%me == 0) .and. (nb /= 1)) then
@@ -730,9 +746,32 @@ module gfs_physics_driver_mod
                            Gfs_diags(nb), Intr_flds(nb), Cld_props(nb), &
                            Rad_tends(nb), Mdl_parms, Tbd_data(nb), &
                            Dyn_parms(nb))
+
+!--- check the diagnostics output trigger
+      if (ANY(fdiag == fhour)) then
+        if (mpp_pe() == mpp_root_pe().and.nb==1) write(6,*) 'DIAG STEP', fhour
+        nx = Atm_block%ibe(nb) - Atm_block%ibs(nb) + 1
+        ny = Atm_block%jbe(nb) - Atm_block%jbs(nb) + 1
+        call gfs_diag_output (Time_diag, Gfs_diags(nb), Atm_block, nb, nx, ny, levs)
+      endif
     enddo
 
-    call gfs_diag_output (Time, Atm_block)
+!----- Indicate to diag_manager to write diagnostics to file (if needed)
+!----- This is needed for a threaded run.
+    if (ANY(fdiag == fhour)) then
+      call diag_send_complete_extra(Time_diag)
+    endif
+
+!--- reset the time averaged quantities to zero (actually all quantities)
+    if (mod(fhour,fhzero) == 0) then
+!$OMP parallel do default (none) &
+!$             shared  (Gfs_diags, Atm_block) &
+!$             private (nb)
+      do nb = 1, Atm_block%nblks
+        call Gfs_diags(nb)%setrad ()
+        call Gfs_diags(nb)%setphys ()
+      enddo
+    endif
 
   end subroutine physics_driver
 !-------------------------------------------------------------------------      
@@ -1022,15 +1061,13 @@ module gfs_physics_driver_mod
 !--- nullify/deallocate any temporaries used
     nullify(var2)
 
-!rab    call skin_temp(tsmin, tsmax, timax, timin, Atm_block%nblks)
-!rab    if (Mdl_parms%me == 0 ) write(6,* ) ' RAD INIT- tsfc ', tsmax, tsmin
-!rab    if (Mdl_parms%me == 0 ) write(6,* ) ' RAD INIT-tisfc ', timax, timin
   end subroutine surface_props_input
 
 
 !-------------------------------------------------------------------------      
 !--- gfs_diag_register ---
-!    10+NFXR - radiation
+!    Current sizes
+!    13+NFXR - radiation
 !    76+pl_coeff - physics
 !-------------------------------------------------------------------------      
   subroutine gfs_diag_register(Time, Atm_block, axes, NFXR)
@@ -1039,460 +1076,1306 @@ module gfs_physics_driver_mod
     integer, dimension(4),     intent(in) :: axes
     integer,                   intent(in) :: NFXR
 !--- local variables
-    integer :: idx, num, axes_l
+    integer :: idx, num, nb, nblks, nx, ny, ngptc, k
     character(len=2) :: xtra
-    character(len=11) :: mod_name = 'gfs_physics'
 
-    allocate(Diag(86+NFXR+Mdl_parms%pl_coeff))
+    nblks = Atm_block%nblks
 
-    Diag(:)%id = 0
+    Diag(:)%id = -99
+    Diag(:)%axes = -99
 
-    idx = 0
+    do idx = 1,DIAG_SIZE
+      allocate(Diag(idx)%data(nblks))
+      do nb = 1,nblks
+        Diag(idx)%data(nb)%is = Atm_block%ibs(nb)-Atm_block%isc+1
+        Diag(idx)%data(nb)%js = Atm_block%jbs(nb)-Atm_block%jsc+1
+      enddo
+    enddo
 
+    idx = 0 
 !--- accumulated diagnostics ---
     do num = 1,NFXR
-      write (xtra,'(I2)') num 
+      write (xtra,'(I2.2)') num 
       idx = idx + 1
       Diag(idx)%axes = 2
       Diag(idx)%name = 'fluxr_'//trim(xtra)
       Diag(idx)%desc = 'fluxr diagnostic '//trim(xtra)//' - GFS radiation'
       Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      do nb = 1,nblks
+        nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+        ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+        ngptc = nx*ny
+        Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%fluxr(1:ngptc,num)
+      enddo
     enddo
 
-    idx = idx + 1
-    Diag(idx)%axes = 3
-    Diag(idx)%name = 'dswcmp'
-    Diag(idx)%desc = 'dswcmp dagnostic - GFS radiation'
-    Diag(idx)%unit = 'XXX'
+!--- the next two appear to be appear to be coupling fields in gloopr
+!--- each has four elements
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 2
+      Diag(idx)%name = 'dswcmp_'//trim(xtra)
+      Diag(idx)%desc = 'dswcmp dagnostic '//trim(xtra)//' - GFS radiation'
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      do nb = 1,nblks
+        nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+        ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+        ngptc = nx*ny
+        Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dswcmp(1:ngptc,num)
+      enddo
+    enddo
 
-    idx = idx + 1
-    Diag(idx)%axes = 3
-    Diag(idx)%name = 'uswcmp'
-    Diag(idx)%desc = 'uswcmp dagnostic - GFS radiation'
-    Diag(idx)%unit = 'XXX'
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 2
+      Diag(idx)%name = 'uswcmp_'//trim(xtra)
+      Diag(idx)%desc = 'uswcmp dagnostic '//trim(xtra)//' - GFS radiation'
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      do nb = 1,nblks
+        nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+        ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+        ngptc = nx*ny
+        Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%uswcmp(1:ngptc,num)
+      enddo
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'sw_upfxc'
     Diag(idx)%desc = 'total sky upward sw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%topfsw(1:ngptc)%upfxc
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'sw_dnflx'
+    Diag(idx)%name = 'sw_dnfxc'
     Diag(idx)%desc = 'total sky downward sw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%topfsw(1:ngptc)%dnfxc
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'sw_upfx0'
     Diag(idx)%desc = 'clear sky upward sw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%topfsw(1:ngptc)%upfx0
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'lw_upfxc'
     Diag(idx)%desc = 'total sky upward lw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%topflw(1:ngptc)%upfxc
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'sw_upfx0'
+    Diag(idx)%name = 'lw_upfx0'
     Diag(idx)%desc = 'clear sky upward lw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%topflw(1:ngptc)%upfx0
+    enddo
 
+!--- physics accumulated diagnostics ---
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'srunoff'
     Diag(idx)%desc = 'surface water runoff - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%srunoff(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'evbsa'
     Diag(idx)%desc = 'evbsa - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%evbsa(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'evcwa'
     Diag(idx)%desc = 'evcwa - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%evcwa(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'snohfa'
     Diag(idx)%desc = 'snohfa - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%snohfa(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'transa'
     Diag(idx)%desc = 'transa - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%transa(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'sbsnoa'
     Diag(idx)%desc = 'sbsnoa - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%sbsnoa(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'snowca'
     Diag(idx)%desc = 'snowca - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%snowca(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'soilm'
     Diag(idx)%desc = 'soil moisture - GFS lsm'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%soilm(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'tmpmin'
-    Diag(idx)%desc = 'min temperature at 2m height - GFS physics'
+    Diag(idx)%desc = 'min temperature at 2m height'
     Diag(idx)%unit = 'k'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%tmpmin(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'tmpmax'
-    Diag(idx)%desc = 'max temperature at 2m height - GFS physics'
+    Diag(idx)%desc = 'max temperature at 2m height'
     Diag(idx)%unit = 'k'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'tmpmin'
-    Diag(idx)%desc = 'min temperature at 2m height - GFS physics'
-    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%tmpmax(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dusfc'
-    Diag(idx)%desc = 'u component of surface stress - GFS physics'
+    Diag(idx)%desc = 'u component of surface stress'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dusfc(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dvsfc'
-    Diag(idx)%desc = 'v component of surface stress - GFS physics'
+    Diag(idx)%desc = 'v component of surface stress'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dvsfc(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dtsfc'
-    Diag(idx)%desc = 'sensible heat flux - GFS physics'
+    Diag(idx)%desc = 'surface sensible heat flux'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dtsfc(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dqsfc'
-    Diag(idx)%desc = 'latent heat flux - GFS physics'
+    Diag(idx)%desc = 'surface latent heat flux'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dqsfc(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'totprcp'
-    Diag(idx)%desc = 'accumulated total precipitation - GFS physics'
+    Diag(idx)%desc = 'accumulated total precipitation'
     Diag(idx)%unit = 'kg/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totprcp(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'gflux'
-    Diag(idx)%desc = 'ground conductive heat flux - GFS physics'
+    Diag(idx)%desc = 'ground conductive heat flux'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%gflux(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dlwsfc'
     Diag(idx)%desc = 'time accumulated downward lw flux at surface- GFS physics'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dlwsfc(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'ulwsfc'
     Diag(idx)%desc = 'time accumulated upward lw flux at surface- GFS physics'
     Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ulwsfc(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'suntim'
-    Diag(idx)%desc = 'sunshine duration time - GFS physics'
+    Diag(idx)%desc = 'sunshine duration time'
     Diag(idx)%unit = 's'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%suntim(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'runoff'
-    Diag(idx)%desc = 'total water runoff - GFS physics'
+    Diag(idx)%desc = 'total water runoff'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%runoff(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'ep'
-    Diag(idx)%desc = 'potential evaporation - GFS physics'
+    Diag(idx)%desc = 'potential evaporation'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ep(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'cldwrk'
-    Diag(idx)%desc = 'cloud workfunction (valaxes only with sas) - GFS physics'
+    Diag(idx)%desc = 'cloud workfunction (valid only with sas)'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%cldwrk(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dugwd'
-    Diag(idx)%desc = 'vertically integrated u change by OGWD - GFS physics'
+    Diag(idx)%desc = 'vertically integrated u change by OGWD'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dugwd(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'dvgwd'
-    Diag(idx)%desc = 'vertically integrated v change by OGWD - GFS physics'
+    Diag(idx)%desc = 'vertically integrated v change by OGWD'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dvgwd(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'psmean'
-    Diag(idx)%desc = 'surface pressure - GFS physics'
+    Diag(idx)%desc = 'surface pressure'
     Diag(idx)%unit = 'kPa'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%psmean(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'cnvprcp'
-    Diag(idx)%desc = 'accumulated convective precipitation - GFS physics'
+    Diag(idx)%desc = 'accumulated convective precipitation'
     Diag(idx)%unit = 'kg/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%cnvprcp(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'spfhmin'
-    Diag(idx)%desc = 'minimum specific humidity - GFS physics'
+    Diag(idx)%desc = 'minimum specific humidity'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%spfhmin(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'spfhmax'
-    Diag(idx)%desc = 'maximum specific humidity - GFS physics'
+    Diag(idx)%desc = 'maximum specific humidity'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%spfhmax(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'rain'
-    Diag(idx)%desc = 'total rain at this time step - GFS physics'
+    Diag(idx)%desc = 'total rain at this time step'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%rain(1:ngptc)
+    enddo
 
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'rainc'
-    Diag(idx)%desc = 'convective rain at this time step - GFS physics'
+    Diag(idx)%desc = 'convective rain at this time step'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%rainc(1:ngptc)
+    enddo
 
+!--- physics instantaneous diagnostics ---
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'u10m'
+    Diag(idx)%desc = '10 meter u windspeed'
+    Diag(idx)%unit = 'm/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%u10m(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'v10m'
+    Diag(idx)%desc = '10 meter v windspeed'
+    Diag(idx)%unit = 'm/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%v10m(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'zlvl'
+    Diag(idx)%desc = 'layer 1 height'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%zlvl(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'psurf'
+    Diag(idx)%desc = 'surface pressure'
+    Diag(idx)%unit = 'Pa'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%psurf(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'hpbl'
+    Diag(idx)%desc = 'pbl height'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%hpbl(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'pwat'
+    Diag(idx)%desc = 'precipitable water'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%pwat(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 't1'
+    Diag(idx)%desc = 'layer 1 temperature'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%t1(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'q1'
+    Diag(idx)%desc = 'layer 1 specific humidity'
+    Diag(idx)%unit = 'kg/kg'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%q1(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'u1'
+    Diag(idx)%desc = 'layer 1 zonal wind'
+    Diag(idx)%unit = 'm/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%u1(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'v1'
+    Diag(idx)%desc = 'layer 1 meridional wind'
+    Diag(idx)%unit = 'm/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%v1(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'chh'
+    Diag(idx)%desc = 'thermal exchange coefficient'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%chh(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cmm'
+    Diag(idx)%desc = 'momentum exchange coefficient'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%cmm(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'dlwsfci'
+    Diag(idx)%desc = 'instantaneous sfc downward lw flux'
+    Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dlwsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ulwsfci'
+    Diag(idx)%desc = 'instantaneous sfc upward lw flux'
+    Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ulwsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'dswsfci'
+    Diag(idx)%desc = 'instantaneous sfc downward sw flux'
+    Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dswsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'uswsfci'
+    Diag(idx)%desc = 'instantaneous sfc upward sw flux'
+    Diag(idx)%unit = 'w/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%uswsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'dusfci'
+    Diag(idx)%desc = 'instantaneous u component of surface stress'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dusfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'dvsfci'
+    Diag(idx)%desc = 'instantaneous v component of surface stress'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dvsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'dtsfci'
+    Diag(idx)%desc = 'instantaneous surface sensible heat flux'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dtsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'dqsfci'
+    Diag(idx)%desc = 'instantaneous surface latent heat flux'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dqsfci(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'gfluxi'
+    Diag(idx)%desc = 'instantaneous surface ground heat flux'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%gfluxi(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'epi'
+    Diag(idx)%desc = 'instantaneous surface potential evaporation'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%epi(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'smcwlt2'
+    Diag(idx)%desc = 'wiltimg point (volumetric)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%smcwlt2(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'smcref2'
+    Diag(idx)%desc = 'soil moisture threshold (volumetric)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%smcref2(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'wet1'
+    Diag(idx)%desc = 'normalized soil wetness'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%wet1(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'sr'
+    Diag(idx)%desc = 'ratio of snow to total precipitation'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%sr(1:ngptc)
+    enddo
+
+!--- three-dimensional variables that need to be handled special when writing 
     do num = 1,6
-      write (xtra,'(I2)') num 
+      write (xtra,'(I1)') num 
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'dt3dt_'//trim(xtra)
-      Diag(idx)%desc = 'temperature change due to physics '//trim(xtra)//' - GFS physics'
+      Diag(idx)%desc = 'temperature change due to physics '//trim(xtra)//''
       Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
     enddo
 
     do num = 1,5+Mdl_parms%pl_coeff
-      write (xtra,'(I2)') num 
+      write (xtra,'(I1)') num 
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'dq3dt_'//trim(xtra)
-      Diag(idx)%desc = 'moisture change due to physics '//trim(xtra)//' - GFS physics'
+      Diag(idx)%desc = 'moisture change due to physics '//trim(xtra)//''
       Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
     enddo
 
     do num = 1,4
-      write (xtra,'(I2)') num 
+      write (xtra,'(I1)') num 
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'du3dt_'//trim(xtra)
-      Diag(idx)%desc = 'u momentum change due to physics '//trim(xtra)//' - GFS physics'
+      Diag(idx)%desc = 'u momentum change due to physics '//trim(xtra)//''
       Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
     enddo
 
     do num = 1,4
-      write (xtra,'(I2)') num 
+      write (xtra,'(I1)') num 
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'dv3dt_'//trim(xtra)
-      Diag(idx)%desc = 'v momentum change due to physics '//trim(xtra)//' - GFS physics'
+      Diag(idx)%desc = 'v momentum change due to physics '//trim(xtra)//''
       Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
     enddo
 
     idx = idx + 1
     Diag(idx)%axes = 3
     Diag(idx)%name = 'dqdt_v'
-    Diag(idx)%desc = 'total moisture tendency - GFS physics'
+    Diag(idx)%desc = 'total moisture tendency'
     Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
 
-!--- instantaneous diagnostics ---
+!--- Surface diagnostics in gfs_sfc
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'u10m'
-    Diag(idx)%desc = '10 meter u windspeed - GFS physics'
-    Diag(idx)%unit = 'm/s'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'v10m'
-    Diag(idx)%desc = '10 meter v windspeed - GFS physics'
-    Diag(idx)%unit = 'm/s'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'zlvl'
-    Diag(idx)%desc = 'layer 1 height - GFS physics'
-    Diag(idx)%unit = 'm'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'psurf'
-    Diag(idx)%desc = 'surface pressure - GFS physics'
-    Diag(idx)%unit = 'Pa'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'hpbl'
-    Diag(idx)%desc = 'pbl height - GFS physics'
-    Diag(idx)%unit = 'm'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'pwat'
-    Diag(idx)%desc = 'precipitable water - GFS physics'
+    Diag(idx)%name = 'alnsf'
+    Diag(idx)%desc = 'mean nir albedo with strong cosz dependency'
     Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 't1'
-    Diag(idx)%desc = 'layer 1 temperature - GFS physics'
-    Diag(idx)%unit = 'K'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'q1'
-    Diag(idx)%desc = 'layer 1 specific humidity - GFS physics'
-    Diag(idx)%unit = 'kg/kg'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'u1'
-    Diag(idx)%desc = 'layer 1 zonal wind - GFS physics'
-    Diag(idx)%unit = 'm/s'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'v1'
-    Diag(idx)%desc = 'layer 1 meridional wind - GFS physics'
-    Diag(idx)%unit = 'm/s'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'chh'
-    Diag(idx)%desc = 'thermal exchange coefficient - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'cmm'
-    Diag(idx)%desc = 'momentum exchange coefficient - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'dlwsfci'
-    Diag(idx)%desc = 'instantaneous sfc downward lw flux - GFS physics'
-    Diag(idx)%unit = 'w/m**2'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'ulwsfci'
-    Diag(idx)%desc = 'instantaneous sfc upward lw flux - GFS physics'
-    Diag(idx)%unit = 'w/m**2'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'dswsfci'
-    Diag(idx)%desc = 'instantaneous sfc downward sw flux - GFS physics'
-    Diag(idx)%unit = 'w/m**2'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'uswsfci'
-    Diag(idx)%desc = 'instantaneous sfc upward sw flux - GFS physics'
-    Diag(idx)%unit = 'w/m**2'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'dusfci'
-    Diag(idx)%desc = 'instantaneous u component of surface stress - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'dvsfci'
-    Diag(idx)%desc = 'instantaneous v component of surface stress - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'dtsfci'
-    Diag(idx)%desc = 'instantaneous surface sensible heat flux - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'dqsfci'
-    Diag(idx)%desc = 'instantaneous surface latent heat flux - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'gfluxi'
-    Diag(idx)%desc = 'instantaneous surface ground heat flux - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'epi'
-    Diag(idx)%desc = 'instantaneous surface potential evaporation - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'smcwlt2'
-    Diag(idx)%desc = 'wiltimg point (volumetric) - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'smcref2'
-    Diag(idx)%desc = 'soil moisture threshold (volumetric) - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'wet1'
-    Diag(idx)%desc = 'normalized soil wetness - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
-    Diag(idx)%name = 'sr'
-    Diag(idx)%desc = 'ratio of snow to total precipitation - GFS physics'
-    Diag(idx)%unit = 'XXX'
-
-
-    do num = 1,size(Diag,1)
-      axes_l = Diag(num)%axes
-      Diag(num)%id = register_diag_field (mod_name, trim(Diag(num)%name),  &
-                                           axes(1:axes_l), Time, trim(Diag(num)%desc), &
-                                           trim(Diag(num)%unit), missing_value=1.0d-30)
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%alnsf(1:ngptc)
     enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'alnwf'
+    Diag(idx)%desc = 'mean nir albedo with weak cosz dependency'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%alnwf(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'alvsf'
+    Diag(idx)%desc = 'mean vis albedo with strong cosz dependency'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%alvsf(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'alvwf'
+    Diag(idx)%desc = 'mean vis albedo with weak cosz dependency'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%alvwf(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'canopy'
+    Diag(idx)%desc = 'canopy water (cnwat in gfs data)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%canopy(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'f10m'
+    Diag(idx)%desc = 'fm at 10m - ratio of sigma level 1 wind and 10m wind'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%f10m(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'facsf'
+    Diag(idx)%desc = 'fractional coverage with strong cosz dependency'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%facsf(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'facwf'
+    Diag(idx)%desc = 'fractional coverage with weak cosz dependency'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%facwf(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ffhh'
+    Diag(idx)%desc = 'fh parameter from PBL scheme'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%ffhh(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ffmm'
+    Diag(idx)%desc = 'fm parameter from PBL scheme'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%ffmm(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'fice'
+    Diag(idx)%desc = 'ice fraction over open water grid (fricv?? in gfs data)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%fice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'hice'
+    Diag(idx)%desc = 'sea ice thickness (icetk in gfs_data)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%hice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'snoalb'
+    Diag(idx)%desc = 'maximum snow albedo in fraction (salbd?? in gfs data)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%snoalb(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'shdmax'
+    Diag(idx)%desc = 'maximum fractional coverage of green vegetation'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%shdmax(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'shdmin'
+    Diag(idx)%desc = 'minimum fractional coverage of green vegetation'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%shdmin(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'snowd'
+    Diag(idx)%desc = 'snow depth water equivalent in mm (snod?? in gfs data)'
+    Diag(idx)%unit = 'mm'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%snowd(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'stype'
+    Diag(idx)%desc = 'soil type (sotype or sltype in gfs data)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%stype(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'q2m'
+    Diag(idx)%desc = 'humidity at 2m above ground (spfh in gfs data)'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%q2m(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 't2m'
+    Diag(idx)%desc = 'temperature at 2m above ground (tmp in gfs data)'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%t2m(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tsfc'
+    Diag(idx)%desc = 'surface temperature in K (tmp in gfs data)'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%tsfc(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tg3'
+    Diag(idx)%desc = 'deep soil temperature'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%tg3(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tisfc'
+    Diag(idx)%desc = 'surface temperature over ice fraction'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%tisfc(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tprcp'
+    Diag(idx)%desc = 'total precipitation'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Tbd_data(nb)%tprcp(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'vtype'
+    Diag(idx)%desc = 'vegetation type'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%vtype(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'weasd'
+    Diag(idx)%desc = 'water equivalent of accumulated snow depth over land/sea/ice'
+    Diag(idx)%unit = 'kg/m**2'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%weasd(1:ngptc)
+    enddo
+
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 2
+      Diag(idx)%name = 'slc_'//trim(xtra)
+      Diag(idx)%desc = 'liquid soil mositure at layer-'//trim(xtra)
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_sfc'
+      do nb = 1,nblks
+        nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+        ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+        ngptc = nx*ny
+        Diag(idx)%data(nb)%var2(1:nx,1:ny) => Tbd_data(nb)%slc(1:ngptc,num)
+      enddo
+    enddo
+
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 2
+      Diag(idx)%name = 'smc_'//trim(xtra)
+      Diag(idx)%desc = 'total soil moisture at layer-'//trim(xtra)
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_sfc'
+      do nb = 1,nblks
+        nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+        ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+        ngptc = nx*ny
+        Diag(idx)%data(nb)%var2(1:nx,1:ny) => Tbd_data(nb)%smc(1:ngptc,num)
+      enddo
+    enddo
+
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 2
+      Diag(idx)%name = 'stc_'//trim(xtra)
+      Diag(idx)%desc = 'soil temperature at layer-'//trim(xtra)
+      Diag(idx)%unit = 'K'
+      Diag(idx)%mod_name = 'gfs_sfc'
+      do nb = 1,nblks
+        nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+        ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+        ngptc = nx*ny
+        Diag(idx)%data(nb)%var2(1:nx,1:ny) => Tbd_data(nb)%stc(1:ngptc,num)
+      enddo
+    enddo
+
+    tot_diag_idx = idx
+
+    if (idx > DIAG_SIZE) then
+      call mpp_error(FATAL, 'gfs_driver::gfs_diag_register - need to increase DIAG_SIZE') 
+    endif
+
+    do idx = 1,tot_diag_idx
+      if (diag(idx)%axes == -99) then
+        call mpp_error(FATAL, 'gfs_driver::gfs_diag_register - attempt to register an undefined variable') 
+      endif
+      Diag(idx)%id = register_diag_field (trim(Diag(idx)%mod_name), trim(Diag(idx)%name),  &
+                                           axes(1:Diag(idx)%axes), Time, trim(Diag(idx)%desc), &
+                                           trim(Diag(idx)%unit), missing_value=real(1.0d-30))
+    enddo
+!!!#endif
 
   end subroutine gfs_diag_register
 !-------------------------------------------------------------------------      
@@ -1501,28 +2384,69 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- gfs_diag_output ---
 !-------------------------------------------------------------------------      
-  subroutine gfs_diag_output(Time, Atm_block)
+  subroutine gfs_diag_output(Time, Gfs_diags, Atm_block, nb, nx, ny, levs)
     type(time_type),           intent(in) :: Time
+    type(diagnostics),         intent(in) :: Gfs_diags
     type (block_control_type), intent(in) :: Atm_block
+    integer,                   intent(in) :: nb, nx, ny, levs
 !--- local variables
-    integer :: nb, ibs, ibe, jbs, jbe, nx, ny, ngptc
-    real(kind=kind_phys), pointer, dimension(:,:)   :: var2 => NULL()
-    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
+    integer ::  ngptc, idx, num
+    character(len=2) :: xtra
+    real(kind=kind_phys), dimension(nx,ny,levs) :: var3 
     logical :: used
 
-!--- call the nuopc physics loop---
-    do nb = 1, Atm_block%nblks
-      ibs = Atm_block%ibs(nb)-Atm_block%isc+1
-      ibe = Atm_block%ibe(nb)-Atm_block%isc+1
-      jbs = Atm_block%jbs(nb)-Atm_block%jsc+1
-      jbe = Atm_block%jbe(nb)-Atm_block%jsc+1
-      nx = (ibe - ibs + 1)
-      ny = (jbe - jbs + 1) 
-      ngptc = nx*ny
+     ngptc = nx*ny
 
-      var2(1:nx,1:ny) => Gfs_diags(nb)%srunoff(1:ngptc)
-      used=send_data(Diag(1)%id, var2, Time, is_in=ibs, js_in=jbs)
-    enddo
+     do idx = 1,tot_diag_idx
+       if (Diag(idx)%id > 0) then
+         if (Diag(idx)%axes == 2) then
+           used=send_data(Diag(idx)%id, Diag(idx)%data(nb)%var2, Time, &
+                          is_in=Diag(idx)%data(nb)%is,                 &
+                          js_in=Diag(idx)%data(nb)%js) 
+         elseif (Diag(idx)%axes == 3) then
+           !--- dt3dt variables
+           do num = 1,6
+             write(xtra,'(i1)') num
+             if (Diag(idx)%name == 'dt3dt_'//trim(xtra)) then
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dt3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time, &
+                              is_in=Diag(idx)%data(nb)%is,                 &
+                              js_in=Diag(idx)%data(nb)%js) 
+             endif
+           enddo
+           !--- dq3dt variables
+           do num = 1,5+Mdl_parms%pl_coeff
+             if (Diag(idx)%name == 'dq3dt_'//trim(xtra)) then
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dq3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time, &
+                              is_in=Diag(idx)%data(nb)%is,                 &
+                              js_in=Diag(idx)%data(nb)%js) 
+             endif
+           enddo
+           !--- du3dt and dv3dt variables
+           do num = 1,4
+             if (Diag(idx)%name == 'du3dt_'//trim(xtra)) then
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%du3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time, &
+                              is_in=Diag(idx)%data(nb)%is,                 &
+                              js_in=Diag(idx)%data(nb)%js) 
+             endif
+             if (Diag(idx)%name == 'dv3dt_'//trim(xtra)) then
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dv3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time, &
+                              is_in=Diag(idx)%data(nb)%is,                 &
+                              js_in=Diag(idx)%data(nb)%js) 
+             endif
+           enddo
+           if (Diag(idx)%name == 'dqdt_v') then
+             var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dv3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
+             used=send_data(Diag(idx)%id, var3, Time, &
+                            is_in=Diag(idx)%data(nb)%is,                 &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+         endif
+       endif
+     enddo
 
   end subroutine gfs_diag_output
 !-------------------------------------------------------------------------      

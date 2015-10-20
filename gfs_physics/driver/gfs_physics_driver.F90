@@ -2373,7 +2373,7 @@ module gfs_physics_driver_mod
       endif
       Diag(idx)%id = register_diag_field (trim(Diag(idx)%mod_name), trim(Diag(idx)%name),  &
                                            axes(1:Diag(idx)%axes), Time, trim(Diag(idx)%desc), &
-                                           trim(Diag(idx)%unit), missing_value=1.0d-30)
+                                           trim(Diag(idx)%unit), missing_value=real(1.0d-30))
     enddo
 !!!#endif
 

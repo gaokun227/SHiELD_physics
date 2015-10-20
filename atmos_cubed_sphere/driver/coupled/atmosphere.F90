@@ -967,6 +967,13 @@ contains
 
            !--  exner function pressure
            Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
+!XIC
+!XIC if other layer center values such as p and z are calculated 
+!XIC based on geometric center, e.g. pl(k) = 0.5*(pi(k)+pi(k+1))
+!XIC then pkz is not at the geometric center, might be inconsistent.
+!XIC However, I do not have a good suggestion about how to do it.
+!XIC Maybe: prslk = prsl**kappa ?
+!XIC
            Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,npz+1-k)*pk0inv   ! layer
 
            !--  layer temp, u, & v

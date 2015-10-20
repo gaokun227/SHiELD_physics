@@ -1241,15 +1241,15 @@
          implicit none
 
          class(diagnostics) :: this
-         integer, intent(in) :: IX, NFXR
+         integer, intent(in), optional :: IX, NFXR
 
          call dbgprint("diagnostics_setrad")
 
          select type (this)
            class is (diagnostics)
 
-             this%NFXR = NFXR
              if (this%first_rad) then
+               this%NFXR = NFXR
                allocate(this%fluxr  (IX,NFXR))
                allocate(this%topfsw (IX))
                allocate(this%topflw (IX))
@@ -1288,8 +1288,8 @@
          implicit none
 
          class(diagnostics) :: this
-         integer, intent(in) :: IX
-         type(model_parameters), intent(in) :: Model
+         integer, intent(in), optional :: IX
+         type(model_parameters), intent(in), optional :: Model
 
          call dbgprint("diagnostics_setphys")
 

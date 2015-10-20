@@ -11,7 +11,7 @@ module atmosphere_mod
 ! FMS modules:
 !-----------------
 use block_control_mod,      only: block_control_type
-use constants_mod,          only: cp_air, rdgas, grav, rvgas, kappa, pstd_mks
+use constants_mod,          only: cp_air, rdgas, grav, rvgas, kappa, pstd_mks, R_GRID
 use time_manager_mod,       only: time_type, get_time, set_time, operator(+) 
 use fms_mod,                only: file_exist, open_namelist_file,    &
                                   close_file, error_mesg, FATAL,     &
@@ -128,9 +128,10 @@ contains
 
 
 
- subroutine atmosphere_init (Time_init, Time, Time_step, Grid_box)
-   type (time_type),      intent(in)    :: Time_init, Time, Time_step
-   type(grid_box_type),   intent(inout) :: Grid_box
+ subroutine atmosphere_init (Time_init, Time, Time_step, Grid_box, dx, dy, area)
+   type (time_type),    intent(in)    :: Time_init, Time, Time_step
+   type(grid_box_type), intent(inout) :: Grid_box
+   real(kind=kind_phys), pointer, dimension(:,:), intent(inout) :: dx, dy, area
 
 !--- local variables ---
    integer :: i, n
@@ -214,6 +215,12 @@ contains
      Grid_box%vlon  (i, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlon  (isc:iec ,  jsc:jec, i )
      Grid_box%vlat  (i, isc:iec  , jsc:jec  ) = Atm(mytile)%gridstruct%vlat  (isc:iec ,  jsc:jec, i )
    enddo
+   allocate (dx  (isc:iec  , jsc:jec+1))
+   allocate (dy  (isc:iec+1, jsc:jec  ))
+   allocate (area(isc:iec  , jsc:jec  ))
+   dx(isc:iec,jsc:jec+1) = Atm(mytile)%gridstruct%dx_64(isc:iec,jsc:jec+1)
+   dy(isc:iec+1,jsc:jec) = Atm(mytile)%gridstruct%dy_64(isc:iec+1,jsc:jec)
+   area(isc:iec,jsc:jec) = Atm(mytile)%gridstruct%area_64(isc:iec,jsc:jec)
 
 !----- allocate and zero out the dynamics (and accumulated) tendencies
    allocate( u_dt(isd:ied,jsd:jed,npz), &
@@ -471,14 +478,14 @@ contains
 !---------------------------------------------------------------
 !    returns the longitude and latitude cell centers
 !---------------------------------------------------------------
-    real,    intent(out) :: lon(:,:), lat(:,:)   ! Unit: radian
+    real(kind=kind_phys), intent(out) :: lon(:,:), lat(:,:)   ! Unit: radian
 ! Local data:
     integer i,j
 
     do j=jsc,jec
        do i=isc,iec
-          lon(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid(i,j,1)
-          lat(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid(i,j,2)
+          lon(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid_64(i,j,1)
+          lat(i-isc+1,j-jsc+1) = Atm(mytile)%gridstruct%agrid_64(i,j,2)
        enddo
     end do
 
@@ -526,7 +533,7 @@ contains
 
 
  subroutine get_atmosphere_grid (dxmax, dxmin)
-   real, intent(out) :: dxmax, dxmin
+   real(kind=R_GRID), intent(out) :: dxmax, dxmin
 
    dxmax = Atm(1)%gridstruct%da_max
    dxmin = Atm(1)%gridstruct%da_min
@@ -956,10 +963,17 @@ contains
            ix = ix + 1
 
            !--  level pressure
-            Statein(nb)%prsi(ix,k)  = Atm(mytile)%pe(i,npz+2-k,j)
+           Statein(nb)%prsi(ix,k) = Atm(mytile)%pe(i,npz+2-k,j)
 
            !--  exner function pressure
            Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
+!XIC
+!XIC if other layer center values such as p and z are calculated 
+!XIC based on geometric center, e.g. pl(k) = 0.5*(pi(k)+pi(k+1))
+!XIC then pkz is not at the geometric center, might be inconsistent.
+!XIC However, I do not have a good suggestion about how to do it.
+!XIC Maybe: prslk = prsl**kappa ?
+!XIC
            Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,npz+1-k)*pk0inv   ! layer
 
            !--  layer temp, u, & v
@@ -974,21 +988,22 @@ contains
 !SJL      gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
 !SJL
            !--  layer sphum for radiation with GFS limiter applied
-           Statein(nb)%qgrs_rad(ix,k)    = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
+           Statein(nb)%qgrs_rad(ix,k) = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
 !SJL
 !SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
 !SJL
 
-           !--  raw tracers for gbphoys
-           Statein(nb)%qgrs(ix,k,1:nq) = Atm(mytile)%q(i,j,npz+1-k,1:nq)
+           !--  raw tracers for gbphys
+           Statein(nb)%qgrs(ix,k,1:nq)       = Atm(mytile)%q    (i,j,npz+1-k,1:nq)
            Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
  
            !--  level geopotential
            if (Atm(mytile)%flagstruct%hydrostatic) then
              !LMH  hydrostatic
              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
-                         Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) * &
-                         (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j))
+                         Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs(ix,k,sphum)) * &
+                         2.* (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j)) / & 
+                             (Atm(mytile)%pe(i,npz+2-k,j) + Atm(mytile)%pe(i,npz+1-k,j))
            else
              !  non-hydrostatic 
              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav

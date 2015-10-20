@@ -276,6 +276,10 @@ interface read_data
    module procedure read_data_text
    module procedure read_data_2d_region
    module procedure read_data_3d_region
+#ifdef OVERLOAD_R4
+   module procedure read_data_2d_region_r8
+   module procedure read_data_3d_region_r8
+#endif
 end interface
 
 interface read_distributed
@@ -5311,6 +5315,105 @@ subroutine read_data_3d_region(filename,fieldname,data,start,nread,domain, &
 
   return
 end subroutine read_data_3d_region
+
+#ifdef OVERLOAD_R4
+!=====================================================================================
+subroutine read_data_2d_region_r8(filename,fieldname,data,start,nread,domain, &
+                                 no_domain, tile_count)
+  character(len=*),                  intent(in) :: filename, fieldname
+  real(kind=8), dimension(:,:),           intent(inout) :: data ! 3 dimensional data
+  integer, dimension(:),             intent(in) :: start, nread
+  type(domain2d), target,  optional, intent(in) :: domain
+  logical,                 optional, intent(in) :: no_domain
+  integer,                 optional, intent(in) :: tile_count
+  character(len=256)            :: fname
+  integer                       :: unit, siz_in(4)
+  integer                       :: file_index  ! index of the opened file in array files
+  integer                       :: index_field ! position of the fieldname in the list of variables
+  logical                       :: is_no_domain = .false.
+  logical                       :: read_dist, io_domain_exist, found_file
+  type(domain2d), pointer, save :: d_ptr =>NULL()
+
+
+! Initialize files to default values
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_2d_region):  module not initialized')
+  is_no_domain = .false.
+  if (PRESENT(no_domain)) is_no_domain = no_domain
+
+  if(PRESENT(domain))then
+     d_ptr => domain
+  elseif (ASSOCIATED(Current_domain) .AND. .NOT. is_no_domain ) then
+     d_ptr => Current_domain
+  endif
+
+  if(.not. PRESENT(domain) .and. .not. ASSOCIATED(Current_domain) ) is_no_domain = .true.
+
+  found_file = get_file_name(filename, fname, read_dist, io_domain_exist, is_no_domain, domain,  tile_count)
+  if(.not.found_file) call mpp_error(FATAL, 'fms_io_mod(read_data_2d_region): file ' //trim(filename)// &
+          '(with the consideration of tile number) and corresponding distributed file are not found')
+  call get_file_unit(fname, unit, file_index, read_dist, io_domain_exist, domain=domain)
+
+
+  call get_field_id(unit, file_index, fieldname, index_field, is_no_domain, .false. )
+  siz_in(1:4) = files_read(file_index)%var(index_field)%siz(1:4)
+  if(files_read(file_index)%var(index_field)%is_dimvar) then
+     call mpp_error(FATAL, 'fms_io_mod(read_data_2d_region): the field should not be a dimension variable')
+  endif
+  call mpp_read(unit,files_read(file_index)%var(index_field)%field,data,start, nread)
+
+  d_ptr =>NULL()
+
+  return
+end subroutine read_data_2d_region_r8
+
+subroutine read_data_3d_region_r8(filename,fieldname,data,start,nread,domain, &
+                                 no_domain, tile_count)
+  character(len=*),                  intent(in) :: filename, fieldname
+  real(kind=8), dimension(:,:,:),         intent(inout) :: data ! 3 dimensional data
+  integer, dimension(:),             intent(in) :: start, nread
+  type(domain2d), target,  optional, intent(in) :: domain
+  logical,                 optional, intent(in) :: no_domain
+  integer,                 optional, intent(in) :: tile_count
+  character(len=256)            :: fname
+  integer                       :: unit, siz_in(4)
+  integer                       :: file_index  ! index of the opened file in array files
+  integer                       :: index_field ! position of the fieldname in the list of variables
+  logical                       :: is_no_domain = .false.
+  logical                       :: read_dist, io_domain_exist, found_file
+  type(domain2d), pointer, save :: d_ptr =>NULL()
+
+
+! Initialize files to default values
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_2d_region):  module not initialized')
+  is_no_domain = .false.
+  if (PRESENT(no_domain)) is_no_domain = no_domain
+
+  if(PRESENT(domain))then
+     d_ptr => domain
+  elseif (ASSOCIATED(Current_domain) .AND. .NOT. is_no_domain ) then
+     d_ptr => Current_domain
+  endif
+
+  if(.not. PRESENT(domain) .and. .not. ASSOCIATED(Current_domain) ) is_no_domain = .true.
+
+  found_file = get_file_name(filename, fname, read_dist, io_domain_exist, is_no_domain, domain,  tile_count)
+  if(.not.found_file) call mpp_error(FATAL, 'fms_io_mod(read_data_2d_region): file ' //trim(filename)// &
+          '(with the consideration of tile number) and corresponding distributed file are not found')
+  call get_file_unit(fname, unit, file_index, read_dist, io_domain_exist, domain=domain)
+
+
+  call get_field_id(unit, file_index, fieldname, index_field, is_no_domain, .false. )
+  siz_in(1:4) = files_read(file_index)%var(index_field)%siz(1:4)
+  if(files_read(file_index)%var(index_field)%is_dimvar) then
+     call mpp_error(FATAL, 'fms_io_mod(read_data_3d_region): the field should not be a dimension variable')
+  endif
+  call mpp_read(unit,files_read(file_index)%var(index_field)%field,data,start, nread)
+
+  d_ptr =>NULL()
+
+  return
+end subroutine read_data_3d_region_r8
+#endif
 
 
 !=====================================================================================

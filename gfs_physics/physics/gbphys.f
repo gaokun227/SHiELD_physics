@@ -575,10 +575,14 @@
       real(kind=kind_phys), dimension(im),            intent(in) ::     &
      &      sinlat, coslat, pgr,    dpshc,  xlon,   xlat, dx, dy, area, &
      &      slope,  shdmin, shdmax, snoalb, tg3,    slmsk,  vfrac,      &
-     &      vtype,  stype,  uustar, oro,    coszen, sfcnsw, sfcdsw,     &
+     &      vtype,  stype,  oro,    coszen, sfcnsw, sfcdsw,             &
      &      sfcnirbmu,      sfcnirdfu,      sfcvisbmu,      sfcvisdfu,  &
      &      sfcnirbmd,      sfcnirdfd,      sfcvisbmd,      sfcvisdfd,  &
      &      sfcdlw, tsflw,  sfalb,  sfcemis, oro_uf
+
+!GFDL Fixed with the okay of Patrick Tripp at NCEP/EMC
+      real(kind=kind_phys), dimension(im),            intent(inout) ::  &
+     &      uustar
 
       real(kind=kind_phys), dimension(ix,levs),       intent(in) ::     &
      &   ugrs, vgrs, tgrs, vvel, prsl, prslk, phil, swh, swhc, hlw, hlwc

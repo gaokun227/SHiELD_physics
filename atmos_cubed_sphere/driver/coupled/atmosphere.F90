@@ -292,11 +292,274 @@ contains
 #endif
                     call timing_off('ATMOS_INIT')
 
+   if ( Atm(1)%flagstruct%na_init < 0 ) then
+      call mpp_error(NOTE,'Using old adiabatic initialization correction')
+! SJL: adiabatic forward-backward initialization with relaxation to initial state (e.g., from external_ic)
+! can be used to spin-up the vertical velocity & delz from a hydrostatic analysis before forecast.
+      call nullify_domain ( )
+      if ( .not. Atm(1)%flagstruct%hydrostatic ) then
+           call prt_maxmin('Before adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
+      endif
+!      Atm(1)%w = 0.
+      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+      if ( .not. Atm(1)%flagstruct%hydrostatic ) then
+           call prt_maxmin('After adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
+      endif
+   elseif ( Atm(1)%flagstruct%na_init>0 ) then
+      call mpp_error(NOTE,'Using new adiabatic initialization correction')
+      call adiabatic_init_new(zvir)
+   else
+      call mpp_error(NOTE,'No adiabatic initialization correction in use')
+   endif
+
    n = mytile
    call switch_current_Atm(Atm(n)) 
       
  end subroutine atmosphere_init
 
+
+ subroutine adi_init(zvir, ntimes)
+   real, intent(in):: zvir
+   integer, intent(in):: ntimes
+! Local vars:
+   real, allocatable, dimension(:,:,:):: u0, v0, t0, q0, dp0
+   real, allocatable, dimension(:,:):: f_land
+   integer:: isc, iec, jsc, jec
+   integer:: isd, ied, jsd, jed, ngc
+   integer:: npx, npy, npz
+   integer:: m, n, i,j,k
+
+   n=1
+
+    npx = Atm(1)%npx
+    npy = Atm(1)%npy
+    npz = Atm(1)%npz
+
+    isc = Atm(1)%bd%isc
+    iec = Atm(1)%bd%iec
+    jsc = Atm(1)%bd%jsc
+    jec = Atm(1)%bd%jec
+
+    ngc = Atm(1)%ng
+    isd = isc - ngc
+    ied = iec + ngc
+    jsd = jsc - ngc
+    jed = jec + ngc
+
+     call timing_on('adi_init')
+
+     allocate ( u0(isc:iec,  jsc:jec+1, npz) )
+     allocate ( v0(isc:iec+1,jsc:jec,   npz) )
+     allocate ( t0(isc:iec,jsc:jec, npz) )
+     allocate ( q0(isc:iec,jsc:jec, npz) )
+!    allocate (dp0(isc:iec,jsc:jec, npz) )
+     allocate ( f_land(isc:iec,jsc:jec) )
+
+!$OMP parallel do default(none) shared(isc,iec,jsc,jec,npz,u0,Atm,n,v0,t0,q0,dp0)
+     do k=1,npz
+        do j=jsc,jec+1
+           do i=isc,iec
+              u0(i,j,k) = Atm(n)%u(i,j,k)
+           enddo
+        enddo
+        do j=jsc,jec
+           do i=isc,iec+1
+              v0(i,j,k) = Atm(n)%v(i,j,k)
+           enddo
+        enddo
+        do j=jsc,jec
+           do i=isc,iec
+              t0(i,j,k) = Atm(n)%pt(i,j,k)
+              q0(i,j,k) = Atm(n)%q(i,j,k,1)
+!            dp0(i,j,k) = Atm(n)%delp(i,j,k)
+           enddo
+        enddo
+     enddo
+
+   do_adiabatic_init = .true.
+
+   do m=1, ntimes
+
+! Forwardward call
+    call fv_dynamics(npx, npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
+                     .true., Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, Atm(n)%prec_liq, Atm(n)%prec_sol, f_land)
+! Backward
+    call fv_dynamics(npx, npy, npz,  nq, Atm(n)%ng, -dt_atmos, 0.,      &
+                     .true., Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, Atm(n)%prec_liq, Atm(n)%prec_sol, f_land)
+! Nudging back to IC
+!$OMP parallel do default(none) shared(isc,iec,jsc,jec,npz,Atm,u0,v0,t0,q0,dp0,n)
+       do k=1,npz
+          do j=jsc,jec+1
+             do i=isc,iec
+                Atm(n)%u(i,j,k) = 0.25*(Atm(n)%u(i,j,k) + 3.*u0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec+1
+                Atm(n)%v(i,j,k) = 0.25*(Atm(n)%v(i,j,k) + 3.*v0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k)  = 0.25*(Atm(n)%pt(i,j,k)  + 3.*t0(i,j,k))
+                Atm(n)%q(i,j,k,1) = 0.25*(Atm(n)%q(i,j,k,1) + 3.*q0(i,j,k))
+!               Atm(n)%delp(i,j,k) = 0.25*(Atm(n)%delp(i,j,k) + 3.*dp0(i,j,k))
+             enddo
+          enddo
+       enddo
+
+     call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
+                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+
+! Backward
+    call fv_dynamics(npx, npy, npz,  nq, Atm(n)%ng, -dt_atmos, 0.,      &
+                     .true., Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, Atm(n)%prec_liq, Atm(n)%prec_sol, f_land)
+! Forwardward call
+    call fv_dynamics(npx, npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
+                     .true., Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, Atm(n)%prec_liq, Atm(n)%prec_sol, f_land)
+! Nudging back to IC
+!$OMP parallel do default(none) shared(isc,iec,jsc,jec,npz,Atm,u0,v0,t0,q0,dp0,n)
+       do k=1,npz
+          do j=jsc,jec+1
+             do i=isc,iec
+                Atm(n)%u(i,j,k) = 0.25*(Atm(n)%u(i,j,k) + 3.*u0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec+1
+                Atm(n)%v(i,j,k) = 0.25*(Atm(n)%v(i,j,k) + 3.*v0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k)  = 0.25*(Atm(n)%pt(i,j,k)  + 3.*t0(i,j,k))
+                Atm(n)%q(i,j,k,1) = 0.25*(Atm(n)%q(i,j,k,1) + 3.*q0(i,j,k))
+!               Atm(n)%delp(i,j,k) = 0.25*(Atm(n)%delp(i,j,k) + 3.*dp0(i,j,k))
+             enddo
+          enddo
+       enddo
+
+     call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
+                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+   enddo
+
+   do_adiabatic_init = .false.
+
+     deallocate ( u0 )
+     deallocate ( v0 )
+     deallocate ( t0 )
+     deallocate ( q0 )
+!    deallocate (dp0 )
+     deallocate ( f_land )
+
+     call timing_off('adi_init')
+
+ end subroutine adi_init
+
+
+
+ subroutine p_adi(km, ng, ifirst, ilast, jfirst, jlast, ptop,   &
+                  delp, pt, ps, pe, peln, pk, pkz, hydrostatic)
+! Given (ptop, delp) computes (ps, pk, pe, peln, pkz)
+! Input:
+   integer,  intent(in):: km, ng
+   integer,  intent(in):: ifirst, ilast            ! Longitude strip
+   integer,  intent(in):: jfirst, jlast            ! Latitude strip
+   logical, intent(in)::  hydrostatic
+   real, intent(in):: ptop
+   real, intent(in)::   pt(ifirst-ng:ilast+ng,jfirst-ng:jlast+ng, km)
+   real, intent(in):: delp(ifirst-ng:ilast+ng,jfirst-ng:jlast+ng, km)
+! Output:
+   real, intent(out) ::   ps(ifirst-ng:ilast+ng, jfirst-ng:jlast+ng)
+   real, intent(out) ::   pk(ifirst:ilast, jfirst:jlast, km+1)
+   real, intent(out) ::   pe(ifirst-1:ilast+1,km+1,jfirst-1:jlast+1) ! Ghosted Edge pressure
+   real, intent(out) :: peln(ifirst:ilast, km+1, jfirst:jlast)    ! Edge pressure
+   real, intent(out) ::  pkz(ifirst:ilast, jfirst:jlast, km)
+! Local
+   real pek
+   integer i, j, k
+
+   pek = ptop ** kappa
+!$OMP parallel do default(none) shared(ifirst,ilast,jfirst,jlast,km,ptop,pek,pe,pk, &
+!$OMP                                  ps,delp,peln,hydrostatic,pkz)
+   do j=jfirst,jlast
+      do i=ifirst,ilast
+         pe(i,1,j) = ptop
+         pk(i,j,1) = pek
+      enddo
+
+      do k=2,km+1
+         do i=ifirst,ilast
+            pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
+            peln(i,k,j) = log(pe(i,k,j))
+            pk(i,j,k) = exp( kappa*peln(i,k,j) )
+         enddo
+      enddo
+
+      do i=ifirst,ilast
+         ps(i,j) = pe(i,km+1,j)
+      enddo
+
+      if ( hydrostatic ) then
+         do k=1,km
+            do i=ifirst,ilast
+               pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+            enddo
+         enddo
+      endif
+   enddo
+
+ end subroutine p_adi
 
 
  subroutine atmosphere_dynamics ( Time )
@@ -849,6 +1112,188 @@ contains
 
  end subroutine adiabatic_init_drv
 
+
+ subroutine adiabatic_init_new(zvir)
+   real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
+   real, intent(in):: zvir
+   real, parameter:: wt = 2.  ! was 3.
+   real:: xt
+   integer:: isc, iec, jsc, jec, npz
+   integer:: m, n, i,j,k, ngc
+
+   character(len=80) :: errstr
+
+   xt = 1./(1.+wt)
+
+   n=1
+   write(errstr,'(A, I4, A)') 'Performing adiabatic init',  Atm(n)%flagstruct%na_init, ' times'
+   call mpp_error(NOTE, errstr)
+
+    npz = Atm(1)%npz
+
+    isc = Atm(1)%bd%isc
+    iec = Atm(1)%bd%iec
+    jsc = Atm(1)%bd%jsc
+    jec = Atm(1)%bd%jec
+
+    ngc = Atm(n)%ng
+    isd = isc - ngc
+    ied = iec + ngc
+    jsd = jsc - ngc
+    jed = jec + ngc
+
+     call timing_on('adiabatic_init')
+     do_adiabatic_init = .true.
+
+     allocate ( u0(isc:iec,  jsc:jec+1, npz) )
+     allocate ( v0(isc:iec+1,jsc:jec,   npz) )
+     allocate ( t0(isc:iec,jsc:jec, npz) )
+     allocate (dp0(isc:iec,jsc:jec, npz) )
+
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec+1
+             do i=isc,iec
+                u0(i,j,k) = Atm(n)%u(i,j,k)
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec+1
+                v0(i,j,k) = Atm(n)%v(i,j,k)
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec
+                t0(i,j,k) = Atm(n)%pt(i,j,k)
+               dp0(i,j,k) = Atm(n)%delp(i,j,k)
+             enddo
+          enddo
+       enddo
+
+     do m=1,Atm(n)%flagstruct%na_init
+! Forwardward call
+    call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
+                     Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, lprec, fprec, f_land)
+! Backward
+    call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, -dt_atmos, 0.,      &
+                     Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, lprec, fprec, f_land)
+! Nudging back to IC
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec+1
+             do i=isc,iec
+                Atm(n)%u(i,j,k) = xt*(Atm(n)%u(i,j,k) + wt*u0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec+1
+                Atm(n)%v(i,j,k) = xt*(Atm(n)%v(i,j,k) + wt*v0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
+             enddo
+          enddo
+       enddo
+
+     call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
+                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+
+! Backward
+    call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, -dt_atmos, 0.,      &
+                     Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, lprec, fprec, f_land)
+! Forwardward call
+    call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
+                     Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
+                     Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      & 
+                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &
+                     Atm(n)%pe, Atm(n)%pk, Atm(n)%peln, Atm(n)%pkz, Atm(n)%phis,      &
+                     Atm(n)%q_con, Atm(n)%omga, Atm(n)%ua, Atm(n)%va, Atm(n)%uc, Atm(n)%vc, &
+                     Atm(n)%ak, Atm(n)%bk, Atm(n)%mfx, Atm(n)%mfy,                    &
+                     Atm(n)%cx, Atm(n)%cy, Atm(n)%ze0, Atm(n)%flagstruct%hybrid_z,    &
+                     Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
+                     Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
+                     Atm(n)%domain)
+!rab                     Atm(n)%domain, lprec, fprec, f_land)
+! Nudging back to IC
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec+1
+             do i=isc,iec
+                Atm(n)%u(i,j,k) = xt*(Atm(n)%u(i,j,k) + wt*u0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec+1
+                Atm(n)%v(i,j,k) = xt*(Atm(n)%v(i,j,k) + wt*v0(i,j,k))
+             enddo
+          enddo
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
+             enddo
+          enddo
+       enddo
+
+     call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
+                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+
+     enddo
+
+     deallocate ( u0 )
+     deallocate ( v0 )
+     deallocate ( t0 )
+     deallocate (dp0 )
+
+     do_adiabatic_init = .false.
+     call timing_off('adiabatic_init')
+
+ end subroutine adiabatic_init_new
+
+
  subroutine adiabatic_init (Atm, Time, dt_init, u_dt, v_dt, t_dt, q_dt, do_nudge)
 !
 ! Perform adiabatic forward-backward adiabatic initialization with nudging
@@ -874,7 +1319,7 @@ contains
 
     call fv_dynamics(npx, npy, npz, nq, ngc,  dt_init, 0.,                            &
                      .false.,  Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
-                     Atm(n)%ptop, Atm(n)%ks, ncnst, Atm(n)%flagstruct%n_split,        &
+                     Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
                      Atm(n)%flagstruct%q_split, Atm(n)%u, Atm(n)%v, Atm(n)%w,         &
                      Atm(n)%delz, Atm(n)%flagstruct%hydrostatic,                      &
                      Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%ps,                     &

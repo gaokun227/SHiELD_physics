@@ -26,7 +26,7 @@
 
 !--- read in data
 !---   pl_lat   -  latitude of data        (-90 to 90)
-!---   pl_pres  -  vertical pressure level (ln(Pa))
+!---   pl_pres  -  vertical pressure level (mb)
 !---   pl_time  -  time coordinate         (days)
 !---
       allocate (pl_lat(latsozp), pl_pres(levozp),pl_time(timeoz+1))
@@ -34,6 +34,8 @@
       rewind (kozpl)
       read (kozpl) pl_coeff, latsozp, levozp, timeoz, pl_lat4, pl_pres4, pl_time4
       pl_pres(:) = pl_pres4(:)
+!---  convert pressure levels from mb to ln(Pa)
+      pl_pres(:) = log(100.0*pl_pres(:))
       pl_lat(:)  = pl_lat4(:)
       pl_time(:) = pl_time4(:)
       deallocate (pl_lat4, pl_pres4, pl_time4)

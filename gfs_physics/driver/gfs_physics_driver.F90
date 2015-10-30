@@ -376,7 +376,7 @@ module gfs_physics_driver_mod
                           ! For radiation
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
                           iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                          sas_shal,crick_proof,ccnorm,norad_precip,jdate,iflip,dt_phys,unit)
+                          sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dt_phys,unit)
     call close_file (unit)
 
 !--- allocate and call the different storage items needed by GFS physics/radiation ---

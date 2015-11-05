@@ -296,18 +296,18 @@ contains
       call mpp_error(NOTE,'Using old adiabatic initialization correction')
 ! SJL: adiabatic forward-backward initialization with relaxation to initial state (e.g., from external_ic)
 ! can be used to spin-up the vertical velocity & delz from a hydrostatic analysis before forecast.
+!      Atm(1)%w = 0.
+      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+   elseif ( Atm(1)%flagstruct%na_init>0 ) then
+      call mpp_error(NOTE,'Using new adiabatic initialization correction')
       call nullify_domain ( )
       if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            call prt_maxmin('Before adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
       endif
-!      Atm(1)%w = 0.
-      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+      call adiabatic_init_new(zvir)
       if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            call prt_maxmin('After adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
       endif
-   elseif ( Atm(1)%flagstruct%na_init>0 ) then
-      call mpp_error(NOTE,'Using new adiabatic initialization correction')
-      call adiabatic_init_new(zvir)
    else
       call mpp_error(NOTE,'No adiabatic initialization correction in use')
    endif
@@ -1116,10 +1116,10 @@ contains
  subroutine adiabatic_init_new(zvir)
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
-   real, parameter:: wt = 2.  ! was 3.
+   real, parameter:: wt = 1.  ! was 2.
    real:: xt
    integer:: isc, iec, jsc, jec, npz
-   integer:: m, n, i,j,k, ngc
+   integer:: m, n, i,j,k, ngc, sphum
 
    character(len=80) :: errstr
 
@@ -1128,6 +1128,8 @@ contains
    n=1
    write(errstr,'(A, I4, A)') 'Performing adiabatic init',  Atm(n)%flagstruct%na_init, ' times'
    call mpp_error(NOTE, errstr)
+
+   sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
 
     npz = Atm(1)%npz
 
@@ -1164,7 +1166,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                t0(i,j,k) = Atm(n)%pt(i,j,k)
+                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))  ! virt T
                dp0(i,j,k) = Atm(n)%delp(i,j,k)
              enddo
           enddo
@@ -1216,7 +1218,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1271,7 +1273,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo

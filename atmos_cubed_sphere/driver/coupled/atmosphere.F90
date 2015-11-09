@@ -296,18 +296,18 @@ contains
       call mpp_error(NOTE,'Using old adiabatic initialization correction')
 ! SJL: adiabatic forward-backward initialization with relaxation to initial state (e.g., from external_ic)
 ! can be used to spin-up the vertical velocity & delz from a hydrostatic analysis before forecast.
+!      Atm(1)%w = 0.
+      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+   elseif ( Atm(1)%flagstruct%na_init>0 ) then
+      call mpp_error(NOTE,'Using new adiabatic initialization correction')
       call nullify_domain ( )
       if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            call prt_maxmin('Before adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
       endif
-!      Atm(1)%w = 0.
-      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+      call adiabatic_init_new(zvir)
       if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            call prt_maxmin('After adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
       endif
-   elseif ( Atm(1)%flagstruct%na_init>0 ) then
-      call mpp_error(NOTE,'Using new adiabatic initialization correction')
-      call adiabatic_init_new(zvir)
    else
       call mpp_error(NOTE,'No adiabatic initialization correction in use')
    endif
@@ -323,7 +323,6 @@ contains
    integer, intent(in):: ntimes
 ! Local vars:
    real, allocatable, dimension(:,:,:):: u0, v0, t0, q0, dp0
-   real, allocatable, dimension(:,:):: f_land
    integer:: isc, iec, jsc, jec
    integer:: isd, ied, jsd, jed, ngc
    integer:: npx, npy, npz
@@ -353,7 +352,6 @@ contains
      allocate ( t0(isc:iec,jsc:jec, npz) )
      allocate ( q0(isc:iec,jsc:jec, npz) )
 !    allocate (dp0(isc:iec,jsc:jec, npz) )
-     allocate ( f_land(isc:iec,jsc:jec) )
 
 !$OMP parallel do default(none) shared(isc,iec,jsc,jec,npz,u0,Atm,n,v0,t0,q0,dp0)
      do k=1,npz
@@ -500,7 +498,6 @@ contains
      deallocate ( t0 )
      deallocate ( q0 )
 !    deallocate (dp0 )
-     deallocate ( f_land )
 
      call timing_off('adi_init')
 
@@ -1116,10 +1113,10 @@ contains
  subroutine adiabatic_init_new(zvir)
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
-   real, parameter:: wt = 2.  ! was 3.
+   real, parameter:: wt = 1.  ! was 2.
    real:: xt
    integer:: isc, iec, jsc, jec, npz
-   integer:: m, n, i,j,k, ngc
+   integer:: m, n, i,j,k, ngc, sphum
 
    character(len=80) :: errstr
 
@@ -1128,6 +1125,7 @@ contains
    n=1
    write(errstr,'(A, I4, A)') 'Performing adiabatic init',  Atm(n)%flagstruct%na_init, ' times'
    call mpp_error(NOTE, errstr)
+   sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
 
     npz = Atm(1)%npz
 
@@ -1164,7 +1162,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                t0(i,j,k) = Atm(n)%pt(i,j,k)
+                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))  ! virt T
                dp0(i,j,k) = Atm(n)%delp(i,j,k)
              enddo
           enddo
@@ -1216,7 +1214,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1271,7 +1269,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1407,7 +1405,12 @@ contains
          Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
 
          !--  level interface exner function pressure at TOA
+#ifdef MOIST_CAPPA_OUT
+         !S-J will compute these variables INSIDE fv_dynamics for us.
+         Statein(nb)%prsik(ix,npz+1) = exp(Atm(mytile)%cappa(i,j,1)*log(Statein(nb)%prsi(ix,npz+1)*1.e-5_kind_phys))
+#else
          Statein(nb)%prsik(ix,npz+1) = exp(kappa*log(Statein(nb)%prsi(ix,npz+1)))*pk0inv
+#endif
        enddo
      enddo
 
@@ -1457,8 +1460,16 @@ contains
            endif
 
            !--  exner function pressure
+           !-- This is correctly updated for hydrostatic
+           !-- right now S-J is adding capability for nonhydro also
+#ifdef MOIST_CAPPA_OUT         !S-J will compute these variables INSIDE fv_dynamics for us.
+           Statein(nb)%prsik(ix,k) = exp(0.5_kind_phys*(Atm(mytile)%cappa(i,j,max(k-1,1))+Atm(mytile)%cappa(i,j,k)) * &
+                log(Atm(mytile)%pe(i,k2,j)*1.e-5_kind_phys))   ! level interface
+           Statein(nb)%prslk(ix,k) = exp(Atm(mytile)%cappa(i,j,k)*log(Statein(nb)%prsl(ix,k)*1.e-5_kind_phys))   ! layer mean
+#else
            Statein(nb)%prsik(ix,k) = exp(kappa*log(Atm(mytile)%pe(i,k2,j)))*pk0inv   ! level interface
            Statein(nb)%prslk(ix,k) = exp(kappa*log(Statein(nb)%prsl(ix,k)))*pk0inv   ! layer mean
+#endif
 
            !--  level interface geopotential
            if (Atm(mytile)%flagstruct%hydrostatic) then

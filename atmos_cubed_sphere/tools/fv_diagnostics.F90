@@ -105,16 +105,12 @@ contains
     call set_domain(Atm(1)%domain)  ! Set domain so that diag_manager can access tile information
 
          sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
-    if ( Atm(1)%flagstruct%nwat>=3 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
          ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
-    endif
 
-    if ( Atm(1)%flagstruct%nwat==6 ) then
         rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
         snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
         graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
-     endif
 
 ! valid range for some fields
 
@@ -2493,10 +2489,10 @@ contains
  endif
 
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,sphum  ), psq(is,js,sphum  )) 
- if (nwat > 1) then
+ if (nwat > 1)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat))
+ if (nwat > 2)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat))
- endif
 
 ! Mean water vapor in the "stratosphere" (75 mb and above):
  if ( idiag%phalf(2)< 75. ) then

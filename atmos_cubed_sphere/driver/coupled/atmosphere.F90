@@ -296,18 +296,18 @@ contains
       call mpp_error(NOTE,'Using old adiabatic initialization correction')
 ! SJL: adiabatic forward-backward initialization with relaxation to initial state (e.g., from external_ic)
 ! can be used to spin-up the vertical velocity & delz from a hydrostatic analysis before forecast.
+!      Atm(1)%w = 0.
+      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+   elseif ( Atm(1)%flagstruct%na_init>0 ) then
+      call mpp_error(NOTE,'Using new adiabatic initialization correction')
       call nullify_domain ( )
       if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            call prt_maxmin('Before adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
       endif
-!      Atm(1)%w = 0.
-      call adi_init(zvir, abs(Atm(1)%flagstruct%na_init))
+      call adiabatic_init_new(zvir)
       if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            call prt_maxmin('After adi: W', Atm(1)%w, isc, iec, jsc, jec, Atm(1)%ng, npz, 1.)
       endif
-   elseif ( Atm(1)%flagstruct%na_init>0 ) then
-      call mpp_error(NOTE,'Using new adiabatic initialization correction')
-      call adiabatic_init_new(zvir)
    else
       call mpp_error(NOTE,'No adiabatic initialization correction in use')
    endif
@@ -323,7 +323,6 @@ contains
    integer, intent(in):: ntimes
 ! Local vars:
    real, allocatable, dimension(:,:,:):: u0, v0, t0, q0, dp0
-   real, allocatable, dimension(:,:):: f_land
    integer:: isc, iec, jsc, jec
    integer:: isd, ied, jsd, jed, ngc
    integer:: npx, npy, npz
@@ -353,7 +352,6 @@ contains
      allocate ( t0(isc:iec,jsc:jec, npz) )
      allocate ( q0(isc:iec,jsc:jec, npz) )
 !    allocate (dp0(isc:iec,jsc:jec, npz) )
-     allocate ( f_land(isc:iec,jsc:jec) )
 
 !$OMP parallel do default(none) shared(isc,iec,jsc,jec,npz,u0,Atm,n,v0,t0,q0,dp0)
      do k=1,npz
@@ -500,7 +498,6 @@ contains
      deallocate ( t0 )
      deallocate ( q0 )
 !    deallocate (dp0 )
-     deallocate ( f_land )
 
      call timing_off('adi_init')
 
@@ -1116,10 +1113,10 @@ contains
  subroutine adiabatic_init_new(zvir)
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
-   real, parameter:: wt = 2.  ! was 3.
+   real, parameter:: wt = 1.  ! was 2.
    real:: xt
    integer:: isc, iec, jsc, jec, npz
-   integer:: m, n, i,j,k, ngc
+   integer:: m, n, i,j,k, ngc, sphum
 
    character(len=80) :: errstr
 
@@ -1128,6 +1125,7 @@ contains
    n=1
    write(errstr,'(A, I4, A)') 'Performing adiabatic init',  Atm(n)%flagstruct%na_init, ' times'
    call mpp_error(NOTE, errstr)
+   sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
 
     npz = Atm(1)%npz
 
@@ -1164,14 +1162,14 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                t0(i,j,k) = Atm(n)%pt(i,j,k)
+                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))  ! virt T
                dp0(i,j,k) = Atm(n)%delp(i,j,k)
              enddo
           enddo
        enddo
 
      do m=1,Atm(n)%flagstruct%na_init
-! Forwardward call
+! Forward call
     call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
                      Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
                      Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
@@ -1216,7 +1214,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1241,7 +1239,7 @@ contains
                      Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
                      Atm(n)%domain)
 !rab                     Atm(n)%domain, lprec, fprec, f_land)
-! Forwardward call
+! Forward call
     call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
                      Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
                      Atm(n)%ptop, Atm(n)%ks, nq, Atm(n)%flagstruct%n_split,        &
@@ -1271,7 +1269,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1350,16 +1348,26 @@ contains
 
  end subroutine adiabatic_init
 
-
+!!! NOTES: lmh 6nov15
+!!! - "Layer" means "layer mean", ie. the average value in a layer
+!!! - "Level" means "level interface", ie the point values at the top or bottom of a layer
+!!! - pk and pkz are *not* correct at this point in the nonhydrostatic solver. It is simpler
+!!!   to just recompute them here.
+!!! - Currently assuming dry kappa
  subroutine atmos_phys_driver_statein (Statein, Atm_block)
    type (state_fields_in), dimension(:), intent(inout) :: Statein
    type (block_control_type),            intent(in)    :: Atm_block
 !--- local variables
-   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum
+   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, k1, k2
    real(kind=kind_phys), parameter :: qmin = 1.0e-10   
    real(kind=kind_phys) :: pk0inv
+   real :: rTv
 
-   pk0inv = (1.0_kind_phys/100000._kind_phys**kappa)
+   logical :: use_hydro_pressure = .false.
+   logical :: diag_sounding = .true.
+
+! (1/1.e5)**kappa; ie. the missing part of the (dry) T to pt conversion
+   pk0inv = (1.0_kind_phys/100000._kind_phys**kappa) 
 
    sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
 
@@ -1369,15 +1377,15 @@ contains
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
 !$OMP          shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, pk0inv, &
-!$OMP                   zvir, mytile) &
-!$OMP          private (nb, ibs, ibe, jbs, jbe, i, j, ix)
+!$OMP                   zvir, mytile, use_hydro_pressure, diag_sounding) &
+!$OMP          private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, k2, rTv)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
      jbs = Atm_block%jbs(nb)
      jbe = Atm_block%jbe(nb)
 
-     !-- level geopotential height
+     !-- level interface geopotential height
      !--- GFS physics assumes geopotential in a column is always zero at
      !--- the surface and only the difference between layers is important.
      Statein(nb)%phii(:,:) = 0.0
@@ -1393,11 +1401,16 @@ contains
          !--  surface pressure
          Statein(nb)%pgr(ix) = Atm(mytile)%ps(i,j)
 
-         !--  level pressure at TOA
+         !--  level interface pressure at TOA
          Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
 
-         !--  level exner function pressure at TOA
-         Statein(nb)%prsik(ix,npz+1) = Atm(mytile)%pk(i,j,1)*pk0inv
+         !--  level interface exner function pressure at TOA
+#ifdef MOIST_CAPPA_OUT
+         !S-J will compute these variables INSIDE fv_dynamics for us.
+         Statein(nb)%prsik(ix,npz+1) = exp(Atm(mytile)%cappa(i,j,1)*log(Statein(nb)%prsi(ix,npz+1)*1.e-5_kind_phys))
+#else
+         Statein(nb)%prsik(ix,npz+1) = exp(kappa*log(Statein(nb)%prsi(ix,npz+1)))*pk0inv
+#endif
        enddo
      enddo
 
@@ -1407,69 +1420,100 @@ contains
          do i=ibs,ibe
            ix = ix + 1
 
-           !--  level pressure
-           Statein(nb)%prsi(ix,k) = Atm(mytile)%pe(i,npz+2-k,j)
+           !Indices for FV's vertical coordinate, for which 1 = top
+           !here, k is the index for GFS's vertical coordinate, for which 1 = bottom
+           k1 = npz+1-k !This layer mean, or the upper interface
+           k2 = npz+2-k !lower interface
 
-           !--  exner function pressure
-           Statein(nb)%prsik(ix,k) = Atm(mytile)%pk (i,j,npz+2-k)*pk0inv   ! level
-!XIC
-!XIC if other layer center values such as p and z are calculated 
-!XIC based on geometric center, e.g. pl(k) = 0.5*(pi(k)+pi(k+1))
-!XIC then pkz is not at the geometric center, might be inconsistent.
-!XIC However, I do not have a good suggestion about how to do it.
-!XIC Maybe: prslk = prsl**kappa ?
-!XIC
-           Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,npz+1-k)*pk0inv   ! layer
+           !--  level interface pressure
+           Statein(nb)%prsi(ix,k) = Atm(mytile)%pe(i,k2,j)
 
-           !--  layer temp, u, & v
-           Statein(nb)%tgrs(ix,k)  = Atm(mytile)%pt(i,j,npz+1-k)
-           Statein(nb)%ugrs(ix,k)  = Atm(mytile)%ua(i,j,npz+1-k)
-           Statein(nb)%vgrs(ix,k)  = Atm(mytile)%va(i,j,npz+1-k)
+           !--  layer mean temp, u, & v
+           Statein(nb)%tgrs(ix,k)  = Atm(mytile)%pt(i,j,k1)
+           Statein(nb)%ugrs(ix,k)  = Atm(mytile)%ua(i,j,k1)
+           Statein(nb)%vgrs(ix,k)  = Atm(mytile)%va(i,j,k1)
 
-           !--  layer vertical pressure velocity
-           Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,npz+1-k)
+           !--  layer mean vertical pressure velocity
+           Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,k1)
 !SJL
 !SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR BELOW
 !SJL      gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
 !SJL
-           !--  layer sphum for radiation with GFS limiter applied
-           Statein(nb)%qgrs_rad(ix,k) = max(qmin, Atm(mytile)%q(i,j,npz+1-k,sphum))
+           !--  layer mean sphum for radiation with GFS limiter applied
+           Statein(nb)%qgrs_rad(ix,k) = max(qmin, Atm(mytile)%q(i,j,k1,sphum))
 !SJL
 !SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
 !SJL
 
-           !--  raw tracers for gbphys
-           Statein(nb)%qgrs(ix,k,1:nq)       = Atm(mytile)%q    (i,j,npz+1-k,1:nq)
-           Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,npz+1-k,nq+1:ncnst)
+           !--  raw tracers for gbphys (layer mean)
+           Statein(nb)%qgrs(ix,k,1:nq)       = Atm(mytile)%q    (i,j,k1,1:nq)
+           Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,k1,nq+1:ncnst)
  
-           !--  level geopotential
-           if (Atm(mytile)%flagstruct%hydrostatic) then
-             !LMH  hydrostatic
-             Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
-                         Statein(nb)%tgrs(ix,k) * rdgas * (1. + zvir*Statein(nb)%qgrs(ix,k,sphum)) * &
-                         2.* (Atm(mytile)%pe(i,npz+2-k,j) - Atm(mytile)%pe(i,npz+1-k,j)) / & 
-                             (Atm(mytile)%pe(i,npz+2-k,j) + Atm(mytile)%pe(i,npz+1-k,j))
+           rTv = rdgas * Statein(nb)%tgrs(ix,k) * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) ! virtual temperature
+
+           !--  layer mean pressure, ie. mass centroid
+           ! MEAN pressure!!
+           if (Atm(mytile)%flagstruct%hydrostatic .or. use_hydro_pressure) then
+              Statein(nb)%prsl(ix,k) = Atm(mytile)%delp(i,j,k1)/( Atm(mytile)%peln(i,k2,j) - Atm(mytile)%peln(i,k1,j)  )
            else
-             !  non-hydrostatic 
-             Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,npz+1-k)*grav
+              Statein(nb)%prsl(ix,k) = - Atm(mytile)%delp(i,j,k1)*rTv/(Atm(mytile)%delz(i,j,k1)*grav)
+           endif
+
+           !--  exner function pressure
+           !-- This is correctly updated for hydrostatic
+           !-- right now S-J is adding capability for nonhydro also
+#ifdef MOIST_CAPPA_OUT         !S-J will compute these variables INSIDE fv_dynamics for us.
+           Statein(nb)%prsik(ix,k) = exp(0.5_kind_phys*(Atm(mytile)%cappa(i,j,max(k-1,1))+Atm(mytile)%cappa(i,j,k)) * &
+                log(Atm(mytile)%pe(i,k2,j)*1.e-5_kind_phys))   ! level interface
+           Statein(nb)%prslk(ix,k) = exp(Atm(mytile)%cappa(i,j,k)*log(Statein(nb)%prsl(ix,k)*1.e-5_kind_phys))   ! layer mean
+#else
+           Statein(nb)%prsik(ix,k) = exp(kappa*log(Atm(mytile)%pe(i,k2,j)))*pk0inv   ! level interface
+           Statein(nb)%prslk(ix,k) = exp(kappa*log(Statein(nb)%prsl(ix,k)))*pk0inv   ! layer mean
+#endif
+
+           !--  level interface geopotential
+           if (Atm(mytile)%flagstruct%hydrostatic) then
+              !Layer MEAN geopotential
+              !LMH  hydrostatic
+              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
+                    rTv * ( Atm(mytile)%peln(i,k2,j) - Atm(mytile)%peln(i,k1,j)  )
+           else
+              !  non-hydrostatic 
+              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,k1)*grav
            endif
          enddo
        enddo
      enddo
 
      do k = 1, npz
-       !--  layer pressure
-       Statein(nb)%prsl(:,k) = 0.5_kind_phys*(Statein(nb)%prsi(:,k) + Statein(nb)%prsi(:,k+1))
 
-       !--  layer geopotential
+       !--  layer mean geopotential
        if (Atm(mytile)%flagstruct%gfs_phil) then
          !  allow GFS physics to calculate geopotential (hydrostatic assumption)
          Statein(nb)%phil(:,k) = 0.0
        else
-         Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
+          !geometric midpoint (possibly inaccurate, but requires no assumptions on T or of hydrostaticity)
+          Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
        endif
      enddo
-   enddo
+
+!!! DEBUG CODE
+     if (diag_sounding) then
+        if (ibs == 1 .and. jbs == 1) then
+           do k=1,npz
+              write(mpp_pe()+1000,'(I4,3x, 6(F,3x))') k, Statein(nb)%prsi(1,k), Statein(nb)%prsl(1,k), &
+                   Statein(nb)%phii(1,k), Statein(nb)%phil(1,k), &
+                   Atm(mytile)%delp(1,1,npz+1-k), Atm(mytile)%pe(1,npz+1-k,1)
+           enddo
+           k = npz+1
+        endif
+        diag_sounding = .false.
+     endif
+   
+!!! END DEBUG CODE
+
+  enddo
+
 
  end subroutine atmos_phys_driver_statein
 

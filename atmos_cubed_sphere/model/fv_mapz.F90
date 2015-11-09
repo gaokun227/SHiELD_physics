@@ -157,9 +157,9 @@ contains
 !$OMP                                  graupel,q_con,sphum,cappa,r_vir,rcp,k1k,kapag,delp, &
 !$OMP                                  delz,akap,pkz,te,rsin2,u,v,cosa_s,hybrid_z,ztop,ps, &
 !$OMP                                  ze0,ak,bk,nq,isd,ied,jsd,jed,kord_tr,fill,te_map,   &
-!$OMP                                  hs,gz,w,ws,kord_wz,do_omega,omga,rrg,kord_mt,ua)    &
+!$OMP                                  hs,w,ws,kord_wz,do_omega,omga,rrg,kord_mt,ua)    &
 !$OMP                          private(cvm,dz1,q_liq,q_sol,z_rat,kp,k_next,bkh,deng,dp2,   &
-!$OMP                                  pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2,ze1,ze2)
+!$OMP                                  gz,pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2,ze1,ze2)
   do 1000 j=js,je+1
 
      do k=1,km+1

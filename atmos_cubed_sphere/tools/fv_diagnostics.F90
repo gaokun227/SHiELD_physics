@@ -2160,13 +2160,16 @@ contains
 #ifndef SW_DYNAMICS
         do itrac=1, Atm(n)%ncnst
           call get_tracer_names (MODEL_ATMOS, itrac, tname)
-          if (idiag%id_tracer(itrac) > 0 .and. itrac .gt. nq) then
+          if (idiag%id_tracer(itrac) > 0 .and. itrac.gt.nq) then
             used = send_data (idiag%id_tracer(itrac), Atm(n)%qdiag(isc:iec,jsc:jec,:,itrac), Time )
-            if( prt_minmax ) call prt_maxmin(trim(tname), Atm(n)%qdiag(:,:,1,itrac), &
-                              isc, iec, jsc, jec, ngc, npz, 1.)
           else
             used = send_data (idiag%id_tracer(itrac), Atm(n)%q(isc:iec,jsc:jec,:,itrac), Time )
+          endif
+          if (itrac .le. nq) then
             if( prt_minmax ) call prt_maxmin(trim(tname), Atm(n)%q(:,:,1,itrac), &
+                              isc, iec, jsc, jec, ngc, npz, 1.)
+          else
+            if( prt_minmax ) call prt_maxmin(trim(tname), Atm(n)%qdiag(:,:,1,itrac), &
                               isc, iec, jsc, jec, ngc, npz, 1.)
           endif
 !-------------------------------

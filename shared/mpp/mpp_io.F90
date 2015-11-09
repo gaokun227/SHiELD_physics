@@ -566,6 +566,10 @@ type :: atttype
      module procedure mpp_read_text
      module procedure mpp_read_region_r2D
      module procedure mpp_read_region_r3D
+#ifdef OVERLOAD_R4
+     module procedure mpp_read_region_r2D_r8
+     module procedure mpp_read_region_r3D_r8
+#ENDIF
   end interface
 
 !***********************************************************************

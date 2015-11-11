@@ -152,8 +152,11 @@ contains
         o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
         liq_wat   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
         ice_wat   = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+        if ( liq_wat > 0 ) &
         call prt_maxmin('liq_wat', Atm(1)%q(:,:,:,liq_wat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        if ( ice_wat > 0 ) &
         call prt_maxmin('ice_wat', Atm(1)%q(:,:,:,ice_wat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        if ( o3mr > 0 ) &
         call prt_maxmin('O3MR', Atm(1)%q(:,:,:,o3mr), is, ie, js, je, ng, Atm(1)%npz, 1.)
       endif
 

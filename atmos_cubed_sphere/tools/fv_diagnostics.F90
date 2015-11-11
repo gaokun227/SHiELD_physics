@@ -104,13 +104,13 @@ contains
 
     call set_domain(Atm(1)%domain)  ! Set domain so that diag_manager can access tile information
 
-         sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
-         liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
-         ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+    sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
+    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+    ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
 
-        rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
-        snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-        graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+    rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+    snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+    graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
 
 ! valid range for some fields
 
@@ -1050,6 +1050,11 @@ contains
             write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
             if (sphum_ll_fix /= 0.) write(*,*) 'sphum fixer on lowest level, minus 1: ', trim(gn), '=', sphum_ll_fix
         endif
+        if ( .not. Atm(n)%flagstruct%hydrostatic )   &
+          call nh_total_energy(isc, iec, jsc, jec, isd, ied, jsd, jed, npz,  &
+                               Atm(n)%w, Atm(n)%delz, Atm(n)%pt, Atm(n)%delp,  &
+                               Atm(n)%q(isd,jsd,1,sphum), Atm(n)%phis, Atm(n)%gridstruct%area, Atm(n)%domain, &
+                               Atm(n)%ua, Atm(n)%va, Atm(n)%flagstruct%moist_phys, a2)
 #endif
         call prt_maxmin('UA_top', Atm(n)%ua(isc:iec,jsc:jec,1),    &
                         isc, iec, jsc, jec, 0, 1, 1.)
@@ -1186,9 +1191,9 @@ contains
              endif
           endif
 
-          if( prt_minmax ) then
-             call prt_maxmin('Vort', wk, isc, iec, jsc, jec, 0, 1, 1.)
-          endif
+!         if( prt_minmax ) then
+!            call prt_maxmin('Vort', wk, isc, iec, jsc, jec, 0, 1, 1.)
+!         endif
           if ( idiag%id_pv > 0 ) then
 ! Note: this is expensive computation.
               call pv_entropy(isc, iec, jsc, jec, ngc, npz, wk,    &
@@ -2483,16 +2488,21 @@ contains
       psmo = g_sum(domain, ps(is:ie,js:je), is, ie, js, je, n_g, area, 1) 
       if( master ) write(*,*) 'Total surface pressure (mb)', trim(gn), ' = ',  0.01*psmo
       call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,1  ), psqv(is,js)) 
-!     qwat = g_sum(domain, psqv(is,js), is, ie, js, je, n_g, area, 1) 
-!     if( master ) write(*,*) 'Total Water Vapor (kg/m**2)', trim(gn), ' =',  qwat*ginv
       return
  endif
 
+ psq(:,:,:) = 0.
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,sphum  ), psq(is,js,sphum  )) 
  if (nwat > 1)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat))
- if (nwat > 2)  &
+ if (nwat==4 .or. nwat==6)  &
+ call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
+ if (nwat==4 .or. nwat==6)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat))
+ if (nwat==6) then
+ call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,snowwat), psq(is,js,snowwat))
+ call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,graupel), psq(is,js,graupel))
+ endif
 
 ! Mean water vapor in the "stratosphere" (75 mb and above):
  if ( idiag%phalf(2)< 75. ) then
@@ -3215,6 +3225,71 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
 
 end subroutine eqv_pot
 #endif
+
+ subroutine nh_total_energy(is, ie, js, je, isd, ied, jsd, jed, km,  &
+                            w, delz, pt, delp, q, hs, area, domain,  &
+                            ua, va, moist_phys, te)
+!------------------------------------------------------
+! Compute vertically integrated total energy per column
+!------------------------------------------------------
+! !INPUT PARAMETERS:
+   integer,  intent(in):: km, is, ie, js, je, isd, ied, jsd, jed
+   real, intent(in), dimension(isd:ied,jsd:jed,km):: ua, va, pt, delp, w, q, delz
+   real, intent(in):: hs(isd:ied,jsd:jed)  ! surface geopotential
+   real, intent(in):: area(isd:ied, jsd:jed)
+   logical, intent(in):: moist_phys
+   type(domain2d), intent(INOUT) :: domain
+   real, intent(out):: te(is:ie,js:je)   ! vertically integrated TE
+! Local
+   real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
+   real  phiz(is:ie,km+1)
+   real cvm, cv_air, psm
+   integer i, j, k
+
+   cv_air =  cp_air - rdgas
+
+!$OMP parallel do default(none) shared(te,is,ie,js,je,km,ua,va,w,q,pt,delp,delz,hs,cv_air,moist_phys) &
+!$OMP                          private(phiz,cvm)
+  do j=js,je
+
+     do i=is,ie
+        te(i,j) = 0.
+        phiz(i,km+1) = hs(i,j)
+     enddo
+
+     do i=is,ie
+        do k=km,1,-1
+           phiz(i,k) = phiz(i,k+1) - grav*delz(i,j,k)
+        enddo
+     enddo
+
+     if ( moist_phys ) then
+       do k=1,km
+          do i=is,ie
+             cvm = (1.-q(i,j,k))*cv_air + q(i,j,k)*cv_vap
+             te(i,j) = te(i,j) + delp(i,j,k)*( cvm*pt(i,j,k) + hlv*q(i,j,k) +  &
+                     0.5*(phiz(i,k)+phiz(i,k+1)+ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2) )
+          enddo
+       enddo
+     else
+       do k=1,km
+          do i=is,ie
+             te(i,j) = te(i,j) + delp(i,j,k)*( cv_air*pt(i,j,k) +  &
+                     0.5*(phiz(i,k)+phiz(i,k+1)+ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2) )
+          enddo
+       enddo
+     endif
+! Unit: kg*(m/s)^2/m^2 = Joule/m^2
+     do i=is,ie
+        te(i,j) = te(i,j)/grav
+     enddo
+  enddo
+
+  psm = g_sum(domain, te, is, ie, js, je, 3, area, 1) 
+  if( master ) write(*,*) 'TE ( Joule/m^2 * E9) =',  psm * 1.E-9
+
+  end subroutine nh_total_energy
+
 
 !#######################################################################
 

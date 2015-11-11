@@ -2598,9 +2598,11 @@ subroutine pmaxmn(qname, q, is, ie, js, je, km, fac, area, domain)
       real, intent(IN)::    area(is-3:ie+3, js-3:je+3)
       type(domain2d), intent(INOUT) :: domain
 !
+      real(kind=R_Grid) ::    area_l(is-3:ie+3, js-3:je+3)
       real qmin, qmax, gmean
       integer i,j,k
 
+      area_l = area
       qmin = q(is,js,1)
       qmax = qmin
       gmean = 0.
@@ -2620,7 +2622,7 @@ subroutine pmaxmn(qname, q, is, ie, js, je, km, fac, area, domain)
       call mp_reduce_min(qmin)
       call mp_reduce_max(qmax)
 
-      gmean = g_sum(domain, q(is,js,km), is, ie, js, je, 3, area, 1)
+      gmean = g_sum(domain, q(is,js,km), is, ie, js, je, 3, area_l, 1)
       if(is_master()) write(6,*) qname, qmax*fac, qmin*fac, gmean*fac
 
  end subroutine pmaxmn

@@ -1023,6 +1023,8 @@ contains
          endif
      endif
 
+    allocate ( a2(isc:iec,jsc:jec) )
+
     if( prt_minmax ) then
 
         call prt_mxm('ZS', idiag%zsurf,     isc, iec, jsc, jec, 0,   1, 1.0, Atm(n)%gridstruct%area_64, Atm(n)%domain)
@@ -1092,7 +1094,6 @@ contains
 
     endif
 
-    allocate ( a2(isc:iec,jsc:jec) )
     allocate ( u2(isc:iec,jsc:jec) )
     allocate ( v2(isc:iec,jsc:jec) )
     allocate ( wk(isc:iec,jsc:jec,npz) )
@@ -3241,11 +3242,13 @@ end subroutine eqv_pot
    type(domain2d), intent(INOUT) :: domain
    real, intent(out):: te(is:ie,js:je)   ! vertically integrated TE
 ! Local
+   real(kind=R_Grid) ::    area_l(isd:ied, jsd:jed)
    real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
    real  phiz(is:ie,km+1)
    real cvm, cv_air, psm
    integer i, j, k
 
+   area_l = area
    cv_air =  cp_air - rdgas
 
 !$OMP parallel do default(none) shared(te,is,ie,js,je,km,ua,va,w,q,pt,delp,delz,hs,cv_air,moist_phys) &
@@ -3285,7 +3288,7 @@ end subroutine eqv_pot
      enddo
   enddo
 
-  psm = g_sum(domain, te, is, ie, js, je, 3, area, 1) 
+  psm = g_sum(domain, te, is, ie, js, je, 3, area_l, 1) 
   if( master ) write(*,*) 'TE ( Joule/m^2 * E9) =',  psm * 1.E-9
 
   end subroutine nh_total_energy

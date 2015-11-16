@@ -165,7 +165,13 @@ contains
       allocate ( cappa(isd:isd,jsd:jsd,1) )
       cappa = 0.
 #endif
-      if ( flagstruct%no_dycore ) goto 911
+      if ( flagstruct%no_dycore ) then
+         if ( nwat.eq.2 .and. (.not.hydrostatic) ) then
+            rdg = -rdgas * agrav
+            sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
+         endif
+         goto 911
+      endif
 
       if ( nwat==0 ) then
              sphum = 1

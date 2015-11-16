@@ -46,7 +46,7 @@ use fv_diagnostics_mod, only: fv_diag_init, fv_diag, fv_time, prt_maxmin
 use fv_restart_mod,     only: fv_restart, fv_write_restart
 use fv_timing_mod,      only: timing_on, timing_off
 use fv_mp_mod,          only: switch_current_Atm 
-use fv_sg_mod,          only: fv_dry_conv
+use fv_sg_mod,          only: fv_subgrid_z
 use fv_update_phys_mod, only: fv_update_phys
 #if defined (ATMOS_NUDGE)
 use atmos_nudge_mod,    only: atmos_nudge_init, atmos_nudge_end
@@ -114,7 +114,7 @@ character(len=7)   :: mod_name = 'atmos'
 
   real, parameter:: w0_big = 60.  ! to prevent negative w-tracer diffusion
 
-!---dynamics tendencies for use in fv_dry_conv and during fv_update_phys
+!---dynamics tendencies for use in fv_subgrid_z and during fv_update_phys
   real, allocatable, dimension(:,:,:)   :: u_dt, v_dt, t_dt
   real, allocatable, dimension(:,:,:,:) :: q_dt
   real, allocatable :: pref(:,:), dum1d(:)
@@ -123,6 +123,7 @@ character(len=7)   :: mod_name = 'atmos'
 #if defined(ATMOS_NUDGE) || defined(CLIMATE_NUDGE) || defined(ADA_NUDGE)
    logical :: do_adiabatic_init
 #endif
+   logical :: first_diag = .true.
 
 contains
 
@@ -287,9 +288,6 @@ contains
    id_dryconv   = mpp_clock_id ('FV dry conv',flags = clock_flag_default, grain=CLOCK_SUBCOMPONENT )
    id_fv_diag   = mpp_clock_id ('FV Diag',    flags = clock_flag_default, grain=CLOCK_SUBCOMPONENT )
 
-#ifdef TWOWAY_UPDATE_BEFORE_PHYSICS
-   if (ngrids > 1 ) call mpp_error(NOTE, "PERFORMING TWO-WAY UPDATING BEFORE PHYSICS")
-#endif
                     call timing_off('ATMOS_INIT')
 
    if ( Atm(1)%flagstruct%na_init < 0 ) then
@@ -601,17 +599,8 @@ contains
     end do !p_split
     call mpp_clock_end (id_dynam)
 
-#ifdef TWOWAY_UPDATE_BEFORE_PHYSICS
-    if (ngrids > 1) then
-       call timing_on('TWOWAY_UPDATE')
-       call twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt_atmos)
-       call timing_off('TWOWAY_UPDATE')
-    endif   
-   call nullify_domain()
-#endif
-
 !-----------------------------------------------------
-!--- COMPUTE DRY CONVECTION 
+!--- COMPUTE SUBGRID Z
 !-----------------------------------------------------
 !--- zero out tendencies 
     call mpp_clock_begin (id_dryconv)
@@ -626,7 +615,7 @@ contains
       if ( w_diff /= NO_TRACER ) then
         nt_dyn = nq - 1
       endif
-      call fv_dry_conv( isd, ied, jsd, jed, isc, iec, jsc, jec, Atm(n)%npz, &
+      call fv_subgrid_z(isd, ied, jsd, jed, isc, iec, jsc, jec, Atm(n)%npz, &
                         nt_dyn, dt_atmos, Atm(n)%flagstruct%fv_sg_adj,      &
                         Atm(n)%flagstruct%nwat, Atm(n)%delp, Atm(n)%pe,     &
                         Atm(n)%peln, Atm(n)%pkz, Atm(n)%pt, Atm(n)%q,       &
@@ -669,6 +658,13 @@ contains
 #endif
 
    call nullify_domain ( )
+   if (first_diag) then
+      call timing_on('FV_DIAG')
+      call fv_diag(Atm(mytile:mytile), zvir, fv_time, Atm(mytile)%flagstruct%print_freq)
+      first_diag = .false.
+      call timing_off('FV_DIAG')
+   endif
+
    call fv_end(Atm, grids_on_this_pe)
    deallocate (Atm)
 
@@ -1031,14 +1027,12 @@ contains
 
 !--- nesting update after updating atmospheric variables with
 !--- physics tendencies
-#ifndef TWOWAY_UPDATE_BEFORE_PHYSICS
-       call timing_on('TWOWAY_UPDATE')
     if (ngrids > 1) then
+       call timing_on('TWOWAY_UPDATE')
        call twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt_atmos)
-    endif   
        call timing_off('TWOWAY_UPDATE')
+    endif   
    call nullify_domain()
-#endif
 
   !---- diagnostics for FV dynamics -----
    call mpp_clock_begin(id_fv_diag)
@@ -1055,6 +1049,7 @@ contains
    call nullify_domain()
    call timing_on('FV_DIAG')
    call fv_diag(Atm(mytile:mytile), zvir, fv_time, Atm(mytile)%flagstruct%print_freq)
+   first_diag = .false.
    call timing_off('FV_DIAG')
 
    call mpp_clock_end(id_fv_diag)
@@ -1148,6 +1143,9 @@ contains
      allocate ( t0(isc:iec,jsc:jec, npz) )
      allocate (dp0(isc:iec,jsc:jec, npz) )
 
+     call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
+                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
 !$omp parallel do default(shared)
        do k=1,npz
           do j=jsc,jec+1
@@ -1162,7 +1160,8 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))  ! virt T
+!               t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))  ! virt T
+                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))
                dp0(i,j,k) = Atm(n)%delp(i,j,k)
              enddo
           enddo
@@ -1214,7 +1213,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
+!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1223,6 +1222,14 @@ contains
      call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
                 Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+zvir*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+             enddo
+          enddo
+       enddo
 
 ! Backward
     call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, -dt_atmos, 0.,      &
@@ -1269,7 +1276,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
+!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -1278,6 +1285,14 @@ contains
      call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
                 Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+zvir*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+             enddo
+          enddo
+       enddo
 
      enddo
 
@@ -1364,7 +1379,7 @@ contains
    real :: rTv
 
    logical :: use_hydro_pressure = .false.
-   logical :: diag_sounding = .true.
+   logical :: diag_sounding = .false.
 
 ! (1/1.e5)**kappa; ie. the missing part of the (dry) T to pt conversion
    pk0inv = (1.0_kind_phys/100000._kind_phys**kappa) 
@@ -1472,29 +1487,28 @@ contains
 #endif
 
            !--  level interface geopotential
-           if (Atm(mytile)%flagstruct%hydrostatic) then
-              !Layer MEAN geopotential
-              !LMH  hydrostatic
-              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
-                    rTv * ( Atm(mytile)%peln(i,k2,j) - Atm(mytile)%peln(i,k1,j)  )
+           if (Atm(mytile)%flagstruct%gfs_phil) then
+              !  allow GFS physics to calculate geopotential (hydrostatic assumption)
+              Statein(nb)%phii(ix,k+1) = 0.0
            else
-              !  non-hydrostatic 
-              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,k1)*grav
+              if (Atm(mytile)%flagstruct%hydrostatic) then
+                 !Layer MEAN geopotential
+                 !LMH  hydrostatic
+                 Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) + &
+                      rTv * ( Atm(mytile)%peln(i,k2,j) - Atm(mytile)%peln(i,k1,j)  )
+              else
+                 !  non-hydrostatic 
+                 Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,k1)*grav
+              endif
            endif
          enddo
        enddo
      enddo
 
      do k = 1, npz
-
        !--  layer mean geopotential
-       if (Atm(mytile)%flagstruct%gfs_phil) then
-         !  allow GFS physics to calculate geopotential (hydrostatic assumption)
-         Statein(nb)%phil(:,k) = 0.0
-       else
-          !geometric midpoint (possibly inaccurate, but requires no assumptions on T or of hydrostaticity)
-          Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
-       endif
+        !geometric midpoint (possibly inaccurate, but requires no assumptions on T or of hydrostaticity)
+        Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
      enddo
 
 !!! DEBUG CODE

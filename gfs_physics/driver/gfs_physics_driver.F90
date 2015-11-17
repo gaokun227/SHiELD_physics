@@ -231,7 +231,7 @@ module gfs_physics_driver_mod
 
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
-                              ozcalc,cdmbgwd,fdiag,fhzero
+                              ozcalc,cdmbgwd,fdiag,fhzero,prslrd0
 !-----------------------------------------------------------------------
 
   CONTAINS

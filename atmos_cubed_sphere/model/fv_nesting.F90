@@ -459,8 +459,12 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q_BC(ice_wat)%west_t1(i,j,k)
 #else
+#ifdef USE_NWAT2
+         q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k)
+#else
          q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q_BC(ice_wat)%west_t1(i,j,k) + &
               q_BC(rainwat)%west_t1(i,j,k) + q_BC(snowwat)%west_t1(i,j,k) + q_BC(graupel)%west_t1(i,j,k)
+#endif
 #endif
       end do
       end do
@@ -485,8 +489,12 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q_BC(ice_wat)%south_t1(i,j,k)
 #else
+#ifdef USE_NWAT2
+         q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k)
+#else
          q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q_BC(ice_wat)%south_t1(i,j,k) + &
               q_BC(rainwat)%south_t1(i,j,k) + q_BC(snowwat)%south_t1(i,j,k) + q_BC(graupel)%south_t1(i,j,k)
+#endif
 #endif
       end do
       end do
@@ -501,8 +509,12 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q_BC(ice_wat)%east_t1(i,j,k)
 #else
+#ifdef USE_NWAT2
+         q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k)
+#else
          q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q_BC(ice_wat)%east_t1(i,j,k) + &
               q_BC(rainwat)%east_t1(i,j,k) + q_BC(snowwat)%east_t1(i,j,k) + q_BC(graupel)%east_t1(i,j,k)
+#endif
 #endif
       end do
       end do
@@ -527,8 +539,12 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q_BC(ice_wat)%north_t1(i,j,k)
 #else
+#ifdef USE_NWAT2
+         q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k)
+#else
          q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q_BC(ice_wat)%north_t1(i,j,k) + &
               q_BC(rainwat)%north_t1(i,j,k) + q_BC(snowwat)%north_t1(i,j,k) + q_BC(graupel)%north_t1(i,j,k)
+#endif
 #endif
       end do
       end do
@@ -1259,7 +1275,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
    call compute_total_energy(is, ie, js, je, isd, ied, jsd, jed, npz,  &
         u, v, w, delz, pt, delp, q, dp1_coarse, pe, &
         peln, phis, gridstruct%rsin2, gridstruct%cosa_s, zvir, cp_air,  rg, hlv, te_2d_coarse, &
-        ua, va, teq, flagstruct%moist_phys, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, flagstruct%hydrostatic,idiag%id_te)
+        ua, va, teq, flagstruct%moist_phys, flagstruct%nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, flagstruct%hydrostatic,idiag%id_te)
 
 #endif
 
@@ -1391,7 +1407,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
    call compute_total_energy(is, ie, js, je, isd, ied, jsd, jed, npz,  &
         u, v, w, delz, pt, delp, q, dp1_coarse, pe, &
         peln, phis, gridstruct%rsin2, gridstruct%cosa_s, zvir, cp_air,  rg, hlv, te_2d_coarse_after, &
-        ua, va, teq, flagstruct%moist_phys,  sphum, liq_wat, rainwat, ice_wat, snowwat, graupel,flagstruct%hydrostatic,idiag%id_te)
+        ua, va, teq, flagstruct%moist_phys, flagstruct%nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel,flagstruct%hydrostatic,idiag%id_te)
 
    te_2d_coarse = te_2d_coarse - te_2d_coarse_after
    tpe = g_sum(domain, te_2d_coarse, is, ie, js, je, ng, gridstruct%area_64, 0)

@@ -12,7 +12,7 @@ module fv_sg_mod
 implicit none
 private
 
-public  fv_dry_conv, qsmith, neg_adj3
+public  fv_subgrid_z, qsmith, neg_adj3
 
   real, parameter:: esl = 0.621971831
   real, parameter:: tice = 273.16
@@ -45,7 +45,7 @@ public  fv_dry_conv, qsmith, neg_adj3
 
 contains
 
- subroutine fv_dry_conv( isd, ied, jsd, jed, is, ie, js, je, km, nq, dt,    &
+ subroutine fv_subgrid_z( isd, ied, jsd, jed, is, ie, js, je, km, nq, dt,    &
                          tau, nwat, delp, pe, peln, pkz, ta, qa, ua, va,  &
                          hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt )
 ! Dry convective adjustment-mixing
@@ -91,24 +91,19 @@ contains
       rdt = 1./ dt
       im = ie-is+1
 
+      sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
       if ( nwat == 0 ) then
          xvir = 0.
          rz = 0.
       else
          xvir = zvir
          rz = rvgas - rdgas          ! rz = zvir * rdgas
-      endif
-      sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-      if ( nwat > 2 ) then
          liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
          ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+         rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+         snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+         graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
          cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
-
-         if ( nwat==6 ) then
-            rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
-            snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-            graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
-         endif
       endif
 
 !------------------------------------------------------------------------
@@ -171,12 +166,24 @@ contains
              cpm(i) = (1.-q0(i,k,sphum))*cp_air + q0(i,k,sphum)*cp_vapor
              cvm(i) = (1.-q0(i,k,sphum))*cv_air + q0(i,k,sphum)*cv_vap
           enddo
+       elseif ( nwat==2 ) then   ! GFS
+          do i=is,ie
+             q_sol = q0(i,k,liq_wat)
+             cpm(i) = (1.-(q0(i,k,sphum)+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_sol*c_ice
+             cvm(i) = (1.-(q0(i,k,sphum)+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_sol*c_ice
+          enddo
        elseif ( nwat==3 ) then
           do i=is,ie
              q_liq = q0(i,k,liq_wat) 
              q_sol = q0(i,k,ice_wat)
              cpm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
              cvm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
+          enddo
+       elseif ( nwat==4 ) then
+          do i=is,ie
+             q_liq = q0(i,k,liq_wat) + q0(i,k,rainwat)
+             cpm(i) = (1.-(q0(i,k,sphum)+q_liq))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq
+             cvm(i) = (1.-(q0(i,k,sphum)+q_liq))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq
           enddo
        else
           do i=is,ie
@@ -186,6 +193,7 @@ contains
              cvm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
           enddo
        endif
+
           do i=is,ie
            den(i,k) = -delp(i,j,k)/(grav*delz(i,j,k))
              w0(i,k) = w(i,j,k)
@@ -213,16 +221,28 @@ contains
       enddo
 
 ! Compute total condensate
-   if ( nq .le. 3 .or. nwat<2 ) then
+   if ( nwat<2 ) then
       do k=1,km
          do i=is,ie
             qcon(i,k) = 0.
          enddo
       enddo
-   elseif ( nq .le. 5 ) then
+   elseif ( nwat==2 ) then   ! GFS_2015
+      do k=1,km
+         do i=is,ie
+            qcon(i,k) = q0(i,k,liq_wat)
+         enddo
+      enddo
+   elseif ( nwat==3 ) then
       do k=1,km
          do i=is,ie
             qcon(i,k) = q0(i,k,liq_wat) + q0(i,k,ice_wat)
+         enddo
+      enddo
+   elseif ( nwat==4 ) then
+      do k=1,km
+         do i=is,ie
+            qcon(i,k) = q0(i,k,liq_wat) + q0(i,k,rainwat)
          enddo
       enddo
    else
@@ -266,10 +286,14 @@ contains
                     q0(i,k  ,iq) = q0(i,k  ,iq) - h0/delp(i,j,k  )
                  enddo
 ! Recompute qcon
-                 if ( nq .le. 3 .or. nwat<2 ) then
+                 if ( nwat<2 ) then
                     qcon(i,km1) = 0.
-                 elseif ( nq .le. 5 ) then
+                 elseif ( nwat==2 ) then  ! GFS_2015
+                    qcon(i,km1) = q0(i,km1,liq_wat)
+                 elseif ( nwat==3 ) then  ! AM3/AM4
                     qcon(i,km1) = q0(i,km1,liq_wat) + q0(i,km1,ice_wat)
+                 elseif ( nwat==4 ) then  ! K_warm_rain scheme with fake ice
+                    qcon(i,km1) = q0(i,km1,liq_wat) + q0(i,km1,rainwat)
                  else
                     qcon(i,km1) = q0(i,km1,liq_wat) + q0(i,km1,ice_wat) +                  &
                                   q0(i,km1,snowwat) + q0(i,km1,rainwat) + q0(i,km1,graupel)
@@ -330,12 +354,24 @@ contains
                cpm(i) = (1.-q0(i,kk,sphum))*cp_air + q0(i,kk,sphum)*cp_vapor
                cvm(i) = (1.-q0(i,kk,sphum))*cv_air + q0(i,kk,sphum)*cv_vap
             enddo
+           elseif ( nwat == 2 ) then
+            do i=is,ie
+               q_sol = q0(i,k,liq_wat)
+               cpm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_sol*c_ice
+               cvm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_sol*c_ice
+            enddo
            elseif ( nwat == 3 ) then
             do i=is,ie
                q_liq = q0(i,kk,liq_wat)
                q_sol = q0(i,kk,ice_wat)
                cpm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
                cvm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
+            enddo
+           elseif ( nwat == 4 ) then
+            do i=is,ie
+               q_liq = q0(i,kk,liq_wat) + q0(i,kk,rainwat)
+               cpm(i) = (1.-(q0(i,kk,sphum)+q_liq))*cp_air + q0(i,kk,sphum)*cp_vapor + q_liq*c_liq
+               cvm(i) = (1.-(q0(i,kk,sphum)+q_liq))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq
             enddo
            else
             do i=is,ie
@@ -345,6 +381,7 @@ contains
                cvm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
             enddo
            endif
+
      
             do i=is,ie
                tv = gz(i,kk) + 0.5*(u0(i,kk)**2+v0(i,kk)**2+w0(i,kk)**2)
@@ -386,7 +423,7 @@ contains
 !----------------------
 ! Saturation adjustment
 !----------------------
-#ifndef HIWPP
+#ifdef NON_GFS
   if ( nwat > 5 ) then
     do k=1, km
       if ( hydrostatic ) then
@@ -462,8 +499,7 @@ contains
 1000 continue
 
 
- end subroutine fv_dry_conv
-
+ end subroutine fv_subgrid_z
 
 
 

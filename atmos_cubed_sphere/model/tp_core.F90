@@ -482,7 +482,6 @@ contains
 
  end subroutine ytp
 
-
  subroutine xppm0(flux, q, c, iord, ifirst, ilast, jfirst, jlast, npx, npy, bd, dxa, nested, grid_type)
  type(fv_grid_bounds_type), intent(IN) :: bd
  integer, INTENT(IN) :: ifirst, ilast               !  X-Dir strip
@@ -506,6 +505,7 @@ contains
  integer i, j, ie3, is1, ie1
  real xt, pmp_1, lac_1, pmp_2, lac_2
 
+
  if ( .not. nested .and. grid_type<3 ) then
     is1 = max(3,is-1);  ie3 = min(npx-2,ie+2)
                         ie1 = min(npx-3,ie+1)
@@ -521,6 +521,7 @@ contains
     enddo
 
   if ( abs(iord) < 8 ) then
+
 ! ord = -4: linear ppm scheme
 ! ord = -5: quasi-linear PPM with interior 2-delta limiter
 ! ord = -6: quasi-linear PPM with external 2-delta limiter
@@ -529,7 +530,6 @@ contains
    do i=is1, ie3
       al(i) = p1*(q1(i-1)+q1(i)) + p2*(q1(i-2)+q1(i+1))
    enddo
-
    if ( .not. nested .and. grid_type<3 ) then
      if ( is==1 ) then
        al(0) = c1*q1(-2) + c2*q1(-1) + c3*q1(0)
@@ -572,17 +572,17 @@ contains
       goto 666
    else
 ! iord = -5, -6, -7
-     if ( iord == -5 ) then
+   if ( iord==-5 ) then
 !DEC$ VECTOR ALWAYS
-       do i=ifirst-1, ilast+1
-          bl(i) = al(i)   - q1(i)
-          br(i) = al(i+1) - q1(i)
+      do i=ifirst-1,ilast+1
+         bl(i) = al(i)   - q1(i)
+         br(i) = al(i+1) - q1(i)
           if ( bl(i)*br(i) < 0. ) then
                extm(i) = .false.
-          else
+   else
                extm(i) = .true.
           endif
-       enddo
+      enddo
 !DEC$ VECTOR ALWAYS
        do i=ifirst,ilast+1
 !--- Slower on Theia --------------------------------
@@ -594,11 +594,11 @@ contains
 !!!            r1 = abs(c(i,j))
 !!!            flux(i,j) = xt + (1.-r1)*(al(i)-xt-r1*(bl(iu)+br(iu)))
 !!!       endif
-! The following is faster (Theia)
+! The following is faster (Theia) - because the branching statement is simpler?
           if ( c(i,j) > 0. ) then
                xt = q1(i-1)
                flux(i,j) = xt + (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
-          else
+   else
                xt = q1(i)
                flux(i,j) = xt + (1.+c(i,j))*(bl(i)+c(i,j)*(bl(i)+br(i)))
           endif
@@ -619,7 +619,7 @@ contains
        enddo
 !DEC$ VECTOR ALWAYS
        do i=ifirst-1,ilast+1
-          if ( extm(i-1) .and. extm(i) .and. extm(i+1) ) then
+          if ( extm(i-1).and.extm(i).and.extm(i+1) ) then
                bl(i) = 0.
                br(i) = 0.
           else
@@ -629,8 +629,8 @@ contains
        enddo
 ! Additional positive definite constraint:
        if(iord==-7) call pert_ppm(ilast-ifirst+3, q1(ifirst-1), bl(ifirst-1), br(ifirst-1), 0)
-     endif
    endif
+ endif
 
  else
 
@@ -657,8 +657,7 @@ contains
     elseif ( iord==-11 ) then
 ! This is emulation of 2nd van Leer scheme using PPM codes
        do i=is1, ie1
-!         xt = ppm_fac*dm(i)
-          xt = dm(i)
+          xt = ppm_fac*dm(i)
           bl(i) = -sign(min(abs(xt), abs(al(i  )-q1(i))), xt)
           br(i) =  sign(min(abs(xt), abs(al(i+1)-q1(i))), xt)
        enddo
@@ -719,13 +718,13 @@ contains
 
   endif
 
-    do i=ifirst,ilast+1
-       if( c(i,j)>0. ) then
-           flux(i,j) = q1(i-1) + (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
-       else
-           flux(i,j) = q1(i  ) + (1.+c(i,j))*(bl(i  )+c(i,j)*(bl(i  )+br(i  )))
-       endif
-    enddo
+  do i=ifirst,ilast+1
+     if( c(i,j)>0. ) then
+         flux(i,j) = q1(i-1) + (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
+     else
+         flux(i,j) = q1(i  ) + (1.+c(i,j))*(bl(i  )+c(i,j)*(bl(i  )+br(i  )))
+     endif
+  enddo
 
 666   continue
 

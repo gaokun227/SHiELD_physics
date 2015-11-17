@@ -117,7 +117,7 @@ contains
   real, dimension(is:ie,km+1):: ze1, ze2, pe1, pe2, pk1, pk2, pn2, phis
      real  pe0(is:ie+1,km+1)
      real  pe3(is:ie+1,km+1)
-     real   gz(is:ie), cvm(is:ie)
+     real, dimension(is:ie):: gz, cvm, qv
      real dz1(km)
      real rcp, rg, tmp, tpe, rgama, rrg, bkh, dtmp, dlnp, ztop, z_rat
      real k1k, kapag
@@ -154,7 +154,7 @@ contains
 !$OMP                                  delz,akap,pkz,te,rsin2,u,v,cosa_s,hybrid_z,ztop,ps, &
 !$OMP                                  ze0,ak,bk,nq,isd,ied,jsd,jed,kord_tr,fill,te_map,   &
 !$OMP                                  hs,w,ws,kord_wz,do_omega,omga,rrg,kord_mt,ua)    &
-!$OMP                          private(gz,cvm,dz1,z_rat,kp,k_next,bkh,deng,dp2,   &
+!$OMP                          private(qv,gz,cvm,dz1,z_rat,kp,k_next,bkh,deng,dp2,   &
 !$OMP                                  pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2,ze1,ze2)
   do 1000 j=js,je+1
 
@@ -171,10 +171,10 @@ contains
 
   if ( j /= (je+1) ) then
        if ( kord_tm < 0 ) then
-          if ( remap_t ) then
 ! Note: pt at this stage is cp*Theta_v
-! Transform virtual pt to virtual Temp
+          if ( remap_t ) then
              if ( hydrostatic ) then
+! Transform virtual pt to virtual Temp
              do k=1,km
                    do i=is,ie
                       pt(i,j,k) = pt(i,j,k) * (pk(i,j,k+1)-pk(i,j,k)) /  &
@@ -182,14 +182,26 @@ contains
                    enddo
              enddo
              else
+! Transform "density pt" to "density temp"
                do k=1,km
 #ifdef MOIST_CAPPA
-                  call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                                ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
+               if ( nwat==2 ) then
                   do i=is,ie
+                     q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
+                     qv(i) = max(0., q(i,j,k,sphum)) 
+                     cvm(i) = (1.-(qv(i)+q_con(i,j,k)))*cv_air+qv(i)*cv_vap+q_con(i,j,k)*c_ice
+                     cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*qv(i)) )
+                     pt(i,j,k) = rcp*pt(i,j,k)*exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  enddo
+               else
+                  call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
+                                ice_wat, snowwat, graupel, q, gz, cvm)
+                  do i=is,ie
+                     q_con(i,j,k) = gz(i)
                      cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*q(i,j,k,sphum)) )
                      pt(i,j,k) = rcp*pt(i,j,k)*exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
                   enddo
+               endif
 #else
                   do i=is,ie
                      pt(i,j,k) = rcp*pt(i,j,k)*exp(k1k*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
@@ -496,12 +508,23 @@ contains
 ! Note: pt at this stage is T_v or T_m
          do k=1,km
 #ifdef MOIST_CAPPA
+         if ( nwat==2 ) then
+            do i=is,ie
+               q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
+               qv(i) = max(0., q(i,j,k,sphum)) 
+               cvm(i) = (1.-(qv(i)+q_con(i,j,k)))*cv_air+qv(i)*cv_vap+q_con(i,j,k)*c_ice
+               cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*qv(i)) )
+               pkz(i,j,k) = exp(cappa(i,j,k)*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+            enddo
+         else
             call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                          ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
+                          ice_wat, snowwat, graupel, q, gz, cvm)
          do i=is,ie
+               q_con(i,j,k) = gz(i)
             cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*q(i,j,k,sphum)) )
             pkz(i,j,k) = exp(cappa(i,j,k)*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
          enddo
+         endif    ! nwat test
 #else
          do i=is,ie
             pkz(i,j,k) = exp(akap*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
@@ -620,7 +643,7 @@ endif
 !$OMP                               do_adiabatic_init,te_map,zsum1,zsum0,te0_2d,domain,   &
 !$OMP                               ng,gridstruct,E_Flux,pdt,dtmp,reproduce_sum,q, &
 !$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj)    &
-!$OMP                       private(pe0,pe1,pe2,pe3,cvm,gz,phis,tpe,tmp, dlnp,&
+!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dlnp,&
 !$OMP                               dpeln)
 if ( hybrid_z ) then
 !$OMP do
@@ -725,20 +748,33 @@ endif
               te_2d(i,j) = 0.
            enddo
            do k=1,km
-#ifdef USE_COND
-              call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                            ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
-#endif
+#ifdef MOIST_CAPPA
+           if ( nwat==2 ) then
               do i=is,ie
-#ifdef USE_COND
-                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cvm(i)*pt(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k))) + &
-#else
-                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cv_air*pt(i,j,k)/(1.+r_vir*q(i,j,k,sphum)) + &
-#endif
+                 qv(i) = max(0., q(i,j,k,sphum)) 
+                 gz(i) = max(0., q(i,j,k,liq_wat))
+                 cvm(i) = (1.-(qv(i)+gz(i)))*cv_air+qv(i)*cv_vap+gz(i)*c_ice
+              enddo
+           else
+              call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
+                            ice_wat, snowwat, graupel, q, gz, cvm)
+           endif
+              do i=is,ie
+! KE using 3D winds:
+              q_con(i,j,k) = gz(i)
+              te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cvm(i)*pt(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-gz(i))) + &
                               0.5*(phis(i,k)+phis(i,k+1) + w(i,j,k)**2 + 0.5*rsin2(i,j)*( &
                               u(i,j,k)**2+u(i,j+1,k)**2 + v(i,j,k)**2+v(i+1,j,k)**2 -  &
                              (u(i,j,k)+u(i,j+1,k))*(v(i,j,k)+v(i+1,j,k))*cosa_s(i,j))))
               enddo
+#else
+           do i=is,ie
+              te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cv_air*pt(i,j,k)/(1.+r_vir*q(i,j,k,sphum)) + &
+                          0.5*(phis(i,k)+phis(i,k+1) + w(i,j,k)**2 + 0.5*rsin2(i,j)*( &
+                           u(i,j,k)**2+u(i,j+1,k)**2 + v(i,j,k)**2+v(i+1,j,k)**2 -  &
+                          (u(i,j,k)+u(i,j+1,k))*(v(i,j,k)+v(i+1,j,k))*cosa_s(i,j))))
+           enddo
+#endif
            enddo
          endif
       else  ! .not. remap_t
@@ -776,14 +812,19 @@ endif
            enddo
            do k=1,km
 #ifdef USE_COND
+           if ( nwat==2 ) then
+              do i=is,ie
+                 q_con(i,j,k) = max(0.,q(i,j,k,liq_wat))
+              enddo
+           else
               call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                            ice_wat, snowwat, graupel, q, gz, cvm)
+                          ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
+           endif
 #endif
               do i=is,ie
 ! KE using 3D winds:
 #ifdef USE_COND
-                 q_con(i,j,k) = gz(i)
-                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(rgama*pt(i,j,k)*pkz(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-gz(i))) + &
+                 te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(rgama*pt(i,j,k)*pkz(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k))) + &
 #else
                  te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(rgama*pt(i,j,k)*pkz(i,j,k)/(1.+r_vir*q(i,j,k,sphum)) + &
 #endif
@@ -839,10 +880,14 @@ endif
 !$OMP do
       do k=1,km
          do j=js,je
-#ifdef USE_COND
+           if ( nwat==2 ) then
+              do i=is,ie
+                 q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
+              enddo
+           else
             call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
-#endif
+           endif
          enddo
       enddo
 #endif
@@ -924,6 +969,7 @@ endif
 #endif
         endif
         if ( last_step ) then
+             ! Output temperature if last_step
          if ( hydrostatic ) then
 !$OMP do
            do k=1,km
@@ -933,45 +979,44 @@ endif
                  enddo
               enddo
            enddo
-         else
+             else   ! non-hydrostatic
 !$OMP do
            do k=1,km
               do j=js,je
-#ifdef MOIST_CAPPA
+#ifdef USE_COND
+                       if ( nwat==2 ) then
+                         do i=is,ie
+                            gz(i) = max(0., q(i,j,k,liq_wat))
+                            qv(i) = max(0., q(i,j,k,sphum)) 
+                            cvm(i) = (1.-(qv(i)+gz(i)))*cv_air+qv(i)*cv_vap+gz(i)*c_ice
+                            pt(i,j,k) = (pt(i,j,k)+dtmp*cv_air/cvm(i)*pkz(i,j,k))/((1.+r_vir*qv(i))*(1.-gz(i)))
+                         enddo
+                       else
                  call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
                                ice_wat, snowwat, graupel, q, gz, cvm)
-#endif
                  do i=is,ie
-                    ! Output temperature if last_step
-#ifdef MOIST_CAPPA
            pt(i,j,k) = (pt(i,j,k)+dtmp*cv_air/cvm(i)*pkz(i,j,k))/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k)))
-!          pt(i,j,k) = (pt(i,j,k)+dtmp*pkz(i,j,k))/((1.+r_vir*q(i,j,k,sphum))*(1.-q_con(i,j,k)))
+                         enddo
+                       endif
 #else
+                       do i=is,ie
                     pt(i,j,k) = (pt(i,j,k)+dtmp*pkz(i,j,k))/(1.+r_vir*q(i,j,k,sphum))
+                       enddo
 #endif
                  enddo
               enddo
-           enddo
          endif
-        else
+        else       ! remap_t, but not last_step; simplified (ignored moist effect) form used here (not exact anyway)
 !$OMP do
            do k=1,km
               do j=js,je
-#ifdef MOIST_CAPPA
-                 call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                               ice_wat, snowwat, graupel, q, gz, cvm)
-                 do i=is,ie
-                    pt(i,j,k) = cp*(pt(i,j,k)/pkz(i,j,k) + dtmp*cv_air/cvm(i))
-                 enddo
-#else
                  do i=is,ie
                     pt(i,j,k) = cp*(pt(i,j,k)/pkz(i,j,k) + dtmp)
                  enddo
-#endif
               enddo
            enddo
         endif
-    else
+    else    ! not remap_t
 !$OMP do
         do k=1,km
            do j=js,je
@@ -3296,23 +3341,24 @@ endif
 
 
  subroutine moist_cv(is,ie, isd,ied, jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                     ice_wat, snowwat, graupel, q, qd, cvm, pt)
+                     ice_wat, snowwat, graupel, q, qd, cvm, t1)
   integer, intent(in):: is, ie, isd,ied, jsd,jed, km, nwat, j, k
   integer, intent(in):: sphum, liq_wat, rainwat, ice_wat, snowwat, graupel
   real, intent(in), dimension(isd:ied,jsd:jed,km,nwat):: q
   real, intent(out), dimension(is:ie):: cvm, qd
-  real, intent(in), optional:: pt(isd:ied,jsd:jed,km)
+  real, intent(in), optional:: t1(is:ie)
 !
   real, parameter:: tice = 273.16
   real, parameter:: t_i0 = 15.
-  real, dimension(is:ie):: qv, ql, qs, t1
+  real, dimension(is:ie):: qv, ql, qs
   integer:: i
 
-  if ( nwat==2 ) then   ! GFS physics
-     if ( present(pt) ) then  ! Special case for GFS physics
+  select case (nwat)
+
+   case(2)
+     if ( present(t1) ) then  ! Special case for GFS physics
         do i=is,ie
            qd(i) = max(0., q(i,j,k,liq_wat))
-           t1(i) = pt(i,j,k)
            if ( t1(i) > tice ) then
                 qs(i) = 0.
            elseif ( t1(i) < tice-t_i0 ) then
@@ -3325,15 +3371,15 @@ endif
            cvm(i) = (1.-(qv(i)+qd(i)))*cv_air + qv(i)*cv_vap + ql(i)*c_liq + qs(i)*c_ice
         enddo
      else
+! Treat the condensate as ice ice to lessen the differences
         do i=is,ie
            qv(i) = max(0.,q(i,j,k,sphum))
            qs(i) = max(0.,q(i,j,k,liq_wat))
            qd(i) = qs(i)
-! Assuming all ice to lessen the differences
            cvm(i) = (1.-(qv(i)+qs(i)))*cv_air + qv(i)*cv_vap + qs(i)*c_ice
         enddo
      endif
-  elseif ( nwat==3 ) then  ! AM2/AM3/AM4 physics
+  case (3)
      do i=is,ie
         qv(i) = q(i,j,k,sphum)
         ql(i) = q(i,j,k,liq_wat) 
@@ -3341,7 +3387,14 @@ endif
         qd(i) = ql(i) + qs(i)
         cvm(i) = (1.-(qv(i)+qd(i)))*cv_air + qv(i)*cv_vap + ql(i)*c_liq + qs(i)*c_ice
      enddo
-  elseif ( nwat==6 ) then  ! HiRAM
+  case(4)              ! K_warm_rain with fake ice
+     do i=is,ie 
+        qv(i) = q(i,j,k,sphum)
+        qd(i) = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
+        cvm(i) = (1.-(qv(i)+qd(i)))*cv_air + qv(i)*cv_vap + qd(i)*c_liq
+     enddo
+
+  case(6)
      do i=is,ie 
         qv(i) = q(i,j,k,sphum)
         ql(i) = q(i,j,k,liq_wat) + q(i,j,k,rainwat) 
@@ -3349,35 +3402,57 @@ endif
         qd(i) = ql(i) + qs(i)
         cvm(i) = (1.-(qv(i)+qd(i)))*cv_air + qv(i)*cv_vap + ql(i)*c_liq + qs(i)*c_ice
      enddo
-  else
+  case default
      do i=is,ie 
          qd(i) = 0.
         cvm(i) = cv_air
      enddo
-  endif
+ end select
 
  end subroutine moist_cv
 
  subroutine moist_cp(is,ie, isd,ied, jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                     ice_wat, snowwat, graupel, q, qd, cpm)
+                     ice_wat, snowwat, graupel, q, qd, cpm, t1)
 
   integer, intent(in):: is, ie, isd,ied, jsd,jed, km, nwat, j, k
   integer, intent(in):: sphum, liq_wat, rainwat, ice_wat, snowwat, graupel
   real, intent(in), dimension(isd:ied,jsd:jed,km,nwat):: q
   real, intent(out), dimension(is:ie):: cpm, qd
+  real, intent(in), optional:: t1(is:ie)
 !
+  real, parameter:: tice = 273.16
+  real, parameter:: t_i0 = 15.
   real, dimension(is:ie):: qv, ql, qs
   integer:: i
 
-  if ( nwat==2 ) then   ! GFS physics
+  select case (nwat)
+
+  case(2)
+     if ( present(t1) ) then  ! Special case for GFS physics
+        do i=is,ie
+           qd(i) = max(0., q(i,j,k,liq_wat))
+           if ( t1(i) > tice ) then
+                qs(i) = 0.
+           elseif ( t1(i) < tice-t_i0 ) then
+                qs(i) = qd(i)
+           else
+                qs(i) = qd(i)*(tice-t1(i))/t_i0
+           endif
+           ql(i) = qd(i) - qs(i)
+           qv(i) = max(0.,q(i,j,k,sphum))
+           cpm(i) = (1.-(qv(i)+qd(i)))*cp_air + qv(i)*cp_vapor + ql(i)*c_liq + qs(i)*c_ice
+        enddo
+     else
+! Treat the condensate as ice ice to lessen the differences
      do i=is,ie
         qv(i) = max(0.,q(i,j,k,sphum))
         qs(i) = max(0.,q(i,j,k,liq_wat))
         qd(i) = qs(i)
-! Assuming all ice to lessen the differences
         cpm(i) = (1.-(qv(i)+qs(i)))*cp_air + qv(i)*cp_vapor + qs(i)*c_ice
      enddo
-  elseif ( nwat==3 ) then  ! AM2/AM3/AM4 physics
+     endif
+
+  case(3)
      do i=is,ie
         qv(i) = q(i,j,k,sphum)
         ql(i) = q(i,j,k,liq_wat) 
@@ -3385,7 +3460,14 @@ endif
         qd(i) = ql(i) + qs(i)
         cpm(i) = (1.-(qv(i)+qd(i)))*cp_air + qv(i)*cp_vapor + ql(i)*c_liq + qs(i)*c_ice
      enddo
-  elseif ( nwat==6 ) then  ! HiRAM
+  case(4)    ! K_warm_rain scheme with fake ice
+     do i=is,ie
+        qv(i) = q(i,j,k,sphum)
+        qd(i) = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
+        cpm(i) = (1.-(qv(i)+qd(i)))*cp_air + qv(i)*cp_vapor + qd(i)*c_liq
+     enddo
+
+  case(6)
      do i=is,ie 
         qv(i) = q(i,j,k,sphum)
         ql(i) = q(i,j,k,liq_wat) + q(i,j,k,rainwat) 
@@ -3393,12 +3475,12 @@ endif
         qd(i) = ql(i) + qs(i)
         cpm(i) = (1.-(qv(i)+qd(i)))*cp_air + qv(i)*cp_vapor + ql(i)*c_liq + qs(i)*c_ice
      enddo
-  else
+  case default
      do i=is,ie 
         qd(i) = 0.
         cpm(i) = cp_air
      enddo
-  endif
+  end select
 
  end subroutine moist_cp
 

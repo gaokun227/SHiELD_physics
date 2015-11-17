@@ -258,6 +258,16 @@ module fv_update_phys_mod
               delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
            enddo
         enddo
+      elseif ( nwat==4 ) then
+! micro-physics with fake ice
+        do j=js,je
+           do i=is,ie
+              ps_dt(i,j)  = 1. + dt * ( q_dt(i,j,k,sphum  ) +    &
+                                        q_dt(i,j,k,liq_wat) +    &
+                                        q_dt(i,j,k,rainwat) )
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
       elseif( nwat==3 ) then
 ! GFDL AM2/3 phys (cloud water + cloud ice)
         do j=js,je
@@ -303,29 +313,21 @@ module fv_update_phys_mod
 
       if ( hydrostatic ) then
          do j=js,je
-#ifdef USE_COND
-            call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                          ice_wat, snowwat, graupel, q, qc, cvm)
-            do i=is,ie
-                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
-            enddo
-#else
             do i=is,ie
                 pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
             enddo
-#endif
           enddo
        else
          if ( flagstruct%phys_hydrostatic ) then
 ! Constant pressure
              do j=js,je
-#ifdef USE_COND
+#ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
                               ice_wat, snowwat, graupel, q, qc, cvm)
 #endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
-#ifdef USE_COND
+#ifdef MOIST_CAPPA
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
@@ -343,12 +345,12 @@ module fv_update_phys_mod
                enddo
             else
                do j=js,je
-#ifdef USE_COND
+#ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
                                 ice_wat, snowwat, graupel,  q, qc, cvm)
 #endif
                   do i=is,ie
-#ifdef USE_COND
+#ifdef MOIST_CAPPA
                      pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cv_air

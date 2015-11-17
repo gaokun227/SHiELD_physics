@@ -1124,6 +1124,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz) then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)
@@ -1232,6 +1233,7 @@
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz)  then
        nbad = nbad+1
+       print*, i,j,k,temp(i,j,k)
      else
        del = tmp-dtres*real(ind)
        esat(i,j,k) = TABLE(ind+1) + &
@@ -1259,6 +1261,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz)  then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)
@@ -1414,6 +1417,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz) then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)
@@ -1521,6 +1525,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz)  then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)
@@ -1549,6 +1554,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz)  then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)
@@ -1706,6 +1712,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz) then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)
@@ -1814,6 +1821,7 @@
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz)  then
        nbad = nbad+1
+       print*, i,j,k,temp(i,j,k)
      else
        del = tmp-dtres*real(ind)
        esat(i,j,k) = TABLE3(ind+1) + &
@@ -1841,6 +1849,7 @@
      tmp = temp(i,j,k)-tminl
      ind = int(dtinvl*(tmp+tepsl))
      if (ind < 0 .or. ind >= table_siz)  then
+       print*, i,j,k,temp(i,j,k)
        nbad = nbad+1
      else
        del = tmp-dtres*real(ind)

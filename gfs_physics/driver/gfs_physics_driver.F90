@@ -2466,6 +2466,7 @@ module gfs_physics_driver_mod
            enddo
            !--- dq3dt variables
            do num = 1,5+Mdl_parms%pl_coeff
+             write(xtra,'(i1)') num
              if (Diag(idx)%name == 'dq3dt_'//trim(xtra)) then
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dq3dt(1:ngptc,levs:1-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time,    &
@@ -2475,6 +2476,7 @@ module gfs_physics_driver_mod
            enddo
            !--- du3dt and dv3dt variables
            do num = 1,4
+             write(xtra,'(i1)') num
              if (Diag(idx)%name == 'du3dt_'//trim(xtra)) then
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%du3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time,    &

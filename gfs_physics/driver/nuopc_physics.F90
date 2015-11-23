@@ -2687,6 +2687,10 @@
 ! In/Out
                     diags%fluxr)
 
+         intrfc_fld%sfcnsw(:) = intrfc_fld%sfcfsw(:)%dnfxc - intrfc_fld%sfcfsw(:)%upfxc
+         intrfc_fld%sfcdsw(:) = intrfc_fld%sfcfsw(:)%dnfxc
+         intrfc_fld%sfcdlw(:) = intrfc_fld%sfcflw(:)%dnfxc
+
          call dbgprint("leaving nuopc_rad_run")
 
        end subroutine
@@ -2715,9 +2719,6 @@
 
          if (mdl%me .eq. 1) call dbgprint("entering nuopc_phys_run")
 
-         intr%sfcnsw(:) = intr%sfcfsw(:)%dnfxc - intr%sfcfsw(:)%upfxc
-         intr%sfcdsw(:) = intr%sfcfsw(:)%dnfxc
-         intr%sfcdlw(:) = intr%sfcflw(:)%dnfxc
          rad%dtdtr(:,:) = 0.0
          rad%rqtk(:)    = 0.0
 

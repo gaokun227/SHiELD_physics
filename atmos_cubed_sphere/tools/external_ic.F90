@@ -568,8 +568,8 @@ contains
       logical :: ncep_plevels = .false.
       logical :: gfs_dwinds = .false.
       integer :: levp = 64
-      real, dimension(2):: p1, p2, p3
-      real, dimension(3):: e1, e2, ex, ey
+      real(kind=R_GRID), dimension(2):: p1, p2, p3
+      real(kind=R_GRID), dimension(3):: e1, e2, ex, ey
       integer:: i,j,k
       namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds
 ! Thfollowing L63 setting is the same as NCEP GFS's L64 except the top layer

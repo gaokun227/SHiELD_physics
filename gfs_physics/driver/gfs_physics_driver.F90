@@ -681,7 +681,7 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
-    if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lsswr) then
+    if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lslwr) then
 
 !--- call the nuopc radiation routine for time-varying data ---
       do nb = 1, Atm_block%nblks

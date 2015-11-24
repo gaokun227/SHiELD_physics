@@ -1340,7 +1340,7 @@
          this%sbsnoa  = zero
          this%snowca  = zero
          this%soilm   = zero
-         this%tmpmin  = zero
+         this%tmpmin  = 1.E4
          this%tmpmax  = zero
          this%dusfc   = zero
          this%dvsfc   = zero
@@ -1358,7 +1358,7 @@
          this%dvgwd   = zero
          this%psmean  = zero
          this%cnvprcp = zero
-         this%spfhmin = zero
+         this%spfhmin = 1.E10
          this%spfhmax = zero
          this%rain    = zero
          this%rainc   = zero
@@ -2687,10 +2687,6 @@
 ! In/Out
                     diags%fluxr)
 
-         intrfc_fld%sfcnsw(:) = intrfc_fld%sfcfsw(:)%dnfxc - intrfc_fld%sfcfsw(:)%upfxc
-         intrfc_fld%sfcdsw(:) = intrfc_fld%sfcfsw(:)%dnfxc
-         intrfc_fld%sfcdlw(:) = intrfc_fld%sfcflw(:)%dnfxc
-
          call dbgprint("leaving nuopc_rad_run")
 
        end subroutine
@@ -2719,6 +2715,9 @@
 
          if (mdl%me .eq. 1) call dbgprint("entering nuopc_phys_run")
 
+         intr%sfcnsw(:) = intr%sfcfsw(:)%dnfxc - intr%sfcfsw(:)%upfxc
+         intr%sfcdsw(:) = intr%sfcfsw(:)%dnfxc
+         intr%sfcdlw(:) = intr%sfcflw(:)%dnfxc
          rad%dtdtr(:,:) = 0.0
          rad%rqtk(:)    = 0.0
 

@@ -585,7 +585,7 @@
      &      uustar
 
       real(kind=kind_phys), dimension(ix,levs),       intent(in) ::     &
-     &   ugrs, vgrs, tgrs, vvel, prsl, prslk, phil, swh, swhc, hlw, hlwc
+     &   ugrs, vgrs, tgrs, vvel, prsl, prslk, swh, swhc, hlw, hlwc
 
 !idea add by hmhj
       real(kind=kind_phys), intent(in) ::  hlwd(ix,levs,6)
@@ -593,7 +593,10 @@
       real(kind=kind_phys), intent(inout) ::  qgrs(ix,levs,ntrac)
 
       real(kind=kind_phys), dimension(ix,levs+1),     intent(in) ::     &
-     &      prsi, prsik, phii
+     &      prsi, prsik
+! SJL: bugs with original code; phii and phil are modified (or computed) inside
+      real(kind=kind_phys), dimension(ix,levs+1), intent(inout):: phii
+      real(kind=kind_phys), dimension(ix,levs  ), intent(inout):: phil
 
       real(kind=kind_phys), intent(in) ::  hprime(ix,nmtvr),            &
      &      prdout(ix,ko3,pl_coeff),       rann(ix,nrcm), poz(ko3)
@@ -744,6 +747,12 @@
 !     parameter (tf=233.16, tcr=263.16, tcrf=1.0/(tcr-tf))
       parameter (tf=258.16, tcr=273.16, tcrf=1.0/(tcr-tf))
 !
+#ifndef GFS_HYDRO
+! *** GFDL modification by SJL ***
+      real:: del_gz(im,levs+1)
+      real (kind=kind_phys), parameter :: zero = 0.0
+      real (kind=kind_phys), parameter :: half = 0.5
+#endif
 !
 !===> ...  begin here
 !
@@ -885,13 +894,26 @@
         enddo
       endif
 !
+#ifdef GFS_HYDRO
       calc_phil = .false.
       if (phil(1,levs) == 0.0) calc_phil = .true.
       call get_prs(im,ix,levs,ntrac,tgrs,qgrs,                          &
      &             thermodyn_id, sfcpress_id,                           &
      &             gen_coord_hybrid,                                    &
      &             prsi,prsik,prsl,prslk,phii,phil,del)
-!    &             prsi,prsik,prsl,prslk,phii,phil,del,lprnt)
+#else
+! *** GFDL modification by SJL ***
+! SJL: Adjust the geopotential height hydrostatically in a way consistent with FV3 discretization
+! del_gz is a temp array recording the old info before (t,q) are adjusted
+      do k=1,levs
+         do i=1,im
+               del(i,k) = prsi(i,k) - prsi(i,k+1)
+            del_gz(i,k) = (phii(i,k+1) - phii(i,k)) /                    &
+     &                  (tgrs(i,k)*(1.+con_fvirt*max(zero,qgrs(i,k,1))))
+         enddo
+      enddo
+      calc_phil = .true.
+#endif
 !
 !     if (lprnt) then
 !       write(0,*)' prsi=',prsi(ipr,:)
@@ -1890,12 +1912,27 @@
         enddo
       endif   ! end if_ldiag3d/lgocart
 
+#ifdef GFS_HYDRO
       if (calc_phil) then
         call get_phi(im,ix,levs,ntrac,gt0,gq0,                            &
      &               thermodyn_id, sfcpress_id,                           &
      &               gen_coord_hybrid,                                    &
      &               prsi,prsik,prsl,prslk,phii,phil)
       endif
+#else
+! SJL: Adjust the heighz hydrostatically in a way consistent with FV3 discretization
+      do i=1,im
+         phii(i,1) = zero
+      enddo
+      do k=1,levs
+         do i=1,im
+            del_gz(i,k) = del_gz(i,k)*gt0(i,k) *                          &
+     &                    (1.+con_fvirt*max(zero,gq0(i,k,1)))
+            phii(i,k+1) = phii(i,k) + del_gz(i,k)
+            phil(i,k)   = half*(phii(i,k) + phii(i,k+1))
+         enddo
+      enddo
+#endif
 
 !     if (lprnt) then
 !       print *,' phii2=',phii(ipr,:)

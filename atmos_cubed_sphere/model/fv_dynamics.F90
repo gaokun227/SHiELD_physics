@@ -155,6 +155,7 @@ contains
       k_split = flagstruct%k_split
       nwat = flagstruct%nwat
       nq = nq_tot - flagstruct%dnats
+      rdg = -rdgas * agrav
       allocate ( dp1(isd:ied, jsd:jed, 1:npz) )
       
       
@@ -167,7 +168,6 @@ contains
 #endif
       if ( flagstruct%no_dycore ) then
          if ( nwat.eq.2 .and. (.not.hydrostatic) ) then
-            rdg = -rdgas * agrav
             sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
          endif
          goto 911
@@ -217,28 +217,23 @@ contains
          enddo
       enddo
     else
-       rdg = -rdgas * agrav
 !$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,dp1,zvir,q,q_con,sphum,liq_wat, &
 !$OMP                                  rainwat,ice_wat,snowwat,graupel,pkz,     & 
 !$OMP                                  cappa,kappa,rdg,delp,pt,delz,nwat)              &
 !$OMP                          private(cvm)
        do k=1,npz
           do j=js,je
-#ifdef USE_COND
+#ifdef MOIST_CAPPA
              call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
                            ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
 #endif
              do i=is,ie
                 dp1(i,j,k) = zvir*q(i,j,k,sphum)
-#ifdef USE_COND
 #ifdef MOIST_CAPPA
+! for GFS (nwat=2) compute cappa and freezing it for one time step
                cappa(i,j,k) = rdgas/(rdgas + cvm(i)/(1.+dp1(i,j,k)))
                pkz(i,j,k) = exp(cappa(i,j,k)*log(rdg*delp(i,j,k)*pt(i,j,k)*    &
                             (1.+dp1(i,j,k))*(1.-q_con(i,j,k))/delz(i,j,k)) )
-#else
-               pkz(i,j,k) = exp( kappa*log(rdg*delp(i,j,k)*pt(i,j,k)*    &
-                            (1.+dp1(i,j,k))*(1.-q_con(i,j,k))/delz(i,j,k)) )
-#endif
 #else
                pkz(i,j,k) = exp( kappa*log(rdg*delp(i,j,k)*pt(i,j,k)*    &
                             (1.+dp1(i,j,k))/delz(i,j,k)) )

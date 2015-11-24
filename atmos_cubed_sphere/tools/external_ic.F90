@@ -16,7 +16,7 @@ module external_ic_mod
    use mpp_mod,            only: mpp_error, FATAL, NOTE, mpp_pe
    use mpp_mod,            only: stdlog, input_nml_file
    use mpp_parameter_mod,  only: AGRID_PARAM=>AGRID
-   use mpp_domains_mod,    only: mpp_get_tile_id, domain2d, mpp_update_domains
+   use mpp_domains_mod,    only: mpp_get_tile_id, domain2d, mpp_update_domains, NORTH, EAST
    use tracer_manager_mod, only: get_tracer_names, get_number_tracers, get_tracer_index
    use tracer_manager_mod, only: set_tracer_profile
    use field_manager_mod,  only: MODEL_ATMOS
@@ -24,7 +24,7 @@ module external_ic_mod
    use constants_mod,     only: pi, omega, grav, kappa, rdgas, rvgas, cp_air
    use fv_arrays_mod,     only: fv_atmos_type, fv_grid_type, fv_grid_bounds_type, R_GRID
    use fv_diagnostics_mod,only: prt_maxmin
-   use fv_grid_utils_mod, only: ptop_min, g_sum
+   use fv_grid_utils_mod, only: ptop_min, g_sum,mid_pt_sphere,get_unit_vect2,get_latlon_vector,inner_prod
    use fv_io_mod,         only: fv_io_read_tracers 
    use fv_mapz_mod,       only: mappm
    use fv_mp_mod,         only: ng, is_master, fill_corners, YDir, mp_reduce_min, mp_reduce_max
@@ -547,6 +547,7 @@ contains
       real, dimension(:), allocatable:: ak, bk
       real, dimension(:,:), allocatable:: wk2, zs, ps
       real, dimension(:,:,:), allocatable:: dp, t, ua, va, omga
+      real, dimension(:,:,:), allocatable:: ud, vd, u_s, v_s, u_w, v_w
       real, dimension(:,:,:), allocatable:: zh(:,:,:)  ! 3D height at 65 edges
       real, dimension(:,:,:,:), allocatable:: q
       real rdg
@@ -565,9 +566,12 @@ contains
       logical :: filtered_terrain = .true.
       logical :: ncep_terrain = .false.
       logical :: ncep_plevels = .false.
+      logical :: gfs_dwinds = .false.
       integer :: levp = 64
-      namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp
-! This is activated by USE_GFSL63
+      real, dimension(2):: p1, p2, p3
+      real, dimension(3):: e1, e2, ex, ey
+      integer:: i,j,k
+      namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds
 ! Thfollowing L63 setting is the same as NCEP GFS's L64 except the top layer
       data ak_sj/64.248,      137.790,       221.958,      &
                 318.266,       428.434,       554.424,      &
@@ -715,6 +719,14 @@ contains
       allocate (va  (is:ie,js:je,levp))
       allocate (omga(is:ie,js:je,levp))
       allocate (q (is:ie,js:je,levp,ntracers))
+
+      if ( gfs_dwinds ) then
+          allocate ( u_w(is:ie+1, js:je, 1:levp) )
+          allocate ( v_w(is:ie+1, js:je, 1:levp) )
+          allocate ( u_s(is:ie, js:je+1, 1:levp) )
+          allocate ( v_s(is:ie, js:je+1, 1:levp) )
+      endif
+
       do n = 1,size(Atm(:))
 !--- read in surface temperature (k) and land-frac
         ! surface skin temperature
@@ -751,6 +763,17 @@ contains
 
         ! prognostic meridional wind (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v', va, domain=Atm(n)%domain)
+
+      if ( gfs_dwinds ) then
+        ! prognostic horizonal wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_s', u_s, domain=Atm(n)%domain,position=NORTH)
+        ! prognostic meridional wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_s', v_s, domain=Atm(n)%domain,position=NORTH)
+        ! prognostic horizonal wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_w', u_w, domain=Atm(n)%domain,position=EAST)
+        ! prognostic meridional wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_w', v_w, domain=Atm(n)%domain,position=EAST)
+      endif
 
         ! prognostic vertical velocity 'omga' (Pa/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
@@ -818,16 +841,52 @@ contains
             Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
             Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
           else
-            Atm(n)%ptop = ak_sj(1)
             Atm(n)%ak(:) = ak_sj(:)
             Atm(n)%bk(:) = bk_sj(:)
+            Atm(n)%ptop = Atm(n)%ak(1)
           endif
           ! call vertical remapping algorithms
           if(is_master())  write(*,*) 'GFS ak(1)=', ak(1), ' ak(2)=', ak(2)
           ak(1) = max(1.e-9, ak(1))
 
           call remap_scalar_nggps(Atm(n), levp, npz, ntracers, ak, bk, ps, q, omga, zh)
+
+       if ( gfs_dwinds ) then
+          allocate ( ud(is:ie,  js:je+1, 1:levp) )
+          allocate ( vd(is:ie+1,js:je,   1:levp) )
+          do k=1,levp
+             do j=js,je+1
+                do i=is,ie
+                   p1(:) = Atm(1)%gridstruct%grid(i,  j,1:2)
+                   p2(:) = Atm(1)%gridstruct%grid(i+1,j,1:2)
+                   call  mid_pt_sphere(p1, p2, p3)
+                   call get_unit_vect2(p1, p2, e1)
+                   call get_latlon_vector(p3, ex, ey)
+                   ud(i,j,k) = u_s(i,j,k)*inner_prod(e1,ex) + v_s(i,j,k)*inner_prod(e1,ey)
+                enddo
+             enddo
+             do j=js,je
+                do i=is,ie+1
+                   p1(:) = Atm(1)%gridstruct%grid(i,j  ,1:2)
+                   p2(:) = Atm(1)%gridstruct%grid(i,j+1,1:2)
+                   call  mid_pt_sphere(p1, p2, p3)
+                   call get_unit_vect2(p1, p2, e2)
+                   call get_latlon_vector(p3, ex, ey)
+                   vd(i,j,k) = u_w(i,j,k)*inner_prod(e2,ex) + v_w(i,j,k)*inner_prod(e2,ey)
+                enddo
+             enddo
+          enddo
+          deallocate ( u_w )
+          deallocate ( v_w )
+          deallocate ( u_s )
+          deallocate ( v_s )
+
+          call remap_dwinds(levp, npz, ak, bk, ps, ud, vd, Atm(n))
+          deallocate ( ud )
+          deallocate ( vd )
+       else
           call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
+       endif
 
         endif
       ! populate the haloes of Atm(:)%phis
@@ -1896,6 +1955,91 @@ contains
 
   end subroutine get_pt_wdz
 
+
+ subroutine remap_dwinds(km, npz, ak0, bk0, psc, ud, vd, Atm)
+  type(fv_atmos_type), intent(inout) :: Atm
+  integer, intent(in):: km, npz
+  real,    intent(in):: ak0(km+1), bk0(km+1)
+  real,    intent(in):: psc(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je)
+  real,    intent(in)::  ud(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je+1,km)
+  real,    intent(in)::  vd(Atm%bd%is:Atm%bd%ie+1,Atm%bd%js:Atm%bd%je,km)
+! local:
+  real, dimension(Atm%bd%isd:Atm%bd%ied,Atm%bd%jsd:Atm%bd%jed):: psd
+  real, dimension(Atm%bd%is:Atm%bd%ie+1, km+1):: pe0
+  real, dimension(Atm%bd%is:Atm%bd%ie+1,npz+1):: pe1
+  real, dimension(Atm%bd%is:Atm%bd%ie+1,npz):: qn1
+  integer i,j,k
+  integer :: is,  ie,  js,  je
+  integer :: isd, ied, jsd, jed
+
+  is  = Atm%bd%is
+  ie  = Atm%bd%ie
+  js  = Atm%bd%js
+  je  = Atm%bd%je
+  isd = Atm%bd%isd
+  ied = Atm%bd%ied
+  jsd = Atm%bd%jsd
+  jed = Atm%bd%jed
+
+  do j=js,je
+     do i=is,ie
+        psd(i,j) = psc(i,j)
+     enddo
+  enddo
+  call mpp_update_domains( psd,    Atm%domain, complete=.false. )
+  call mpp_update_domains( Atm%ps, Atm%domain, complete=.true. )
+
+  do 5000 j=js,je+1
+!------
+! map u
+!------
+     do k=1,km+1
+        do i=is,ie
+           pe0(i,k) = ak0(k) + bk0(k)*0.5*(psd(i,j-1)+psd(i,j))
+        enddo
+     enddo
+     do k=1,npz+1
+        do i=is,ie
+           pe1(i,k) = Atm%ak(k) + Atm%bk(k)*0.5*(Atm%ps(i,j-1)+Atm%ps(i,j))
+        enddo
+     enddo
+     call mappm(km, pe0(is:ie,1:km+1), ud(is:ie,j,1:km), npz, pe1(is:ie,1:npz+1),   &
+                qn1(is:ie,1:npz), is,ie, -1, 8, Atm%ptop)
+     do k=1,npz
+        do i=is,ie
+           Atm%u(i,j,k) = qn1(i,k)
+        enddo
+     enddo
+!------
+! map v
+!------
+     if ( j/=(je+1) ) then
+
+     do k=1,km+1
+        do i=is,ie+1
+           pe0(i,k) = ak0(k) + bk0(k)*0.5*(psd(i-1,j)+psd(i,j))
+        enddo
+     enddo
+     do k=1,npz+1
+        do i=is,ie+1
+           pe1(i,k) = Atm%ak(k) + Atm%bk(k)*0.5*(Atm%ps(i-1,j)+Atm%ps(i,j))
+        enddo
+     enddo
+     call mappm(km, pe0(is:ie+1,1:km+1), vd(is:ie+1,j,1:km), npz, pe1(is:ie+1,1:npz+1),  &
+                qn1(is:ie+1,1:npz), is,ie+1, -1, 8, Atm%ptop)
+     do k=1,npz
+        do i=is,ie+1
+           Atm%v(i,j,k) = qn1(i,k)
+        enddo
+     enddo
+
+     endif
+
+5000 continue
+
+  if (is_master()) write(*,*) 'done remap_dwinds'
+
+ end subroutine remap_dwinds
 
 
  subroutine remap_winds(im, jm, km, npz, ak0, bk0, psc, ua, va, Atm)

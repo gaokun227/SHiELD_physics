@@ -1340,7 +1340,7 @@
          this%sbsnoa  = zero
          this%snowca  = zero
          this%soilm   = zero
-         this%tmpmin  = zero
+         this%tmpmin  = 1.E4
          this%tmpmax  = zero
          this%dusfc   = zero
          this%dvsfc   = zero
@@ -1358,7 +1358,7 @@
          this%dvgwd   = zero
          this%psmean  = zero
          this%cnvprcp = zero
-         this%spfhmin = zero
+         this%spfhmin = 1.E10
          this%spfhmax = zero
          this%rain    = zero
          this%rainc   = zero

@@ -231,7 +231,7 @@ module gfs_physics_driver_mod
 
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
-                              ozcalc,cdmbgwd,fdiag,fhzero
+                              ozcalc,cdmbgwd,fdiag,fhzero,prslrd0
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -376,7 +376,7 @@ module gfs_physics_driver_mod
                           ! For radiation
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
                           iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
-                          sas_shal,crick_proof,ccnorm,norad_precip,jdate,iflip,dt_phys,unit)
+                          sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dt_phys,unit)
     call close_file (unit)
 
 !--- allocate and call the different storage items needed by GFS physics/radiation ---
@@ -681,7 +681,7 @@ module gfs_physics_driver_mod
 !   local variables
     integer :: nb
 
-    if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lsswr) then
+    if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lslwr) then
 
 !--- call the nuopc radiation routine for time-varying data ---
       do nb = 1, Atm_block%nblks
@@ -752,7 +752,9 @@ module gfs_physics_driver_mod
         if (mpp_pe() == mpp_root_pe().and.nb==1) write(6,*) 'DIAG STEP', fhour
         nx = Atm_block%ibe(nb) - Atm_block%ibs(nb) + 1
         ny = Atm_block%jbe(nb) - Atm_block%jbs(nb) + 1
-        call gfs_diag_output (Time_diag, Gfs_diags(nb), Atm_block, nb, nx, ny, levs)
+        call gfs_diag_output (Time_diag, Gfs_diags(nb), Statein(nb), Stateout(nb), &
+                              Atm_block, nb, nx, ny, levs,                         &
+                              Mdl_parms%ntcw, Mdl_parms%ntoz, Dyn_parms(nb)%dtp)
       endif
     enddo
 
@@ -2361,6 +2363,50 @@ module gfs_physics_driver_mod
       enddo
     enddo
 
+!--- prognostic variable tendencies (T, u, v, sph, clwmr, o3)
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'dtemp_dt'
+    Diag(idx)%desc = 'GFS radiation/physics temperature tendency'
+    Diag(idx)%unit = 'K/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'du_dt'
+    Diag(idx)%desc = 'GFS radiation/physics horizontal wind component tendency'
+    Diag(idx)%unit = 'm/s/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'dv_dt'
+    Diag(idx)%desc = 'GFS radiation/physics meridional wind component tendency'
+    Diag(idx)%unit = 'm/s/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'dsphum_dt'
+    Diag(idx)%desc = 'GFS radiation/physics specific humidity tendency'
+    Diag(idx)%unit = 'kg/kg/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'dclwmr_dt'
+    Diag(idx)%desc = 'GFS radiation/radiation cloud water mixing ratio tendency'
+    Diag(idx)%unit = 'kg/kg/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'do3mr_dt'
+    Diag(idx)%desc = 'GFS radiation/radiation ozone mixing ratio tendency'
+    Diag(idx)%unit = 'kg/kg/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+
+
     tot_diag_idx = idx
 
     if (idx > DIAG_SIZE) then
@@ -2384,15 +2430,19 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- gfs_diag_output ---
 !-------------------------------------------------------------------------      
-  subroutine gfs_diag_output(Time, Gfs_diags, Atm_block, nb, nx, ny, levs)
+  subroutine gfs_diag_output(Time, Gfs_diags, Statein, Stateout, Atm_block, &
+                             nb, nx, ny, levs, ntcw, ntoz, dt)
     type(time_type),           intent(in) :: Time
     type(diagnostics),         intent(in) :: Gfs_diags
+    type(state_fields_in),     intent(in) :: Statein
+    type(state_fields_out),    intent(in) :: Stateout
     type (block_control_type), intent(in) :: Atm_block
-    integer,                   intent(in) :: nb, nx, ny, levs
+    integer,                   intent(in) :: nb, nx, ny, levs, ntcw, ntoz
+    real(kind=kind_phys),      intent(in) :: dt
 !--- local variables
     integer ::  ngptc, idx, num
     character(len=2) :: xtra
-    real(kind=kind_phys), dimension(nx,ny,levs) :: var3 
+    real(kind=kind_phys), dimension(nx,ny,levs) :: var3
     logical :: used
 
      ngptc = nx*ny
@@ -2408,45 +2458,102 @@ module gfs_physics_driver_mod
            do num = 1,6
              write(xtra,'(i1)') num
              if (Diag(idx)%name == 'dt3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dt3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, &
-                              is_in=Diag(idx)%data(nb)%is,                 &
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time,    &
+                              is_in=Diag(idx)%data(nb)%is, &
                               js_in=Diag(idx)%data(nb)%js) 
              endif
            enddo
            !--- dq3dt variables
            do num = 1,5+Mdl_parms%pl_coeff
+             write(xtra,'(i1)') num
              if (Diag(idx)%name == 'dq3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dq3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, &
-                              is_in=Diag(idx)%data(nb)%is,                 &
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dq3dt(1:ngptc,levs:1-1,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time,    &
+                              is_in=Diag(idx)%data(nb)%is, &
                               js_in=Diag(idx)%data(nb)%js) 
              endif
            enddo
            !--- du3dt and dv3dt variables
            do num = 1,4
+             write(xtra,'(i1)') num
              if (Diag(idx)%name == 'du3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%du3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, &
-                              is_in=Diag(idx)%data(nb)%is,                 &
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%du3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time,    &
+                              is_in=Diag(idx)%data(nb)%is, &
                               js_in=Diag(idx)%data(nb)%js) 
              endif
              if (Diag(idx)%name == 'dv3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dv3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, &
-                              is_in=Diag(idx)%data(nb)%is,                 &
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dv3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
+               used=send_data(Diag(idx)%id, var3, Time,    &
+                              is_in=Diag(idx)%data(nb)%is, &
                               js_in=Diag(idx)%data(nb)%js) 
              endif
            enddo
            if (Diag(idx)%name == 'dqdt_v') then
-             var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dv3dt(1:ngptc,1:levs,num:num), (/nx,ny,levs/))
-             used=send_data(Diag(idx)%id, var3, Time, &
-                            is_in=Diag(idx)%data(nb)%is,                 &
+             var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dqdt_v(1:ngptc,levs:1:-1), (/nx,ny,levs/))
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+           !--- temperature tendency
+           if (Diag(idx)%name == 'dtemp_dt') then
+             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%tgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
+             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gt0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
+                                        - var3(1:nx,1:ny,1:levs))/dt
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+           !--- horizontal wind component tendency
+           if (Diag(idx)%name == 'du_dt') then
+             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%ugrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
+             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gu0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
+                                        - var3(1:nx,1:ny,1:levs))/dt
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+           !--- meridional wind component tendency
+           if (Diag(idx)%name == 'dv_dt') then
+             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%vgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
+             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gv0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
+                                        - var3(1:nx,1:ny,1:levs))/dt
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+           !--- specific humidity tendency
+           if (Diag(idx)%name == 'dsphum_dt') then
+             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))
+             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))  &
+                                        - var3(1:nx,1:ny,1:levs))/dt
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+           !--- cloud water mixing ration tendency
+           if (Diag(idx)%name == 'dclwmr_dt') then
+             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))
+             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))  &
+                                        - var3(1:nx,1:ny,1:levs))/dt
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
+                            js_in=Diag(idx)%data(nb)%js) 
+           endif
+           !--- ozone mixing ration tendency
+           if (Diag(idx)%name == 'do3mr_dt') then
+             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))
+             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))  &
+                                        - var3(1:nx,1:ny,1:levs))/dt
+             used=send_data(Diag(idx)%id, var3, Time,    &
+                            is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
            endif
          endif
        endif
      enddo
+
 
   end subroutine gfs_diag_output
 !-------------------------------------------------------------------------      

@@ -17,6 +17,7 @@ module fv_update_phys_mod
 
   use mpp_mod,             only: mpp_error, NOTE, WARNING
   use boundary_mod,        only: extrapolation_BC
+  use fv_mapz_mod,         only: moist_cv, moist_cp
 
 
 #if defined (ATMOS_NUDGE)
@@ -124,6 +125,7 @@ module fv_update_phys_mod
 
 ! Local arrays:
     real  ps_dt(is:ie,js:je)
+    real  cvm(is:ie), qc(is:ie)
     real  phalf(npz+1), pfull(npz)
 
     type(group_halo_update_type), save :: i_pack(2)
@@ -131,7 +133,7 @@ module fv_update_phys_mod
     integer  sphum, liq_wat, ice_wat, cld_amt   ! GFDL AM physics
     integer  rainwat, snowwat, graupel          ! Lin Micro-physics
     integer  w_diff                             ! w-tracer for PBL diffusion
-    real:: cvm, qstar, dbk, rdg, zvir, p_fac, cv_air, q_v, q_liq, q_sol, gama_dt
+    real:: qstar, dbk, rdg, zvir, p_fac, cv_air, gama_dt
 
     real, dimension(1,1,1) :: parent_u_dt, parent_v_dt ! dummy variables for nesting
 
@@ -139,30 +141,21 @@ module fv_update_phys_mod
 
     rdg = -rdgas / grav
 
-    sphum   = 1
     nwat = flagstruct%nwat
 
-    if ( moist_phys ) then
-        cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
+    if ( moist_phys .or. nwat/=0 ) then
            zvir = rvgas/rdgas - 1.
     else
-        cld_amt = 7
            zvir = 0.
     endif
 
-    if ( nwat>=3 ) then
-        sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
-        liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
-        ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
-    endif
-
-    if ( nwat==6 ) then
-! Micro-physics:
-        rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
-        snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-        graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
-!       if ( cld_amt<7 ) call mpp_error(FATAL,'Cloud Fraction allocation error') 
-    endif
+    sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
+    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+    ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+    rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+    snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+    graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+    cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
 
     if ( .not. hydrostatic ) then
         w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff')
@@ -192,8 +185,8 @@ module fv_update_phys_mod
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,flagstruct,pfull,q_dt,sphum,q,qdiag, &
 !$OMP                                  nq,w_diff,dt,nwat,liq_wat,rainwat,ice_wat,snowwat,   &
 !$OMP                                  graupel,delp,cld_amt,hydrostatic,pt,t_dt,delz,       &
-!$OMP                                  gama_dt,cv_air,ua,u_dt,va,v_dt)                      &
-!$OMP                          private(cvm, qstar, ps_dt, q_liq, q_sol, q_v,p_fac)
+!$OMP                                  gama_dt,cv_air,ua,u_dt,va,v_dt,isd,ied,jsd,jed)      &
+!$OMP                          private(cvm, qc, qstar, ps_dt, p_fac)
     do k=1, npz
 
        if ( flagstruct%tau_h2o<0.0 .and. pfull(k) < 100.E2 ) then
@@ -265,6 +258,16 @@ module fv_update_phys_mod
               delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
            enddo
         enddo
+      elseif ( nwat==4 ) then
+! micro-physics with fake ice
+        do j=js,je
+           do i=is,ie
+              ps_dt(i,j)  = 1. + dt * ( q_dt(i,j,k,sphum  ) +    &
+                                        q_dt(i,j,k,liq_wat) +    &
+                                        q_dt(i,j,k,rainwat) )
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
       elseif( nwat==3 ) then
 ! GFDL AM2/3 phys (cloud water + cloud ice)
         do j=js,je
@@ -272,6 +275,14 @@ module fv_update_phys_mod
                ps_dt(i,j) = 1. + dt*(q_dt(i,j,k,sphum  ) +    &
                                      q_dt(i,j,k,liq_wat) +    &
                                      q_dt(i,j,k,ice_wat) )
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
+      elseif( nwat==2 ) then
+! NGGPS-GFS: the total condensate is "liq_wat"
+        do j=js,je
+           do i=is,ie
+               ps_dt(i,j) = 1. + dt*(q_dt(i,j,k,sphum) + q_dt(i,j,k,liq_wat))
               delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
            enddo
         enddo
@@ -303,46 +314,21 @@ module fv_update_phys_mod
       if ( hydrostatic ) then
          do j=js,je
             do i=is,ie
-#ifdef USE_COND
-! *** Activate this if Lin MP is used ***
-#ifdef USE_NWAT3
-                q_liq = q(i,j,k,liq_wat)
-                q_sol = q(i,j,k,ice_wat)
-                cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
-                       q_liq*c_liq + q_sol*c_ice
-                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
-#else
-                q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
-                q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
-                cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
-                       q_liq*c_liq + q_sol*c_ice
-                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
-#endif
-#else
                 pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
-#endif
-             enddo
+            enddo
           enddo
        else
          if ( flagstruct%phys_hydrostatic ) then
 ! Constant pressure
              do j=js,je
+#ifdef MOIST_CAPPA
+                call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
+                              ice_wat, snowwat, graupel, q, qc, cvm)
+#endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
-#ifdef USE_COND
-#ifdef USE_NWAT3
-                   q_liq = q(i,j,k,liq_wat)
-                   q_sol = q(i,j,k,ice_wat)
-                   cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
-                          q_liq*c_liq + q_sol*c_ice
-                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
-#else
-                   q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
-                   q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
-                   cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cp_air + q(i,j,k,sphum)*cp_vapor +   &
-                          q_liq*c_liq + q_sol*c_ice
-                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
-#endif
+#ifdef MOIST_CAPPA
+                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
 #endif
@@ -359,21 +345,13 @@ module fv_update_phys_mod
                enddo
             else
                do j=js,je
-                  do i=is,ie
-#ifdef USE_COND
-#ifdef USE_NWAT3
-                     q_liq = q(i,j,k,liq_wat)
-                     q_sol = q(i,j,k,ice_wat)
-                     cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cv_air + q(i,j,k,sphum)*cv_vap +   &
-                          q_liq*c_liq + q_sol*c_ice
-                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
-#else
-                     q_liq = q(i,j,k,liq_wat) + q(i,j,k,rainwat)
-                     q_sol = q(i,j,k,ice_wat) + q(i,j,k,snowwat) + q(i,j,k,graupel)
-                     cvm = (1.-(q(i,j,k,sphum)+q_liq+q_sol))*cv_air + q(i,j,k,sphum)*cv_vap +   &
-                          q_liq*c_liq + q_sol*c_ice
-                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm
+#ifdef MOIST_CAPPA
+                  call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
+                                ice_wat, snowwat, graupel,  q, qc, cvm)
 #endif
+                  do i=is,ie
+#ifdef MOIST_CAPPA
+                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cv_air
 #endif
@@ -1003,6 +981,5 @@ module fv_update_phys_mod
     enddo         ! k-loop
 
   end subroutine update2d_dwinds_phys
-
 
 end module fv_update_phys_mod

@@ -645,8 +645,12 @@ contains
           npx, npy, npz, 1, gridstruct%grid_type, domain, gridstruct%nested, flagstruct%c2l_ord, bd)
 
 
- if ( nwat.eq.2 .and. (.not.hydrostatic) ) then
+#ifdef GFS_PHYS
+     if ( .not. hydrostatic ) then
        rdg = -rdgas * agrav
+! There are two equally consistent ways of computing non-hydro pressure:
+! 1. p = full_density * Rdgas * Tv*(1-q_con)
+! 2. p = gas_density * Rdgas * Tv
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,zvir,kappa,cappa,rdg,sphum,pkz,q_con,delp,delz,pt,q)
        do k=1,npz
           do j=js,je
@@ -661,7 +665,8 @@ contains
              enddo
           enddo
        enddo
- endif
+     endif
+#endif
 
      if ( flagstruct%fv_debug ) then
        call prt_mxm('UA', ua, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)

@@ -18,6 +18,9 @@ module fv_update_phys_mod
   use mpp_mod,             only: mpp_error, NOTE, WARNING
   use boundary_mod,        only: extrapolation_BC
   use fv_mapz_mod,         only: moist_cv, moist_cp
+#ifdef GFS_PHYS
+  use fv_grid_utils_mod,   only: cubed_to_latlon
+#endif
 
 
 #if defined (ATMOS_NUDGE)
@@ -323,7 +326,7 @@ module fv_update_phys_mod
              do j=js,je
 #ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                              ice_wat, snowwat, graupel, q, qc, cvm)
+                              ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
 #endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
@@ -347,13 +350,13 @@ module fv_update_phys_mod
                do j=js,je
 #ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                                ice_wat, snowwat, graupel,  q, qc, cvm)
+                                ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
 #endif
                   do i=is,ie
 #ifdef MOIST_CAPPA
                      pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
 #else
-                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cv_air
+                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cv_air
 #endif
                   enddo
                enddo
@@ -361,12 +364,14 @@ module fv_update_phys_mod
          endif
       endif
 
+#ifndef GFS_PHYS
       do j=js,je
          do i=is,ie
             ua(i,j,k) = ua(i,j,k) + dt*u_dt(i,j,k)
             va(i,j,k) = va(i,j,k) + dt*v_dt(i,j,k)
          enddo
       enddo
+#endif
 
    enddo ! k-loop
 
@@ -541,6 +546,10 @@ module fv_update_phys_mod
     call update_dwinds_phys(is, ie, js, je, isd, ied, jsd, jed, dt, u_dt, v_dt, u, v, gridstruct, npx, npy, npz, domain)
  endif
                                                     call timing_off(' Update_dwinds')
+#ifdef GFS_PHYS
+    call cubed_to_latlon(u, v, ua, va, gridstruct, &
+         npx, npy, npz, 1, gridstruct%grid_type, domain, gridstruct%nested, flagstruct%c2l_ord, bd)
+#endif
 
   if ( flagstruct%fv_debug ) then
        call prt_maxmin('PS_a_update', ps, is, ie, js, je, ng,   1, 0.01)

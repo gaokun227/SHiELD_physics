@@ -960,6 +960,8 @@ contains
 
    call set_domain ( Atm(mytile)%domain )
 
+   call timing_on('GFS_TENDENCIES')
+
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do shared (u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout) &
 !$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, ix)
@@ -974,8 +976,8 @@ contains
       do i=ibs,ibe
        ix = ix + 1
        do k = 1, npz
-         u_dt(i,j,npz+1-k)   = (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k))/dt_atmos
-         v_dt(i,j,npz+1-k)   = (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k))/dt_atmos
+         u_dt(i,j,npz+1-k)   = u_dt(i,j,npz+1-k) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k))/dt_atmos
+         v_dt(i,j,npz+1-k)   = v_dt(i,j,npz+1-k) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k))/dt_atmos
          t_dt(i,j,npz+1-k)   = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k))/dt_atmos
          q_dt(i,j,npz+1-k,:) = (Stateout(nb)%gq0(ix,k,1:nq) - Statein(nb)%qgrs(ix,k,1:nq))/dt_atmos
        enddo
@@ -987,6 +989,7 @@ contains
        Atm(mytile)%qdiag(i,j,npz:1:-1,:) = Stateout(nb)%gq0(ix,1:npz,nq+1:ncnst)
 
    enddo
+   call timing_off('GFS_TENDENCIES')
 
    w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff' )
    nt_dyn = ncnst-pnats   !nothing more than nq
@@ -1373,25 +1376,26 @@ contains
    type (state_fields_in), dimension(:), intent(inout) :: Statein
    type (block_control_type),            intent(in)    :: Atm_block
 !--- local variables
-   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, k1, k2
+   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1, k2
    real(kind=kind_phys), parameter :: qmin = 1.0e-10   
    real(kind=kind_phys) :: pk0inv
    real :: rTv
 
-   logical :: use_hydro_pressure = .false.
+   logical :: use_hydro_pressure = .false.   ! SJL
    logical :: diag_sounding = .false.
 
 ! (1/1.e5)**kappa; ie. the missing part of the (dry) T to pt conversion
-   pk0inv = (1.0_kind_phys/100000._kind_phys**kappa) 
+   pk0inv = 1.0_kind_phys / 100000._kind_phys**kappa
 
    sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
+   liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat' )
 
    npz = Atm_block%npz
 !---------------------------------------------------------------------
 ! use most up to date atmospheric properties when running serially
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
-!$OMP          shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, pk0inv, &
+!$OMP          shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, pk0inv, &
 !$OMP                   zvir, mytile, use_hydro_pressure, diag_sounding) &
 !$OMP          private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, k2, rTv)
    do nb = 1,Atm_block%nblks
@@ -1415,17 +1419,11 @@ contains
 
          !--  surface pressure
          Statein(nb)%pgr(ix) = Atm(mytile)%ps(i,j)
-
          !--  level interface pressure at TOA
          Statein(nb)%prsi(ix,npz+1) = Atm(mytile)%pe(i,1,j)
-
          !--  level interface exner function pressure at TOA
-#ifdef MOIST_CAPPA_OUT
-         !S-J will compute these variables INSIDE fv_dynamics for us.
-         Statein(nb)%prsik(ix,npz+1) = exp(Atm(mytile)%cappa(i,j,1)*log(Statein(nb)%prsi(ix,npz+1)*1.e-5_kind_phys))
-#else
-         Statein(nb)%prsik(ix,npz+1) = exp(kappa*log(Statein(nb)%prsi(ix,npz+1)))*pk0inv
-#endif
+         Statein(nb)%prsik(ix,1) = Atm(mytile)%pk(i,j,npz+1)*pk0inv
+         Statein(nb)%prsik(ix,npz+1) = Atm(mytile)%pk(i,j,1)*pk0inv
        enddo
      enddo
 
@@ -1438,7 +1436,7 @@ contains
            !Indices for FV's vertical coordinate, for which 1 = top
            !here, k is the index for GFS's vertical coordinate, for which 1 = bottom
            k1 = npz+1-k !This layer mean, or the upper interface
-           k2 = npz+2-k !lower interface
+           k2 = npz+2-k !lower interface; k2 = k1+1
 
            !--  level interface pressure
            Statein(nb)%prsi(ix,k) = Atm(mytile)%pe(i,k2,j)
@@ -1450,41 +1448,24 @@ contains
 
            !--  layer mean vertical pressure velocity
            Statein(nb)%vvl(ix,k)   = Atm(mytile)%omga(i,j,k1)
-!SJL
-!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR BELOW
-!SJL      gr(i,k)   = max(qmin,grid_fld%tracers(1)%flds(item,lan,k))
-!SJL
            !--  layer mean sphum for radiation with GFS limiter applied
            Statein(nb)%qgrs_rad(ix,k) = max(qmin, Atm(mytile)%q(i,j,k1,sphum))
-!SJL
-!SJL IF WE ARE GOING TO USE SPHUM TRACER LIMITING, IT SHOULD OCCUR ABOVE
-!SJL
-
            !--  raw tracers for gbphys (layer mean)
            Statein(nb)%qgrs(ix,k,1:nq)       = Atm(mytile)%q    (i,j,k1,1:nq)
            Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,k1,nq+1:ncnst)
  
            rTv = rdgas * Statein(nb)%tgrs(ix,k) * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) ! virtual temperature
 
-           !--  layer mean pressure, ie. mass centroid
-           ! MEAN pressure!!
+! Layer MEAN pressure!!
            if (Atm(mytile)%flagstruct%hydrostatic .or. use_hydro_pressure) then
               Statein(nb)%prsl(ix,k) = Atm(mytile)%delp(i,j,k1)/( Atm(mytile)%peln(i,k2,j) - Atm(mytile)%peln(i,k1,j)  )
+              Statein(nb)%prsik(ix,k) = Atm(mytile)%pk(i,j,k2)*pk0inv 
            else
-              Statein(nb)%prsl(ix,k) = - Atm(mytile)%delp(i,j,k1)*rTv/(Atm(mytile)%delz(i,j,k1)*grav)
+! Full gas-phase non-hydrostatic pressure computed using "density temperature" (FV3):
+              Statein(nb)%prsl(ix,k) = - Atm(mytile)%delp(i,j,k1)*rTv/(Atm(mytile)%delz(i,j,k1)*grav)    &
+                                       * ( 1. - Statein(nb)%qgrs(ix,k,liq_wat))
            endif
-
-           !--  exner function pressure
-           !-- This is correctly updated for hydrostatic
-           !-- right now S-J is adding capability for nonhydro also
-#ifdef MOIST_CAPPA_OUT         !S-J will compute these variables INSIDE fv_dynamics for us.
-           Statein(nb)%prsik(ix,k) = exp(0.5_kind_phys*(Atm(mytile)%cappa(i,j,max(k-1,1))+Atm(mytile)%cappa(i,j,k)) * &
-                log(Atm(mytile)%pe(i,k2,j)*1.e-5_kind_phys))   ! level interface
-           Statein(nb)%prslk(ix,k) = exp(Atm(mytile)%cappa(i,j,k)*log(Statein(nb)%prsl(ix,k)*1.e-5_kind_phys))   ! layer mean
-#else
-           Statein(nb)%prsik(ix,k) = exp(kappa*log(Atm(mytile)%pe(i,k2,j)))*pk0inv   ! level interface
-           Statein(nb)%prslk(ix,k) = exp(kappa*log(Statein(nb)%prsl(ix,k)))*pk0inv   ! layer mean
-#endif
+           Statein(nb)%prslk(ix,k) = Atm(mytile)%pkz(i,j,k1)*pk0inv    ! SJL
 
            !--  level interface geopotential
            if (Atm(mytile)%flagstruct%gfs_phil) then
@@ -1503,13 +1484,27 @@ contains
            endif
          enddo
        enddo
-     enddo
+     enddo   ! k-loop
 
      do k = 1, npz
        !--  layer mean geopotential
-        !geometric midpoint (possibly inaccurate, but requires no assumptions on T or of hydrostaticity)
         Statein(nb)%phil(:,k) = 0.5_kind_phys*(Statein(nb)%phii(:,k) + Statein(nb)%phii(:,k+1))
      enddo
+
+! Compute Exner function at layer "interfaces"
+    if (.not.Atm(mytile)%flagstruct%hydrostatic .and. (.not.use_hydro_pressure)) then
+! Top edge assumes hydrostatic; Bottom limited by hydrostatic surface pressure
+       do i=1,ix
+          Statein(nb)%prsik(i,1) = max(Statein(nb)%prsik(i,1), Statein(nb)%prslk(i,1))
+       enddo
+! Interior: linear interpolation in height using layer mean
+       do k=2,npz
+         do i=1,ix
+            Statein(nb)%prsik(i,k) = Statein(nb)%prslk(i,k-1) + (Statein(nb)%prslk(i,k)-Statein(nb)%prslk(i,k-1)) *   &
+                   (Statein(nb)%phii(i,k)-Statein(nb)%phil(i,k-1))/(Statein(nb)%phil(i,k)-Statein(nb)%phil(i,k-1))
+         enddo
+       enddo
+    endif
 
 !!! DEBUG CODE
      if (diag_sounding) then
@@ -1523,7 +1518,6 @@ contains
         endif
         diag_sounding = .false.
      endif
-   
 !!! END DEBUG CODE
 
   enddo

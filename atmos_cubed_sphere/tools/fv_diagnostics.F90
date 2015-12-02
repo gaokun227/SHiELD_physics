@@ -1343,7 +1343,8 @@ contains
           call get_height_field(isc, iec, jsc, jec, ngc, npz, Atm(n)%flagstruct%hydrostatic, Atm(n)%delz,  &
                                 wz, Atm(n)%pt, Atm(n)%q, Atm(n)%peln, zvir)
           if( prt_minmax )   &
-          call prt_maxmin('ZTOP', wz(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, 1, 1.E-3)
+          call prt_mxm('ZTOP',wz(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, 1, 1.E-3, Atm(n)%gridstruct%area_64, Atm(n)%domain)
+!         call prt_maxmin('ZTOP', wz(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, 1, 1.E-3)
 
           if(idiag%id_slp > 0) then
 ! Cumpute SLP (pressure at height=0)

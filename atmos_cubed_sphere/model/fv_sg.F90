@@ -76,7 +76,7 @@ contains
       real, dimension(is:ie):: gzh, lcp2, icp2, cvm, cpm, qs
       real ri_ref, ri, pt1, pt2, ratio, tv, cv, tmp, q_liq, q_sol
       real tv1, tv2, g2, h0, mc, fra, rk, rz, rdt, tvd, tv_surf
-      real dh, dhs, dq, qsw, dqsdt, tcp3
+      real dh, dq, qsw, dqsdt, tcp3
       integer i, j, k, kk, n, m, iq, km1, im
       real, parameter:: ustar2 = 1.E-4
       real:: cv_air, xvir
@@ -117,7 +117,7 @@ contains
 !$OMP                                  hydrostatic,pe,delz,g2,w,liq_wat,rainwat,ice_wat,  &
 !$OMP                                  snowwat,cv_air,m,graupel,pkz,rk,rz,fra,cld_amt,    &
 !$OMP                                  u_dt,rdt,v_dt,xvir,nwat)                 &
-!$OMP                          private(kk,lcp2,icp2,tcp3,dh,dhs,dq,den,qs,qsw,dqsdt,qcon,q0, &
+!$OMP                          private(kk,lcp2,icp2,tcp3,dh,dq,den,qs,qsw,dqsdt,qcon,q0, &
 !$OMP                                  t0,u0,v0,w0,h0,pm,gzh,tvm,tmp,cpm,cvm, q_liq,q_sol,&
 !$OMP                                  tv,gz,hd,te,ratio,pt1,pt2,tv1,tv2,ri_ref, ri,mc,km1)
   do 1000 j=js,je  
@@ -255,7 +255,9 @@ contains
 
       do k=km, 2, -1
          km1 = k-1
+#ifdef TEST_MQ
          if(nwat>0) call qsmith(im, 1, 1, t0(is,km1), pm(is,km1), q0(is,km1,sphum), qs)
+#endif
          do i=is,ie
 ! Richardson number = g*delz * del_theta/theta / (del_u**2 + del_v**2)
 ! Use exact form for "density temperature"
@@ -271,13 +273,12 @@ contains
 ! Compute equivalent mass flux: mc
 ! Add moist 2-dz instability consideration:
             ri_ref = min(ri_max, ri_min + (ri_max-ri_min)*dim(500.e2,pm(i,k))/250.e2 )
-! modifiers:
-!           ri = max(0.,ri)*min(1., (tv1-t2_min)/25., (t3_max-tv2)/10.)
+#ifdef TEST_MQ
             if ( nwat > 0 ) then
-!              h0 = hd(i,k)-hd(i,km1) + hlv0*(q0(i,k,sphum)-wqs1(t0(i,km1),den(i,km1)))
                h0 = hd(i,k)-hd(i,km1) + hlv0*(q0(i,k,sphum)-qs(i))
                if ( h0 > 0. ) ri_ref = 5.*ri_ref
             endif
+#endif
             if ( ri < ri_ref ) then
                mc = ratio*delp(i,j,km1)*delp(i,j,k)/(delp(i,j,km1)+delp(i,j,k))*(1.-max(0.0,ri/ri_ref))**2
                  do iq=1,nq
@@ -356,7 +357,7 @@ contains
             enddo
            elseif ( nwat == 2 ) then
             do i=is,ie
-               q_sol = q0(i,k,liq_wat)
+               q_sol = q0(i,kk,liq_wat)
                cpm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_sol*c_ice
                cvm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_sol*c_ice
             enddo
@@ -478,6 +479,10 @@ contains
          u_dt(i,j,k) = rdt*(u0(i,k) - ua(i,j,k))
          v_dt(i,j,k) = rdt*(v0(i,k) - va(i,j,k))
            ta(i,j,k) = t0(i,k)   ! *** temperature updated ***
+#ifdef GFS_PHYS
+           ua(i,j,k) = u0(i,k)
+           va(i,j,k) = v0(i,k)
+#endif
       enddo
       do iq=1,nq
          if (iq .ne. cld_amt ) then

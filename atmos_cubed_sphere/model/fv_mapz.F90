@@ -467,7 +467,7 @@ contains
 !----------
 ! Update pk
 !----------
-   do k=2,km
+   do k=1,km+1
       do i=is,ie
          pk(i,j,k) = pk2(i,k)
       enddo

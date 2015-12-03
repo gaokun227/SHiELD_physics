@@ -1398,6 +1398,7 @@ contains
              if(idiag%id_h300>0)  used = send_data ( idiag%id_h300,  a3(isc:iec,jsc:jec,6),  Time )
              if(idiag%id_h500>0) then
                 used = send_data ( idiag%id_h500,  a3(isc:iec,jsc:jec,7),  Time )
+                if(prt_minmax)   &
                 call prt_mxm('Z500',a3(isc:iec,jsc:jec,7),isc,iec,jsc,jec,0,1,1.E-3,Atm(n)%gridstruct%area_64,Atm(n)%domain)
              endif
              if(idiag%id_h700>0)  used = send_data ( idiag%id_h700,  a3(isc:iec,jsc:jec,8),  Time )

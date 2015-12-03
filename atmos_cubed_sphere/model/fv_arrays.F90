@@ -432,6 +432,7 @@ module fv_arrays_mod
 !------------------------------------------------
    logical :: hydrostatic = .true.
    logical :: phys_hydrostatic = .true.  ! heating/cooling term from the physics is hydrostatic
+   logical :: use_hydro_pressure = .false.  !  GFS control
    logical :: hybrid_z    = .false.      ! use hybrid_z for remapping
    logical :: Make_NH     = .false.      ! Initialize (w, delz) from hydro restart file 
    logical :: make_hybrid_z  = .false.   ! transform hydrostatic eta-coord IC into non-hydrostatic hybrid_z

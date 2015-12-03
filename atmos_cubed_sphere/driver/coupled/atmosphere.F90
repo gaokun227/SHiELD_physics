@@ -1381,7 +1381,6 @@ contains
    real(kind=kind_phys) :: pk0inv
    real :: rTv
 
-   logical :: use_hydro_pressure = .false.   ! SJL
    logical :: diag_sounding = .false.
 
 ! (1/1.e5)**kappa; ie. the missing part of the (dry) T to pt conversion
@@ -1396,7 +1395,7 @@ contains
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
 !$OMP          shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, pk0inv, &
-!$OMP                   zvir, mytile, use_hydro_pressure, diag_sounding) &
+!$OMP                   zvir, mytile, diag_sounding) &
 !$OMP          private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, k2, rTv)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
@@ -1457,7 +1456,7 @@ contains
            rTv = rdgas * Statein(nb)%tgrs(ix,k) * (1. + zvir*Statein(nb)%qgrs_rad(ix,k)) ! virtual temperature
 
 ! Layer MEAN pressure!!
-           if (Atm(mytile)%flagstruct%hydrostatic .or. use_hydro_pressure) then
+           if (Atm(mytile)%flagstruct%hydrostatic .or. Atm(mytile)%flagstruct%use_hydro_pressure) then
               Statein(nb)%prsl(ix,k) = Atm(mytile)%delp(i,j,k1)/( Atm(mytile)%peln(i,k2,j) - Atm(mytile)%peln(i,k1,j)  )
               Statein(nb)%prsik(ix,k) = Atm(mytile)%pk(i,j,k2)*pk0inv 
            else
@@ -1492,7 +1491,7 @@ contains
      enddo
 
 ! Compute Exner function at layer "interfaces"
-    if (.not.Atm(mytile)%flagstruct%hydrostatic .and. (.not.use_hydro_pressure)) then
+    if (.not.Atm(mytile)%flagstruct%hydrostatic .and. (.not.Atm(mytile)%flagstruct%use_hydro_pressure)) then
 ! Top edge assumes hydrostatic; Bottom limited by hydrostatic surface pressure
        do i=1,ix
           Statein(nb)%prsik(i,1) = max(Statein(nb)%prsik(i,1), Statein(nb)%prslk(i,1))

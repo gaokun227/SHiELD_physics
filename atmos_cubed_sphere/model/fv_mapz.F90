@@ -2083,6 +2083,31 @@ endif
             endif
           endif
        enddo
+     elseif ( abs(kord)==13 ) then
+       do i=i1,i2
+          if( extm(i,k) ) then
+             if ( extm(i,k-1) .and. extm(i,k+1) ) then
+! grid-scale 2-delta-z wave detected
+                 a4(2,i,k) = a4(1,i,k)
+                 a4(3,i,k) = a4(1,i,k)
+                 a4(4,i,k) = 0.
+             else
+                 ! Left  edges
+                 pmp_1 = a4(1,i,k) - 2.*gam(i,k+1)
+                 lac_1 = pmp_1 + 1.5*gam(i,k+2)
+                 a4(2,i,k) = min(max(a4(2,i,k), min(a4(1,i,k), pmp_1, lac_1)),   &
+                                     max(a4(1,i,k), pmp_1, lac_1) )
+                 ! Right edges
+                 pmp_2 = a4(1,i,k) + 2.*gam(i,k)
+                 lac_2 = pmp_2 - 1.5*gam(i,k-1)
+                 a4(3,i,k) = min(max(a4(3,i,k), min(a4(1,i,k), pmp_2, lac_2)),    &
+                                     max(a4(1,i,k), pmp_2, lac_2) )
+                 a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
+             endif
+          else
+             a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
+          endif
+       enddo
      elseif ( abs(kord)==14 ) then
        do i=i1,i2
           a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
@@ -2403,6 +2428,31 @@ endif
                                              max(a4(1,i,k), pmp_2, lac_2) )
               a4(4,i,k) = 6.*a4(1,i,k) - 3.*(a4(2,i,k)+a4(3,i,k))
             endif
+          endif
+       enddo
+     elseif ( abs(kord)==13 ) then
+       do i=i1,i2
+          if( extm(i,k) ) then
+             if ( extm(i,k-1) .and. extm(i,k+1) ) then
+! grid-scale 2-delta-z wave detected
+                 a4(2,i,k) = a4(1,i,k)
+                 a4(3,i,k) = a4(1,i,k)
+                 a4(4,i,k) = 0.
+             else
+                 ! Left  edges
+                 pmp_1 = a4(1,i,k) - 2.*gam(i,k+1)
+                 lac_1 = pmp_1 + 1.5*gam(i,k+2)
+                 a4(2,i,k) = min(max(a4(2,i,k), min(a4(1,i,k), pmp_1, lac_1)),   &
+                                     max(a4(1,i,k), pmp_1, lac_1) )
+                 ! Right edges
+                 pmp_2 = a4(1,i,k) + 2.*gam(i,k)
+                 lac_2 = pmp_2 - 1.5*gam(i,k-1)
+                 a4(3,i,k) = min(max(a4(3,i,k), min(a4(1,i,k), pmp_2, lac_2)),    &
+                                     max(a4(1,i,k), pmp_2, lac_2) )
+                 a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
+             endif
+          else
+             a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
           endif
        enddo
      elseif ( abs(kord)==14 ) then

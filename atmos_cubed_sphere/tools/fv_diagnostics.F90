@@ -9,7 +9,7 @@ module fv_diagnostics_mod
                              register_static_field, send_data, diag_grid_init
  use fv_arrays_mod,    only: fv_atmos_type, fv_grid_type, fv_diag_type
  !!! CLEANUP needs removal?
- use fv_mapz_mod,      only: E_Flux, E_Flux_nest
+ use fv_mapz_mod,      only: E_Flux, E_Flux_nest, moist_cv
  use fv_mp_mod,        only: mp_reduce_sum, mp_reduce_min, mp_reduce_max, is_master
  use fv_eta_mod,        only: get_eta_level, gw_1d
  use fv_grid_utils_mod, only: g_sum
@@ -1055,7 +1055,8 @@ contains
         if ( .not. Atm(n)%flagstruct%hydrostatic )   &
           call nh_total_energy(isc, iec, jsc, jec, isd, ied, jsd, jed, npz,  &
                                Atm(n)%w, Atm(n)%delz, Atm(n)%pt, Atm(n)%delp,  &
-                               Atm(n)%q(isd,jsd,1,sphum), Atm(n)%phis, Atm(n)%gridstruct%area, Atm(n)%domain, &
+                               Atm(n)%q, Atm(n)%phis, Atm(n)%gridstruct%area, Atm(n)%domain, &
+                               sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, Atm(n)%flagstruct%nwat,     &
                                Atm(n)%ua, Atm(n)%va, Atm(n)%flagstruct%moist_phys, a2)
 #endif
         call prt_maxmin('UA_top', Atm(n)%ua(isc:iec,jsc:jec,1),    &
@@ -1395,7 +1396,11 @@ contains
              if(idiag%id_h200>0)  used = send_data ( idiag%id_h200,  a3(isc:iec,jsc:jec,4),  Time )
              if(idiag%id_h250>0)  used = send_data ( idiag%id_h250,  a3(isc:iec,jsc:jec,5),  Time )
              if(idiag%id_h300>0)  used = send_data ( idiag%id_h300,  a3(isc:iec,jsc:jec,6),  Time )
-             if(idiag%id_h500>0)  used = send_data ( idiag%id_h500,  a3(isc:iec,jsc:jec,7),  Time )
+             if(idiag%id_h500>0) then
+                used = send_data ( idiag%id_h500,  a3(isc:iec,jsc:jec,7),  Time )
+                if(prt_minmax)   &
+                call prt_mxm('Z500',a3(isc:iec,jsc:jec,7),isc,iec,jsc,jec,0,1,1.E-3,Atm(n)%gridstruct%area_64,Atm(n)%domain)
+             endif
              if(idiag%id_h700>0)  used = send_data ( idiag%id_h700,  a3(isc:iec,jsc:jec,8),  Time )
              if(idiag%id_h850>0)  used = send_data ( idiag%id_h850,  a3(isc:iec,jsc:jec,9),  Time )
              if(idiag%id_h1000>0) used = send_data ( idiag%id_h1000, a3(isc:iec,jsc:jec,10), Time )
@@ -2495,12 +2500,16 @@ contains
 
  psq(:,:,:) = 0.
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,sphum  ), psq(is,js,sphum  )) 
+
  if (nwat > 1)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat))
+
  if (nwat==4 .or. nwat==6)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
+
  if (nwat==4 .or. nwat==6)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat))
+
  if (nwat==6) then
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,snowwat), psq(is,js,snowwat))
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,graupel), psq(is,js,graupel))
@@ -2551,6 +2560,8 @@ contains
           write(*,*) 'Total snow       ', trim(gn), '=', qtot(snowwat)*ginv
           write(*,*) 'Total graupel    ', trim(gn), '=', qtot(graupel)*ginv
           write(*,*) '---------------------------------------------'
+     elseif ( nwat==2 ) then
+          write(*,*) 'GFS condensate (kg/m^2)', trim(gn), '=', qtot(liq_wat)*ginv
      endif
   endif
 
@@ -3230,30 +3241,37 @@ end subroutine eqv_pot
 
  subroutine nh_total_energy(is, ie, js, je, isd, ied, jsd, jed, km,  &
                             w, delz, pt, delp, q, hs, area, domain,  &
-                            ua, va, moist_phys, te)
+                            sphum, liq_wat, rainwat, ice_wat,        &
+                            snowwat, graupel, nwat, ua, va, moist_phys, te)
 !------------------------------------------------------
 ! Compute vertically integrated total energy per column
 !------------------------------------------------------
 ! !INPUT PARAMETERS:
    integer,  intent(in):: km, is, ie, js, je, isd, ied, jsd, jed
-   real, intent(in), dimension(isd:ied,jsd:jed,km):: ua, va, pt, delp, w, q, delz
+   integer,  intent(in):: nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel
+   real, intent(in), dimension(isd:ied,jsd:jed,km):: ua, va, pt, delp, w, delz
+   real, intent(in), dimension(isd:ied,jsd:jed,km,nwat):: q
    real, intent(in):: hs(isd:ied,jsd:jed)  ! surface geopotential
    real, intent(in):: area(isd:ied, jsd:jed)
    logical, intent(in):: moist_phys
    type(domain2d), intent(INOUT) :: domain
    real, intent(out):: te(is:ie,js:je)   ! vertically integrated TE
 ! Local
+   real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+   real, parameter:: c_ice = 2106.       ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
    real(kind=R_Grid) ::    area_l(isd:ied, jsd:jed)
    real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
    real  phiz(is:ie,km+1)
-   real cvm, cv_air, psm
+   real, dimension(is:ie):: cvm, qc
+   real cv_air, psm
    integer i, j, k
 
    area_l = area
    cv_air =  cp_air - rdgas
 
-!$OMP parallel do default(none) shared(te,is,ie,js,je,km,ua,va,w,q,pt,delp,delz,hs,cv_air,moist_phys) &
-!$OMP                          private(phiz,cvm)
+!$OMP parallel do default(none) shared(te,nwat,is,ie,js,je,isd,ied,jsd,jed,km,ua,va,   &
+!$OMP          w,q,pt,delp,delz,hs,cv_air,moist_phys,sphum,liq_wat,rainwat,ice_wat,snowwat,graupel) &
+!$OMP          private(phiz,cvm, qc)
   do j=js,je
 
      do i=is,ie
@@ -3268,13 +3286,14 @@ end subroutine eqv_pot
      enddo
 
      if ( moist_phys ) then
-       do k=1,km
-          do i=is,ie
-             cvm = (1.-q(i,j,k))*cv_air + q(i,j,k)*cv_vap
-             te(i,j) = te(i,j) + delp(i,j,k)*( cvm*pt(i,j,k) + hlv*q(i,j,k) +  &
-                     0.5*(phiz(i,k)+phiz(i,k+1)+ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2) )
-          enddo
-       enddo
+        do k=1,km
+           call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
+                         ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+           do i=is,ie
+              te(i,j) = te(i,j) + delp(i,j,k)*( cvm(i)*pt(i,j,k) + hlv*q(i,j,k,sphum) +  &
+                      0.5*(phiz(i,k)+phiz(i,k+1)+ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2) )
+           enddo
+        enddo
      else
        do k=1,km
           do i=is,ie

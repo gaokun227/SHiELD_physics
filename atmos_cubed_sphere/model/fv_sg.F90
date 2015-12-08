@@ -17,11 +17,10 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: esl = 0.621971831
   real, parameter:: tice = 273.16
   real, parameter:: c_ice = 2106.  ! Emanuel table, page 566
-  real, parameter:: c_liq = 4190.
-! real, parameter:: cv_vap = 1410.
-! For consistency, cv_vap derived FMS constants:
-   real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
-
+  real, parameter:: c_liq = 4.1855e+3
+!!!  real, parameter:: c_liq = 4190.
+  real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
+  real, parameter:: c_con = c_ice
 
   real, parameter:: dc_vap =  cp_vapor - c_liq   ! = -2368.
   real, parameter:: dc_ice =  c_liq - c_ice      ! = 2112.
@@ -169,8 +168,8 @@ contains
        elseif ( nwat==2 ) then   ! GFS
           do i=is,ie
              q_sol = q0(i,k,liq_wat)
-             cpm(i) = (1.-(q0(i,k,sphum)+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_sol*c_ice
-             cvm(i) = (1.-(q0(i,k,sphum)+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_sol*c_ice
+             cpm(i) = (1.-(q0(i,k,sphum)+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_sol*c_con
+             cvm(i) = (1.-(q0(i,k,sphum)+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_sol*c_con
           enddo
        elseif ( nwat==3 ) then
           do i=is,ie
@@ -358,8 +357,8 @@ contains
            elseif ( nwat == 2 ) then
             do i=is,ie
                q_sol = q0(i,kk,liq_wat)
-               cpm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_sol*c_ice
-               cvm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_sol*c_ice
+               cpm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_sol*c_con
+               cvm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_sol*c_con
             enddo
            elseif ( nwat == 3 ) then
             do i=is,ie

@@ -24,9 +24,6 @@ implicit none
    real, allocatable ::  rf(:)
    integer :: kmax=1
    real :: agrav
-#ifdef HIWPP_RF
-   real, allocatable:: u00(:,:,:), v00(:,:,:)
-#endif
 private
 public :: fv_dynamics
 
@@ -115,9 +112,6 @@ contains
     type(fv_atmos_type), intent(INOUT) :: parent_grid
     type(fv_diag_type), intent(IN) :: idiag
 
-    real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
-    real, parameter:: c_ice = 2106.       ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
-    real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
 ! Local Arrays
       real:: ws(bd%is:bd%ie,bd%js:bd%je)
       real:: te_2d(bd%is:bd%ie,bd%js:bd%je)
@@ -203,13 +197,13 @@ contains
       enddo
 
     if ( hydrostatic ) then
-!$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,dp1,zvir,nwat,q,q_con,sphum,liq_wat, &
+!$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,dp1,zvir,nwat,pt,q,q_con,sphum,liq_wat, &
 !$OMP      rainwat,ice_wat,snowwat,graupel) private(cvm)
       do k=1,npz
          do j=js,je
-#ifdef USE_COND
+#ifdef MOIST_CAPPA
              call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
+                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm, pt(is:ie,j,k))
 #endif
             do i=is,ie
                dp1(i,j,k) = zvir*q(i,j,k,sphum)
@@ -225,12 +219,11 @@ contains
           do j=js,je
 #ifdef MOIST_CAPPA
              call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
+                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm, pt(is:ie,j,k))
 #endif
              do i=is,ie
                 dp1(i,j,k) = zvir*q(i,j,k,sphum)
 #ifdef MOIST_CAPPA
-! for GFS (nwat=2) compute cappa and freezing it for one time step
                cappa(i,j,k) = rdgas/(rdgas + cvm(i)/(1.+dp1(i,j,k)))
                pkz(i,j,k) = exp(cappa(i,j,k)*log(rdg*delp(i,j,k)*pt(i,j,k)*    &
                             (1.+dp1(i,j,k))*(1.-q_con(i,j,k))/delz(i,j,k)) )
@@ -420,7 +413,7 @@ contains
        call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum),   delp, gridstruct%area, domain, neststruct%nested, npx, npy)
        if ( liq_wat > 0 )  &
        call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      if ( nq > 4 ) then       ! FV3_GFS nq=4
+      if ( nwat > 2 ) then       ! FV3_GFS nwat=2; nq=4
        if ( rainwat > 0 )  &
        call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,rainwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
        if ( ice_wat > 0  )  &
@@ -530,7 +523,6 @@ contains
        deallocate ( dtdt_m )
   endif
 
-#ifndef HIWPP
   if( nwat==6 ) then
       call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum  ), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
       call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
@@ -570,7 +562,6 @@ contains
        call prt_mxm('graupel_dyn', q(isd,jsd,1,graupel), is, ie, js, je, ng, npz, 1.,gridstruct%area_64, domain)
      endif
   endif
-#endif
 
   if( consv_am .or. idiag%id_amdt>0 .or. idiag%id_aam>0 .and. (.not.do_adiabatic_init)  ) then
       call compute_aam(npz, is, ie, js, je, isd, ied, jsd, jed, gridstruct, bd,   &
@@ -645,7 +636,7 @@ contains
           npx, npy, npz, 1, gridstruct%grid_type, domain, gridstruct%nested, flagstruct%c2l_ord, bd)
 
 
-#ifdef GFS_PHYS
+#ifdef DEV_GFS_PHYS
      if ( .not. hydrostatic ) then
        rdg = -rdgas * agrav
 ! There are two equally consistent ways of computing non-hydro pressure:
@@ -735,23 +726,6 @@ contains
     rcv = 1. / (cp - rg)
 
      if ( .not. RF_initialized ) then
-#ifdef HIWPP_RF
-          allocate ( u00(is:ie,  js:je+1,npz) )
-          allocate ( v00(is:ie+1,js:je  ,npz) )
-!$OMP parallel do default(none) shared(is,ie,js,je,npz,u00,u,v00,v)
-          do k=1,npz
-             do j=js,je+1
-                do i=is,ie
-                   u00(i,j,k) = u(i,j,k)
-                enddo
-             enddo
-             do j=js,je
-                do i=is,ie+1
-                   v00(i,j,k) = v(i,j,k)
-                enddo
-             enddo
-          enddo
-#endif
 #ifdef SMALL_EARTH
           tau0 = tau
 #else
@@ -782,29 +756,25 @@ contains
 !$OMP                                  u2f,rf,w)
     do k=1,kmax
        if ( pm(k) < rf_cutoff ) then
-             do j=js-1,je+1
-        if ( hydrostatic ) then
-                   do i=is-1,ie+1
-             if ( abs(ua(i,j,k)) > 35.*cos(agrid(i,j,2)) )  then
-                  u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2)/u0)
-             else
-                  u2f(i,j,k) = 1.
-             endif
-          enddo
-        else
-                   do i=is-1,ie+1
-#ifdef HIWPP
-             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>15.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
-#else
-             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>30.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.1 )  then
-#endif
+        do j=js-1,je+1
+           if ( hydrostatic ) then
+                do i=is-1,ie+1
+                if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) )  then
+                     u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2)/u0)
+                else
+                     u2f(i,j,k) = 1.
+                endif
+                enddo
+           else
+                do i=is-1,ie+1
+                if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
                   u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
-             else
+                else
                   u2f(i,j,k) = 1.
-             endif
-          enddo
-        endif
-       enddo
+                endif
+             enddo
+           endif
+        enddo
        endif ! p check
     enddo
 
@@ -816,7 +786,7 @@ contains
        do j=js,je
         if ( hydrostatic ) then
           do i=is,ie
-             if ( abs(ua(i,j,k)) > 35.*cos(agrid(i,j,2)) )  then
+             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) )  then
                   u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2)/u0)
              else
                   u2f(i,j,k) = 1.
@@ -824,11 +794,7 @@ contains
           enddo
         else
           do i=is,ie
-#ifdef HIWPP
-             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>15.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
-#else
-             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>30.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.1 )  then
-#endif
+             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
                   u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
              else
                   u2f(i,j,k) = 1.
@@ -845,32 +811,11 @@ contains
 
 
 !$OMP parallel do default(none) shared(is,ie,js,je,kmax,pm,rf_cutoff,w,rf,u,v, &
-#ifdef HIWPP_RF
-!$OMP                                  u00,v00, &
-#endif
 !$OMP                                  conserve,hydrostatic,pt,ua,va,u2f,cp,rg,ptop,rcv)
      do k=1,kmax
         if ( pm(k) < rf_cutoff ) then
-#ifdef HIWPP_RF
-             do j=js,je
-                do i=is,ie
-                   w(i,j,k) = w(i,j,k)/(1.+rf(k))
-                enddo
-             enddo
-             do j=js,je+1
-                do i=is,ie
-                   u(i,j,k) = (u(i,j,k)+rf(k)*u00(i,j,k))/(1.+rf(k))
-                enddo
-             enddo
-             do j=js,je
-                do i=is,ie+1
-                   v(i,j,k) = (v(i,j,k)+rf(k)*v00(i,j,k))/(1.+rf(k))
-                enddo
-             enddo
-#else
 ! Add heat so as to conserve TE
           if ( conserve ) then
-#ifndef HIWPP
              if ( hydrostatic ) then
                do j=js,je
                   do i=is,ie
@@ -884,7 +829,6 @@ contains
                   enddo
                enddo
              endif
-#endif
           endif
              do j=js,je+1
                 do i=is,ie
@@ -903,7 +847,6 @@ contains
                 enddo
              enddo
           endif
-#endif
         endif
      enddo
 

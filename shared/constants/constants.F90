@@ -63,7 +63,7 @@ real :: realnumber
 ! real(kind=R_GRID), public, parameter :: RADIUS = 6376000.0_R_GRID
 ! SJL: the following are from fv3_gfsphysics/gfs_physics/physics/physcons.f90
 real, public, parameter :: RADIUS = 6.3712e+6
-real, public, parameter :: PI     = 3.1415926535897931
+real, public, parameter :: PI     = 3.1415926535897931_R_GRID
 real, public, parameter :: OMEGA  = 7.2921e-5 
 real, public, parameter :: GRAV   = 9.80665
 real, public, parameter :: RDGAS  = 287.05 
@@ -74,7 +74,7 @@ real, public, parameter :: HLF = 3.3358e5
 real, public, parameter :: con_cliq   =4.1855e+3      ! spec heat H2O liq   (J/kg/K)
 real, public, parameter :: con_csol   =2.1060e+3      ! spec heat H2O ice   (J/kg/K)
 #else
-real, public, parameter :: RADIUS = 6371.0e3   
+real, public, parameter :: RADIUS = 6371e+3
 real, public, parameter :: PI  = 3.141592653589793_R_GRID
 real, public, parameter :: OMEGA = 7.292e-5
 real, public, parameter :: GRAV  = 9.8060226

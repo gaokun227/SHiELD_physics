@@ -197,14 +197,10 @@ contains
       enddo
 
     if ( hydrostatic ) then
-!$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,dp1,zvir,nwat,pt,q,q_con,sphum,liq_wat, &
+!$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,dp1,zvir,nwat,q,q_con,sphum,liq_wat, &
 !$OMP      rainwat,ice_wat,snowwat,graupel) private(cvm)
       do k=1,npz
          do j=js,je
-#ifdef MOIST_CAPPA
-             call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm, pt(is:ie,j,k))
-#endif
             do i=is,ie
                dp1(i,j,k) = zvir*q(i,j,k,sphum)
             enddo
@@ -219,7 +215,7 @@ contains
           do j=js,je
 #ifdef MOIST_CAPPA
              call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm, pt(is:ie,j,k))
+                           ice_wat, snowwat, graupel, q, q_con(is:ie,j,k), cvm)
 #endif
              do i=is,ie
                 dp1(i,j,k) = zvir*q(i,j,k,sphum)
@@ -460,13 +456,7 @@ contains
 
                                                   call timing_off('Remapping')
          if( last_step )  then
-            if( hydrostatic ) then
-!--------------------------
-! Filter omega for physics:
-!--------------------------
-                if(flagstruct%nf_omega>0)    &
-                call del2_cubed(omga, 0.20*gridstruct%da_min, gridstruct, domain, npx, npy, npz, flagstruct%nf_omega, bd)
-            else
+            if( .not. hydrostatic ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,omga,delp,delz,w)
                do k=1,npz
                   do j=js,je
@@ -476,6 +466,11 @@ contains
                   enddo
                enddo
             endif
+!--------------------------
+! Filter omega for physics:
+!--------------------------
+            if(flagstruct%nf_omega>0)    &
+            call del2_cubed(omga, 0.18*gridstruct%da_min, gridstruct, domain, npx, npy, npz, flagstruct%nf_omega, bd)
 
 ! Convert back to temperature
             if ( .not. flagstruct%remap_t ) then

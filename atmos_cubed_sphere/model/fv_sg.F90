@@ -168,8 +168,8 @@ contains
        elseif ( nwat==2 ) then   ! GFS
           do i=is,ie
              q_sol = q0(i,k,liq_wat)
-             cpm(i) = (1.-(q0(i,k,sphum)+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_sol*c_con
-             cvm(i) = (1.-(q0(i,k,sphum)+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_sol*c_con
+             cpm(i) = (1.-q0(i,k,sphum))*cp_air + q0(i,k,sphum)*cp_vapor
+             cvm(i) = (1.-q0(i,k,sphum))*cv_air + q0(i,k,sphum)*cv_vap
           enddo
        elseif ( nwat==3 ) then
           do i=is,ie
@@ -357,8 +357,8 @@ contains
            elseif ( nwat == 2 ) then
             do i=is,ie
                q_sol = q0(i,kk,liq_wat)
-               cpm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_sol*c_con
-               cvm(i) = (1.-(q0(i,kk,sphum)+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_sol*c_con
+               cpm(i) = (1.-q0(i,kk,sphum))*cp_air + q0(i,kk,sphum)*cp_vapor
+               cvm(i) = (1.-q0(i,kk,sphum))*cv_air + q0(i,kk,sphum)*cv_vap
             enddo
            elseif ( nwat == 3 ) then
             do i=is,ie

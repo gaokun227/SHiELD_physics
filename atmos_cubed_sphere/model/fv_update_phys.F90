@@ -322,7 +322,7 @@ module fv_update_phys_mod
              do j=js,je
 #ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                              ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+                              ice_wat, snowwat, graupel, q, qc, cvm)
 #endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
@@ -346,7 +346,7 @@ module fv_update_phys_mod
                do j=js,je
 #ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                                ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+                                ice_wat, snowwat, graupel, q, qc, cvm)
 #endif
                   do i=is,ie
 #ifdef MOIST_CAPPA

@@ -1039,7 +1039,7 @@ contains
 !--------------------------------------
 ! Local GFS-phys consistent parameters:
 !--------------------------------------
-   real(kind=kind_phys),parameter:: con_p0 =1.e5
+   real(kind=kind_phys), parameter:: p00 = 1.e5
    real(kind=kind_phys), parameter:: qmin = 1.01e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
    real :: rTv
@@ -1051,8 +1051,8 @@ contains
 !!! - "Level" means "level interface", ie the point values at the top or bottom of a layer
 
    ptop =  Atm(mytile)%ak(1)
-   pktop  = (ptop/con_p0)**kappa
-   pk0inv = (1.0_kind_phys/con_p0)**kappa
+   pktop  = (ptop/p00)**kappa
+   pk0inv = (1.0_kind_phys/p00)**kappa
 
    sphum = get_tracer_index (MODEL_ATMOS, 'sphum' )
    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat' )
@@ -1141,8 +1141,7 @@ contains
      do k = 1,npz
         do i=1,ix
 ! Exner function layer center: large sensitivity to non-hydro runs with moist kappa
-!          Statein(nb)%prslk(i,k) = exp( kappa*log(Statein(nb)%prsl(i,k)) ) * pk0inv
-           Statein(nb)%prslk(i,k) = exp( kappa*log(Statein(nb)%prsl(i,k)/con_p0) )
+           Statein(nb)%prslk(i,k) = exp( kappa*log(Statein(nb)%prsl(i,k)/p00) )
 !--  layer center geopotential; geometric midpoint
            Statein(nb)%phil(i,k) = 0.5_kind_phys*(Statein(nb)%phii(i,k) + Statein(nb)%phii(i,k+1))
         enddo
@@ -1161,8 +1160,8 @@ contains
               Statein(nb)%prsik(i,k) = exp( kappa*Statein(nb)%prsik(i,k) )*pk0inv 
            enddo
         enddo
-    else
 #ifdef DEBUG_GFS
+    else
 ! Bottom limited by hydrostatic surface pressure
         do i=1,ix
            Statein(nb)%prsik(i,1) = max(Statein(nb)%prsik(i,1), Statein(nb)%prslk(i,1))

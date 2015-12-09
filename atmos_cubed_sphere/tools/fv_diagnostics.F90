@@ -2697,9 +2697,9 @@ contains
           enddo
 !                a2(i,j,n) = missing_value
 #ifdef GFS_PHYS
-! Extrapolation into ground:  use lowest 3 layers
-                 a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-2)) *   &
-                       (log_p(n)-peln(i,km+1,j)) / (peln(i,km+1,j)-peln(i,km-2,j) )
+! Extrapolation into ground: use lowest 5-layer mean
+                 a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-4)) *   &
+                       (log_p(n)-peln(i,km+1,j)) / (peln(i,km+1,j)-peln(i,km-4,j) )
 #else
 ! Extrapolation into ground:  use wz(km-1:km+1)
                  a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-1)) *   &
@@ -3293,7 +3293,7 @@ end subroutine eqv_pot
      if ( moist_phys ) then
         do k=1,km
            call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                         ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+                         ice_wat, snowwat, graupel, q, qc, cvm)
            do i=is,ie
               te(i,j) = te(i,j) + delp(i,j,k)*( cvm(i)*pt(i,j,k) + hlv*q(i,j,k,sphum) +  &
                       0.5*(phiz(i,k)+phiz(i,k+1)+ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2) )

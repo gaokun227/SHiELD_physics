@@ -82,10 +82,13 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
       integer :: dt_ocean = 0
       integer :: atmos_nthreads = 1
       logical :: memuse_verbose = .false.
+      logical :: use_hyper_thread = .false.
+      integer :: ncores_per_node = 0
 
       namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                              months, days, hours, minutes, seconds,  &
-                             dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose
+                             dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, & 
+                             use_hyper_thread, ncores_per_node
 
 !#######################################################################
 
@@ -237,7 +240,12 @@ contains
 !$      base_cpu = get_cpu_affinity()
 !$      call omp_set_num_threads(atmos_nthreads)
 !$OMP PARALLEL NUM_THREADS(atmos_nthreads)
-!$      call set_cpu_affinity( base_cpu + omp_get_thread_num() )
+!$      if(omp_get_thread_num() < atmos_nthreads/2 .OR. (.not. use_hyper_thread)) then  
+!$         call set_cpu_affinity(base_cpu + omp_get_thread_num())
+!$      else
+!$         call set_cpu_affinity(base_cpu + omp_get_thread_num() + &
+!$                               ncores_per_node - atmos_nthreads/2) 
+!$      endif
 !rab!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
 !rab!$        call flush(6)
 !$OMP END PARALLEL

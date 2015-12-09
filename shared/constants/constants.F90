@@ -59,35 +59,42 @@ real :: realnumber
 !---variable for strong typing grid parameters
   integer, public, parameter :: R_GRID=8
 
-#ifdef SMALL_EARTH
-
-#ifdef HIWPP
-#ifdef SUPER_K
-  real(kind=R_GRID), private, parameter :: small_fac = 1._R_GRID/120._R_GRID
+#ifdef GFS_PHYS
+! real(kind=R_GRID), public, parameter :: RADIUS = 6376000.0_R_GRID
+! SJL: the following are from fv3_gfsphysics/gfs_physics/physics/physcons.f90
+real, public, parameter :: RADIUS = 6.3712e+6
+real, public, parameter :: PI     = 3.1415926535897931
+real, public, parameter :: OMEGA  = 7.2921e-5 
+real, public, parameter :: GRAV   = 9.80665
+real, public, parameter :: RDGAS  = 287.05 
+real, public, parameter :: RVGAS  = 461.50 
+! Extra:
+real, public, parameter :: HLV = 2.5e6   
+real, public, parameter :: HLF = 3.3358e5   
+real, public, parameter :: con_cliq   =4.1855e+3      ! spec heat H2O liq   (J/kg/K)
+real, public, parameter :: con_csol   =2.1060e+3      ! spec heat H2O ice   (J/kg/K)
 #else
-  real(kind=R_GRID), private, parameter :: small_fac = 1._R_GRID/166.7_R_GRID
+real, public, parameter :: RADIUS = 6371.0e3   
+real, public, parameter :: PI  = 3.141592653589793_R_GRID
+real, public, parameter :: OMEGA = 7.292e-5
+real, public, parameter :: GRAV  = 9.8060226
+real, public, parameter :: RDGAS = 287.04 
+real, public, parameter :: RVGAS = 461.60 
+! Extra:
+real, public, parameter :: HLV = 2.501e6   
+real, public, parameter :: HLF = 3.50e5   
 #endif
-#else
-  real(kind=R_GRID), private, parameter :: small_fac = 1._R_GRID/ 10._R_GRID
-#endif
-
-  real(kind=R_GRID), public, parameter :: RADIUS = 6376000.0_R_GRID * small_fac
-  real, public, parameter :: OMEGA  = 7.292e-5 / small_fac
-#else
-  real(kind=R_GRID), public, parameter :: RADIUS = 6376000.0_R_GRID
-  real, public, parameter :: OMEGA  = 7.292e-5
-#endif
-
-real, public, parameter :: GRAV   = 9.8060226
-real, public, parameter :: RDGAS  = 287.04 
 real, public, parameter :: CP_AIR = 1004.6
-real, public, parameter :: CP_OCEAN = 3989.24495292815
+real, public, parameter :: CP_VAPOR = 4.0*RVGAS
 real, public, parameter :: KAPPA  = RDGAS/CP_AIR
+!!! real, public, parameter :: STEFAN  = 5.670400e-8
+real, public, parameter :: STEFAN  = 5.67051e-8 
+
+real, public, parameter :: CP_OCEAN = 3989.24495292815
 real, public, parameter :: RHO0    = 1.035e3
 real, public, parameter :: RHO0R   = 1.0/RHO0
 real, public, parameter :: RHO_CP  = RHO0*CP_OCEAN
 
-!rabreal, public, parameter :: RADIUS = 6371.0e3   
 !rabreal, public, parameter :: KAPPA  = 2./7.
 !rabreal, public, parameter :: GRAV   = 9.80    
 !rabreal, public, parameter :: CP_AIR = RDGAS/KAPPA 
@@ -120,11 +127,7 @@ real, public, parameter :: RHO_CP  = RHO0*CP_OCEAN
 ! </DATA>
 
 real, public, parameter :: ES0 = 1.0 
-real, public, parameter :: RVGAS = 461.60 
-real, public, parameter :: CP_VAPOR = 4.0*RVGAS
 real, public, parameter :: DENS_H2O = 1000. 
-real, public, parameter :: HLV = 2.501e6   
-real, public, parameter :: HLF = 3.50e5   
 real, public, parameter :: HLS = HLV + HLF
 real, public, parameter :: TFREEZE = 273.15    
 
@@ -239,9 +242,7 @@ real, public, parameter :: ALOGMIN     = -50.0
 !   a small number to prevent divide by zero exceptions
 ! </DATA>
 
-real, public, parameter :: STEFAN  = 5.67051e-8 
 real, public, parameter :: VONKARM = 0.40     
-real, public, parameter :: PI      = 3.141592653589793_R_GRID
 real, public, parameter :: RAD_TO_DEG=180._R_GRID/PI
 real, public, parameter :: DEG_TO_RAD=PI/180._R_GRID
 real, public, parameter :: RADIAN  = RAD_TO_DEG

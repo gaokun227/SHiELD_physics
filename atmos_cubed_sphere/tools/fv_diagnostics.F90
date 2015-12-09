@@ -1399,7 +1399,7 @@ contains
              if(idiag%id_h500>0) then
                 used = send_data ( idiag%id_h500,  a3(isc:iec,jsc:jec,7),  Time )
                 if(prt_minmax)   &
-                call prt_mxm('Z500',a3(isc:iec,jsc:jec,7),isc,iec,jsc,jec,0,1,1.E-3,Atm(n)%gridstruct%area_64,Atm(n)%domain)
+                call prt_mxm('Z500',a3(isc:iec,jsc:jec,7),isc,iec,jsc,jec,0,1,1.,Atm(n)%gridstruct%area_64,Atm(n)%domain)
              endif
              if(idiag%id_h700>0)  used = send_data ( idiag%id_h700,  a3(isc:iec,jsc:jec,8),  Time )
              if(idiag%id_h850>0)  used = send_data ( idiag%id_h850,  a3(isc:iec,jsc:jec,9),  Time )
@@ -2696,9 +2696,15 @@ contains
              endif
           enddo
 !                a2(i,j,n) = missing_value
+#ifdef GFS_PHYS
+! Extrapolation into ground: use lowest 5-layer mean
+                 a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-4)) *   &
+                       (log_p(n)-peln(i,km+1,j)) / (peln(i,km+1,j)-peln(i,km-4,j) )
+#else
 ! Extrapolation into ground:  use wz(km-1:km+1)
                  a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-1)) *   &
                        (log_p(n)-peln(i,km+1,j)) / (peln(i,km+1,j)-peln(i,km-1,j) )
+#endif
 1000   continue
     enddo
  enddo
@@ -3258,7 +3264,6 @@ end subroutine eqv_pot
    real, intent(out):: te(is:ie,js:je)   ! vertically integrated TE
 ! Local
    real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
-   real, parameter:: c_ice = 2106.       ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
    real(kind=R_Grid) ::    area_l(isd:ied, jsd:jed)
    real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
    real  phiz(is:ie,km+1)
@@ -3288,7 +3293,7 @@ end subroutine eqv_pot
      if ( moist_phys ) then
         do k=1,km
            call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
-                         ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+                         ice_wat, snowwat, graupel, q, qc, cvm)
            do i=is,ie
               te(i,j) = te(i,j) + delp(i,j,k)*( cvm(i)*pt(i,j,k) + hlv*q(i,j,k,sphum) +  &
                       0.5*(phiz(i,k)+phiz(i,k+1)+ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2) )

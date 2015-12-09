@@ -5,7 +5,7 @@ module nh_core_mod
 !------------------------------
    use constants_mod,     only: rdgas, cp_air, grav
    use tp_core_mod,       only: fv_tp_2d
-   use sw_core_mod,       only: fill_4corners
+   use sw_core_mod,       only: fill_4corners, del6_vt_flux
    use fv_arrays_mod,     only: fv_grid_bounds_type, fv_grid_type
 
    implicit none
@@ -174,7 +174,7 @@ CONTAINS
   real, intent(  out) ::delz(is-ng:ie+ng,js-ng:je+ng,km)
   real, intent(inout), dimension(is:ie+1,js-ng:je+ng,km):: crx, xfx
   real, intent(inout), dimension(is-ng:ie+ng,js:je+1,km):: cry, yfx
-  real, intent(inout)   :: ws(is:ie,js:je)
+  real, intent(out)   :: ws(is:ie,js:je)
   type(fv_grid_type), intent(IN), target :: gridstruct
 !-----------------------------------------------------
 ! Local array:
@@ -182,6 +182,9 @@ CONTAINS
   real, dimension(is-ng:ie+ng,js:   je+1,km+1 ):: cry_adv, yfx_adv
   real, dimension(is:ie+1,js:je  ):: fx
   real, dimension(is:ie  ,js:je+1):: fy
+  real, dimension(is-ng:ie+ng+1,js-ng:je+ng  ):: fx2
+  real, dimension(is-ng:ie+ng  ,js-ng:je+ng+1):: fy2
+  real, dimension(is-ng:ie+ng  ,js-ng:je+ng  ):: wk2, z2
   real:: ra_x(is:ie,js-ng:je+ng)
   real:: ra_y(is-ng:ie+ng,js:je)
 !--------------------------------------------------------------------
@@ -207,9 +210,9 @@ CONTAINS
   enddo
 
 !$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,km,area,xfx_adv,yfx_adv, &
-!$OMP                                  zh,crx_adv,cry_adv,npx,npy,hord,gridstruct,bd,       &
-!$OMP                                  ndif,damp )                                          &
-!$OMP                          private(ra_x, ra_y, fx, fy)
+!$OMP                                  damp,zh,crx_adv,cry_adv,npx,npy,hord,gridstruct,bd,  &
+!$OMP                                  ndif,rarea) &
+!$OMP                          private(z2, fx2, fy2, ra_x, ra_y, fx, fy,wk2)
   do k=1,km+1
 
      do j=jsd,jed
@@ -223,15 +226,34 @@ CONTAINS
         enddo
      enddo
 
+   if ( damp(k)>1.E-5 ) then
+     do j=jsd,jed
+        do i=isd,ied
+           z2(i,j) = zh(i,j,k)
+        enddo
+     enddo
+     call fv_tp_2d(z2, crx_adv(is,jsd,k), cry_adv(isd,js,k), npx,  npy, hord, &
+                  fx, fy, xfx_adv(is,jsd,k), yfx_adv(isd,js,k), gridstruct, bd, ra_x, ra_y)
+     call del6_vt_flux(ndif(k), npx, npy, damp(k), z2, wk2, fx2, fy2, gridstruct, bd)
+     do j=js,je
+        do i=is,ie
+           zh(i,j,k) = (z2(i,j)*area(i,j)+fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))  &
+                     / (ra_x(i,j)+ra_y(i,j)-area(i,j)) + (fx2(i,j)-fx2(i+1,j)+fy2(i,j)-fy2(i,j+1))*rarea(i,j)
+        enddo
+     enddo
+   else
      call fv_tp_2d(zh(isd,jsd,k), crx_adv(is,jsd,k), cry_adv(isd,js,k), npx,  npy, hord, &
-                   fx, fy, xfx_adv(is,jsd,k), yfx_adv(isd,js,k), gridstruct, bd, ra_x, ra_y,       &
-                   nord=ndif(k), damp_c=damp(k))
+                   fx, fy, xfx_adv(is,jsd,k), yfx_adv(isd,js,k), gridstruct, bd, ra_x, ra_y)
      do j=js,je
         do i=is,ie
            zh(i,j,k) = (zh(i,j,k)*area(i,j)+fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))   &
-                     / (ra_x(i,j) + yfx_adv(i,j,k)-yfx_adv(i,j+1,k))
+                     / (ra_x(i,j) + ra_y(i,j) - area(i,j))
+!          zh(i,j,k) = rarea(i,j)*(fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))   &
+!                    + zh(i,j,k)*(3.-rarea(i,j)*(ra_x(i,j) + ra_y(i,j)))
         enddo
      enddo
+   endif
+
   enddo
 
 !$OMP parallel do default(none) shared(is,ie,js,je,km,ws,zs,zh,rdt)

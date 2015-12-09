@@ -146,8 +146,8 @@ contains
     integer :: iep1, jep1
     real    :: beta, beta_d, damp_k, damp_w, damp_t,  d_con_k, kgb
     real    :: dt, dt2, rdt
-    real    :: d2_divg, d3_divg
-    real    :: k1k, kapag, tmcp, cpm
+    real    :: d2_divg
+    real    :: k1k, kapag, gam, mk1
     logical :: last_step, remap_step
     logical used
     real :: split_timestep_bc
@@ -571,7 +571,7 @@ contains
                    d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k1)
                    nord_v(k) = 0   ! for delp, delz, and vorticity, sponger layers
 #ifndef HIWPP
-                   damp_vt(k) = 0.5*d2_divg
+                   damp_vt(k) = 0.75*d2_divg
 #endif
                    nord_w = 0
                    damp_w = d2_divg
@@ -581,7 +581,7 @@ contains
                    d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k2)
                    nord_v(k) = 0
 #ifndef HIWPP
-                   damp_vt(k) = 0.5*d2_divg
+                   damp_vt(k) = 0.75*d2_divg
 #endif
                    nord_w = 0
                    damp_w = d2_divg
@@ -591,7 +591,7 @@ contains
                    d2_divg = max(flagstruct%d2_bg, 0.2*flagstruct%d2_bg_k2)
                    nord_v(k) = 0
 #ifndef HIWPP
-                   damp_vt(k) = 0.5*d2_divg
+                   damp_vt(k) = 0.75*d2_divg
 #endif
                    nord_w = 0
                    damp_w = d2_divg
@@ -1052,28 +1052,25 @@ contains
           enddo
        enddo
     else
+       gam = 1./(1.-akap)
 !$OMP parallel do default(none) shared(is,ie,js,je,n_con,pkz,cappa,kapag,delp,delz,pt, &
-!$OMP                                  heat_source,k1k) &
-!$OMP                          private(cpm, tmcp)
+!$OMP                                  heat_source,k1k,akap,gam) &
+!$OMP                          private(mk1)
        do j=js,je
           do k=1,n_con    ! n_con is usually less than 3; not good as outer openMP loop
              do i=is,ie
 #ifdef MOIST_CAPPA
-                pkz(i,j,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
+                mk1 = cappa(i,j,k)/(1.-cappa(i,j,k))
+                pkz(i,j,k) = exp( mk1*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
+                pt(i,j,k) = pt(i,j,k) + mk1*heat_source(i,j,k)/(akap*delp(i,j,k)*pkz(i,j,k))
 #else
                 pkz(i,j,k) = exp( k1k*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
+                pt(i,j,k) = pt(i,j,k) + gam*heat_source(i,j,k)/(delp(i,j,k)*pkz(i,j,k))
 #endif
-! tmcp = termperature_v * cp
-                tmcp = pt(i,j,k) * pkz(i,j,k)
-                delz(i,j,k) = delz(i,j,k) / tmcp
-                tmcp = tmcp + heat_source(i,j,k)/delp(i,j,k)
-                pt(i,j,k) = tmcp / pkz(i,j,k)
-                delz(i,j,k) = delz(i,j,k) * tmcp
              enddo
           enddo
        enddo
     endif
-       !deallocate( heat_source )    
     endif
     if (allocated(heat_source)) deallocate( heat_source ) !If ncon == 0 but d_con > 1.e-5, this would not be deallocated in earlier versions of the code
 

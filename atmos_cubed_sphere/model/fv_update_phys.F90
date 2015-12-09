@@ -44,11 +44,7 @@ module fv_update_phys_mod
 !---- version number -----
   character(len=128) :: version = '$Id$'
   character(len=128) :: tagname = '$Name$'
-!
-  real, parameter:: c_ice = 2106.
-  real, parameter:: c_liq = 4190.
-! For consistency, cv_vap derived FMS constants:
-  real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
+  real,parameter:: con_cp  = cp_air
 
   contains
 
@@ -168,7 +164,7 @@ module fv_update_phys_mod
     endif
 
     if ( .not. hydrostatic .and. .not. flagstruct%phys_hydrostatic .and. nwat == 0 ) then
-       gama_dt = dt*cp_air/cv_vap
+       gama_dt = dt*cp_air/cv_air
     else
        gama_dt = -1.e24
     endif
@@ -326,12 +322,12 @@ module fv_update_phys_mod
              do j=js,je
 #ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                              ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+                              ice_wat, snowwat, graupel, q, qc, cvm)
 #endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
 #ifdef MOIST_CAPPA
-                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
+                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
 #else
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
 #endif
@@ -350,13 +346,13 @@ module fv_update_phys_mod
                do j=js,je
 #ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                                ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
+                                ice_wat, snowwat, graupel, q, qc, cvm)
 #endif
                   do i=is,ie
 #ifdef MOIST_CAPPA
-                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cvm(i)
+                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
 #else
-                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*cp_air/cv_air
+                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cv_air
 #endif
                   enddo
                enddo

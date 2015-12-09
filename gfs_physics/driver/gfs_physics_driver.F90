@@ -38,7 +38,7 @@ module gfs_physics_driver_mod
                                 radiation_tendencies, interface_fields, &
                                 diagnostics, tbd_ddt
 !--- GFS Physics share module ---
-  use module_CONSTANTS,   only: pi
+  use physcons,           only: pi => con_pi
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
   use physcons,           only: dxmax, dxmin, dxinv

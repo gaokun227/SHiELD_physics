@@ -571,11 +571,18 @@ contains
       real(kind=R_GRID), dimension(2):: p1, p2, p3
       real(kind=R_GRID), dimension(3):: e1, e2, ex, ey
       integer:: i,j,k
+      integer:: liq_wat
       namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds
 ! Thfollowing L63 setting is the same as NCEP GFS's L64 except the top layer
+#ifdef TEST_GFS
+      data ak_sj/25.000,     100.00000,     200.00000,    &
+              311.00000,     430.00000,     558.00000,    &
+              700.00000,     863.05803,    1051.07995,    &
+#else
       data ak_sj/64.248,      137.790,       221.958,      &
                 318.266,       428.434,       554.424,      &
                 698.457,       863.05803,    1051.07995,    &  
+#endif
                1265.75194,    1510.71101,    1790.05098,    &
                2108.36604,    2470.78817,    2883.03811,    &
                3351.46002,    3883.05187,    4485.49315,    &
@@ -891,7 +898,20 @@ contains
         endif
       ! populate the haloes of Atm(:)%phis
       call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
-      enddo
+
+      if ( .not. Atm(1)%flagstruct%hydrostatic ) then
+          liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+! Add cloud condensate from GFS to total MASS
+          do k=1,npz
+             do j=js,je
+                do i=is,ie
+                   Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
+                enddo
+             enddo
+          enddo
+      endif
+
+      enddo ! n-loop
 
       Atm(1)%flagstruct%make_nh = .false.
 

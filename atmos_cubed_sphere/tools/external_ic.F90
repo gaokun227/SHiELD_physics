@@ -899,7 +899,7 @@ contains
       ! populate the haloes of Atm(:)%phis
       call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
 
-      if ( .not. Atm(1)%flagstruct%hydrostatic ) then
+!      if ( .not. Atm(1)%flagstruct%hydrostatic ) then
           liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
 ! Add cloud condensate from GFS to total MASS
           do k=1,npz
@@ -909,7 +909,7 @@ contains
                 enddo
              enddo
           enddo
-      endif
+!      endif
 
       enddo ! n-loop
 

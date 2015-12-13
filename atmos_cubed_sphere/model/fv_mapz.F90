@@ -874,6 +874,7 @@ endif
 !$OMP end single
   else
 
+!$OMP do
       do j=js,je
          do i=is,ie
             zsum1(i,j) = pkz(i,j,1)*delp(i,j,1)
@@ -890,8 +891,8 @@ endif
          endif
       enddo
 
-      E_Flux = consv
 !$OMP single
+      E_Flux = consv
       if ( hydrostatic ) then
            dtmp = E_flux*(grav*pdt*4.*pi*radius**2) /    &
                  (cp*g_sum(domain, zsum0,  is, ie, js, je, ng, gridstruct%area_64, 0))
@@ -1042,7 +1043,7 @@ endif
               enddo
            enddo
         endif
-    else    ! not remap_t
+     else    ! not remap_t
 !$OMP do
         do k=1,km
            do j=js,je

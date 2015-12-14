@@ -29,7 +29,7 @@ module fv_mapz_mod
   private
 
   public compute_total_energy, Lagrangian_to_Eulerian, moist_cv, moist_cp,   &
-         rst_remap, mappm, E_Flux, E_Flux_nest
+         ppm_profile, rst_remap, mappm, E_Flux, E_Flux_nest
 
 !---- version number -----
   character(len=128) :: version = '$Id$'
@@ -2681,7 +2681,7 @@ endif
          enddo
       enddo
 
-      if(km>8 .and. kord>4) call steepz(i1, i2, km, a4, df2, dc, delq, delp, d4)
+!     if(km>8 .and. kord>4) call steepz(i1, i2, km, a4, df2, dc, delq, delp, d4)
 
 ! Area preserving cubic with 2nd deriv. = 0 at the boundaries
 ! Top

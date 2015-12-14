@@ -144,7 +144,7 @@ contains
 !---------------------------------------
     integer :: i,j,k, it, iq, n_con
     integer :: iep1, jep1
-    real    :: beta, beta_d, damp_k, damp_w, damp_t,  d_con_k, kgb
+    real    :: beta, beta_d, d_con_k, damp_w, damp_t,  kgb
     real    :: dt, dt2, rdt
     real    :: d2_divg
     real    :: k1k, kapag, gam, mk1
@@ -536,8 +536,8 @@ contains
 !$OMP                                  ng,zh,vt,ptc,pt,u,v,w,uc,vc,ua,va,divgd,mfx,mfy,cx,cy,     &
 !$OMP                                  crx,cry,xfx,yfx,q_con,zvir,sphum,nq,q,dt,bd,rdt,iep1,jep1, &
 !$OMP                                  heat_source)                                               &
-!$OMP                          private(nord_k, nord_w, nord_t, damp_k, damp_w, damp_t, d2_divg,   &
-!$OMP                          kgb, hord_m, hord_v, hord_t, hord_p, wk, heat_s, d_con_k, z_rat)
+!$OMP                          private(nord_k, nord_w, nord_t, damp_w, damp_t, d2_divg,   &
+!$OMP                          d_con_k,kgb, hord_m, hord_v, hord_t, hord_p, wk, heat_s, z_rat)
     do k=1,npz
        hord_m = flagstruct%hord_mt
        hord_t = flagstruct%hord_tm
@@ -546,83 +546,48 @@ contains
        nord_k = flagstruct%nord
           kgb = flagstruct%ke_bg
        nord_v(k) = min(2, flagstruct%nord)
-       damp_k = flagstruct%dddmp
        d2_divg = min(0.20, flagstruct%d2_bg*(1.-3.*tanh(0.1*log(pfull(k)/pfull(npz)))))
-       d_con_k = flagstruct%d_con
+
        if ( flagstruct%do_vort_damp ) then
             damp_vt(k) = flagstruct%vtdm4     ! for delp, delz, and vorticity
        else
             damp_vt(k) = 0.
        endif
+
        nord_w = nord_v(k)
        nord_t = nord_v(k)
        damp_w = damp_vt(k)
        damp_t = damp_vt(k)
+       d_con_k = flagstruct%d_con
 
        if ( npz==1 .or. flagstruct%n_sponge<0 ) then
            d2_divg = flagstruct%d2_bg
-       elseif ( flagstruct%n_sponge==0 ) then
-! New Del-2 Sponge layer: formulation
-! Sponge layers with del-2 damping on divergence, vorticity, w, z, and air mass (delp).
-! (no damping of potential temperature in sponge layers)
-              if ( k==1 ) then
-                   damp_k = 0.
-                   nord_k = 0
-                   d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k1)
-                   nord_v(k) = 0   ! for delp, delz, and vorticity, sponger layers
-#ifndef HIWPP
-                   damp_vt(k) = 0.75*d2_divg
-#endif
-                   nord_w = 0
-                   damp_w = d2_divg
-              elseif ( k==2 ) then
-                   damp_k = 0.
-                   nord_k = 0
-                   d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k2)
-                   nord_v(k) = 0
-#ifndef HIWPP
-                   damp_vt(k) = 0.75*d2_divg
-#endif
-                   nord_w = 0
-                   damp_w = d2_divg
-              elseif ( k==3 .and. flagstruct%d2_bg_k2>0.05 ) then
-                   damp_k = 0.
-                   nord_k = 0
-                   d2_divg = max(flagstruct%d2_bg, 0.2*flagstruct%d2_bg_k2)
-                   nord_v(k) = 0
-#ifndef HIWPP
-                   damp_vt(k) = 0.75*d2_divg
-#endif
-                   nord_w = 0
-                   damp_w = d2_divg
-              endif
-!           if ( damp_vt(k) < 0.01 .and. nord_k>0 ) d_con_k = 0.
        else
-           if( k <= flagstruct%n_sponge .and. npz>16 ) then
-! Apply first order scheme for damping the sponge layer
-               hord_m = 1
-               hord_v = 1
-               hord_t = 1
-               hord_p = 1
-               nord_k = 0
-               damp_k = flagstruct%damp_k_k1
-               d2_divg = min(0.20, flagstruct%d2_bg_k1*flagstruct%d2_bg)   ! 0.25 is the stability limit
-               d2_divg = max(flagstruct%d2_divg_max_k1, d2_divg)
-           elseif( k == flagstruct%n_sponge+1 .and. npz>24 ) then
-               hord_v = 2
-               hord_t = 2
-               hord_p = 2
-               nord_k = max(0, flagstruct%nord-1)
-               d2_divg = min(0.20, flagstruct%d2_bg_k2*flagstruct%d2_bg)
-               d2_divg = max(flagstruct%d2_divg_max_k2, d2_divg)
-               if ( flagstruct%nord > 1 ) then
-                    damp_k = 0.
-               else
-                    damp_k = flagstruct%damp_k_k2
-               endif
-           endif
+! Sponge layers with del-2 damping on divergence, vorticity, w, z, and air mass (delp).
+! no special damping of potential temperature in sponge layers
+              if ( k==1 ) then
+! Divergence damping:
+                   nord_k=0; d2_divg = max(0.01, flagstruct%d2_bg, flagstruct%d2_bg_k1)
+! Vertical velocity:
+                   nord_w=0; damp_w = d2_divg
+                   if ( flagstruct%do_vort_damp ) then
+! damping on delp and vorticity:
+                        nord_v(k)=0; damp_vt(k) = 0.5*d2_divg
+                   endif
+                   d_con_k = 0.
+              elseif ( k==2 .and. flagstruct%d2_bg_k2>0.01 ) then
+                   nord_k=0; d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k2)
+                   nord_w=0; damp_w = d2_divg
+                   if ( flagstruct%do_vort_damp ) then
+                        nord_v(k)=0; damp_vt(k) = 0.5*d2_divg
+                   endif
+                   d_con_k = 0.
+              elseif ( k==3 .and. flagstruct%d2_bg_k2>0.05 ) then
+                   nord_k=0;  d2_divg = max(flagstruct%d2_bg, 0.2*flagstruct%d2_bg_k2)
+                   nord_w=0;  damp_w = d2_divg
+                   d_con_k = 0.
+              endif
        endif
-       damp_k = max(damp_k, flagstruct%dddmp)
 
        if( hydrostatic .and. (.not.flagstruct%use_old_omega) .and. last_step ) then
 ! Average horizontal "convergence" to cell center
@@ -658,7 +623,7 @@ contains
 #endif
                   kgb, heat_s, zvir, sphum, nq,  q,  k,  npz, flagstruct%inline_q,  dt,  &
                   flagstruct%hord_tr, hord_m, hord_v, hord_t, hord_p,    &
-                  nord_k, nord_v(k), nord_w, nord_t, damp_k, d2_divg, flagstruct%d4_bg,  &
+                  nord_k, nord_v(k), nord_w, nord_t, flagstruct%dddmp, d2_divg, flagstruct%d4_bg,  &
                   damp_vt(k), damp_w, damp_t, d_con_k, hydrostatic, gridstruct, flagstruct, bd)
 
        if( hydrostatic .and. (.not.flagstruct%use_old_omega) .and. last_step ) then
@@ -677,7 +642,7 @@ contains
                enddo
             enddo
        endif
-       if ( d_con_k > 1.0E-5 ) then
+       if ( flagstruct%d_con > 1.0E-5 ) then
 ! Average horizontal "convergence" to cell center
             do j=js,je
                do i=is,ie

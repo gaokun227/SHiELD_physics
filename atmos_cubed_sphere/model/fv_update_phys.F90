@@ -312,9 +312,17 @@ module fv_update_phys_mod
 
       if ( hydrostatic ) then
          do j=js,je
+#ifndef HYDRO_CVM
+            call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
+                          ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k) )
+            do i=is,ie
+               pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
+            enddo
+#else
             do i=is,ie
                 pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
             enddo
+#endif
           enddo
        else
          if ( flagstruct%phys_hydrostatic ) then
@@ -322,7 +330,7 @@ module fv_update_phys_mod
              do j=js,je
 #ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                              ice_wat, snowwat, graupel, q, qc, cvm)
+                              ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k) )
 #endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
@@ -346,7 +354,7 @@ module fv_update_phys_mod
                do j=js,je
 #ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                                ice_wat, snowwat, graupel, q, qc, cvm)
+                                ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
 #endif
                   do i=is,ie
 #ifdef MOIST_CAPPA

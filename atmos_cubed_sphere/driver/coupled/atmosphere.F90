@@ -394,7 +394,7 @@ contains
                         Atm(n)%flagstruct%nwat, Atm(n)%delp, Atm(n)%pe,     &
                         Atm(n)%peln, Atm(n)%pkz, Atm(n)%pt, Atm(n)%q,       &
                         Atm(n)%ua, Atm(n)%va, Atm(n)%flagstruct%hydrostatic,&
-                        Atm(n)%w, Atm(n)%delz, u_dt, v_dt, t_dt, q_dt )
+                        Atm(n)%w, Atm(n)%delz, u_dt, v_dt, t_dt, q_dt, Atm(n)%flagstruct%n_sponge)
     endif
 
     if ( .not. Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
@@ -711,7 +711,7 @@ contains
    type(block_control_type),             intent(in) :: Atm_block
    type(time_type) :: Time_prev, Time_next
 !--- local variables ---
-   integer :: i, j, ix, k, k1, n, w_diff, nt_dyn
+   integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
    real ::  rcp
 
@@ -722,36 +722,54 @@ contains
 
    call set_domain ( Atm(mytile)%domain )
 
+   call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do shared (u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout) &
-!$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, k1, ix)
+!$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, k, nb, k1, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
      jbs = Atm_block%jbs(nb)
      jbe = Atm_block%jbe(nb)
 
-     ix = 0 
-     do j=jbs,jbe
-      do i=ibs,ibe
-       ix = ix + 1
-       do k = 1, npz
-          k1 = npz+1-k
-         u_dt(i,j,k1)   = (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k))/dt_atmos
-         v_dt(i,j,k1)   = (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k))/dt_atmos
+     do k = 1, npz
+      k1 = npz+1-k !reverse the k direction 
+      do j=jbs,jbe
+       do i=ibs,ibe
+         ix = Atm_block%ix(nb)%ix(i,j)
+         u_dt(i,j,k1)   = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k))/dt_atmos
+         v_dt(i,j,k1)   = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k))/dt_atmos
          t_dt(i,j,k1)   = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k))/dt_atmos
-! Redefine mixing ratios from GFS back to FV3:
-         q_dt(i,j,k1,1:nq) = (Stateout(nb)%gq0(ix,k,1:nq) - Statein(nb)%qgrs(ix,k,1:nq))/dt_atmos   &
-                        * (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))/Atm(n)%delp(i,j,k1)
        enddo
       enddo
      enddo
 
-!--- diagnostic tracers are being updated in-place
-!--- tracer fields must be returned to the Atm structure
-       Atm(mytile)%qdiag(i,j,npz:1:-1,:) = Stateout(nb)%gq0(ix,1:npz,nq+1:ncnst)
-
+     do iq = 1, nq
+       do k = 1, npz
+         k1 = npz+1-k !reverse the k direction 
+         do j=jbs,jbe
+           do i=ibs,ibe
+             ix = Atm_block%ix(nb)%ix(i,j)
+             q_dt(i,j,k1,iq) = (Stateout(nb)%gq0(ix,k,iq) - Statein(nb)%qgrs(ix,k,iq))/dt_atmos
+           enddo
+         enddo
+       enddo
+     enddo
+     !--- diagnostic tracers are being updated in-place
+     !--- tracer fields must be returned to the Atm structure
+     do iq = nq+1, ncnst
+       do k = 1, npz
+         k1 = npz+1-k !reverse the k direction 
+         do j=jbs,jbe
+           do i=ibs,ibe
+             ix = Atm_block%ix(nb)%ix(i,j)
+             Atm(mytile)%qdiag(i,j,k1,iq) = Stateout(nb)%gq0(ix,k,iq)
+           enddo
+         enddo
+       enddo
+     enddo
    enddo
+   call timing_off('GFS_TENDENCIES')
 
    w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff' )
    nt_dyn = ncnst-pnats   !nothing more than nq

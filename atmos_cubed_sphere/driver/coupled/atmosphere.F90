@@ -48,16 +48,7 @@ use fv_timing_mod,      only: timing_on, timing_off
 use fv_mp_mod,          only: switch_current_Atm 
 use fv_sg_mod,          only: fv_subgrid_z
 use fv_update_phys_mod, only: fv_update_phys
-#if defined (ATMOS_NUDGE)
-use atmos_nudge_mod,    only: atmos_nudge_init, atmos_nudge_end
-#elif defined (CLIMATE_NUDGE)
-use fv_climate_nudge_mod,only: fv_climate_nudge_init,fv_climate_nudge_end
-#elif defined (ADA_NUDGE)
-use fv_ada_nudge_mod,   only: fv_ada_nudge_init, fv_ada_nudge_end
-#else
 use fv_nwp_nudge_mod,   only: fv_nwp_nudge_init, fv_nwp_nudge_end, do_adiabatic_init
-use amip_interp_mod,    only: forecast_mode
-#endif
 
 use mpp_domains_mod, only:  mpp_get_data_domain, mpp_get_compute_domain
 use boundary_mod, only: update_coarse_grid
@@ -119,11 +110,7 @@ character(len=7)   :: mod_name = 'atmos'
   real, allocatable, dimension(:,:,:,:) :: q_dt
   real, allocatable :: pref(:,:), dum1d(:)
 
-!---need to define do_adiabatic_init to satisfy a reference when nwp_nudge is not the default
-#if defined(ATMOS_NUDGE) || defined(CLIMATE_NUDGE) || defined(ADA_NUDGE)
-   logical :: do_adiabatic_init
-#endif
-   logical :: first_diag = .true.
+  logical :: first_diag = .true.
 
 contains
 
@@ -725,7 +712,7 @@ contains
    call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do shared (u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout) &
-!$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, k, nb, k1, ix)
+!$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)

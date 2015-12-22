@@ -124,8 +124,8 @@ module gfs_physics_driver_mod
 !--- gfs initialization variables
     integer :: ipt = 1 
     integer :: latgfs = 1
-    real(kind=kind_phys) :: xkzm_m = 1.0
-    real(kind=kind_phys) :: xkzm_h = 1.0
+    real(kind=kind_phys) :: xkzm_m = 1.0     ! SJL note: backbround momentum diffusion
+    real(kind=kind_phys) :: xkzm_h = 1.0     ! SJL note:              heat/q diffusion
     real(kind=kind_phys) :: xkzm_s = 1.0
     real(kind=kind_phys) :: evpco = 2.0e-5
     real(kind=kind_phys) :: psautco(2) = (/6.0e-4,3.0e-4/)
@@ -160,7 +160,7 @@ module gfs_physics_driver_mod
     integer :: ncw(2)   = (/20,120/)
     real (kind=kind_phys) :: flgmin(2) = (/0.180,0.220/)
     real (kind=kind_phys) :: crtrh(3) = (/0.90,0.90,0.90/)
-    real (kind=kind_phys) :: cdmbgwd(2) = (/2.0,0.25/)
+    real (kind=kind_phys) :: cdmbgwd(2) = (/2.0,0.25/)  ! RAB adjust for sens
     real (kind=kind_phys) :: ccwf(2) = (/1.0,1.0/)
     real (kind=kind_phys) :: dlqf(2) = (/0.0,0.0/)
     real (kind=kind_phys) :: ctei_rm(2) = (/10.0,10.0/)
@@ -231,7 +231,7 @@ module gfs_physics_driver_mod
 
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
-                              ozcalc,cdmbgwd,fdiag,fhzero,prslrd0
+                              ozcalc,cdmbgwd,fdiag,fhzero,prslrd0,xkzm_m,xkzm_h,xkzm_s
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -429,8 +429,13 @@ module gfs_physics_driver_mod
        do i=ibs,ibe
         ix = ix + 1
         Dyn_parms(nb)%area(ix) = area(i,j)
-        Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
-        Dyn_parms(nb)%dy(ix)   = 0.5*(dy(i,j)+dy(i+1,j))
+!--- SJL -----------------------------------------------
+!!!     Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
+!!!     Dyn_parms(nb)%dy(ix)   = 0.5*(dy(i,j)+dy(i+1,j))
+! The above may create directional bias
+        Dyn_parms(nb)%dx(ix)   = sqrt(area(i,j))
+        Dyn_parms(nb)%dy(ix)   = Dyn_parms(nb)%dx(ix)
+!----------
         Dyn_parms(nb)%xlat(ix) = lat(i,j)
         Dyn_parms(nb)%xlon(ix) = lon(i,j)
         Dyn_parms(nb)%sinlat(ix) = sin(lat(i,j))

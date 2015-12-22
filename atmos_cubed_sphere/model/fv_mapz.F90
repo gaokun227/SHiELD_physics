@@ -123,7 +123,7 @@ contains
      real dz1(km)
      real rcp, rg, tmp, tpe, rgama, rrg, bkh, dtmp, dlnp, ztop, z_rat
      real k1k, kapag
-     integer liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kp, k_next
+     integer nt, liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kp, k_next
      logical te_map
      real, pointer, dimension(:,:) :: cosa_s, rsin2
 
@@ -644,8 +644,7 @@ endif
 !$OMP                               do_adiabatic_init,te_map,zsum1,zsum0,te0_2d,domain,   &
 !$OMP                               ng,gridstruct,E_Flux,pdt,dtmp,reproduce_sum,q, &
 !$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj)    &
-!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dlnp,&
-!$OMP                               dpeln)
+!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dlnp,dpeln)
 if ( hybrid_z ) then
 !$OMP do
    do j=js,je+1
@@ -2681,7 +2680,7 @@ endif
          enddo
       enddo
 
-      if(km>8 .and. kord>4) call steepz(i1, i2, km, a4, df2, dc, delq, delp, d4)
+!     if(km>8 .and. kord>4) call steepz(i1, i2, km, a4, df2, dc, delq, delp, d4)
 
 ! Area preserving cubic with 2nd deriv. = 0 at the boundaries
 ! Top
@@ -3519,7 +3518,6 @@ endif
            cpm(i) = (1.-(qv(i)+qd(i)))*cp_air + qv(i)*cp_vapor + ql(i)*c_liq + qs(i)*c_ice
         enddo
      else
-! Treat the condensate as ice ice to lessen the differences
      do i=is,ie
         qv(i) = max(0.,q(i,j,k,sphum))
         qs(i) = max(0.,q(i,j,k,liq_wat))

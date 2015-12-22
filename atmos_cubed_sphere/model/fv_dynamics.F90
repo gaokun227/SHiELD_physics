@@ -1,7 +1,7 @@
 module fv_dynamics_mod
    use constants_mod,       only: grav, pi, radius, hlv, rdgas, omega, rvgas, cp_vapor
    use dyn_core_mod,        only: dyn_core, del2_cubed, init_ijk_mem
-   use fv_mapz_mod,         only: compute_total_energy, Lagrangian_to_Eulerian, moist_cv, moist_cp
+   use fv_mapz_mod,         only: compute_total_energy, Lagrangian_to_Eulerian, moist_cv
    use fv_tracer2d_mod,     only: tracer_2d, tracer_2d_1L, tracer_2d_nested
    use fv_grid_utils_mod,   only: cubed_to_latlon, c2l_ord2, g_sum
    use fv_mp_mod,           only: is_master

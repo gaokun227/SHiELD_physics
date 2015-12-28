@@ -6,7 +6,7 @@
 
 module fv_control_mod
 
-   use constants_mod,       only: pi, kappa, radius, grav, rdgas, R_GRID
+   use constants_mod,       only: pi=>pi_8, kappa, radius, grav, rdgas, R_GRID
    use field_manager_mod,   only: MODEL_ATMOS
    use fms_mod,             only: write_version_number, open_namelist_file, &
                                   check_nml_error, close_file, file_exist

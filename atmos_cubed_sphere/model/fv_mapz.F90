@@ -3,7 +3,7 @@
 ! pressure level for remapping.
 module fv_mapz_mod
 
-  use constants_mod,     only: radius, pi, rvgas, rdgas, grav, hlv, hlf, cp_air, cp_vapor
+  use constants_mod,     only: radius, pi=>pi_8, rvgas, rdgas, grav, hlv, hlf, cp_air, cp_vapor
   use tracer_manager_mod,only: get_tracer_index
   use field_manager_mod, only: MODEL_ATMOS
   use fv_grid_utils_mod, only: g_sum, ptop_min

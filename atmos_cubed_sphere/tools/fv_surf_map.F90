@@ -5,7 +5,7 @@
                                    mpp_pe, mpp_root_pe, FATAL, error_mesg
       use mpp_mod,           only: get_unit, input_nml_file, mpp_error
       use mpp_domains_mod,   only: mpp_update_domains, domain2d
-      use constants_mod,     only: grav, radius, pi, R_GRID
+      use constants_mod,     only: grav, radius, pi=>pi_8, R_GRID
 
       use fv_grid_utils_mod, only: great_circle_dist, latlon2xyz, v_prod, normalize_vect
       use fv_grid_utils_mod, only: g_sum, global_mx, vect_cross

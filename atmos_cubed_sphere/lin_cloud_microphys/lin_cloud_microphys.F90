@@ -10,7 +10,7 @@ module lin_cld_microphys_mod
                               input_nml_file, mpp_max
  use diag_manager_mod,  only: register_diag_field, send_data
  use time_manager_mod,  only: time_type, get_time
- use constants_mod,     only: grav, rdgas, rvgas, cp_air, cp_vapor, hlv, hlf, kappa, pi
+ use constants_mod,     only: grav, rdgas, rvgas, cp_air, cp_vapor, hlv, hlf, kappa, pi=>pi_8
  use fms_mod,           only: write_version_number, open_namelist_file, &
                               check_nml_error, file_exist, close_file,  &
                               error_mesg, FATAL

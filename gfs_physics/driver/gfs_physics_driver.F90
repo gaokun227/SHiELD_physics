@@ -259,7 +259,7 @@ module gfs_physics_driver_mod
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
 !--- local variables
-    integer ::  ierr, io, unit, logunit, outunit
+    integer :: ierr, io, unit, logunit, outunit
     integer :: nb, ibs, ibe, jbs, jbe, ngptc
     integer :: i, j, ix, ntrac, ntp
     integer :: jdate(8) = (/1, 1, 1, 0, 0, 0, 0, 0/)
@@ -332,6 +332,13 @@ module gfs_physics_driver_mod
  10   call close_file (unit)
     endif
 #endif
+
+!--- check fdiag to see if it is an interval or a list
+    if (nint(fdiag(2)) == 0) then
+      do i = 2, size(fdiag,1)
+        fdiag(i) = fdiag(i-1) + fdiag(1) 
+      enddo
+    endif
 
 !--- check to see if prognostic ozone calculation active
     if (ozcalc) then
@@ -642,9 +649,11 @@ module gfs_physics_driver_mod
       endif
     enddo
 
-    if (mpp_pe() == mpp_root_pe()) then
-      write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour, &
-                   '  lsswr ',Dyn_parms(1)%lsswr,' lslwr ',Dyn_parms(1)%lslwr
+    if (debug) then
+      if (mpp_pe() == mpp_root_pe()) then
+        write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour, &
+                     '  lsswr ',Dyn_parms(1)%lsswr,' lslwr ',Dyn_parms(1)%lslwr
+      endif
     endif
  100 format (a,i5.5,a,f10.4,a,L1,a,L1)
 

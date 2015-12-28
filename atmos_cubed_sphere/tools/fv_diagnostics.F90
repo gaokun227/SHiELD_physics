@@ -1,6 +1,6 @@
 module fv_diagnostics_mod
 
- use constants_mod,    only: grav, rdgas, rvgas, pi, radius, kappa, WTMAIR, WTMCO2, R_GRID,   &
+ use constants_mod,    only: grav, rdgas, rvgas, pi=>pi_8, radius, kappa, WTMAIR, WTMCO2, R_GRID,   &
                              omega, hlv, cp_air, cp_vapor
  use fms_io_mod,       only: set_domain, nullify_domain
  use time_manager_mod, only: time_type, get_date, get_time
@@ -2564,8 +2564,8 @@ contains
 ! local:
  integer n,i,j,k, k1
 
-!$OMP parallel do default(none) shared(is,ie,js,je,km,kd,n,id,log_p,peln,a2,wz)   &
-!$OMP             private(k1)
+!$OMP parallel do default(none) shared(is,ie,js,je,km,kd,id,log_p,peln,a2,wz)   &
+!$OMP             private(i,j,n,k,k1)
  do j=js,je
     do i=is,ie
        k1 = 1

@@ -1,38 +1,27 @@
 module fv_update_phys_mod
 
-  use constants_mod,      only: kappa, rdgas, rvgas, grav, cp_air, cp_vapor, pi, radius, R_GRID
+  use constants_mod,      only: kappa, rdgas, rvgas, grav, cp_air, cp_vapor, pi=>pi_8, radius, R_GRID
   use field_manager_mod,  only: MODEL_ATMOS
   use mpp_domains_mod,    only: mpp_update_domains, domain2d
   use mpp_parameter_mod,  only: AGRID_PARAM=>AGRID
   use mpp_mod,            only: FATAL, mpp_error
+  use mpp_mod,            only: mpp_error, NOTE, WARNING
   use time_manager_mod,   only: time_type
   use tracer_manager_mod, only: get_tracer_index, adjust_mass
   use fv_mp_mod,          only: start_group_halo_update, complete_group_halo_update
   use fv_mp_mod,          only: group_halo_update_type
   use fv_arrays_mod,      only: fv_flags_type, fv_nest_type
-  use boundary_mod,        only: nested_grid_BC
+  use boundary_mod,       only: nested_grid_BC
+  use boundary_mod,       only: extrapolation_BC
   use fv_eta_mod,         only: get_eta_level
   use fv_timing_mod,      only: timing_on, timing_off
   use fv_diagnostics_mod, only: prt_maxmin
-
-  use mpp_mod,             only: mpp_error, NOTE, WARNING
-  use boundary_mod,        only: extrapolation_BC
-  use fv_mapz_mod,         only: moist_cv, moist_cp
-#ifdef GFS_PHYS
-  use fv_grid_utils_mod,   only: cubed_to_latlon
-#endif
-
-
-#if defined (ATMOS_NUDGE)
-  use atmos_nudge_mod,    only: get_atmos_nudge, do_ps
-#elif defined (CLIMATE_NUDGE)
-  use fv_climate_nudge_mod, only: fv_climate_nudge, do_ps
-#elif defined (ADA_NUDGE)
-  use fv_ada_nudge_mod,   only: fv_ada_nudge
-#else
+  use fv_mapz_mod,        only: moist_cv, moist_cp
   use fv_nwp_nudge_mod,   only: fv_nwp_nudge
-#endif
   use fv_arrays_mod,      only: fv_grid_type, fv_nest_type, fv_grid_bounds_type
+#ifdef GFS_PHYS
+  use fv_grid_utils_mod,  only: cubed_to_latlon
+#endif
 
   implicit none
 
@@ -312,9 +301,17 @@ module fv_update_phys_mod
 
       if ( hydrostatic ) then
          do j=js,je
+#ifndef HYDRO_CVM
+            call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
+                          ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k) )
+            do i=is,ie
+               pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
+            enddo
+#else
             do i=is,ie
                 pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
             enddo
+#endif
           enddo
        else
          if ( flagstruct%phys_hydrostatic ) then
@@ -322,7 +319,7 @@ module fv_update_phys_mod
              do j=js,je
 #ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                              ice_wat, snowwat, graupel, q, qc, cvm)
+                              ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k) )
 #endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
@@ -346,7 +343,7 @@ module fv_update_phys_mod
                do j=js,je
 #ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-                                ice_wat, snowwat, graupel, q, qc, cvm)
+                                ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
 #endif
                   do i=is,ie
 #ifdef MOIST_CAPPA
@@ -377,75 +374,6 @@ module fv_update_phys_mod
     ps_dt(:,:) = 0.
 
     if ( nudge ) then
-#if defined (ATMOS_NUDGE)
-!--------------------------------------------
-! All fields will be updated; tendencies added
-!--------------------------------------------
-        call get_atmos_nudge ( Time, dt, is, ie, js, je,    &
-             npz, ng, ps(is:ie,js:je), ua(is:ie, js:je,:), &
-             va(is:ie,js:je,:), pt(is:ie,js:je,:), &
-             q(is:ie,js:je,:,:), ps_dt(is:ie,js:je), u_dt(is:ie,js:je,:),  & 
-             v_dt(is:ie,js:je,:), t_dt(is:ie,js:je,:), &
-             q_dt(is:ie,js:je,:,:) )
-
-!--------------
-! Update delp
-!--------------
-        if (do_ps) then
-!$OMP parallel do default(none) private(dbk)
-            do k=1,npz
-               dbk = dt * (bk(k+1) - bk(k))
-               do j=js,je
-                  do i=is,ie
-                     delp(i,j,k) = delp(i,j,k) + dbk*ps_dt(i,j)
-                  enddo
-               enddo
-            enddo
-        endif
-#elif defined (CLIMATE_NUDGE)
-!--------------------------------------------
-! All fields will be updated; tendencies added
-!--------------------------------------------
-        call fv_climate_nudge ( Time, dt, is, ie, js, je, npz, pfull,    &
-             lona(is:ie,js:je), lata(is:ie,js:je), phis(is:ie,js:je), &
-             ptop, ak, bk, &
-             ps(is:ie,js:je), ua(is:ie,js:je,:), va(is:ie,js:je,:), &
-             pt(is:ie,js:je,:), q(is:ie,js:je,:,sphum:sphum),   &
-             ps_dt(is:ie,js:je), u_dt(is:ie,js:je,:),  &
-             v_dt(is:ie,js:je,:), t_dt(is:ie,js:je,:), &
-             q_dt(is:ie,js:je,:,sphum:sphum) )
-
-!--------------
-! Update delp
-!--------------
-        if (do_ps) then
-!$OMP parallel do default(none) private(dbk)
-            do k=1,npz
-              dbk = dt * (bk(k+1) - bk(k))
-               do j=js,je
-                  do i=is,ie
-                     delp(i,j,k) = delp(i,j,k) + dbk*ps_dt(i,j)
-                   enddo
-               enddo
-            enddo
-        endif
-#elif defined (ADA_NUDGE)
-! All fields will be updated except winds; wind tendencies added
-!$OMP parallel do default(none) shared(is,ie,js,je,npz,pe,delp,ps)
-        do j=js,je
-         do k=2,npz+1
-          do i=is,ie
-            pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
-          enddo
-         enddo
-         do i=is,ie
-           ps(i,j) = pe(i,npz+1,j)
-         enddo
-        enddo
-        call fv_ada_nudge ( Time, dt, npx, npy, npz,  ps_dt, u_dt, v_dt, t_dt, q_dt,   &
-                            zvir, ptop, ak, bk, ts, ps, delp, ua, va, pt,    &
-                            nwat, q,  phis, gridstruct, bd, domain )
-#else
 ! All fields will be updated except winds; wind tendencies added
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,pe,delp,ps)
         do j=js,je
@@ -461,7 +389,6 @@ module fv_update_phys_mod
         call fv_nwp_nudge ( Time, dt, npx, npy, npz,  ps_dt, u_dt, v_dt, t_dt, q_dt,   &
                             zvir, ptop, ak, bk, ts, ps, delp, ua, va, pt,    &
                             nwat, q,  phis, gridstruct, bd, domain )
-#endif
   endif         ! end nudging       
 
   if ( .not.flagstruct%dwind_2d ) then

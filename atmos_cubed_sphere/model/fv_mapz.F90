@@ -3,7 +3,7 @@
 ! pressure level for remapping.
 module fv_mapz_mod
 
-  use constants_mod,     only: radius, pi, rvgas, rdgas, grav, hlv, hlf, cp_air, cp_vapor
+  use constants_mod,     only: radius, pi=>pi_8, rvgas, rdgas, grav, hlv, hlf, cp_air, cp_vapor
   use tracer_manager_mod,only: get_tracer_index
   use field_manager_mod, only: MODEL_ATMOS
   use fv_grid_utils_mod, only: g_sum, ptop_min
@@ -123,7 +123,7 @@ contains
      real dz1(km)
      real rcp, rg, tmp, tpe, rgama, rrg, bkh, dtmp, dlnp, ztop, z_rat
      real k1k, kapag
-     integer liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kp, k_next
+     integer nt, liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kp, k_next
      logical te_map
      real, pointer, dimension(:,:) :: cosa_s, rsin2
 
@@ -644,8 +644,7 @@ endif
 !$OMP                               do_adiabatic_init,te_map,zsum1,zsum0,te0_2d,domain,   &
 !$OMP                               ng,gridstruct,E_Flux,pdt,dtmp,reproduce_sum,q, &
 !$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj)    &
-!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dlnp,&
-!$OMP                               dpeln)
+!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dlnp,dpeln)
 if ( hybrid_z ) then
 !$OMP do
    do j=js,je+1
@@ -3519,7 +3518,6 @@ endif
            cpm(i) = (1.-(qv(i)+qd(i)))*cp_air + qv(i)*cp_vapor + ql(i)*c_liq + qs(i)*c_ice
         enddo
      else
-! Treat the condensate as ice ice to lessen the differences
      do i=is,ie
         qv(i) = max(0.,q(i,j,k,sphum))
         qs(i) = max(0.,q(i,j,k,liq_wat))

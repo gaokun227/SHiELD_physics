@@ -29,7 +29,7 @@ module fv_mapz_mod
   private
 
   public compute_total_energy, Lagrangian_to_Eulerian, moist_cv, moist_cp,   &
-         ppm_profile, rst_remap, mappm, E_Flux, E_Flux_nest
+         rst_remap, mappm, E_Flux, E_Flux_nest
 
 !---- version number -----
   character(len=128) :: version = '$Id$'

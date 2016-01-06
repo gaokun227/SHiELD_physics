@@ -142,7 +142,7 @@ contains
     integer :: nord_k, nord_w, nord_t
     integer :: ms
 !---------------------------------------
-    integer :: i,j,k, it, iq, n_con
+    integer :: i,j,k, it, iq, n_con, nf_ke
     integer :: iep1, jep1
     real    :: beta, beta_d, d_con_k, damp_w, damp_t,  kgb
     real    :: dt, dt2, rdt
@@ -1001,7 +1001,8 @@ contains
 
 
   if ( n_con/=0 .and. flagstruct%d_con > 1.e-5 ) then
-       call del2_cubed(heat_source, cnst_0p20*gridstruct%da_min, gridstruct, domain, npx, npy, npz, 3, bd)
+       nf_ke = min(3, flagstruct%nord+1)
+       call del2_cubed(heat_source, cnst_0p20*gridstruct%da_min, gridstruct, domain, npx, npy, npz, nf_ke, bd)
 
 ! Note: pt here is cp*(Virtual_Temperature/pkz)
     if ( hydrostatic ) then

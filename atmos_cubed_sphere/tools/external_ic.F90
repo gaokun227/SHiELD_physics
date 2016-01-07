@@ -555,7 +555,7 @@ contains
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res
-      type (restart_file_type) :: SFC_restart, GFS_restart
+      type (restart_file_type) :: ORO_restart, SFC_restart, GFS_restart
       character(len=6)  :: gn, stile_name
       character(len=64) :: tracer_name
       character(len=64) :: fn_gfs_ctl = 'gfs_ctrl.nc'
@@ -741,9 +741,9 @@ contains
 
         ! terrain surface height -- (needs to be transformed into phis = zs*grav)
         if (filtered_terrain) then
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
         endif
 
         if ( Atm(n)%flagstruct%fv_land ) then
@@ -807,9 +807,11 @@ contains
         enddo
 
         ! read in the restart
+        call restore_state (ORO_restart)
         call restore_state (SFC_restart)
         call restore_state (GFS_restart)
         ! free the restart type to be re-used by the nest
+!rab        call free_restart_type(ORO_restart)
 !rab        call free_restart_type(SFC_restart)
 !rab        call free_restart_type(GFS_restart)
 

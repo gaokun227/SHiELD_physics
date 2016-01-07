@@ -562,6 +562,7 @@ contains
       character(len=64) :: fn_gfs_ics = 'gfs_data.nc'
       character(len=64) :: fn_sfc_ctl = 'sfc_ctrl.nc'
       character(len=64) :: fn_sfc_ics = 'sfc_data.nc'
+      character(len=64) :: fn_oro_ics = 'oro_data.nc'
       logical :: remap
       logical :: filtered_terrain = .true.
       logical :: ncep_terrain = .false.
@@ -741,9 +742,9 @@ contains
 
         ! terrain surface height -- (needs to be transformed into phis = zs*grav)
         if (filtered_terrain) then
-          id_res = register_restart_field (ORO_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
-          id_res = register_restart_field (ORO_restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
         endif
 
         if ( Atm(n)%flagstruct%fv_land ) then

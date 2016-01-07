@@ -1736,9 +1736,7 @@ contains
   real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1, pn1
   real qp(Atm%bd%is:Atm%bd%ie,km)
   real wk(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je)
-  real, dimension(2*km+1):: gz, pn, pk
-  real, dimension(km+1):: pk0
-  real, dimension(npz+1):: pk1
+  real, dimension(2*km+1):: gz, pn
   real gz_fv(npz+1)
   real pst
   integer i,j,k, k2, l, iq
@@ -1784,7 +1782,7 @@ contains
            pn(k) = pn0(i,k)
            gz(k) = zh(i,j,k)*grav
         enddo
-! Use log-p OR pk for interpolation/extrapolation
+! Use log-p for interpolation/extrapolation
 ! mirror image method:
         do k=km+2, km+k2
               l = 2*(km+1) - k
@@ -1792,7 +1790,6 @@ contains
            pn(k) = 2.*pn(km+1) - pn(l)
         enddo
 
-#ifdef USE_LOGP4EXT
         do k=km+k2-1, 2, -1
           if( Atm%phis(i,j).le.gz(k) .and. Atm%phis(i,j).ge.gz(k+1) ) then
               pst = pn(k) + (pn(k+1)-pn(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
@@ -1800,18 +1797,6 @@ contains
           endif
         enddo
 123     Atm%ps(i,j) = exp(pst)
-#else
-        do k=1,km+k2
-           pk(k) = exp(kappa*pn(k))
-        enddo
-        do k=km+k2-1, 2, -1
-          if( Atm%phis(i,j).le.gz(k) .and. Atm%phis(i,j).ge.gz(k+1) ) then
-              pst = pk(k) + (pk(k+1)-pk(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
-              go to 123
-          endif
-        enddo
-123     Atm%ps(i,j) = exp(log(pst)/kappa)
-#endif
      enddo   ! i-loop
 
      do i=is,ie
@@ -1864,15 +1849,6 @@ contains
       enddo
       gz_fv(npz+1) = Atm%phis(i,j)
 
-#ifndef USE_LOGP4EXT
-      do k=1,km+1
-         pk0(k) = exp(kappa*pn0(i,k))
-      enddo
-      do k=1,npz+1
-         pk1(k) = exp(kappa*pn1(i,k))
-      enddo
-#endif
-
       do 555 k=1,npz
 ! Searching using FV3 log(pe): pn1
          do l=1,km
@@ -1880,13 +1856,8 @@ contains
                 gz_fv(k) = gz(l) + (gz(l+1)-gz(l))*(pn1(i,k)-pn0(i,l))/(pn0(i,l+1)-pn0(i,l))
                 goto 555
             elseif ( pn1(i,k) .gt. pn0(i,km+1) ) then
-#ifdef USE_LOGP4EXT
 ! Isothermal under ground; linear in log-p extra-polation
                 gz_fv(k) = gz(km+1) + (gz_fv(npz+1)-gz(km+1))*(pn1(i,k)-pn0(i,km+1))/(pn1(i,npz+1)-pn0(i,km+1))
-#else
-! Isentropic under ground; linear in pk
-                gz_fv(k) = gz(km+1) + (gz_fv(npz+1)-gz(km+1))*(pk1(k)-pk0(km+1))/(pk1(npz+1)-pk0(km+1))
-#endif
                 goto 555
             endif
          enddo

@@ -286,8 +286,10 @@ contains
    integer i, j, k
 
    pek = ptop ** kappa
-!$OMP parallel do default(none) shared(ifirst,ilast,jfirst,jlast,km,ptop,pek,pe,pk, &
-!$OMP                                  ps,delp,peln,hydrostatic,pkz)
+!$OMP parallel do default (none) &
+!$OMP              shared (ifirst,ilast,jfirst,jlast,km,ptop,pek,pe,pk, &
+!$OMP                      ps,delp,peln,hydrostatic,pkz) &
+!$OMP             private (j, i, k)
    do j=jfirst,jlast
       do i=ifirst,ilast
          pe(i,1,j) = ptop
@@ -385,7 +387,9 @@ contains
     endif
 
     if ( .not. Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
-!$OMP parallel do default(shared) private(k)
+!$OMP parallel do default (none) &
+!$OMP              shared (isc, iec, jsc, jec, w_diff, n, Atm, q_dt) &
+!$OMP             private (k)
        do k=1, Atm(n)%npz
           Atm(n)%q(isc:iec,jsc:jec,k,w_diff) = Atm(n)%w(isc:iec,jsc:jec,k) + w0_big
           q_dt(:,:,k,w_diff) = 0.
@@ -711,8 +715,9 @@ contains
 
    call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
-!$OMP parallel do shared (u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout) &
-!$OMP            private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
+!$OMP parallel do default (none) & 
+!$OMP              shared (nq, npz, ncnst, mytile, u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout, Atm_block, dt_atmos) &
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -767,7 +772,9 @@ contains
 !--- adjust w and heat tendency for non-hydrostatic case
     if ( .not.Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
       rcp = 1. / cp_air
-!$OMP parallel do default(shared) private(i, j, k)
+!$OMP parallel do default (none) &
+!$OMP              shared (jsc, jec, isc, iec, n, w_diff, Atm, q_dt, t_dt, rcp, dt_atmos) &
+!$OMP             private (i, j, k)
        do k=1, Atm(n)%npz
          do j=jsc, jec
            do i=isc, iec
@@ -865,7 +872,9 @@ contains
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
 #endif
 
-!$omp parallel do default(shared)
+!$omp parallel do default (none) & 
+!$omp              shared (npz, jsc, jec, isc, iec, n, sphum, u0, v0, t0, dp0, Atm, zvir) &
+!$omp             private (k, j, i) 
        do k=1,npz
           do j=jsc,jec+1
              do i=isc,iec
@@ -904,7 +913,6 @@ contains
                      Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
                      Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
                      Atm(n)%domain)
-!rab                     Atm(n)%domain, lprec, fprec, f_land)
 ! Backward
     call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, -dt_atmos, 0.,      &
                      Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
@@ -919,9 +927,10 @@ contains
                      Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
                      Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
                      Atm(n)%domain)
-!rab                     Atm(n)%domain, lprec, fprec, f_land)
 ! Nudging back to IC
-!$omp parallel do default(shared)
+!$omp parallel do default (none) &
+!$omp             shared (npz, jsc, jec, isc, iec, n, sphum, Atm, u0, v0, t0, dp0, xt, zvir) &
+!$omp            private (i, j, k)
        do k=1,npz
           do j=jsc,jec+1
              do i=isc,iec
@@ -936,7 +945,7 @@ contains
           do j=jsc,jec
              do i=isc,iec
 #ifndef NUDGE_GZ
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,sphum)))
 #endif
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
@@ -947,7 +956,9 @@ contains
      call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
                 Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
-!$omp parallel do default(shared)
+!$omp parallel do default (none) &
+!$omp             shared (npz, jsc, jec, isc, iec, Atm, t0, xt, zvir) &
+!$omp            private (i, j, k)
        do k=1,npz
           do j=jsc,jec
              do i=isc,iec
@@ -971,7 +982,6 @@ contains
                      Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
                      Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
                      Atm(n)%domain)
-!rab                     Atm(n)%domain, lprec, fprec, f_land)
 ! Forward call
     call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  nq, Atm(n)%ng, dt_atmos, 0.,      &
                      Atm(n)%flagstruct%fill, Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,  &
@@ -986,9 +996,10 @@ contains
                      Atm(n)%gridstruct, Atm(n)%flagstruct,                            &
                      Atm(n)%neststruct, Atm(n)%idiag, Atm(n)%bd, Atm(n)%parent_grid,  &
                      Atm(n)%domain)
-!rab                     Atm(n)%domain, lprec, fprec, f_land)
 ! Nudging back to IC
-!$omp parallel do default(shared)
+!$omp parallel do default (none) &
+!$omp             shared (npz, jsc, jec, isc, iec, n, sphum, Atm, u0, v0, t0, dp0, xt, zvir) &
+!$omp            private (i, j, k)
        do k=1,npz
           do j=jsc,jec+1
              do i=isc,iec
@@ -1003,7 +1014,7 @@ contains
           do j=jsc,jec
              do i=isc,iec
 #ifndef NUDGE_GZ
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,1)))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(n)%q(i,j,k,sphum)))
 #endif
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
@@ -1014,7 +1025,9 @@ contains
      call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
                 Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
-!$omp parallel do default(shared)
+!$omp parallel do default (none) &
+!$omp             shared (npz, jsc, jec, isc, iec, Atm, t0, xt, zvir) &
+!$omp            private (i, j, k)
        do k=1,npz
           do j=jsc,jec
              do i=isc,iec
@@ -1038,6 +1051,13 @@ contains
 
 
 
+#if defined(OVERLOAD_R4)
+#define _DBL_(X) DBLE(X)
+#define _RL_(X) REAL(X,KIND=4)
+#else
+#define _DBL_(X) X
+#define _RL_(X) X
+#endif
  subroutine atmos_phys_driver_statein (Statein, Atm_block)
    type (state_fields_in), dimension(:), intent(inout) :: Statein
    type (block_control_type),            intent(in)    :: Atm_block
@@ -1047,7 +1067,7 @@ contains
    real(kind=kind_phys), parameter:: p00 = 1.e5
    real(kind=kind_phys), parameter:: qmin = 1.01e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
-   real :: rTv
+   real(kind=kind_phys) :: rTv
    integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1
    logical :: diag_sounding = .false.
 
@@ -1055,7 +1075,7 @@ contains
 !!! - "Layer" means "layer mean", ie. the average value in a layer
 !!! - "Level" means "level interface", ie the point values at the top or bottom of a layer
 
-   ptop =  Atm(mytile)%ak(1)
+   ptop =  _DBL_(_RL_(Atm(mytile)%ak(1)))
    pktop  = (ptop/p00)**kappa
    pk0inv = (1.0_kind_phys/p00)**kappa
 
@@ -1069,9 +1089,9 @@ contains
 ! use most up to date atmospheric properties when running serially
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
-!$OMP          shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, pk0inv, &
-!$OMP                   ptop, pktop, zvir, mytile, diag_sounding) &
-!$OMP          private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
+!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, pk0inv, &
+!$OMP                      ptop, pktop, zvir, mytile, diag_sounding) &
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
 
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
@@ -1083,9 +1103,9 @@ contains
 ! log(pe) <-- prsik
 
      !-- level interface geopotential height (relative to the surface)
-     Statein(nb)%phii(:,1) = 0.0
+     Statein(nb)%phii(:,1) = 0.0_kind_phys
      Statein(nb)%adjtrc = 1.0_kind_phys
-     Statein(nb)%prsik(:,:) = 1.e25
+     Statein(nb)%prsik(:,:) = 1.e25_kind_phys
 
      do k = 1, npz
         ix = 0 
@@ -1095,19 +1115,19 @@ contains
                  !Indices for FV's vertical coordinate, for which 1 = top
                  !here, k is the index for GFS's vertical coordinate, for which 1 = bottom
               k1 = npz+1-k ! flipping the index
-              Statein(nb)%tgrs(ix,k) = Atm(mytile)%pt(i,j,k1)
-              Statein(nb)%ugrs(ix,k) = Atm(mytile)%ua(i,j,k1)
-              Statein(nb)%vgrs(ix,k) = Atm(mytile)%va(i,j,k1)
-               Statein(nb)%vvl(ix,k) = Atm(mytile)%omga(i,j,k1)
-              Statein(nb)%prsl(ix,k) = Atm(mytile)%delp(i,j,k1)   ! Total mass
+              Statein(nb)%tgrs(ix,k) = _DBL_(_RL_(Atm(mytile)%pt(i,j,k1)))
+              Statein(nb)%ugrs(ix,k) = _DBL_(_RL_(Atm(mytile)%ua(i,j,k1)))
+              Statein(nb)%vgrs(ix,k) = _DBL_(_RL_(Atm(mytile)%va(i,j,k1)))
+               Statein(nb)%vvl(ix,k) = _DBL_(_RL_(Atm(mytile)%omga(i,j,k1)))
+              Statein(nb)%prsl(ix,k) = _DBL_(_RL_(Atm(mytile)%delp(i,j,k1)))   ! Total mass
 
               if (.not.Atm(mytile)%flagstruct%hydrostatic .and. (.not.Atm(mytile)%flagstruct%use_hydro_pressure))  &
-              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - Atm(mytile)%delz(i,j,k1)*grav
+              Statein(nb)%phii(ix,k+1) = Statein(nb)%phii(ix,k) - _DBL_(_RL_(Atm(mytile)%delz(i,j,k1)*grav))
 
 ! Convert to tracer mass:
-              Statein(nb)%qgrs_rad(ix,k)  =     max(qmin, Atm(mytile)%q(i,j,k1,sphum)) * Statein(nb)%prsl(ix,k)
-              Statein(nb)%qgrs(ix,k,1:nq) =                 Atm(mytile)%q(i,j,k1,1:nq) * Statein(nb)%prsl(ix,k)
-              Statein(nb)%qgrs(ix,k,nq+1:ncnst) = Atm(mytile)%qdiag(i,j,k1,nq+1:ncnst) * Statein(nb)%prsl(ix,k)
+              Statein(nb)%qgrs_rad(ix,k)  =     _DBL_(_RL_(max(qmin, Atm(mytile)%q(i,j,k1,sphum)))) * Statein(nb)%prsl(ix,k)
+              Statein(nb)%qgrs(ix,k,1:nq) =     _DBL_(_RL_(            Atm(mytile)%q(i,j,k1,1:nq))) * Statein(nb)%prsl(ix,k)
+              Statein(nb)%qgrs(ix,k,nq+1:ncnst) = _DBL_(_RL_(Atm(mytile)%qdiag(i,j,k1,nq+1:ncnst))) * Statein(nb)%prsl(ix,k)
 ! Remove the contribution of condensates to delp (mass):
               Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat)
            enddo

@@ -708,6 +708,7 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
+!$             schedule (guided) & 
 !$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends)          &
 !$             firstprivate (Mdl_parms)  &
@@ -743,6 +744,7 @@ module gfs_physics_driver_mod
     fhour = Dyn_parms(1)%fhour
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
+!$             schedule (guided) & 
 !$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
 !$                      Stateout, fdiag, fhzero, levs) &

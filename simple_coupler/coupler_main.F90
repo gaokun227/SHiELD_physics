@@ -133,7 +133,6 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
   enddo
 !--- intermediate restart
   if ((intrm_rst) .and. (nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
-    if (mpp_pe() == mpp_root_pe()) print *,' writing a restart', nc
     timestamp = date_to_string (Time_restart)
     call atmos_model_restart(Atm, timestamp)
     Time_restart = Time_restart + Time_step_restart

@@ -719,10 +719,16 @@ module fv_eta_mod
 ! This is activated by USE_GFSL63
 ! Thfollowing L63 setting is the same as NCEP GFS's L64 except the top
 ! 3 layers
-!!!!  data a63/10.00000,      94.00000,     199.00000,    &
-      data a63/25.00000,     100.00000,     200.00000,    &
+#ifdef TEST_GFS
+      data a63/25.000,     100.00000,     200.00000,    &
               311.00000,     430.00000,     558.00000,    &
               700.00000,     863.05803,    1051.07995,    &
+#else
+! The following L63 setting is the same as NCEP GFS's L64 except the top layer
+      data a63/64.248,      137.790,       221.958,      &
+              318.266,       428.434,       554.424,      &
+              698.457,       863.05803,    1051.07995,    &
+#endif
              1265.75194,    1510.71101,    1790.05098,    &
              2108.36604,    2470.78817,    2883.03811,    &
              3351.46002,    3883.05187,    4485.49315,    &

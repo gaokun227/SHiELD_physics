@@ -2631,7 +2631,7 @@ module gfs_physics_driver_mod
 
 !--- names of the 2D variables to save
       sfc_name2(1)  = 'slmsk'
-      sfc_name2(2)  = 'tsea'
+      sfc_name2(2)  = 'tsea'    !tsfc
       sfc_name2(3)  = 'sheleg'  !weasd
       sfc_name2(4)  = 'tg3'
       sfc_name2(5)  = 'zorl'
@@ -2639,15 +2639,15 @@ module gfs_physics_driver_mod
       sfc_name2(7)  = 'alvwf'
       sfc_name2(8)  = 'alnsf'
       sfc_name2(9)  = 'alnwf'
-      sfc_name2(10) = 'vfrac'
-      sfc_name2(11) = 'canopy'
-      sfc_name2(12) = 'f10m'
-      sfc_name2(13) = 't2m'
-      sfc_name2(14) = 'q2m'
-      sfc_name2(15) = 'vtype'
-      sfc_name2(16) = 'stype'
-      sfc_name2(17) = 'facsf'
-      sfc_name2(18) = 'facwf'
+      sfc_name2(10) = 'facsf'
+      sfc_name2(11) = 'facwf'
+      sfc_name2(12) = 'vfrac'
+      sfc_name2(13) = 'canopy'
+      sfc_name2(14) = 'f10m'
+      sfc_name2(15) = 't2m'
+      sfc_name2(16) = 'q2m'
+      sfc_name2(17) = 'vtype'
+      sfc_name2(18) = 'stype'
       sfc_name2(19) = 'uustar'
       sfc_name2(20) = 'ffmm'
       sfc_name2(21) = 'ffhh'
@@ -2656,7 +2656,7 @@ module gfs_physics_driver_mod
       sfc_name2(24) = 'tisfc'
       sfc_name2(25) = 'tprcp'
       sfc_name2(26) = 'srflag'
-      sfc_name2(27) = 'snwdph'   !snowd
+      sfc_name2(27) = 'snwdph'  !snowd
       sfc_name2(28) = 'shdmin'
       sfc_name2(29) = 'shdmax'
       sfc_name2(30) = 'slope'
@@ -2753,7 +2753,7 @@ module gfs_physics_driver_mod
           !--- shdmax
           sfc_var2(i,j,29) = Sfc_props(nb)%shdmax(ix)
           !--- slope
-          sfc_var2(i,j,20) = Sfc_props(nb)%slope(ix)
+          sfc_var2(i,j,30) = Sfc_props(nb)%slope(ix)
           !--- snoalb
           sfc_var2(i,j,31) = Sfc_props(nb)%snoalb(ix)
           !--- sncovr

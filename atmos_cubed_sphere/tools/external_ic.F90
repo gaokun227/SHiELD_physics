@@ -560,7 +560,6 @@ contains
       character(len=64) :: tracer_name
       character(len=64) :: fn_gfs_ctl = 'gfs_ctrl.nc'
       character(len=64) :: fn_gfs_ics = 'gfs_data.nc'
-      character(len=64) :: fn_sfc_ctl = 'sfc_ctrl.nc'
       character(len=64) :: fn_sfc_ics = 'sfc_data.nc'
       character(len=64) :: fn_oro_ics = 'oro_data.nc'
       logical :: remap
@@ -708,6 +707,11 @@ contains
       bk(1:levp+1) = wk2(1:levp+1,2)
       deallocate (wk2)
 
+      if (.not. file_exist('INPUT/'//trim(fn_oro_ics), domain=Atm(1)%domain)) then
+        call mpp_error(FATAL,'==> Error in External_ic::get_nggps_ic: tiled file '//trim(fn_oro_ics)//' for NGGPS IC does not exist')
+      endif
+      call mpp_error(NOTE,'==> External_ic::get_nggps_ic: using tiled data file '//trim(fn_oro_ics)//' for NGGPS IC')
+
       if (.not. file_exist('INPUT/'//trim(fn_sfc_ics), domain=Atm(1)%domain)) then
         call mpp_error(FATAL,'==> Error in External_ic::get_nggps_ic: tiled file '//trim(fn_sfc_ics)//' for NGGPS IC does not exist')
       endif
@@ -749,9 +753,9 @@ contains
 
         if ( Atm(n)%flagstruct%fv_land ) then
           ! stddev
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'sdtdev', Atm(n)%sgh, domain=Atm(n)%domain)
+          id_res = register_restart_field (SFC_restart, fn_oro_ics, 'stddev', Atm(n)%sgh, domain=Atm(n)%domain)
           ! land-frac
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
+          id_res = register_restart_field (SFC_restart, fn_oro_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
         endif
 
         ! NCEP IC surface height -- (needs to be transformed ino phis = zs*grav)

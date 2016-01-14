@@ -59,6 +59,7 @@ use coupler_types_mod,  only: coupler_2d_bc_type
 use block_control_mod,  only: block_control_type, define_blocks
 use gfs_physics_driver_mod, only: state_fields_in, state_fields_out, &
                                   kind_phys, phys_rad_driver_init, &
+                                  phys_rad_driver_restart, &
                                   phys_rad_driver_end, &
                                   phys_rad_setup_step, &
                                   radiation_driver, physics_driver, skin_temp
@@ -484,6 +485,7 @@ subroutine atmos_model_end (Atmos)
 !---- termination routine for atmospheric model ----
                                               
     call atmosphere_end (Atmos % Time, Atmos%grid)
+    call phys_rad_driver_end (Atm_block, Atmos%domain)
 
 end subroutine atmos_model_end
 
@@ -498,7 +500,7 @@ end subroutine atmos_model_end
     character(len=*),  intent(in)           :: timestamp
 
      call atmosphere_restart(timestamp)
-!rab     call physics_driver_restart(timestamp)
+     call phys_rad_driver_restart (Atm_block, Atmos%domain, timestamp)
 
   end subroutine atmos_model_restart
   ! </SUBROUTINE>

@@ -742,6 +742,7 @@ contains
          do j=jbs,jbe
            do i=ibs,ibe
              ix = Atm_block%ix(nb)%ix(i,j)
+! Redefine mixing ratios from GFS back to FV3:
              q_dt(i,j,k1,iq) = (Stateout(nb)%gq0(ix,k,iq) - Statein(nb)%qgrs(ix,k,iq))/dt_atmos     &
                              * (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))/Atm(n)%delp(i,j,k1)
            enddo

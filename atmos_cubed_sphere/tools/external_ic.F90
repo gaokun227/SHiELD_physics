@@ -555,13 +555,14 @@ contains
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res
-      type (restart_file_type) :: SFC_restart, GFS_restart
+      type (restart_file_type) :: ORO_restart, SFC_restart, GFS_restart
       character(len=6)  :: gn, stile_name
       character(len=64) :: tracer_name
       character(len=64) :: fn_gfs_ctl = 'gfs_ctrl.nc'
       character(len=64) :: fn_gfs_ics = 'gfs_data.nc'
       character(len=64) :: fn_sfc_ctl = 'sfc_ctrl.nc'
       character(len=64) :: fn_sfc_ics = 'sfc_data.nc'
+      character(len=64) :: fn_oro_ics = 'oro_data.nc'
       logical :: remap
       logical :: filtered_terrain = .true.
       logical :: ncep_terrain = .false.
@@ -623,6 +624,52 @@ contains
                  0.90050,       0.91722,       0.93223,    &
                  0.94565,       0.95762,       0.96827,    &
                  0.97771,       0.98608,       0.99347,  1./
+
+#ifdef TEMP_GFSPLV
+      data ak_sj/ 64.247,        137.79,       221.958,    & 
+                 318.266,       428.434,       554.424,    &
+                 698.457,       863.058,       1051.08,    &
+                1265.752,      1510.711,      1790.051,    &
+                2108.366,      2470.788,      2883.038,    &
+                 3351.46,      3883.052,      4485.493,    &
+                5167.146,       5937.05,      6804.874,    &
+                 7777.15,      8832.537,      9936.614,    &
+                11054.85,      12152.94,      13197.07,    &
+                14154.32,      14993.07,      15683.49,    &
+                16197.97,      16511.74,       16611.6,    &
+                16503.14,      16197.32,      15708.89,    &
+                15056.34,      14261.43,      13348.67,    &
+                12344.49,      11276.35,      10171.71,    &
+                9057.051,      7956.908,      6893.117,    &
+                5884.206,      4945.029,      4086.614,    &
+                3316.217,      2637.553,       2051.15,    &
+                1554.789,      1143.988,       812.489,    &
+                  552.72,       356.223,       214.015,    &
+                 116.899,        55.712,        21.516,    &
+                   5.741,         0.575,            0.,   0./
+
+      data bk_sj/0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+              0.00003697,    0.00043106,    0.00163591,    &
+              0.00410671,    0.00829402,    0.01463712,    &
+              0.02355588,    0.03544162,    0.05064684,    &
+              0.06947458,    0.09216691,     0.1188122,    &
+               0.1492688,     0.1832962,     0.2205702,    &
+               0.2606854,     0.3031641,     0.3474685,    &
+               0.3930182,     0.4392108,     0.4854433,    &
+               0.5311348,     0.5757467,     0.6187996,    &
+                0.659887,     0.6986829,     0.7349452,    &
+               0.7685147,     0.7993097,     0.8273188,    &
+               0.8525907,     0.8752236,      0.895355,    &
+                0.913151,     0.9287973,     0.9424911,    &
+               0.9544341,     0.9648276,     0.9738676,    &
+               0.9817423,     0.9886266,     0.9946712, 1. /
+#endif
 
       call mpp_error(NOTE,'Using external_IC::get_nggps_ic which is valid only for data which has been &
                           &horizontally interpolated to the current cubed-sphere grid')
@@ -741,9 +788,9 @@ contains
 
         ! terrain surface height -- (needs to be transformed into phis = zs*grav)
         if (filtered_terrain) then
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
         endif
 
         if ( Atm(n)%flagstruct%fv_land ) then
@@ -807,9 +854,11 @@ contains
         enddo
 
         ! read in the restart
+        call restore_state (ORO_restart)
         call restore_state (SFC_restart)
         call restore_state (GFS_restart)
         ! free the restart type to be re-used by the nest
+!rab        call free_restart_type(ORO_restart)
 !rab        call free_restart_type(SFC_restart)
 !rab        call free_restart_type(GFS_restart)
 

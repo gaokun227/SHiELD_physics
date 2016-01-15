@@ -81,8 +81,8 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    integer :: months=0, days=0, hours=0, minutes=0, seconds=0
    integer :: dt_atmos = 0
    integer :: dt_ocean = 0
-   integer :: restart_days = -999
-   integer :: restart_secs = -999
+   integer :: restart_days = 0
+   integer :: restart_secs = 0
    integer :: atmos_nthreads = 1
    logical :: memuse_verbose = .false.
    logical :: use_hyper_thread = .false.
@@ -132,10 +132,12 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
   enddo
 !--- intermediate restart
-  if ((intrm_rst) .and. (nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
-    timestamp = date_to_string (Time_restart)
-    call atmos_model_restart(Atm, timestamp)
-    Time_restart = Time_restart + Time_step_restart
+  if (intrm_rst) then
+    if ((nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
+      timestamp = date_to_string (Time_restart)
+      call atmos_model_restart(Atm, timestamp)
+      Time_restart = Time_restart + Time_step_restart
+    endif
   endif
 
   call print_memuse_stats('after full step')

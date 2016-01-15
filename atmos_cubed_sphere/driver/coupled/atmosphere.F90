@@ -716,7 +716,7 @@ contains
    call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
-!$OMP              shared (nq, npz, ncnst, mytile, u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout, Atm_block, dt_atmos) &
+!$OMP              shared (n, nq, npz, ncnst, mytile, u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout, Atm_block, dt_atmos) &
 !$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
@@ -742,7 +742,9 @@ contains
          do j=jbs,jbe
            do i=ibs,ibe
              ix = Atm_block%ix(nb)%ix(i,j)
-             q_dt(i,j,k1,iq) = (Stateout(nb)%gq0(ix,k,iq) - Statein(nb)%qgrs(ix,k,iq))/dt_atmos
+! Redefine mixing ratios from GFS back to FV3:
+             q_dt(i,j,k1,iq) = (Stateout(nb)%gq0(ix,k,iq) - Statein(nb)%qgrs(ix,k,iq))/dt_atmos     &
+                             * (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))/Atm(n)%delp(i,j,k1)
            enddo
          enddo
        enddo

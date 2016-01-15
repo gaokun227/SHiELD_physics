@@ -29,9 +29,9 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: t_ice = 273.15
   real, parameter:: ri_max = 2.
   real, parameter:: ri_min = 1.
-  real, parameter:: t1_min = 188.
-  real, parameter:: t2_min = 165.
-  real, parameter:: t3_max = 330.
+! real, parameter:: t1_min = 188.
+! real, parameter:: t2_min = 165.
+  real, parameter:: t3_max = 325.
   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.147782e6
   real, parameter:: Li0 =  hlf0 - dc_ice*t_ice   ! = -2.431928e5 
 
@@ -222,7 +222,7 @@ contains
             tv2 = t0(i,k  )*(1.+xvir*q0(i,k  ,sphum)-qcon(i,k))
             pt1 = tv1 / pkz(i,j,km1)
             pt2 = tv2 / pkz(i,j,k  )
-            if ( tv1>t3_max ) then
+            if ( tv1>t3_max .and. tv1>tv2 ) then
 ! top layer unphysically warm
                ri = 0.
             else

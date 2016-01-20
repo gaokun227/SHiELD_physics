@@ -93,6 +93,8 @@ module gfs_physics_driver_mod
   character(len=32),    allocatable,         dimension(:)       :: sfc_name2, sfc_name3
   real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: sfc_var2
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3
+  real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: phy_f2d
+  real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: phy_f3d
 
 !--- diagnostic field ids and var-names
   type diag_data_type
@@ -838,14 +840,15 @@ module gfs_physics_driver_mod
     type (block_control_type), intent(in) :: Atm_block
     logical, intent(in), optional :: GSM
 !--- local variables
-    integer :: i, j, ibs, ibe, jbs, jbe, nct
+    integer :: i, j, k, num, ibs, ibe, jbs, jbe, nct
     integer :: nb, nx, ny, ngptc
     integer :: start(4), nread(4)
     character(len=32)  :: fn_srf = 'INPUT/sfc_data.nc'
     character(len=32)  :: fn_oro = 'INPUT/oro_data.nc'
     character(len=128) :: errmsg
-    real(kind=kind_phys), pointer, dimension(:,:)   :: var2 => NULL()
-    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3 => NULL()
+    character(len=2)   :: c2
+    real(kind=kind_phys), pointer,     dimension(:,:)     :: var2 => NULL()
+    real(kind=kind_phys), allocatable, dimension(:,:,:)   :: var3
     logical :: exists
     real :: tsmin, tsmax, timin, timax
 !--- local variables for sncovr calculation
@@ -1095,8 +1098,54 @@ module gfs_physics_driver_mod
        enddo
       enddo
       deallocate(var3)
+    
+      if (field_exist(fn_srf,'phy_f2d')) then
+!--- phy_f2d
+        start(1) = ibs
+        start(2) = jbs
+        start(3) = 1
+        start(4) = 1
+        nread(1) = nx
+        nread(2) = ny
+        nread(3) = Mdl_parms%num_p2d
+        nread(4) = 1
+        allocate(var3(1:nx,1:ny,Mdl_parms%num_p2d))
+        call read_data(fn_srf,'phy_f2d',var3,start,nread)
+        do num = 1, Mdl_parms%num_p2d
+          do j = 1, ny
+            do i = 1, nx
+              nct = (j-1)*nx + i
+              Tbd_data(nb)%phy_f2d(nct,num) = var3(i,j,num)
+            enddo
+          enddo
+        enddo
+        deallocate(var3)
+!--- phy_f3d
+        start(1) = ibs
+        start(2) = jbs
+        start(3) = 1
+        start(4) = 1
+        nread(1) = nx
+        nread(2) = ny
+        nread(3) = Atm_block%npz
+        nread(4) = 1
+        allocate(var3(1:nx,1:ny,Atm_block%npz))
+        do num = 1,Mdl_parms%num_p3d+Mdl_parms%npdf3d
+          write(c2,'(i2.2)') num
+          call read_data(fn_srf,'phy_f3d_'//c2,var3,start,nread)
+          do k = 1, Atm_block%npz
+            do j = 1, ny
+              do i = 1, nx
+                nct = (j-1)*nx + i
+                Tbd_data(nb)%phy_f3d(nct,k,num) = var3(i,j,k)
+              enddo
+            enddo
+          enddo
+        enddo
+        deallocate(var3)
+      endif
     enddo
-
+   
 !--- nullify/deallocate any temporaries used
     nullify(var2)
 
@@ -2601,11 +2650,12 @@ module gfs_physics_driver_mod
     type (domain2d),             intent(in) :: fv_domain
     character(len=32), optional, intent(in) :: timestamp
 !--- local variables
-    integer :: i, j, ii, jj, ibs, ibe, jbs, jbe, nb, ix, lsoil, num
-    integer :: isc, iec, jsc, jec, nx, ny
+    integer :: i, j, k, ii, jj, ibs, ibe, jbs, jbe, nb, ix, lsoil, num
+    integer :: isc, iec, jsc, jec, nx, ny, npz
     integer :: id_restart
     integer :: nvar2, nvar3
-    character(len=32)  :: fn_srf = 'sfc_data.nc'
+    character(len=32) :: fn_srf = 'sfc_data.nc'
+    character(len=2)  :: c2 = ''
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
 
@@ -2616,6 +2666,7 @@ module gfs_physics_driver_mod
     iec = Atm_block%iec
     jsc = Atm_block%jsc
     jec = Atm_block%jec
+    npz = Atm_block%npz
     nx = (iec - isc + 1)
     ny = (jec - jsc + 1)
 
@@ -2665,8 +2716,8 @@ module gfs_physics_driver_mod
 
 !--- register the 2D fields
       do num = 1,nvar2
-       var2_p => sfc_var2(:,:,num)
-       id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
+        var2_p => sfc_var2(:,:,num)
+        id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
       enddo
       nullify(var2_p)
 
@@ -2677,8 +2728,19 @@ module gfs_physics_driver_mod
 
 !--- register the 3D fields
       do num = 1,nvar3
-       var3_p => sfc_var3(:,:,:,num)
-       id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(num), var3_p, domain=fv_domain)
+        var3_p => sfc_var3(:,:,:,num)
+        id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(num), var3_p, domain=fv_domain)
+      enddo
+      nullify(var3_p)
+    endif
+    if (.not. allocated(phy_f2d)) then
+      allocate(phy_f2d(nx,ny,Mdl_parms%num_p2d))
+      allocate(phy_f3d(nx,ny,npz,Mdl_parms%num_p3d+Mdl_parms%npdf3d))
+      id_restart = register_restart_field(Sfc_restart, fn_srf, 'phy_f2d', phy_f2d, domain=fv_domain)
+      do num = 1,size(phy_f3d,4)
+        write(c2,'(i2.2)') num
+        var3_p => phy_f3d(:,:,:,num)
+        id_restart = register_restart_field(Sfc_restart, fn_srf, 'phy_f3d_'//c2, var3_p, domain=fv_domain)
       enddo
       nullify(var3_p)
     endif
@@ -2776,6 +2838,30 @@ module gfs_physics_driver_mod
           enddo
         enddo
       enddo
+
+!--- phy_f*d variables
+      do num = 1,size(phy_f2d,3)
+        do jj=jbs,jbe
+          j = jj - jsc + 1
+          do ii=ibs,ibe
+            i = ii - isc + 1
+            ix = Atm_block%ix(nb)%ix(ii,jj)
+            phy_f2d(i,j,num) = Tbd_data(nb)%phy_f2d(ix,num)
+          enddo
+        enddo
+      enddo
+      do num = 1,size(phy_f3d,4)
+        do k=1,npz
+          do jj=jbs,jbe
+            j = jj - jsc + 1
+            do ii=ibs,ibe
+              i = ii - isc + 1
+              ix = Atm_block%ix(nb)%ix(ii,jj)
+              phy_f3d(i,j,k,num) = Tbd_data(nb)%phy_f3d(ix,k,num)
+            enddo
+          enddo
+        enddo
+      enddo
     enddo
 
     call save_restart(Sfc_restart, timestamp)
@@ -2783,5 +2869,4 @@ module gfs_physics_driver_mod
 
   end subroutine surface_props_output
 
-  
 end module gfs_physics_driver_mod

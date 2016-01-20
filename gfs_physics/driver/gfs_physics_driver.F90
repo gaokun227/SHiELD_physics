@@ -252,10 +252,10 @@ module gfs_physics_driver_mod
 !--- phys_rad_driver_init ---
 !    constructor for gfs_physics_driver_mod
 !---------------------------------------------------------------------
-  subroutine phys_rad_driver_init (Time, lon, lat, glon, glat, npz,       &
+  subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz,       &
                                    axes, dx, dy, area, indxmin, indxmax,  &
                                    dt_phys, Atm_block, State_in, State_out)
-    type(time_type),           intent(in) :: Time
+    type(time_type),           intent(in) :: Time, Time_init
     type (block_control_type), intent(in) :: Atm_block
     !--  set "one"-based arrays to domain-based
     real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
@@ -267,11 +267,10 @@ module gfs_physics_driver_mod
 !--- local variables
     integer :: ierr, io, unit, logunit, outunit
     integer :: nb, ibs, ibe, jbs, jbe, ngptc
-    integer :: i, j, ix, ntrac, ntp
+    integer :: i, j, ix, ntrac, ntp, sec, kdt, nnp
+    integer :: id1, id2
     integer :: jdate(8) = (/1, 1, 1, 0, 0, 0, 0, 0/)
     integer :: idate(4) = (/0, 1, 1, 1/)
-    integer :: kdt = 0
-    integer :: nnp = 0
     real(kind=kind_phys) :: solhr = 0.0   
     real(kind=kind_phys) :: fhour = 0.
     real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
@@ -307,13 +306,16 @@ module gfs_physics_driver_mod
 !--- later in this subroutine have already been initialized ---
     call fms_init
 
+    call get_time(Time - Time_init, sec)
+    fhour = real(sec)/3600.
+    kdt = fhour/dt_phys
+    nnp = kdt
+
     jdate = 0 
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
                          jdate(5), jdate(6), jdate(7))
-    idate(4) = jdate(1)
-    idate(2) = jdate(2)
-    idate(3) = jdate(3)
-    idate(1) = jdate(5)
+
+    call get_date (Time_init, idate(4), idate(2), idate(3), idate(1), id1, id2)
 
 !--- set the local variable for "lat" & "lon" per tile
     lat_cs = glat
@@ -2671,7 +2673,7 @@ module gfs_physics_driver_mod
     ny = (jec - jsc + 1)
 
 #ifdef OVERLOAD_R4
-    print *, 'Restarts are not implemented for 32-bit'
+    if (mpp_pe() .eq. mpp_root_pe()) print *, 'Restarts are not implemented for 32-bit'
 #else
     if (.not. allocated(sfc_name2)) then
 !--- allocate the various containers needed for restarts

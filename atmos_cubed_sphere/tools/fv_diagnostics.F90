@@ -1106,6 +1106,8 @@ contains
 
 #ifndef SW_DYNAMICS
         call prt_maxmin('TA', Atm(n)%pt,   isc, iec, jsc, jec, ngc, npz, 1.)
+        call prt_maxmin('Top: TA', Atm(n)%pt(isc:iec,jsc:jec,  1), isc, iec, jsc, jec, 0, 1, 1.)
+        call prt_maxmin('Bot: TA', Atm(n)%pt(isc:iec,jsc:jec,npz), isc, iec, jsc, jec, 0, 1, 1.)
         call prt_maxmin('OM', Atm(n)%omga, isc, iec, jsc, jec, ngc, npz, 1.)
 #endif
 

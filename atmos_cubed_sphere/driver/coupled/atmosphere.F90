@@ -736,6 +736,10 @@ contains
       enddo
      enddo
 
+!SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
+!     This call may be commented out if RAS or other positivity-preserving CPS is used.
+     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 3.e-9_kind_phys)
+
      do iq = 1, nq
        do k = 1, npz
          k1 = npz+1-k !reverse the k direction 
@@ -1067,7 +1071,7 @@ contains
 ! Local GFS-phys consistent parameters:
 !--------------------------------------
    real(kind=kind_phys), parameter:: p00 = 1.e5
-   real(kind=kind_phys), parameter:: qmin = 1.01e-10   
+   real(kind=kind_phys), parameter:: qmin = 1.0e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
    real(kind=kind_phys) :: rTv
    integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1
@@ -1222,5 +1226,61 @@ contains
 
 
  end subroutine atmos_phys_driver_statein
+
+ subroutine fill_gfs(im, km, pe2, q, q_min)
+!SJL: this routine is the equivalent of fillz except that the vertical index is upside down
+   integer, intent(in):: im, km
+   real(kind=kind_phys), intent(in):: pe2(im,km+1)       ! pressure interface
+   real(kind=kind_phys), intent(in):: q_min
+   real(kind=kind_phys), intent(inout):: q(im,km)
+!  LOCAL VARIABLES:
+   real(kind=kind_phys) :: dp(im,km)
+   integer:: i, k, k1
+   real(kind=kind_phys):: dq
+
+   do k=1,km
+      do i=1,im
+         dp(i,k) = pe2(i,k) - pe2(i,k+1)
+      enddo
+   enddo
+ 
+! Bottom layer (k=1):
+      do i=1,im
+         if( q(i,1) < q_min ) then
+             q(i,2) = q(i,2) + (q(i,1)-q_min)*dp(i,1)/dp(i,2)
+             q(i,1) = q_min
+          endif
+      enddo
+
+! Interior
+      do k=2,km-1
+         k1 = k-1
+         do i=1,im
+! Take mass from below:
+            if ( q(i,k)<0.0 .and. q(i,k1)>q_min ) then
+                dq = min( -0.75_kind_phys*q(i,k)*dp(i,k), (q(i,k1)-q_min)*dp(i,k1) ) 
+                q(i,k1) = q(i,k1) - dq/dp(i,k1)
+                q(i,k ) = q(i,k ) + dq/dp(i,k )
+            endif
+            if( q(i,k) < q_min ) then
+! Take mass from above:
+                q(i,k+1) = q(i,k+1) + (q(i,k)-q_min)*dp(i,k)/dp(i,k+1)
+                q(i,k) = q_min
+            endif
+         enddo
+      enddo
+
+! Top layer (k=km)
+   k1 = km - 1
+   do i=1,im
+      if( q(i,km)<0.0 .and. q(i,k1)>0.0 ) then
+! Borrow from below:
+          dq = min( -q(i,km)*dp(i,km), q(i,k1)*dp(i,k1) )
+          q(i,k1) = q(i,k1) - dq/dp(i,k1) 
+          q(i,km) = q(i,km) + dq/dp(i,km)
+      endif
+   enddo
+
+ end subroutine fill_gfs
 
 end module atmosphere_mod

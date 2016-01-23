@@ -794,6 +794,7 @@ contains
        enddo
     endif
 
+   call mpp_clock_begin (id_dynam)
        call timing_on('FV_UPDATE_PHYS')
     call fv_update_phys( dt_atmos, isc, iec, jsc, jec, isd, ied, jsd, jed, Atm(n)%ng, nt_dyn, &
                          Atm(n)%u,  Atm(n)%v,   Atm(n)%w,  Atm(n)%delp, Atm(n)%pt,         &
@@ -807,6 +808,7 @@ contains
                          Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, Atm(n)%flagstruct,            &
                          Atm(n)%neststruct, Atm(n)%bd, Atm(n)%domain, Atm(n)%ptop)
        call timing_off('FV_UPDATE_PHYS')
+   call mpp_clock_end (id_dynam)
 
 !--- nesting update after updating atmospheric variables with
 !--- physics tendencies

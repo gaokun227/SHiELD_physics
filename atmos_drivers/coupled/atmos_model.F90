@@ -29,8 +29,8 @@ module atmos_model_mod
 !</DESCRIPTION>
 
 use mpp_mod,            only: mpp_pe, mpp_root_pe, mpp_clock_id, mpp_clock_begin
-use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, mpp_error, mpp_chksum
-use mpp_mod,            only: mpp_min, mpp_max
+use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, MPP_CLOCK_SYNC
+use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum
 use mpp_domains_mod,    only: domain2d
 #ifdef INTERNAL_FILE_NML
 use mpp_mod,            only: input_nml_file
@@ -146,7 +146,8 @@ integer :: nyblocks = 1
 logical :: surface_debug = .false.
 logical :: dycore_only = .false.
 logical :: debug = .false.
-namelist /atmos_model_nml/ nxblocks, nyblocks, surface_debug, dycore_only, debug
+logical :: sync = .false.
+namelist /atmos_model_nml/ nxblocks, nyblocks, surface_debug, dycore_only, debug, sync
 
 !--- concurrent and decoupled radiation and physics variables
 type (state_fields_in),  dimension(:), allocatable :: Statein
@@ -412,7 +413,11 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    physClock  = mpp_clock_id( 'GFS Physics           ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    getClock   = mpp_clock_id( 'Dynamics get state    ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    updClock   = mpp_clock_id( 'Dynamics update state ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   fv3Clock   = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   if (sync) then
+     fv3Clock = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default+MPP_CLOCK_SYNC, grain=CLOCK_COMPONENT )
+   else
+     fv3Clock = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   endif
 
 !-----------------------------------------------------------------------
 end subroutine atmos_model_init

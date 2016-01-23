@@ -583,7 +583,7 @@ module gfs_physics_driver_mod
     call get_time(Time - Time_init, sec)
     fhour = real(sec)/3600.
 
-    if (mpp_pe() == mpp_root_pe()) then
+    if (debug .and. mpp_pe() == mpp_root_pe()) then
       print *,'   kdt ', Dyn_parms(1)%kdt + 1
       print *,' fhour ', fhour
       print *,' phour ', phour

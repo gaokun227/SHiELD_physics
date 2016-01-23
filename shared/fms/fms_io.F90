@@ -5286,7 +5286,7 @@ subroutine read_data_3d_region(filename,fieldname,data,start,nread,domain, &
 
 
 ! Initialize files to default values
-  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_2d_region):  module not initialized')
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_3d_region):  module not initialized')
   is_no_domain = .false.
   if (PRESENT(no_domain)) is_no_domain = no_domain
 
@@ -5321,7 +5321,7 @@ end subroutine read_data_3d_region
 subroutine read_data_2d_region_r8(filename,fieldname,data,start,nread,domain, &
                                  no_domain, tile_count)
   character(len=*),                  intent(in) :: filename, fieldname
-  real(kind=8), dimension(:,:),           intent(inout) :: data ! 3 dimensional data
+  real(kind=8), dimension(:,:),      intent(inout) :: data ! 3 dimensional data
   integer, dimension(:),             intent(in) :: start, nread
   type(domain2d), target,  optional, intent(in) :: domain
   logical,                 optional, intent(in) :: no_domain
@@ -5336,7 +5336,7 @@ subroutine read_data_2d_region_r8(filename,fieldname,data,start,nread,domain, &
 
 
 ! Initialize files to default values
-  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_2d_region):  module not initialized')
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_2d_region_r8):  module not initialized')
   is_no_domain = .false.
   if (PRESENT(no_domain)) is_no_domain = no_domain
 
@@ -5357,7 +5357,7 @@ subroutine read_data_2d_region_r8(filename,fieldname,data,start,nread,domain, &
   call get_field_id(unit, file_index, fieldname, index_field, is_no_domain, .false. )
   siz_in(1:4) = files_read(file_index)%var(index_field)%siz(1:4)
   if(files_read(file_index)%var(index_field)%is_dimvar) then
-     call mpp_error(FATAL, 'fms_io_mod(read_data_2d_region): the field should not be a dimension variable')
+     call mpp_error(FATAL, 'fms_io_mod(read_data_2d_region_r8): the field should not be a dimension variable')
   endif
   call mpp_read(unit,files_read(file_index)%var(index_field)%field,data,start, nread)
 
@@ -5369,7 +5369,7 @@ end subroutine read_data_2d_region_r8
 subroutine read_data_3d_region_r8(filename,fieldname,data,start,nread,domain, &
                                  no_domain, tile_count)
   character(len=*),                  intent(in) :: filename, fieldname
-  real(kind=8), dimension(:,:,:),         intent(inout) :: data ! 3 dimensional data
+  real(kind=8), dimension(:,:,:),    intent(inout) :: data ! 3 dimensional data
   integer, dimension(:),             intent(in) :: start, nread
   type(domain2d), target,  optional, intent(in) :: domain
   logical,                 optional, intent(in) :: no_domain
@@ -5384,7 +5384,7 @@ subroutine read_data_3d_region_r8(filename,fieldname,data,start,nread,domain, &
 
 
 ! Initialize files to default values
-  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_2d_region):  module not initialized')
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(read_data_3d_region_r8):  module not initialized')
   is_no_domain = .false.
   if (PRESENT(no_domain)) is_no_domain = no_domain
 
@@ -5405,7 +5405,7 @@ subroutine read_data_3d_region_r8(filename,fieldname,data,start,nread,domain, &
   call get_field_id(unit, file_index, fieldname, index_field, is_no_domain, .false. )
   siz_in(1:4) = files_read(file_index)%var(index_field)%siz(1:4)
   if(files_read(file_index)%var(index_field)%is_dimvar) then
-     call mpp_error(FATAL, 'fms_io_mod(read_data_3d_region): the field should not be a dimension variable')
+     call mpp_error(FATAL, 'fms_io_mod(read_data_3d_region_r8): the field should not be a dimension variable')
   endif
   call mpp_read(unit,files_read(file_index)%var(index_field)%field,data,start, nread)
 

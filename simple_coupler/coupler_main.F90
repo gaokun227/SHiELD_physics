@@ -8,18 +8,19 @@ program coupler_main
 !
 !-----------------------------------------------------------------------
 
-use time_manager_mod,  only: time_type, set_calendar_type, set_time,  &
-                             set_date, days_in_month, month_name,     &
-                             operator(+), operator (<), operator (>), &
-                             operator (/=), operator (/), get_date,   &
-                             operator (*), THIRTY_DAY_MONTHS, JULIAN, &
-                             NOLEAP, NO_CALENDAR
+use time_manager_mod,  only: time_type, set_calendar_type, set_time,    &
+                             set_date, days_in_month, month_name,       &
+                             operator(+), operator (<), operator (>),   &
+                             operator (/=), operator (/), operator (==),&
+                             operator (*), THIRTY_DAY_MONTHS, JULIAN,   &
+                             NOLEAP, NO_CALENDAR, date_to_string,       &
+                             get_date
  
-use  atmos_model_mod,  only: atmos_model_init, atmos_model_end, &
-                             update_atmos_model_dynamics,       &
-                             update_atmos_radiation_physics,    &
-                             update_atmos_model_state,          &
-                             atmos_data_type
+use  atmos_model_mod,  only: atmos_model_init, atmos_model_end,  &
+                             update_atmos_model_dynamics,        &
+                             update_atmos_radiation_physics,     &
+                             update_atmos_model_state,           &
+                             atmos_data_type, atmos_model_restart
 
 use constants_mod,     only: constants_init
 use       fms_mod,     only: open_namelist_file, file_exist, check_nml_error,  &
@@ -59,7 +60,8 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 ! ----- coupled model time -----
 
    type (time_type) :: Time_atmos, Time_init, Time_end,  &
-                       Time_step_atmos, Time_step_ocean
+                       Time_step_atmos, Time_step_ocean, &
+                       Time_restart, Time_step_restart
    integer :: num_cpld_calls, num_atmos_calls, nc, na
 
 ! ----- coupled model initial date -----
@@ -72,23 +74,28 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    integer :: initClock, mainClock, termClock
    integer, parameter :: timing_level = 1
 
-!-----------------------------------------------------------------------
+! ----- namelist -----
+   integer, dimension(6) :: current_date = (/ 0, 0, 0, 0, 0, 0 /)
+   character(len=17) :: calendar = '                 '
+   logical :: force_date_from_namelist = .false.  ! override restart values for date
+   integer :: months=0, days=0, hours=0, minutes=0, seconds=0
+   integer :: dt_atmos = 0
+   integer :: dt_ocean = 0
+   integer :: restart_days = 0
+   integer :: restart_secs = 0
+   integer :: atmos_nthreads = 1
+   logical :: memuse_verbose = .false.
+   logical :: use_hyper_thread = .false.
+   integer :: ncores_per_node = 0
 
-      integer, dimension(6) :: current_date = (/ 0, 0, 0, 0, 0, 0 /)
-      character(len=17) :: calendar = '                 '
-      logical :: force_date_from_namelist = .false.  ! override restart values for date
-      integer :: months=0, days=0, hours=0, minutes=0, seconds=0
-      integer :: dt_atmos = 0
-      integer :: dt_ocean = 0
-      integer :: atmos_nthreads = 1
-      logical :: memuse_verbose = .false.
-      logical :: use_hyper_thread = .false.
-      integer :: ncores_per_node = 0
+   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
+                          months, days, hours, minutes, seconds,  &
+                          dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, & 
+                          use_hyper_thread, ncores_per_node, restart_secs, restart_days
 
-      namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
-                             months, days, hours, minutes, seconds,  &
-                             dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, & 
-                             use_hyper_thread, ncores_per_node
+! ----- local variables -----
+   character(len=32) :: timestamp
+   logical :: intrm_rst
 
 !#######################################################################
 
@@ -124,6 +131,15 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
        if (memuse_verbose) call print_memuse_stats('after update state')
 
   enddo
+!--- intermediate restart
+  if (intrm_rst) then
+    if ((nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
+      timestamp = date_to_string (Time_restart)
+      call atmos_model_restart(Atm, timestamp)
+      Time_restart = Time_restart + Time_step_restart
+    endif
+  endif
+
   call print_memuse_stats('after full step')
 
  enddo
@@ -331,6 +347,10 @@ Time_step_atmos = set_time (dt_atmos,0)
 Time_step_ocean = set_time (dt_ocean,0)
 num_cpld_calls  = Run_length / Time_step_ocean
 num_atmos_calls = Time_step_ocean / Time_step_atmos
+Time_step_restart = set_time (restart_secs, restart_days)
+Time_restart = Time_atmos + Time_step_restart
+intrm_rst = .false.
+if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
 
 !-----------------------------------------------------------------------
 !------------------- some error checks ---------------------------------

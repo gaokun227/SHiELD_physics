@@ -29,7 +29,8 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: t_ice = 273.15
   real, parameter:: ri_max = 2.
   real, parameter:: ri_min = 1.
-  real, parameter:: t2_max = 316.
+  real, parameter:: t1_min = 188.
+  real, parameter:: t2_min = 165.
   real, parameter:: t3_max = 322.
   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.147782e6
   real, parameter:: Li0 =  hlf0 - dc_ice*t_ice   ! = -2.431928e5 
@@ -77,7 +78,7 @@ contains
       real, dimension(is:ie):: gzh, lcp2, icp2, cvm, cpm, qs
       real ri_ref, ri, pt1, pt2, ratio, tv, cv, tmp
       real tv1, tv2, g2, h0, mc, fra, rk, rz, rdt, tvd, tv_surf
-      real dh, dq, qsw, dqsdt, tcp3, t_max
+      real dh, dq, qsw, dqsdt, tcp3
       integer i, j, k, kk, n, m, iq, km1, im, kbot
       real, parameter:: ustar2 = 1.E-4
       real:: cv_air, xvir
@@ -99,12 +100,6 @@ contains
            kbot = km
       endif
 
-      if ( k_bot < min(km,24)  ) then
-         t_max = t2_max
-      else
-         t_max = t3_max
-      endif
-
       sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
       if ( nwat == 0 ) then
          xvir = 0.
@@ -124,7 +119,7 @@ contains
 
 !$OMP parallel do default(none) shared(im,is,ie,js,je,nq,kbot,qa,ta,sphum,ua,va,delp,peln,     &
 !$OMP                                  hydrostatic,pe,delz,g2,w,liq_wat,  &
-!$OMP                                  cv_air,m,pkz,rk,rz,fra, t_max,    &
+!$OMP                                  cv_air,m,pkz,rk,rz,fra,    &
 !$OMP                                  u_dt,rdt,v_dt,xvir,nwat)                 &
 !$OMP                          private(kk,lcp2,icp2,tcp3,dh,dq,den,qs,qsw,dqsdt,qcon,q0, &
 !$OMP                                  t0,u0,v0,w0,h0,pm,gzh,tvm,tmp,cpm,cvm, &
@@ -227,13 +222,8 @@ contains
             tv2 = t0(i,k  )*(1.+xvir*q0(i,k  ,sphum)-qcon(i,k))
             pt1 = tv1 / pkz(i,j,km1)
             pt2 = tv2 / pkz(i,j,k  )
-            if ( tv1>t_max .and. tv1>tv2 ) then
-! top layer unphysically warm
-               ri = 0.
-            else
-               ri = (gz(i,km1)-gz(i,k))*(pt1-pt2)/( 0.5*(pt1+pt2)*        &
-                   ((u0(i,km1)-u0(i,k))**2+(v0(i,km1)-v0(i,k))**2+ustar2) )
-            endif
+            ri = (gz(i,km1)-gz(i,k))*(pt1-pt2)/( 0.5*(pt1+pt2)*        &
+                ((u0(i,km1)-u0(i,k))**2+(v0(i,km1)-v0(i,k))**2+ustar2) )
 ! Adjustment for K-H instability:
 ! Compute equivalent mass flux: mc
 ! Add moist 2-dz instability consideration:

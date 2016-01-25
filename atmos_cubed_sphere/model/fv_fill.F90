@@ -17,10 +17,32 @@ contains
 ! !LOCAL VARIABLES:
    logical:: zfix(im)
    real ::  dm(km)
-   integer i, k, ic
+   integer i, k, ic, k1
    real  qup, qly, dup, dq, sum0, sum1, fac
 
    do ic=1,nq
+#ifdef DEV_GFS_PHYS
+! Bottom up:
+      do k=km,2,-1
+         k1 = k-1
+         do i=1,im
+           if( q(i,k,ic) < 0. ) then
+               q(i,k1,ic) = q(i,k1,ic) + q(i,k,ic)*dp(i,k)/dp(i,k1)
+               q(i,k ,ic) = 0.
+           endif
+         enddo
+      enddo
+! Top down:
+      do k=1,km-1
+         k1 = k+1
+         do i=1,im
+            if( q(i,k,ic) < 0. ) then
+                q(i,k1,ic) = q(i,k1,ic) + q(i,k,ic)*dp(i,k)/dp(i,k1)
+                q(i,k ,ic) = 0.
+            endif
+         enddo
+      enddo
+#else
 ! Top layer
       do i=1,im
          if( q(i,1,ic) < 0. ) then
@@ -88,6 +110,7 @@ contains
 
          endif
       enddo
+#endif
 
    enddo
  end subroutine fillz

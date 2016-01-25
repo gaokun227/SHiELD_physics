@@ -29,8 +29,8 @@ module atmos_model_mod
 !</DESCRIPTION>
 
 use mpp_mod,            only: mpp_pe, mpp_root_pe, mpp_clock_id, mpp_clock_begin
-use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, mpp_error, mpp_chksum
-use mpp_mod,            only: mpp_min, mpp_max
+use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, MPP_CLOCK_SYNC
+use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum
 use mpp_domains_mod,    only: domain2d
 #ifdef INTERNAL_FILE_NML
 use mpp_mod,            only: input_nml_file
@@ -59,6 +59,7 @@ use coupler_types_mod,  only: coupler_2d_bc_type
 use block_control_mod,  only: block_control_type, define_blocks
 use gfs_physics_driver_mod, only: state_fields_in, state_fields_out, &
                                   kind_phys, phys_rad_driver_init, &
+                                  phys_rad_driver_restart, &
                                   phys_rad_driver_end, &
                                   phys_rad_setup_step, &
                                   radiation_driver, physics_driver, skin_temp
@@ -133,7 +134,7 @@ public atmos_model_restart
  end type atmos_data_type
 !</PUBLICTYPE >
 
-integer :: atmClock, stateClock, setupClock, radClock, physClock
+integer :: fv3Clock, getClock, updClock, setupClock, radClock, physClock
 
 !-----------------------------------------------------------------------
 
@@ -145,7 +146,8 @@ integer :: nyblocks = 1
 logical :: surface_debug = .false.
 logical :: dycore_only = .false.
 logical :: debug = .false.
-namelist /atmos_model_nml/ nxblocks, nyblocks, surface_debug, dycore_only, debug
+logical :: sync = .false.
+namelist /atmos_model_nml/ nxblocks, nyblocks, surface_debug, dycore_only, debug, sync
 
 !--- concurrent and decoupled radiation and physics variables
 type (state_fields_in),  dimension(:), allocatable :: Statein
@@ -195,9 +197,9 @@ subroutine update_atmos_radiation_physics (Atmos)
 
     if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "statein driver"
 !--- get atmospheric state from the dynamic core
-    call mpp_clock_begin(stateClock)
+    call mpp_clock_begin(getClock)
     call atmos_phys_driver_statein (Statein, Atm_block)
-    call mpp_clock_end(stateClock)
+    call mpp_clock_end(getClock)
 
     if (surface_debug) call check_data ('FV DYNAMICS')
 
@@ -376,6 +378,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 !---------- initialize physics -------
    call phys_rad_driver_init(Atmos%Time,        &
+                             Atmos%Time_init,  &
                              Atmos%xlon(:,:),   &
                              Atmos%xlat(:,:),   &
                              mlon,              &
@@ -405,11 +408,16 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
       write (unit, '(a,i3)') 'Number of diagnostic tracers =', ntdiag
    endif
 
-   stateClock = mpp_clock_id( 'Dynamics get_state ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   setupClock = mpp_clock_id( 'GFS Step Setup ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   radClock   = mpp_clock_id( 'GFS Radiation  ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   physClock  = mpp_clock_id( 'GFS Physics    ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   atmClock   = mpp_clock_id( 'FV3 Dycore     ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   setupClock = mpp_clock_id( 'GFS Step Setup        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   radClock   = mpp_clock_id( 'GFS Radiation         ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   physClock  = mpp_clock_id( 'GFS Physics           ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   getClock   = mpp_clock_id( 'Dynamics get state    ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   updClock   = mpp_clock_id( 'Dynamics update state ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   if (sync) then
+     fv3Clock = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default+MPP_CLOCK_SYNC, grain=CLOCK_COMPONENT )
+   else
+     fv3Clock = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   endif
 
 !-----------------------------------------------------------------------
 end subroutine atmos_model_init
@@ -424,9 +432,9 @@ subroutine update_atmos_model_dynamics (Atmos)
 ! run the atmospheric dynamics to advect the properties
   type (atmos_data_type), intent(in) :: Atmos
 
-    call mpp_clock_begin(AtmClock)
+    call mpp_clock_begin(fv3Clock)
     call atmosphere_dynamics (Atmos%Time)
-    call mpp_clock_end(AtmClock)
+    call mpp_clock_end(fv3Clock)
 
 end subroutine update_atmos_model_dynamics
 ! </SUBROUTINE>
@@ -442,7 +450,11 @@ subroutine update_atmos_model_state (Atmos)
 !--- local variables
   real :: tmax, tmin
 
+    call mpp_clock_begin(fv3Clock)
+    call mpp_clock_begin(updClock)
     call atmosphere_state_update (Atmos%Time, Statein, Stateout, Atm_block)
+    call mpp_clock_end(updClock)
+    call mpp_clock_end(fv3Clock)
 
 !------ advance time ------
     Atmos % Time = Atmos % Time + Atmos % Time_step
@@ -484,6 +496,7 @@ subroutine atmos_model_end (Atmos)
 !---- termination routine for atmospheric model ----
                                               
     call atmosphere_end (Atmos % Time, Atmos%grid)
+    call phys_rad_driver_end (Atm_block, Atmos%domain)
 
 end subroutine atmos_model_end
 
@@ -498,7 +511,7 @@ end subroutine atmos_model_end
     character(len=*),  intent(in)           :: timestamp
 
      call atmosphere_restart(timestamp)
-!rab     call physics_driver_restart(timestamp)
+     call phys_rad_driver_restart (Atm_block, Atmos%domain, timestamp)
 
   end subroutine atmos_model_restart
   ! </SUBROUTINE>

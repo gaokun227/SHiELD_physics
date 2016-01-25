@@ -738,7 +738,7 @@ contains
 
 !SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
 !     This call may be commented out if RAS or other positivity-preserving CPS is used.
-     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 3.e-9_kind_phys)
+     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
 
      do iq = 1, nq
        do k = 1, npz
@@ -794,6 +794,7 @@ contains
        enddo
     endif
 
+   call mpp_clock_begin (id_dynam)
        call timing_on('FV_UPDATE_PHYS')
     call fv_update_phys( dt_atmos, isc, iec, jsc, jec, isd, ied, jsd, jed, Atm(n)%ng, nt_dyn, &
                          Atm(n)%u,  Atm(n)%v,   Atm(n)%w,  Atm(n)%delp, Atm(n)%pt,         &
@@ -807,6 +808,7 @@ contains
                          Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, Atm(n)%flagstruct,            &
                          Atm(n)%neststruct, Atm(n)%bd, Atm(n)%domain, Atm(n)%ptop)
        call timing_off('FV_UPDATE_PHYS')
+   call mpp_clock_end (id_dynam)
 
 !--- nesting update after updating atmospheric variables with
 !--- physics tendencies
@@ -1244,41 +1246,28 @@ contains
       enddo
    enddo
  
-! Bottom layer (k=1):
+! From bottom up:
+   do k=1,km-1
+      k1 = k+1
       do i=1,im
-         if( q(i,1) < q_min ) then
-             q(i,2) = q(i,2) + (q(i,1)-q_min)*dp(i,1)/dp(i,2)
-             q(i,1) = q_min
-          endif
+         if ( q(i,k)<q_min ) then
+! Take mass from above so that q >= q_min
+              q(i,k1) = q(i,k1) + (q(i,k)-q_min)*dp(i,k)/dp(i,k1)
+              q(i,k ) = q_min
+         endif
       enddo
+   enddo
 
-! Interior
-      do k=2,km-1
-         k1 = k-1
-         do i=1,im
-! Take mass from below:
-            if ( q(i,k)<0.0 .and. q(i,k1)>q_min ) then
-                dq = min( -0.75_kind_phys*q(i,k)*dp(i,k), (q(i,k1)-q_min)*dp(i,k1) ) 
-                q(i,k1) = q(i,k1) - dq/dp(i,k1)
-                q(i,k ) = q(i,k ) + dq/dp(i,k )
-            endif
-            if( q(i,k) < q_min ) then
-! Take mass from above:
-                q(i,k+1) = q(i,k+1) + (q(i,k)-q_min)*dp(i,k)/dp(i,k+1)
-                q(i,k) = q_min
-            endif
-         enddo
+! From top down:
+   do k=km,2,-1
+      k1 = k-1
+      do i=1,im
+         if ( q(i,k)<0.0 ) then
+! Take mass from below
+              q(i,k1) = q(i,k1) + q(i,k)*dp(i,k)/dp(i,k1)
+              q(i,k ) = 0.
+         endif
       enddo
-
-! Top layer (k=km)
-   k1 = km - 1
-   do i=1,im
-      if( q(i,km)<0.0 .and. q(i,k1)>0.0 ) then
-! Borrow from below:
-          dq = min( -q(i,km)*dp(i,km), q(i,k1)*dp(i,k1) )
-          q(i,k1) = q(i,k1) - dq/dp(i,k1) 
-          q(i,km) = q(i,km) + dq/dp(i,km)
-      endif
    enddo
 
  end subroutine fill_gfs

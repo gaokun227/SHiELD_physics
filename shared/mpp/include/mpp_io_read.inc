@@ -319,7 +319,7 @@
       if(size(start(:)) .NE. 4 .OR. size(nread(:)) .NE. 4) call mpp_error(FATAL, &
           "mpp_io_read.inc(mpp_read_region_r2D): size of start and nread must be 4")
 
-      if(size(data,1) .NE. nread(1) .OR. size(data,2) .NE. nread(2)) then
+      if(size(data,1).NE.nread(1) .OR. size(data,2).NE.nread(2)) then
          call mpp_error( FATAL, 'mpp_io_read.inc(mpp_read_block_r2D): size mismatch between data and nread')
       endif
       if(nread(3) .NE. 1 .OR. nread(4) .NE. 1) call mpp_error(FATAL, &
@@ -327,8 +327,6 @@
       call read_record_core(unit, field, nread(1)*nread(2), data, start, nread)
 
       return
-
-
     end subroutine mpp_read_region_r2D
 
     subroutine mpp_read_region_r3D(unit, field, data, start, nread)
@@ -338,9 +336,9 @@
       integer,         intent(in) :: start(:), nread(:)
 
       if(size(start(:)) .NE. 4 .OR. size(nread(:)) .NE. 4) call mpp_error(FATAL, &
-          "mpp_io_read.inc(mpp_read_region_r2D): size of start and nread must be 4")
+          "mpp_io_read.inc(mpp_read_region_r3D): size of start and nread must be 4")
 
-      if(size(data,1) .NE. nread(1) .OR. size(data,2) .NE. nread(2) .OR. size(data,3) .NE. nread(3) ) then
+      if(size(data,1).NE.nread(1) .OR. size(data,2).NE.nread(2) .OR. size(data,3).NE.nread(3) ) then
          call mpp_error( FATAL, 'mpp_io_read.inc(mpp_read_block_r3D): size mismatch between data and nread')
       endif
       if(nread(4) .NE. 1) call mpp_error(FATAL, &
@@ -348,10 +346,7 @@
       call read_record_core(unit, field, nread(1)*nread(2)*nread(3), data, start, nread)
 
       return
-
-
     end subroutine mpp_read_region_r3D
-
 
 #ifdef OVERLOAD_R4
     subroutine read_record_core_r8(unit, field, nwords, data, start, axsiz)
@@ -453,43 +448,39 @@
     subroutine mpp_read_region_r2D_r8(unit, field, data, start, nread)
       integer,         intent(in) :: unit
       type(fieldtype), intent(in) :: field
-      real(kind=8),         intent(inout) :: data(:,:)
+      real(kind=8),    intent(inout) :: data(:,:)
       integer,         intent(in) :: start(:), nread(:)
 
       if(size(start(:)) .NE. 4 .OR. size(nread(:)) .NE. 4) call mpp_error(FATAL, &
-          "mpp_io_read.inc(mpp_read_region_r2D): size of start and nread must be 4")
+          "mpp_io_read.inc(mpp_read_region_r2D_r8): size of start and nread must be 4")
 
-      if(size(data,1) .NE. nread(1) .OR. size(data,2) .NE. nread(2)) then
-         call mpp_error( FATAL, 'mpp_io_read.inc(mpp_read_block_r2D): size mismatch between data and nread')
+      if(size(data,1).NE.nread(1) .OR. size(data,2).NE.nread(2)) then
+         call mpp_error( FATAL, 'mpp_io_read.inc(mpp_read_block_r2D_r8): size mismatch between data and nread')
       endif
       if(nread(3) .NE. 1 .OR. nread(4) .NE. 1) call mpp_error(FATAL, &
-          "mpp_io_read.inc(mpp_read_region_r2D): nread(3) and nread(4) must be 1")
+          "mpp_io_read.inc(mpp_read_region_r2D_r8): nread(3) and nread(4) must be 1")
       call read_record_core_r8(unit, field, nread(1)*nread(2), data, start, nread)
 
       return
-
-
     end subroutine mpp_read_region_r2D_r8
 
     subroutine mpp_read_region_r3D_r8(unit, field, data, start, nread)
       integer,         intent(in) :: unit
       type(fieldtype), intent(in) :: field
-      real(kind=8),         intent(inout) :: data(:,:,:)
+      real(kind=8),    intent(inout) :: data(:,:,:)
       integer,         intent(in) :: start(:), nread(:)
 
       if(size(start(:)) .NE. 4 .OR. size(nread(:)) .NE. 4) call mpp_error(FATAL, &
-          "mpp_io_read.inc(mpp_read_region_r2D): size of start and nread must be 4")
+          "mpp_io_read.inc(mpp_read_region_r3D_r8): size of start and nread must be 4")
 
-      if(size(data,1) .NE. nread(1) .OR. size(data,2) .NE. nread(2) .OR. size(data,3) .NE. nread(3) ) then
-         call mpp_error( FATAL, 'mpp_io_read.inc(mpp_read_block_r3D): size mismatch between data and nread')
+      if(size(data,1).NE.nread(1) .OR. size(data,2).NE.nread(2) .OR. size(data,3).NE.nread(3) ) then
+         call mpp_error( FATAL, 'mpp_io_read.inc(mpp_read_block_r3D_r8): size mismatch between data and nread')
       endif
       if(nread(4) .NE. 1) call mpp_error(FATAL, &
-          "mpp_io_read.inc(mpp_read_region_r3D): nread(4) must be 1")
+          "mpp_io_read.inc(mpp_read_region_r3D_r8): nread(4) must be 1")
       call read_record_core_r8(unit, field, nread(1)*nread(2)*nread(3), data, start, nread)
 
       return
-
-
     end subroutine mpp_read_region_r3D_r8
 #endif
 

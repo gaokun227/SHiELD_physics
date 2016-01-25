@@ -1909,7 +1909,7 @@ contains
              do j=jsc,jec
                 do i=isc,iec
                    slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-5.0 .and. slat<5.0) ) then
+                   if( (slat>-10.0 .and. slat<10.) ) then
                         sar = sar + Atm(n)%gridstruct%area(i,j)
                         tmp = tmp + a3(i,j,3)*Atm(n)%gridstruct%area(i,j)
                    endif
@@ -1918,7 +1918,7 @@ contains
              call mp_reduce_sum(sar)
              call mp_reduce_sum(tmp)
              if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [5s,5n] mean T100 =', tmp/sar
+                  if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
              else
                   if (master) write(*,*) 'Warning: problem computing tropical mean T100'
              endif
@@ -1931,7 +1931,7 @@ contains
              do j=jsc,jec
                 do i=isc,iec
                    slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-7.5 .and. slat<7.5) ) then
+                   if( (slat>-20 .and. slat<20) ) then
                         sar = sar + Atm(n)%gridstruct%area(i,j)
                         tmp = tmp + a3(i,j,4)*Atm(n)%gridstruct%area(i,j)
                    endif
@@ -1940,7 +1940,7 @@ contains
              call mp_reduce_sum(sar)
              call mp_reduce_sum(tmp)
              if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [-7.5,7.5] mean T200 =', tmp/sar
+                  if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
              endif
           endif
        endif

@@ -29,8 +29,8 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: t_ice = 273.15
   real, parameter:: ri_max = 2.
   real, parameter:: ri_min = 1.
-  real, parameter:: t2_max = 316.
-  real, parameter:: t3_max = 322.
+  real, parameter:: t2_max = 315.
+  real, parameter:: t3_max = 325.
   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.147782e6
   real, parameter:: Li0 =  hlf0 - dc_ice*t_ice   ! = -2.431928e5 
 

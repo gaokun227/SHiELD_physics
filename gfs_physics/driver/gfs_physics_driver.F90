@@ -560,27 +560,35 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- phys_rad_setup_step ---
 !-------------------------------------------------------------------------      
-  subroutine phys_rad_setup_step (Time_init, Time, Time_next, Atm_block)
-    type(time_type),            intent(in) :: Time_init, Time, Time_next
+  subroutine phys_rad_setup_step (Time_init, Time_prev, Time, Atm_block)
+    type(time_type),            intent(in) :: Time_init, Time_prev, Time
     type (block_control_type),  intent(in) :: Atm_block
 !   local variables
-    integer, parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
+    integer,              parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
+    real(kind=kind_phys), parameter :: cons_24 = 24.0_kind_phys
     integer :: i, j, k, nb, ix
     integer :: ibs, ibe, jbs, jbe, nx, ny, ngptc
-    integer :: sec, ipseed, jdate(8)
-    integer :: kdt
+    integer :: sec, ipseed, fms_date(8)
     integer :: numrdm(lon_cs*lat_cs*2)
     type (random_stat) :: stat
-    real(kind=kind_phys) :: fhour
+    real(kind=kind_phys) :: phour, fhour
     real(kind=kind_phys) :: work1, work2
 
 !--- set the date
-    call get_date (Time, jdate(1), jdate(2), jdate(3),  &
-                         jdate(5), jdate(6), jdate(7))
+    call get_date (Time_prev, fms_date(1), fms_date(2), fms_date(3),  &
+                         fms_date(5), fms_date(6), fms_date(7))
 
-    call get_time(Time_next - Time_init, sec)
+    call get_time(Time_prev - Time_init, sec)
+    phour = real(sec)/3600.
+    call get_time(Time - Time_init, sec)
     fhour = real(sec)/3600.
 
+    if (debug .and. mpp_pe() == mpp_root_pe()) then
+      print *,'   kdt ', Dyn_parms(1)%kdt + 1
+      print *,' fhour ', fhour
+      print *,' phour ', phour
+      print *,' solhr ', mod(phour+Mdl_parms%idate(1),cons_24)
+    endif
 
 !--- may need this to repopulate sfc properties for AMIP runs
 !    call sfc_populate (Sfc_props)
@@ -607,14 +615,14 @@ module gfs_physics_driver_mod
       Dyn_parms(nb)%nnp      = Dyn_parms(nb)%nnp + 1
 !--- set the current forecast hour
       Dyn_parms(nb)%fhour    = fhour
-      Dyn_parms(nb)%jdate(1) = jdate(1)
-      Dyn_parms(nb)%jdate(2) = jdate(2)
-      Dyn_parms(nb)%jdate(3) = jdate(3)
-      Dyn_parms(nb)%jdate(5) = jdate(5)
-      Dyn_parms(nb)%jdate(6) = jdate(6)
-      Dyn_parms(nb)%jdate(7) = jdate(7)
-!--- set the solhr
-      Dyn_parms(nb)%solhr    = real(jdate(5))
+      Dyn_parms(nb)%jdate(1) = fms_date(1)
+      Dyn_parms(nb)%jdate(2) = fms_date(2)
+      Dyn_parms(nb)%jdate(3) = fms_date(3)
+      Dyn_parms(nb)%jdate(5) = fms_date(5)
+      Dyn_parms(nb)%jdate(6) = fms_date(6)
+      Dyn_parms(nb)%jdate(7) = fms_date(7)
+!--- set the solar hour based on a combination of phour and time initial hour
+      Dyn_parms(nb)%solhr = mod(phour+Mdl_parms%idate(1),cons_24)
 !--- radiation triggers
       Dyn_parms(nb)%lsswr = (mod(Dyn_parms(nb)%kdt, nsswr) == 1)
       Dyn_parms(nb)%lslwr = (mod(Dyn_parms(nb)%kdt, nslwr) == 1)

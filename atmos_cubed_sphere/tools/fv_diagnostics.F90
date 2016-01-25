@@ -1086,6 +1086,14 @@ contains
 
         if ( .not. Atm(n)%flagstruct%hydrostatic ) then
           call prt_maxmin('W ', Atm(n)%w , isc, iec, jsc, jec, ngc, npz, 1.)
+          call prt_maxmin('Bottom w', Atm(n)%w(isc:iec,jsc:jec,npz), isc, iec, jsc, jec, 0, 1, 1.)
+          do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = -Atm(n)%w(i,j,npz)/Atm(n)%delz(i,j,npz)
+             enddo
+          enddo
+          call prt_maxmin('Bottom: w/dz', a2, isc, iec, jsc, jec, 0, 1, 1.)
+
           if ( Atm(n)%flagstruct%hybrid_z ) call prt_maxmin('Hybrid_ZTOP (km)', Atm(n)%ze0(isc:iec,jsc:jec,1), &
                                                  isc, iec, jsc, jec, 0, 1, 1.E-3)
           call prt_maxmin('DZ (m)', Atm(n)%delz(isc:iec,jsc:jec,1:npz),    &
@@ -1098,6 +1106,8 @@ contains
 
 #ifndef SW_DYNAMICS
         call prt_maxmin('TA', Atm(n)%pt,   isc, iec, jsc, jec, ngc, npz, 1.)
+        call prt_maxmin('Top: TA', Atm(n)%pt(isc:iec,jsc:jec,  1), isc, iec, jsc, jec, 0, 1, 1.)
+        call prt_maxmin('Bot: TA', Atm(n)%pt(isc:iec,jsc:jec,npz), isc, iec, jsc, jec, 0, 1, 1.)
         call prt_maxmin('OM', Atm(n)%omga, isc, iec, jsc, jec, ngc, npz, 1.)
 #endif
 
@@ -1996,8 +2006,9 @@ contains
            deallocate (wz)
        endif
 
-       if ( .not.Atm(n)%flagstruct%hydrostatic .and. idiag%id_w>0  )     &
-                 used=send_data(idiag%id_w, Atm(n)%w(isc:iec,jsc:jec,:), Time)
+       if ( .not.Atm(n)%flagstruct%hydrostatic .and. idiag%id_w>0  ) then
+          used=send_data(idiag%id_w, Atm(n)%w(isc:iec,jsc:jec,:), Time)
+       endif
 
        if(idiag%id_pt   > 0) used=send_data(idiag%id_pt  , Atm(n)%pt  (isc:iec,jsc:jec,:), Time)
        if(idiag%id_omga > 0) used=send_data(idiag%id_omga, Atm(n)%omga(isc:iec,jsc:jec,:), Time)

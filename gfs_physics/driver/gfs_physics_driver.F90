@@ -708,6 +708,7 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
+!$             schedule (guided) & 
 !$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends)          &
 !$             firstprivate (Mdl_parms)  &
@@ -743,6 +744,7 @@ module gfs_physics_driver_mod
     fhour = Dyn_parms(1)%fhour
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
+!$             schedule (guided) & 
 !$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
 !$                      Stateout, fdiag, fhzero, levs) &
@@ -924,10 +926,10 @@ module gfs_physics_driver_mod
       call read_data(fn_srf,'slmsk',var2,start,nread)
 !--- oro (orog_filt in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%oro(1:ngptc)
-      call read_data(fn_srf,'orog_filt',var2,start,nread)
+      call read_data(fn_oro,'orog_filt',var2,start,nread)
 !--- oro_uf (orog_raw in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%oro_uf(1:ngptc)
-      call read_data(fn_srf,'orog_raw',var2,start,nread)
+      call read_data(fn_oro,'orog_raw',var2,start,nread)
 !--- tsfc (tsea in sfc file)
       var2(1:nx,1:ny) => Sfc_props(nb)%tsfc(1:ngptc)
       call read_data(fn_srf,'tsea',var2,start,nread)

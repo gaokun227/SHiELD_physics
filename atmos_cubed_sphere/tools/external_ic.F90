@@ -543,7 +543,6 @@ contains
       type(fv_atmos_type), intent(inout) :: Atm(:)
       type(domain2d),      intent(inout) :: fv_domain
 ! local:
-      real, dimension(64):: ak_sj, bk_sj
       real, dimension(:), allocatable:: ak, bk
       real, dimension(:,:), allocatable:: wk2, zs, ps
       real, dimension(:,:,:), allocatable:: dp, t, ua, va, omga
@@ -555,13 +554,14 @@ contains
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res
-      type (restart_file_type) :: SFC_restart, GFS_restart
+      type (restart_file_type) :: ORO_restart, SFC_restart, GFS_restart
       character(len=6)  :: gn, stile_name
       character(len=64) :: tracer_name
       character(len=64) :: fn_gfs_ctl = 'gfs_ctrl.nc'
       character(len=64) :: fn_gfs_ics = 'gfs_data.nc'
       character(len=64) :: fn_sfc_ctl = 'sfc_ctrl.nc'
       character(len=64) :: fn_sfc_ics = 'sfc_data.nc'
+      character(len=64) :: fn_oro_ics = 'oro_data.nc'
       logical :: remap
       logical :: filtered_terrain = .true.
       logical :: ncep_terrain = .false.
@@ -573,16 +573,58 @@ contains
       integer:: i,j,k
       integer:: liq_wat
       namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds
-! Thfollowing L63 setting is the same as NCEP GFS's L64 except the top layer
-#ifdef TEST_GFS
-      data ak_sj/25.000,     100.00000,     200.00000,    &
-              311.00000,     430.00000,     558.00000,    &
-              700.00000,     863.05803,    1051.07995,    &
+#ifdef GFSL64
+      real, dimension(65):: ak_sj, bk_sj
+      data ak_sj/28.00000,      72.60000,     138.50000,   &
+                221.95800,     318.26600,     428.43400,   &
+                554.42400,     698.45700,     863.05803,   &
+               1051.07995,    1265.75194,    1510.71101,   &
+               1790.05098,    2108.36604,    2470.78817,   &
+               2883.03811,    3351.46002,    3883.05187,   &
+               4485.49315,    5167.14603,    5937.04991,   &
+               6804.87379,    7780.84698,    8875.64338,   &
+               9921.40745,   10760.99844,   11417.88354,   &
+              11911.61193,   12258.61668,   12472.89642,   &
+              12566.58298,   12550.43517,   12434.26075,   &
+              12227.27484,   11938.39468,   11576.46910,   &
+              11150.43640,   10669.41063,   10142.69482,   &
+               9579.72458,    8989.94947,    8382.67090,   &
+               7766.85063,    7150.91171,    6542.55077,   &
+               5948.57894,    5374.81094,    4825.99383,   &
+               4305.79754,    3816.84622,    3360.78848,   &
+               2938.39801,    2549.69756,    2194.08449,   &
+               1870.45732,    1577.34218,    1313.00028,   &
+               1075.52114,     862.90778,     673.13815,   &
+                504.22118,     354.22752,     221.32110,   &
+                103.78014,       0./
+      data bk_sj/0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00179,       0.00705,       0.01564,    &
+                 0.02749,       0.04251,       0.06064,    &
+                 0.08182,       0.10595,       0.13294,    &
+                 0.16266,       0.19492,       0.22950,    &
+                 0.26615,       0.30455,       0.34435,    &
+                 0.38516,       0.42656,       0.46815,    &
+                 0.50949,       0.55020,       0.58989,    &
+                 0.62825,       0.66498,       0.69987,    &
+                 0.73275,       0.76351,       0.79208,    &
+                 0.81845,       0.84264,       0.86472,    &
+                 0.88478,       0.90290,       0.91923,    &
+                 0.93388,       0.94697,       0.95865,    &
+                 0.96904,       0.97826,       0.98642,    &
+                 0.99363,       1./
 #else
+      real, dimension(64):: ak_sj, bk_sj
+! The following L63 setting is the same as NCEP GFS's L64 except the top layer
       data ak_sj/64.248,      137.790,       221.958,      &
                 318.266,       428.434,       554.424,      &
                 698.457,       863.05803,    1051.07995,    &  
-#endif
                1265.75194,    1510.71101,    1790.05098,    &
                2108.36604,    2470.78817,    2883.03811,    &
                3351.46002,    3883.05187,    4485.49315,    &
@@ -623,6 +665,53 @@ contains
                  0.90050,       0.91722,       0.93223,    &
                  0.94565,       0.95762,       0.96827,    &
                  0.97771,       0.98608,       0.99347,  1./
+#endif
+#ifdef TEMP_GFSPLV
+      real, dimension(64):: ak_sj, bk_sj
+      data ak_sj/ 64.247,        137.79,       221.958,    & 
+                 318.266,       428.434,       554.424,    &
+                 698.457,       863.058,       1051.08,    &
+                1265.752,      1510.711,      1790.051,    &
+                2108.366,      2470.788,      2883.038,    &
+                 3351.46,      3883.052,      4485.493,    &
+                5167.146,       5937.05,      6804.874,    &
+                 7777.15,      8832.537,      9936.614,    &
+                11054.85,      12152.94,      13197.07,    &
+                14154.32,      14993.07,      15683.49,    &
+                16197.97,      16511.74,       16611.6,    &
+                16503.14,      16197.32,      15708.89,    &
+                15056.34,      14261.43,      13348.67,    &
+                12344.49,      11276.35,      10171.71,    &
+                9057.051,      7956.908,      6893.117,    &
+                5884.206,      4945.029,      4086.614,    &
+                3316.217,      2637.553,       2051.15,    &
+                1554.789,      1143.988,       812.489,    &
+                  552.72,       356.223,       214.015,    &
+                 116.899,        55.712,        21.516,    &
+                   5.741,         0.575,            0.,   0./
+
+      data bk_sj/0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+                 0.00000,       0.00000,       0.00000,    &
+              0.00003697,    0.00043106,    0.00163591,    &
+              0.00410671,    0.00829402,    0.01463712,    &
+              0.02355588,    0.03544162,    0.05064684,    &
+              0.06947458,    0.09216691,     0.1188122,    &
+               0.1492688,     0.1832962,     0.2205702,    &
+               0.2606854,     0.3031641,     0.3474685,    &
+               0.3930182,     0.4392108,     0.4854433,    &
+               0.5311348,     0.5757467,     0.6187996,    &
+                0.659887,     0.6986829,     0.7349452,    &
+               0.7685147,     0.7993097,     0.8273188,    &
+               0.8525907,     0.8752236,      0.895355,    &
+                0.913151,     0.9287973,     0.9424911,    &
+               0.9544341,     0.9648276,     0.9738676,    &
+               0.9817423,     0.9886266,     0.9946712, 1. /
+#endif
 
       call mpp_error(NOTE,'Using external_IC::get_nggps_ic which is valid only for data which has been &
                           &horizontally interpolated to the current cubed-sphere grid')
@@ -741,9 +830,9 @@ contains
 
         ! terrain surface height -- (needs to be transformed into phis = zs*grav)
         if (filtered_terrain) then
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_filt', Atm(n)%phis, domain=Atm(n)%domain)
         elseif (.not. filtered_terrain) then
-          id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
         endif
 
         if ( Atm(n)%flagstruct%fv_land ) then
@@ -807,9 +896,11 @@ contains
         enddo
 
         ! read in the restart
+        call restore_state (ORO_restart)
         call restore_state (SFC_restart)
         call restore_state (GFS_restart)
         ! free the restart type to be re-used by the nest
+!rab        call free_restart_type(ORO_restart)
 !rab        call free_restart_type(SFC_restart)
 !rab        call free_restart_type(GFS_restart)
 
@@ -1736,9 +1827,7 @@ contains
   real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1, pn1
   real qp(Atm%bd%is:Atm%bd%ie,km)
   real wk(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je)
-  real, dimension(2*km+1):: gz, pn, pk
-  real, dimension(km+1):: pk0
-  real, dimension(npz+1):: pk1
+  real, dimension(2*km+1):: gz, pn
   real gz_fv(npz+1)
   real pst
   integer i,j,k, k2, l, iq
@@ -1784,7 +1873,7 @@ contains
            pn(k) = pn0(i,k)
            gz(k) = zh(i,j,k)*grav
         enddo
-! Use log-p OR pk for interpolation/extrapolation
+! Use log-p for interpolation/extrapolation
 ! mirror image method:
         do k=km+2, km+k2
               l = 2*(km+1) - k
@@ -1792,7 +1881,6 @@ contains
            pn(k) = 2.*pn(km+1) - pn(l)
         enddo
 
-#ifdef USE_LOGP4EXT
         do k=km+k2-1, 2, -1
           if( Atm%phis(i,j).le.gz(k) .and. Atm%phis(i,j).ge.gz(k+1) ) then
               pst = pn(k) + (pn(k+1)-pn(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
@@ -1800,18 +1888,6 @@ contains
           endif
         enddo
 123     Atm%ps(i,j) = exp(pst)
-#else
-        do k=1,km+k2
-           pk(k) = exp(kappa*pn(k))
-        enddo
-        do k=km+k2-1, 2, -1
-          if( Atm%phis(i,j).le.gz(k) .and. Atm%phis(i,j).ge.gz(k+1) ) then
-              pst = pk(k) + (pk(k+1)-pk(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
-              go to 123
-          endif
-        enddo
-123     Atm%ps(i,j) = exp(log(pst)/kappa)
-#endif
      enddo   ! i-loop
 
      do i=is,ie
@@ -1864,15 +1940,6 @@ contains
       enddo
       gz_fv(npz+1) = Atm%phis(i,j)
 
-#ifndef USE_LOGP4EXT
-      do k=1,km+1
-         pk0(k) = exp(kappa*pn0(i,k))
-      enddo
-      do k=1,npz+1
-         pk1(k) = exp(kappa*pn1(i,k))
-      enddo
-#endif
-
       do 555 k=1,npz
 ! Searching using FV3 log(pe): pn1
          do l=1,km
@@ -1880,13 +1947,8 @@ contains
                 gz_fv(k) = gz(l) + (gz(l+1)-gz(l))*(pn1(i,k)-pn0(i,l))/(pn0(i,l+1)-pn0(i,l))
                 goto 555
             elseif ( pn1(i,k) .gt. pn0(i,km+1) ) then
-#ifdef USE_LOGP4EXT
 ! Isothermal under ground; linear in log-p extra-polation
                 gz_fv(k) = gz(km+1) + (gz_fv(npz+1)-gz(km+1))*(pn1(i,k)-pn0(i,km+1))/(pn1(i,npz+1)-pn0(i,km+1))
-#else
-! Isentropic under ground; linear in pk
-                gz_fv(k) = gz(km+1) + (gz_fv(npz+1)-gz(km+1))*(pk1(k)-pk0(km+1))/(pk1(npz+1)-pk0(km+1))
-#endif
                 goto 555
             endif
          enddo

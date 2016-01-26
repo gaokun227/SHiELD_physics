@@ -524,6 +524,13 @@ contains
             'pressure thickness', 'pa', missing_value=missing_value )
        idiag%id_delz = register_diag_field ( trim(field), 'delz', axes(1:3), Time,        &
             'height thickness', 'm', missing_value=missing_value )
+       if (Atm(n)%flagstruct%hydrostatic) then
+           idiag%id_pfhy = register_diag_field ( trim(field), 'pfhy', axes(1:3), Time,        &
+                'hydrostatic pressure', 'pa', missing_value=missing_value )
+       else
+           idiag%id_pfnh = register_diag_field ( trim(field), 'pfnh', axes(1:3), Time,        &
+                'non-hydrostatic pressure', 'pa', missing_value=missing_value )
+       endif
        idiag%id_zratio = register_diag_field ( trim(field), 'zratio', axes(1:3), Time,        &
             'nonhydro_ratio', 'n/a', missing_value=missing_value )
        idiag%id_ws     = register_diag_field ( trim(field), 'ws', axes(1:2), Time,        &
@@ -1732,6 +1739,29 @@ contains
           enddo
           used=send_data(idiag%id_delz, wk, Time)
        endif
+ 
+      if( Atm(n)%flagstruct%hydrostatic .and. idiag%id_pfhy) then
+          do k=1,npz
+            do j=jsc,jec
+            do i=isc,iec         
+                wk(i,j,k) = 0.5 *(Atm(n)%pe(i,k,j)+Atm(n)%pe(i,k+1,j))
+            enddo
+            enddo
+          enddo
+          used=send_data(idiag%id_pfhy, wk, Time)
+      endif
+
+      if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh) then
+          do k=1,npz
+            do j=jsc,jec
+            do i=isc,iec         
+                wk(i,j,k) = -Atm(n)%delp(i,j,k)/(Atm(n)%delz(i,j,k)*grav)*rdgas*          &
+                             Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))
+            enddo
+            enddo
+          enddo
+          used=send_data(idiag%id_pfnh, wk, Time)
+      endif
 
 ! pressure for masking p-level fields
 ! incorrectly defines a2 to be ps (in mb).
@@ -1909,7 +1939,7 @@ contains
              do j=jsc,jec
                 do i=isc,iec
                    slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-5.0 .and. slat<5.0) ) then
+                   if( (slat>-10.0 .and. slat<10.) ) then
                         sar = sar + Atm(n)%gridstruct%area(i,j)
                         tmp = tmp + a3(i,j,3)*Atm(n)%gridstruct%area(i,j)
                    endif
@@ -1918,7 +1948,7 @@ contains
              call mp_reduce_sum(sar)
              call mp_reduce_sum(tmp)
              if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [5s,5n] mean T100 =', tmp/sar
+                  if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
              else
                   if (master) write(*,*) 'Warning: problem computing tropical mean T100'
              endif
@@ -1931,7 +1961,7 @@ contains
              do j=jsc,jec
                 do i=isc,iec
                    slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-7.5 .and. slat<7.5) ) then
+                   if( (slat>-20 .and. slat<20) ) then
                         sar = sar + Atm(n)%gridstruct%area(i,j)
                         tmp = tmp + a3(i,j,4)*Atm(n)%gridstruct%area(i,j)
                    endif
@@ -1940,7 +1970,7 @@ contains
              call mp_reduce_sum(sar)
              call mp_reduce_sum(tmp)
              if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [-7.5,7.5] mean T200 =', tmp/sar
+                  if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
              endif
           endif
        endif

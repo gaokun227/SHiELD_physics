@@ -524,12 +524,12 @@ contains
             'pressure thickness', 'pa', missing_value=missing_value )
        idiag%id_delz = register_diag_field ( trim(field), 'delz', axes(1:3), Time,        &
             'height thickness', 'm', missing_value=missing_value )
-       if (Atm(n)%flagstruct%hydrostatic) then
-           idiag%id_pfhy = register_diag_field ( trim(field), 'pfhy', axes(1:3), Time,        &
-                'hydrostatic pressure', 'pa', missing_value=missing_value )
+       if( Atm(n)%flagstruct%hydrostatic ) then 
+          idiag%id_pfhy = register_diag_field ( trim(field), 'pfhy', axes(1:3), Time,        &
+               'hydrostatic pressure', 'pa', missing_value=missing_value )
        else
-           idiag%id_pfnh = register_diag_field ( trim(field), 'pfnh', axes(1:3), Time,        &
-                'non-hydrostatic pressure', 'pa', missing_value=missing_value )
+          idiag%id_pfnh = register_diag_field ( trim(field), 'pfnh', axes(1:3), Time,        &
+               'non-hydrostatic pressure', 'pa', missing_value=missing_value )
        endif
        idiag%id_zratio = register_diag_field ( trim(field), 'zratio', axes(1:3), Time,        &
             'nonhydro_ratio', 'n/a', missing_value=missing_value )
@@ -613,8 +613,9 @@ contains
                            '200-mb u-wind', 'm/s', missing_value=missing_value )
        idiag%id_v200 = register_diag_field ( trim(field), 'v200', axes(1:2), Time,       &
                            '200-mb v-wind', 'm/s', missing_value=missing_value )
-       idiag%id_w200 = register_diag_field ( trim(field), 'w200', axes(1:2), Time,       &
-                           '200-mb w-wind', 'm/s', missing_value=missing_value )
+       if ( .not. Atm(n)%flagstruct%hydrostatic )                                        &
+           idiag%id_w200 = register_diag_field ( trim(field), 'w200', axes(1:2), Time,       &
+                               '200-mb w-wind', 'm/s', missing_value=missing_value )
        idiag%id_vort200 = register_diag_field ( trim(field), 'vort200', axes(1:2), Time,       &
                            '200-mb vorticity', '1/s', missing_value=missing_value )
 ! Cubed_2_latlon interpolation is more accurate, particularly near the poles, using
@@ -653,8 +654,9 @@ contains
                            '500-mb u-wind', 'm/s', missing_value=missing_value )
        idiag%id_v500 = register_diag_field ( trim(field), 'v500', axes(1:2), Time,       &
                            '500-mb v-wind', 'm/s', missing_value=missing_value )
-       idiag%id_w500 = register_diag_field ( trim(field), 'w500', axes(1:2), Time,       &
-                           '500-mb w-wind', 'm/s', missing_value=missing_value )
+       if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
+          idiag%id_w500 = register_diag_field ( trim(field), 'w500', axes(1:2), Time,       &
+                              '500-mb w-wind', 'm/s', missing_value=missing_value )
        idiag%id_vort500 = register_diag_field ( trim(field), 'vort500', axes(1:2), Time,       &
                            '500-mb vorticity', '1/s', missing_value=missing_value )
 !--------------------------
@@ -671,9 +673,11 @@ contains
                            '850-mb u-wind', 'm/s', missing_value=missing_value )
        idiag%id_v850 = register_diag_field ( trim(field), 'v850', axes(1:2), Time,       &
                            '850-mb v-wind', 'm/s', missing_value=missing_value )
-       idiag%id_w850 = register_diag_field ( trim(field), 'w850', axes(1:2), Time,       &
+       if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
+          idiag%id_w850 = register_diag_field ( trim(field), 'w850', axes(1:2), Time,       &
                            '850-mb w-wind', 'm/s', missing_value=missing_value )
-       idiag%id_w5km = register_diag_field ( trim(field), 'w5km', axes(1:2), Time,       &
+       if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
+          idiag%id_w5km = register_diag_field ( trim(field), 'w5km', axes(1:2), Time,       &
                            '5-km w-wind', '1/s', missing_value=missing_value )
 ! helicity
        idiag%id_x850 = register_diag_field ( trim(field), 'x850', axes(1:2), Time,       &
@@ -1651,7 +1655,12 @@ contains
           do k=1,npz
           do j=jsc,jec
              do i=isc,iec
+#ifdef GFS_PHYS
+                if(Atm(1)%flagstruct%nwat==2) wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat)
+                if(Atm(1)%flagstruct%nwat>2)  wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat) + Atm(n)%q(i,j,k,ice_wat)
+#else
                 wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat) + Atm(n)%q(i,j,k,ice_wat)
+#endif
              enddo
           enddo
           enddo
@@ -1740,7 +1749,7 @@ contains
           used=send_data(idiag%id_delz, wk, Time)
        endif
  
-      if( Atm(n)%flagstruct%hydrostatic .and. idiag%id_pfhy) then
+      if( Atm(n)%flagstruct%hydrostatic .and. idiag%id_pfhy > 0 ) then
           do k=1,npz
             do j=jsc,jec
             do i=isc,iec         
@@ -1751,12 +1760,13 @@ contains
           used=send_data(idiag%id_pfhy, wk, Time)
       endif
 
-      if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh) then
+      if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0) then
           do k=1,npz
             do j=jsc,jec
             do i=isc,iec         
                 wk(i,j,k) = -Atm(n)%delp(i,j,k)/(Atm(n)%delz(i,j,k)*grav)*rdgas*          &
-                             Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))
+                             Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))*            &
+                             (1.-Atm(n)%q(i,j,k,liq_wat))
             enddo
             enddo
           enddo
@@ -1995,18 +2005,18 @@ contains
             used=send_data(idiag%id_sl13, a2, Time)
        endif
 
-       if ( idiag%id_w200>0 ) then
+       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w200>0 ) then
             call interpolate_vertical(isc, iec, jsc, jec, npz,   &
                                       200.e2, Atm(n)%peln, Atm(n)%w(isc:iec,jsc:jec,:), a2)
             used=send_data(idiag%id_w200, a2, Time)
        endif
 ! 500-mb
-       if ( idiag%id_w500>0 ) then
+       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w500>0 ) then
             call interpolate_vertical(isc, iec, jsc, jec, npz,   &
                                       500.e2, Atm(n)%peln, Atm(n)%w(isc:iec,jsc:jec,:), a2)
             used=send_data(idiag%id_w500, a2, Time)
        endif
-       if ( idiag%id_w850>0 .or. idiag%id_x850>0) then
+       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w850>0 .or. idiag%id_x850>0) then
             call interpolate_vertical(isc, iec, jsc, jec, npz,   &
                                       850.e2, Atm(n)%peln, Atm(n)%w(isc:iec,jsc:jec,:), a2)
             used=send_data(idiag%id_w850, a2, Time)
@@ -2017,7 +2027,7 @@ contains
                  deallocate ( x850 )
             endif
        endif
-       if ( idiag%id_w5km>0 ) then
+       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w5km>0 ) then
           if (.not.allocated(wz)) allocate ( wz(isc:iec,jsc:jec,npz+1) )
 !$OMP parallel do default(none) shared(isc,iec,jsc,jec,wz,npz,Atm,n)
             do j=jsc,jec

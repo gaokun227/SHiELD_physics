@@ -1644,7 +1644,11 @@ contains
           do k=1,npz
           do j=jsc,jec
              do i=isc,iec
+#ifdef GFS_PHYS
+                wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat)
+#else
                 wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat) + Atm(n)%q(i,j,k,ice_wat)
+#endif
              enddo
           enddo
           enddo

@@ -496,9 +496,9 @@ contains
             'zonal wind', 'm/sec', missing_value=missing_value, range=vrange )
        idiag%id_va = register_diag_field ( trim(field), 'vcomp', axes(1:3), Time,        &
             'meridional wind', 'm/sec', missing_value=missing_value, range=vrange)
-
-       idiag%id_w = register_diag_field ( trim(field), 'w', axes(1:3), Time,        &
-            'vertical wind', 'm/sec', missing_value=missing_value, range=wrange )
+       if ( .not. Atm(n)%flagstruct%hydrostatic )                                        &
+          idiag%id_w = register_diag_field ( trim(field), 'w', axes(1:3), Time,        &
+               'vertical wind', 'm/sec', missing_value=missing_value, range=wrange )
 
        idiag%id_pt   = register_diag_field ( trim(field), 'temp', axes(1:3), Time,       &
             'temperature', 'K', missing_value=missing_value, range=trange )
@@ -522,8 +522,9 @@ contains
             'Total KE', 'm^2/s^2', missing_value=missing_value )
        idiag%id_delp = register_diag_field ( trim(field), 'delp', axes(1:3), Time,        &
             'pressure thickness', 'pa', missing_value=missing_value )
-       idiag%id_delz = register_diag_field ( trim(field), 'delz', axes(1:3), Time,        &
-            'height thickness', 'm', missing_value=missing_value )
+       if ( .not. Atm(n)%flagstruct%hydrostatic )                                        &
+          idiag%id_delz = register_diag_field ( trim(field), 'delz', axes(1:3), Time,        &
+               'height thickness', 'm', missing_value=missing_value )
        if( Atm(n)%flagstruct%hydrostatic ) then 
           idiag%id_pfhy = register_diag_field ( trim(field), 'pfhy', axes(1:3), Time,        &
                'hydrostatic pressure', 'pa', missing_value=missing_value )
@@ -1737,7 +1738,7 @@ contains
        endif
 
        if(idiag%id_delp > 0) used=send_data(idiag%id_delp, Atm(n)%delp(isc:iec,jsc:jec,:), Time)
-       if(idiag%id_delz > 0) then
+       if((.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_delz > 0) then
           do k=1,npz
             do j=jsc,jec
             do i=isc,iec

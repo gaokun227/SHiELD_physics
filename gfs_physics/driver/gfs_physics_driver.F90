@@ -1675,7 +1675,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'totprcp'
-    Diag(idx)%desc = 'accumulated total precipitation rate [kg/m**2/s]'
+    Diag(idx)%desc = 'surface precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
@@ -1822,7 +1822,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'cnvprcp'
-    Diag(idx)%desc = 'accumulated convective precipitation at the surface [kg/m**2/s]'
+    Diag(idx)%desc = 'surface convective precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
@@ -2471,8 +2471,8 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'snowd'
-    Diag(idx)%desc = 'surface snow depth [m]'
-    Diag(idx)%unit = 'm'
+    Diag(idx)%desc = 'surface snow depth [mm]'
+    Diag(idx)%unit = 'mm'
     Diag(idx)%mod_name = 'gfs_sfc'
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
@@ -2523,7 +2523,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'tsfc'
-    Diag(idx)%desc = 'surface temperature in K (tmp in gfs data)'
+    Diag(idx)%desc = 'surface temperature [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     do nb = 1,nblks
@@ -2609,7 +2609,7 @@ module gfs_physics_driver_mod
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
       ngptc = nx*ny
-      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%slmsk(1:ngptc)
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Sfc_props(nb)%oro(1:ngptc)
     enddo
 
     idx = idx + 1
@@ -2863,7 +2863,7 @@ module gfs_physics_driver_mod
              do j=1,ny
                do i=1,nx
                  if (Diag(idx)%data(nb)%var21(i,j) /= 0._kind_phys) then
-                   var2(1:nx,1:ny) = Diag(idx)%data(nb)%var21(i,j)/Diag(idx)%data(nb)%var21(i,j)
+                   var2(i,j) = Diag(idx)%data(nb)%var2(i,j)/Diag(idx)%data(nb)%var21(i,j)
                  endif
                enddo
              enddo

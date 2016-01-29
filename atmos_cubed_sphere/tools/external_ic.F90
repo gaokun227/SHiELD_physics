@@ -1922,7 +1922,11 @@ contains
             enddo
          enddo
          call mappm(km, pe0, qp, npz, pe1,  qn1, is,ie, 0, 8, Atm%ptop)
-         call fillz(ie-is+1, npz, 1, qn1, dp2)
+         if ( iq==1 ) then
+            call fillq(ie-is+1, npz, 1, qn1, dp2)
+         else
+            call fillz(ie-is+1, npz, 1, qn1, dp2)
+         endif
 ! The HiRam step of blending model sphum with NCEP data is obsolete because nggps is always cold starting...
          do k=1,npz
             do i=is,ie
@@ -2917,6 +2921,40 @@ subroutine pmaxmn(qname, q, is, ie, js, je, km, fac, area, domain)
 
  end subroutine p_maxmin
 
+ subroutine fillq(im, km, nq, q, dp)
+   integer,  intent(in):: im                ! No. of longitudes
+   integer,  intent(in):: km                ! No. of levels
+   integer,  intent(in):: nq                ! Total number of tracers
+   real , intent(in)::  dp(im,km)       ! pressure thickness
+   real , intent(inout) :: q(im,km,nq)   ! tracer mixing ratio
+! !LOCAL VARIABLES:
+   integer i, k, ic, k1
+
+   do ic=1,nq
+! Bottom up:
+      do k=km,2,-1
+         k1 = k-1
+         do i=1,im
+           if( q(i,k,ic) < 0. ) then
+               q(i,k1,ic) = q(i,k1,ic) + q(i,k,ic)*dp(i,k)/dp(i,k1)
+               q(i,k ,ic) = 0.
+           endif
+         enddo
+      enddo
+! Top down:
+      do k=1,km-1
+         k1 = k+1
+         do i=1,im
+            if( q(i,k,ic) < 0. ) then
+                q(i,k1,ic) = q(i,k1,ic) + q(i,k,ic)*dp(i,k)/dp(i,k1)
+                q(i,k ,ic) = 0.
+            endif
+         enddo
+      enddo
+
+   enddo
+
+ end subroutine fillq
 
  end module external_ic_mod
 

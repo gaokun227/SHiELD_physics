@@ -405,8 +405,8 @@ contains
 
      if ( flagstruct%moist_phys ) then
                                                   call timing_on('Fill2D')
-       if ( sphum > 0 )    &
-       call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum),   delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!      if ( sphum > 0 )    &
+!      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum),   delp, gridstruct%area, domain, neststruct%nested, npx, npy)
        if ( liq_wat > 0 )  &
        call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
       if ( nwat > 2 ) then       ! FV3_GFS nwat=2; nq=4

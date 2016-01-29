@@ -738,7 +738,7 @@ contains
 
 !SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
 !     This call may be commented out if RAS or other positivity-preserving CPS is used.
-!     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
+     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
 
      do iq = 1, nq
        do k = 1, npz
@@ -1238,7 +1238,6 @@ contains
 !  LOCAL VARIABLES:
    real(kind=kind_phys) :: dp(im,km)
    integer:: i, k, k1
-   real(kind=kind_phys):: dq
 
    do k=1,km
       do i=1,im

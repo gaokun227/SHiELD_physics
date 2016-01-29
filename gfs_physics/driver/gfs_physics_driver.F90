@@ -1225,7 +1225,7 @@ module gfs_physics_driver_mod
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
       ngptc = nx*ny
-      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%fluxr(1:ngptc,19)
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%dlwsfc(1:ngptc)
     enddo
 
     idx = idx + 1
@@ -1239,7 +1239,7 @@ module gfs_physics_driver_mod
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
       ngptc = nx*ny
-      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%fluxr(1:ngptc,20)
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ulwsfc(1:ngptc)
     enddo
 
     idx = idx + 1
@@ -2471,9 +2471,10 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'snowd'
-    Diag(idx)%desc = 'surface snow depth [mm]'
-    Diag(idx)%unit = 'mm'
+    Diag(idx)%desc = 'surface snow depth [m]'
+    Diag(idx)%unit = 'm'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%cnvfac = cn_one/cn_th
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2631,6 +2632,7 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface roughness [m]'
     Diag(idx)%unit = 'm'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%cnvfac = cn_one/cn_100
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2644,6 +2646,7 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'vegetation fraction'
     Diag(idx)%unit = 'N/A'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%cnvfac = cn_100
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2709,7 +2712,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILW4'
-    Diag(idx)%desc = 'volumetric soil moisture 0-10cm [fraction]'
+    Diag(idx)%desc = 'volumetric soil moisture 100-200cm [fraction]'
     Diag(idx)%unit = 'fraction'
     Diag(idx)%mod_name = 'gfs_sfc'
     do nb = 1,nblks
@@ -2748,7 +2751,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILT3'
-    Diag(idx)%desc = 'soil temperature 100-200cm [K]' 
+    Diag(idx)%desc = 'soil temperature 40-100cm [K]' 
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     do nb = 1,nblks
@@ -2761,7 +2764,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILT4'
-    Diag(idx)%desc = 'soil temperature 40-100cm [K]' 
+    Diag(idx)%desc = 'soil temperature 100-200cm [K]' 
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     do nb = 1,nblks
@@ -2862,11 +2865,16 @@ module gfs_physics_driver_mod
              var2 = 0._kind_phys
              do j=1,ny
                do i=1,nx
-                 if (Diag(idx)%data(nb)%var21(i,j) /= 0._kind_phys) then
-                   var2(i,j) = Diag(idx)%data(nb)%var2(i,j)/Diag(idx)%data(nb)%var21(i,j)
+                 if (Diag(idx)%data(nb)%var21(i,j) > 0._kind_phys) then
+                   var2(i,j) = max(0._kind_phys,Diag(idx)%data(nb)%var2(i,j)/Diag(idx)%data(nb)%var21(i,j))
                  endif
                enddo
              enddo
+             used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
+                            is_in=Diag(idx)%data(nb)%is,               &
+                            js_in=Diag(idx)%data(nb)%js) 
+           elseif (trim(Diag(idx)%name) == 'SLMSKsfc') then
+             var2(1:nx,1:ny) = mod(Diag(idx)%data(nb)%var2(1:nx,1:ny),2._kind_phys)
              used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is,               &
                             js_in=Diag(idx)%data(nb)%js) 

@@ -1238,7 +1238,6 @@ contains
 !  LOCAL VARIABLES:
    real(kind=kind_phys) :: dp(im,km)
    integer:: i, k, k1
-   real(kind=kind_phys):: dq
 
    do k=1,km
       do i=1,im

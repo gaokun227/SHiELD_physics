@@ -1956,7 +1956,7 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'pwat'
-    Diag(idx)%desc = 'atmos columng precipitable water [kg/m**2]'
+    Diag(idx)%desc = 'atmos column precipitable water [kg/m**2]'
     Diag(idx)%unit = 'kg/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     do nb = 1,nblks

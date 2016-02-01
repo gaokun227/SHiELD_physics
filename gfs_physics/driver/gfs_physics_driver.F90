@@ -1587,7 +1587,8 @@ module gfs_physics_driver_mod
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
       ngptc = nx*ny
-      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%soilm(1:ngptc)
+      Diag(idx)%data(nb)%var2 (1:nx,1:ny) => Gfs_diags(nb)%soilm(1:ngptc)
+      Diag(idx)%data(nb)%var21(1:nx,1:ny) => Sfc_props(nb)%slmsk(1:ngptc)
     enddo
 
     idx = idx + 1
@@ -1697,7 +1698,8 @@ module gfs_physics_driver_mod
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
       ngptc = nx*ny
-      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%gflux(1:ngptc)
+      Diag(idx)%data(nb)%var2 (1:nx,1:ny) => Gfs_diags(nb)%gflux(1:ngptc)
+      Diag(idx)%data(nb)%var21(1:nx,1:ny) => Sfc_props(nb)%slmsk(1:ngptc)
     enddo
 
     idx = idx + 1
@@ -2854,6 +2856,7 @@ module gfs_physics_driver_mod
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx,ny) :: var2
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
+    real(kind=kind_phys), parameter :: grib_undef = 9.99e20     ! grib undefine value
     logical :: used
 
      ngptc = nx*ny
@@ -2862,19 +2865,24 @@ module gfs_physics_driver_mod
        if (Diag(idx)%id > 0) then
          if (Diag(idx)%axes == 2) then
            if (trim(Diag(idx)%name) == 'ALBDOsfc') then
+             !--- albedos are actually a ratio of two radiation surface properties
              var2 = 0._kind_phys
-             do j=1,ny
-               do i=1,nx
-                 if (Diag(idx)%data(nb)%var21(i,j) > 0._kind_phys) then
-                   var2(i,j) = max(0._kind_phys,Diag(idx)%data(nb)%var2(i,j)/Diag(idx)%data(nb)%var21(i,j))
-                 endif
-               enddo
-             enddo
+             where (Diag(idx)%data(nb)%var21 > 0._kind_phys) &
+                   var2 = max(0._kind_phys,Diag(idx)%data(nb)%var2/Diag(idx)%data(nb)%var21)
              used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is,               &
                             js_in=Diag(idx)%data(nb)%js) 
-           elseif (trim(Diag(idx)%name) == 'SLMSKsfc') then
-             var2(1:nx,1:ny) = mod(Diag(idx)%data(nb)%var2(1:nx,1:ny),2._kind_phys)
+           elseif (trim(Diag(idx)%name) == 'gflux') then
+             !--- need to "mask" gflux to output valid data over land/ice only
+             var2(1:nx,1:ny) = grib_undef
+             where (Diag(idx)%data(nb)%var21 /= 0) var2 = Diag(idx)%data(nb)%var2
+             used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
+                            is_in=Diag(idx)%data(nb)%is,               &
+                            js_in=Diag(idx)%data(nb)%js) 
+           elseif (trim(Diag(idx)%name) == 'soilm') then
+             !--- need to "mask" soilm to have value only over land
+             var2(1:nx,1:ny) = grib_undef
+             where (Diag(idx)%data(nb)%var21 == 1) var2 = Diag(idx)%data(nb)%var2
              used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is,               &
                             js_in=Diag(idx)%data(nb)%js) 

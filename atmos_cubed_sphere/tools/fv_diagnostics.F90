@@ -1657,8 +1657,7 @@ contains
           do j=jsc,jec
              do i=isc,iec
 #ifdef GFS_PHYS
-                if(Atm(1)%flagstruct%nwat==2) wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat)
-                if(Atm(1)%flagstruct%nwat>2)  wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat) + Atm(n)%q(i,j,k,ice_wat)
+                wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat)
 #else
                 wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat) + Atm(n)%q(i,j,k,ice_wat)
 #endif

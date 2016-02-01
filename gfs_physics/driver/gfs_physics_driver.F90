@@ -2865,25 +2865,24 @@ module gfs_physics_driver_mod
        if (Diag(idx)%id > 0) then
          if (Diag(idx)%axes == 2) then
            if (trim(Diag(idx)%name) == 'ALBDOsfc') then
+             !--- albedos are actually a ratio of two radiation surface properties
              var2 = 0._kind_phys
-             do j=1,ny
-               do i=1,nx
-                 if (Diag(idx)%data(nb)%var21(i,j) > 0._kind_phys) then
-                   var2(i,j) = max(0._kind_phys,Diag(idx)%data(nb)%var2(i,j)/Diag(idx)%data(nb)%var21(i,j))
-                 endif
-               enddo
-             enddo
+             where (Diag(idx)%data(nb)%var21 > 0._kind_phys) &
+                   var2 = max(0._kind_phys,Diag(idx)%data(nb)%var2/Diag(idx)%data(nb)%var21)
              used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is,               &
                             js_in=Diag(idx)%data(nb)%js) 
-           elseif ((trim(Diag(idx)%name) == 'gflux') .or. (trim(Diag(idx)%name) == 'soilm')) then
-             !--- need to "mask" gflux and soilm to have value only over land
+           elseif (trim(Diag(idx)%name) == 'gflux') then
+             !--- need to "mask" gflux to output valid data over land/ice only
              var2(1:nx,1:ny) = grib_undef
-             do j=1,ny
-               do i=1,nx
-                 if (Diag(idx)%data(nb)%var21(i,j) == 1) var2(i,j) = Diag(idx)%data(nb)%var2(i,j)
-               enddo
-             enddo
+             where (Diag(idx)%data(nb)%var21 /= 0) var2 = Diag(idx)%data(nb)%var2
+             used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
+                            is_in=Diag(idx)%data(nb)%is,               &
+                            js_in=Diag(idx)%data(nb)%js) 
+           elseif (trim(Diag(idx)%name) == 'soilm') then
+             !--- need to "mask" soilm to have value only over land
+             var2(1:nx,1:ny) = grib_undef
+             where (Diag(idx)%data(nb)%var21 == 1) var2 = Diag(idx)%data(nb)%var2
              used=send_data(Diag(idx)%id, var2*Diag(idx)%cnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is,               &
                             js_in=Diag(idx)%data(nb)%js) 

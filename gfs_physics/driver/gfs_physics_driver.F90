@@ -119,6 +119,7 @@ module gfs_physics_driver_mod
    integer :: tot_diag_idx = 0 
    integer, parameter :: DIAG_SIZE = 250
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag
+   real(kind=kind_phys), parameter :: missing_value = 1.d30     ! netcdf missing value
 
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
@@ -2831,7 +2832,7 @@ module gfs_physics_driver_mod
       endif
       Diag(idx)%id = register_diag_field (trim(Diag(idx)%mod_name), trim(Diag(idx)%name),  &
                                            axes(1:Diag(idx)%axes), Time, trim(Diag(idx)%desc), &
-                                           trim(Diag(idx)%unit), missing_value=real(1.0d-30))
+                                           trim(Diag(idx)%unit), missing_value=real(missing_value))
     enddo
 !!!#endif
 
@@ -2856,7 +2857,6 @@ module gfs_physics_driver_mod
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx,ny) :: var2
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
-    real(kind=kind_phys), parameter :: grib_undef = 9.99e20     ! grib undefine value
     logical :: used
 
      ngptc = nx*ny
@@ -2874,14 +2874,14 @@ module gfs_physics_driver_mod
                             js_in=Diag(idx)%data(nb)%js) 
            elseif (trim(Diag(idx)%name) == 'gflux') then
              !--- need to "mask" gflux to output valid data over land/ice only
-             var2(1:nx,1:ny) = grib_undef
+             var2(1:nx,1:ny) = missing_value
              where (Diag(idx)%data(nb)%var21 /= 0) var2 = Diag(idx)%data(nb)%var2*Diag(idx)%cnvfac
              used=send_data(Diag(idx)%id, var2, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
            elseif (trim(Diag(idx)%name) == 'soilm') then
              !--- need to "mask" soilm to have value only over land
-             var2(1:nx,1:ny) = grib_undef
+             var2(1:nx,1:ny) = missing_value
              where (Diag(idx)%data(nb)%var21 == 1) var2 = Diag(idx)%data(nb)%var2*Diag(idx)%cnvfac
              used=send_data(Diag(idx)%id, var2, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &

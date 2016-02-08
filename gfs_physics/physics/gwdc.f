@@ -170,15 +170,12 @@
 !  crit2     : Variable 2 for checking critical level
 !
 !-----------------------------------------------------------------------
-! SJL: Moorthi suggested using a smaller tauctmax
+
       real(kind=kind_phys), parameter ::
      &                      c1=1.41,          c2=-0.38,     ricrit=0.25
      &,                     n2min=1.e-32,     zero=0.0,     one=1.0
-#ifdef REDUCE_CGD
-     &,                     taumin=1.0e-20,   tauctmax=-5.
-#else
      &,                     taumin=1.0e-20,   tauctmax=-20.
-#endif
+!    &,                     taumin=1.0e-20,   tauctmax=-5.
      &,                     qmin=1.0e-10,     shmin=1.0e-20
      &,                     rimax=1.0e+20,    rimaxm=0.99e+20
      &,                     rimaxp=1.01e+20,  rilarge=0.9e+20

@@ -1737,7 +1737,46 @@ contains
           endif
        endif
 
+
+#ifdef GFS_PHYS
+       if(idiag%id_delp > 0) then
+          do k=1,npz
+            do j=jsc,jec
+            do i=isc,iec         
+                wk(i,j,k) = Atm(n)%delp(i,j,k)*(1.-Atm(n)%q(i,j,k,liq_wat))
+            enddo
+            enddo
+          enddo
+          used=send_data(idiag%id_delp, wk, Time)
+       endif
+
+       if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0) then
+           do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec         
+                 wk(i,j,k) = -wk(i,j,k)/(Atm(n)%delz(i,j,k)*grav)*rdgas*          &
+                             Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))     
+             enddo
+             enddo
+           enddo
+           used=send_data(idiag%id_pfnh, wk, Time)
+       endif
+#else
        if(idiag%id_delp > 0) used=send_data(idiag%id_delp, Atm(n)%delp(isc:iec,jsc:jec,:), Time)
+
+       if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0) then
+           do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                 wk(i,j,k) = -Atm(n)%delp(i,j,k)/(Atm(n)%delz(i,j,k)*grav)*rdgas*          &
+                              Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))
+             enddo
+             enddo
+           enddo
+           used=send_data(idiag%id_pfnh, wk, Time)
+       endif
+#endif
+
        if((.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_delz > 0) then
           do k=1,npz
             do j=jsc,jec
@@ -1760,18 +1799,6 @@ contains
           used=send_data(idiag%id_pfhy, wk, Time)
       endif
 
-      if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0) then
-          do k=1,npz
-            do j=jsc,jec
-            do i=isc,iec         
-                wk(i,j,k) = -Atm(n)%delp(i,j,k)/(Atm(n)%delz(i,j,k)*grav)*rdgas*          &
-                             Atm(n)%pt(i,j,k)*(1.+zvir*Atm(n)%q(i,j,k,sphum))*            &
-                             (1.-Atm(n)%q(i,j,k,liq_wat))
-            enddo
-            enddo
-          enddo
-          used=send_data(idiag%id_pfnh, wk, Time)
-      endif
 
 ! pressure for masking p-level fields
 ! incorrectly defines a2 to be ps (in mb).

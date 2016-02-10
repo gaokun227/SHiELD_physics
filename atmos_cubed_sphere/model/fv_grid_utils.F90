@@ -2295,7 +2295,7 @@
  logical, intent(IN) :: nested
 
  if ( c2l_ord == 2 ) then
-      call c2l_ord2(u, v, ua, va, gridstruct, km, grid_type, bd)
+      call c2l_ord2(u, v, ua, va, gridstruct, km, grid_type, bd, .false.)
  else
       call c2l_ord4(u, v, ua, va, gridstruct, npx, npy, km, grid_type, domain, nested, mode, bd)
  endif
@@ -2443,20 +2443,21 @@
  enddo
  end subroutine c2l_ord4
 
- subroutine c2l_ord2(u, v, ua, va, gridstruct, km, grid_type, bd)
+ subroutine c2l_ord2(u, v, ua, va, gridstruct, km, grid_type, bd, do_halo)
  type(fv_grid_bounds_type), intent(IN) :: bd
   integer, intent(in) :: km, grid_type
   real, intent(in) ::  u(bd%isd:bd%ied,bd%jsd:bd%jed+1,km)
   real, intent(in) ::  v(bd%isd:bd%ied+1,bd%jsd:bd%jed,km)
  type(fv_grid_type), intent(IN), target :: gridstruct
+ logical, intent(in) :: do_halo
 !
   real, intent(out):: ua(bd%isd:bd%ied, bd%jsd:bd%jed,km)
   real, intent(out):: va(bd%isd:bd%ied, bd%jsd:bd%jed,km)
 !--------------------------------------------------------------
 ! Local 
-  real wu(bd%is:bd%ie,  bd%js:bd%je+1)
-  real wv(bd%is:bd%ie+1,bd%js:bd%je)
-  real u1(bd%is:bd%ie), v1(bd%is:bd%ie)
+  real wu(bd%is-1:bd%ie+1,  bd%js-1:bd%je+2)
+  real wv(bd%is-1:bd%ie+2,  bd%js-1:bd%je+1)
+  real u1(bd%is-1:bd%ie+1), v1(bd%is-1:bd%ie+1)
   integer i, j, k
   integer :: is,  ie,  js,  je
 
@@ -2473,10 +2474,17 @@
   rdxa => gridstruct%rdxa
   rdya => gridstruct%rdya
 
-  is  = bd%is
-  ie  = bd%ie
-  js  = bd%js
-  je  = bd%je
+  if (do_halo) then
+     is  = bd%is-1
+     ie  = bd%ie+1
+     js  = bd%js-1
+     je  = bd%je+1
+  else
+     is  = bd%is
+     ie  = bd%ie
+     js  = bd%js
+     je  = bd%je
+  endif
 
 !$OMP parallel do default(none) shared(is,ie,js,je,km,grid_type,u,dx,v,dy,ua,va,a11,a12,a21,a22) &
 !$OMP                          private(u1, v1, wu, wv)

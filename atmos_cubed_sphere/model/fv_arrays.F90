@@ -530,6 +530,9 @@ module fv_arrays_mod
      type(fv_nest_BC_type_3D) :: pt_BC, w_BC, delz_BC
 #ifdef USE_COND
      type(fv_nest_BC_type_3D) :: q_con_BC
+#ifdef MOIST_CAPPA
+     type(fv_nest_BC_type_3D) :: cappa_BC
+#endif
 #endif
 #endif
 
@@ -1078,17 +1081,15 @@ contains
 
     if (Atm%neststruct%nested) then
 
-       allocate(Atm%neststruct%ind_h(isd:ied,jsd:jed,2))
-       allocate(Atm%neststruct%ind_u(isd:ied,jsd:jed+1,2))
-       allocate(Atm%neststruct%ind_v(isd:ied+1,jsd:jed,2))
+       allocate(Atm%neststruct%ind_h(isd:ied,jsd:jed,4))
+       allocate(Atm%neststruct%ind_u(isd:ied,jsd:jed+1,4))
+       allocate(Atm%neststruct%ind_v(isd:ied+1,jsd:jed,4))
 
        allocate(Atm%neststruct%wt_h(isd:ied,   jsd:jed,  4))
        allocate(Atm%neststruct%wt_u(isd:ied,   jsd:jed+1,4))
        allocate(Atm%neststruct%wt_v(isd:ied+1, jsd:jed,  4))
-#ifdef DIVG_BC
        allocate(Atm%neststruct%ind_b(isd:ied+1,jsd:jed+1,4))
        allocate(Atm%neststruct%wt_b(isd:ied+1, jsd:jed+1,4))
-#endif
 
        ns = Atm%neststruct%nsponge
 
@@ -1097,9 +1098,7 @@ contains
        call allocate_fv_nest_BC_type(Atm%neststruct%v_BC,Atm,ns,1,0,dummy)
        call allocate_fv_nest_BC_type(Atm%neststruct%uc_BC,Atm,ns,1,0,dummy)
        call allocate_fv_nest_BC_type(Atm%neststruct%vc_BC,Atm,ns,0,1,dummy)
-#ifdef DIVG_BC
        call allocate_fv_nest_BC_type(Atm%neststruct%divg_BC,Atm,ns,1,1,dummy)
-#endif
 
        if (ncnst > 0) then
           allocate(Atm%neststruct%q_BC(ncnst))
@@ -1113,6 +1112,9 @@ contains
        call allocate_fv_nest_BC_type(Atm%neststruct%pt_BC,Atm,ns,0,0,dummy)
 #ifdef USE_COND
        call allocate_fv_nest_BC_type(Atm%neststruct%q_con_BC,Atm,ns,0,0,dummy)
+#ifdef MOIST_CAPPA
+       call allocate_fv_nest_BC_type(Atm%neststruct%cappa_BC,Atm,ns,0,0,dummy)
+#endif
 #endif
        if (.not.Atm%flagstruct%hydrostatic) then
           call allocate_fv_nest_BC_type(Atm%neststruct%w_BC,Atm,ns,0,0,dummy)
@@ -1313,18 +1315,16 @@ contains
        deallocate(Atm%neststruct%wt_u)
        deallocate(Atm%neststruct%wt_v)
 
-#ifdef DIVG_BC
        deallocate(Atm%neststruct%ind_b)
        deallocate(Atm%neststruct%wt_b)
-#endif
+
        call deallocate_fv_nest_BC_type(Atm%neststruct%delp_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%u_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%v_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%uc_BC)
        call deallocate_fv_nest_BC_type(Atm%neststruct%vc_BC)
-#ifdef DIVG_BC
        call deallocate_fv_nest_BC_type(Atm%neststruct%divg_BC)
-#endif
+
        if (allocated(Atm%neststruct%q_BC)) then
           do n=1,size(Atm%neststruct%q_BC)
              call deallocate_fv_nest_BC_type(Atm%neststruct%q_BC(n))
@@ -1335,6 +1335,9 @@ contains
        call deallocate_fv_nest_BC_type(Atm%neststruct%pt_BC)
 #ifdef USE_COND
        call deallocate_fv_nest_BC_type(Atm%neststruct%q_con_BC)
+#ifdef MOIST_CAPPA
+       call deallocate_fv_nest_BC_type(Atm%neststruct%cappa_BC)
+#endif
 #endif
        if (.not.Atm%flagstruct%hydrostatic) then
           call deallocate_fv_nest_BC_type(Atm%neststruct%w_BC)

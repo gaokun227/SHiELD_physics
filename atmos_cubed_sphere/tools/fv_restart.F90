@@ -135,15 +135,21 @@ contains
     cold_start_grids(:) = cold_start
     do n = 1, ntileMe
 
+       if (is_master()) then
+          print*, 'FV_RESTART: ', n, cold_start_grids(n)
+       endif
+
        if (Atm(n)%neststruct%nested) then
           write(fname,'(A, I2.2, A)') 'INPUT/fv_core.res.nest', Atm(n)%grid_number, '.nc'
           if (Atm(n)%flagstruct%external_ic) then
              if (is_master()) print*, 'External IC set on grid', Atm(n)%grid_number, ', re-initializing grid'
              cold_start_grids(n) = .true.
+             Atm(n)%flagstruct%warm_start = .false. !resetting warm_start flag to avoid FATAL error below
           else
-          if (is_master()) print*, 'Searching for nested grid restart file ', trim(fname)
-          cold_start_grids(n) = .not. file_exist(fname)
-       endif
+             if (is_master()) print*, 'Searching for nested grid restart file ', trim(fname)
+             cold_start_grids(n) = .not. file_exist(fname)
+             Atm(n)%flagstruct%warm_start = file_exist(fname)!resetting warm_start flag to avoid FATAL error below
+          endif
        endif
 
        if (.not. grids_on_this_pe(n)) then
@@ -152,13 +158,14 @@ contains
           !along the data that is needed. 
 
           if (Atm(n)%neststruct%nested) then
-             if ((cold_start_grids(n)) .or. Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .false.)
              if (cold_start_grids(n)) then
-                call fill_nested_grid_topo(Atm(n))
-                call fill_nested_grid_data(Atm(n:n), .false.)
+                if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .false.)
+                call fill_nested_grid_topo(Atm(n), .false.)
+                call setup_nested_boundary_halo(Atm(n),.false.) 
+                if ( Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n), .false.)
              end if
 
-             if (Atm(n)%flagstruct%make_nh) then
+             if (.not. Atm(n)%flagstruct%hydrostatic .and. Atm(n)%flagstruct%make_nh) then
                 call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
                      Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
                      Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)
@@ -206,7 +213,7 @@ contains
 ! Read, interpolate (latlon to cubed), then remap vertically with terrain adjustment if needed
 !---------------------------------------------------------------------------------------------
     if (Atm(n)%neststruct%nested) then
-       if (cold_start_grids(n)) call fill_nested_grid_topo(Atm(n))
+          if (cold_start_grids(n)) call fill_nested_grid_topo(Atm(n), .true.)
     endif
     if ( Atm(n)%flagstruct%external_ic ) then
          if( is_master() ) write(*,*) 'Calling get_external_ic'
@@ -227,12 +234,14 @@ contains
        ncnst = Atm(n)%ncnst
        isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
 
-      ! Init model data
-      if (Atm(n)%neststruct%nested) then
-         if ((cold_start_grids(n)) .or. Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .true.)
-      endif
-      if(.not.cold_start_grids(n))then
-         Atm(N)%neststruct%first_step = .false.
+       ! Init model data
+       if (Atm(n)%neststruct%nested) then
+          if (cold_start_grids(n)) then
+             if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .true.)
+          end if
+       endif
+       if(.not.cold_start_grids(n))then
+          Atm(N)%neststruct%first_step = .false.
           if (Atm(n)%neststruct%nested) then
              if ( npz_rst /= 0 .and. npz_rst /= npz ) then
                 call setup_nested_boundary_halo(Atm(n)) 
@@ -373,6 +382,7 @@ contains
                              Atm(n)%ze0, Atm(n)%domain, Atm(n)%tile)
          endif
 
+         !Turn this off on the nested grid if you are just interpolating topography from the coarse grid!
         if ( Atm(n)%flagstruct%fv_land ) then
              do j=jsc,jec
                 do i=isc,iec
@@ -380,34 +390,40 @@ contains
                    Atm(n)%oro(i,j) = oro_g(i,j)
                 enddo
              enddo
-        endif
+          endif
 
 
-        !Set up nested grids
-        !Currently even though we do fill in the nested-grid IC from
-        ! init_case or external_ic we appear to overwrite it using
-        !  coarse-grid data
-        if (Atm(n)%neststruct%nested) then
-           call fill_nested_grid_data(Atm(n:n))
-        end if
+          !Set up nested grids
+          !Currently even though we do fill in the nested-grid IC from
+          ! init_case or external_ic we appear to overwrite it using
+          !  coarse-grid data
+          !if (Atm(n)%neststruct%nested) then
+          ! Only fill nested-grid data if external_ic is called for the cubed-sphere grid
+          if (Atm(n)%neststruct%nested) then
+             call setup_nested_boundary_halo(Atm(n), .true.) 
+             if (Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n))
+          end if
 
-     endif  !end cold_start check
+       endif  !end cold_start check
 
-         if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh .and. Atm(n)%neststruct%nested) then
-            call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
-                 Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                 Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
-            call nested_grid_BC(Atm(n)%w, Atm(n)%parent_grid%w, Atm(n)%neststruct%nest_domain, &
-                 Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
-                 Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
-            call fv_io_register_restart_BCs_NH(Atm(n)) !needed to register nested-grid BCs not registered earlier
-         endif
+       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh .and. Atm(n)%neststruct%nested) then
+          call nested_grid_BC(Atm(n)%delz, Atm(n)%parent_grid%delz, Atm(n)%neststruct%nest_domain, &
+               Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+               Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
+          call nested_grid_BC(Atm(n)%w, Atm(n)%parent_grid%w, Atm(n)%neststruct%nest_domain, &
+               Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+               Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
+          call fv_io_register_restart_BCs_NH(Atm(n)) !needed to register nested-grid BCs not registered earlier
+       endif
 
   end do
 
 
     do n = ntileMe,1,-1
-       if (Atm(n)%neststruct%nested .and. cold_start_grids(n)) call fill_nested_grid_data_end(Atm(n), grids_on_this_pe(n))
+       if (Atm(n)%neststruct%nested .and. Atm(n)%flagstruct%external_ic .and. &
+            Atm(n)%flagstruct%grid_type < 4 .and. cold_start_grids(n)) then
+          call fill_nested_grid_data_end(Atm(n), grids_on_this_pe(n))
+       endif
     end do
 
     do n = 1, ntileMe
@@ -554,6 +570,11 @@ contains
 
   subroutine setup_nested_boundary_halo(Atm, proc_in)
 
+    !This routine is now taking the "easy way out" with regards
+    ! to pt (virtual potential temperature), q_con, and cappa;
+    ! their halo values are now set up when the BCs are set up
+    ! in fv_dynamics
+
     type(fv_atmos_type), intent(INOUT) :: Atm
     logical, INTENT(IN), OPTIONAL :: proc_in
     real, allocatable :: g_dat(:,:,:), g_dat2(:,:,:)
@@ -563,7 +584,8 @@ contains
     integer isd_p, ied_p, jsd_p, jed_p, isc_p, iec_p, jsc_p, jec_p, isg, ieg, jsg,jeg, npx_p, npy_p
     real zvir
     logical process
-   integer :: liq_wat, ice_wat, rainwat, snowwat, graupel
+    integer :: liq_wat, ice_wat, rainwat, snowwat, graupel
+    real :: qv, dp1, q_liq, q_sol, q_con, cvm, cappa, dp, pt, dz, pkz, rdg
 
     if (PRESENT(proc_in)) then
        process = proc_in
@@ -608,6 +630,12 @@ contains
             Atm%npx, Atm%npy, npz, Atm%bd, isg, ieg, jsg, jeg, proc_in=process)
     end do
 
+    if (process) then
+       if (is_master()) print*, 'FILLING NESTED GRID HALO'
+    else
+       if (is_master()) print*, 'SENDING DATA TO FILL NESTED GRID HALO'
+    endif
+
 
     !Filling phis?
     !In idealized test cases, where the topography is EXACTLY known (ex case 13),
@@ -631,194 +659,7 @@ contains
          Atm%neststruct%ind_h, Atm%neststruct%wt_h, 0, 0, &
          Atm%npx, Atm%npy, npz, Atm%bd, isg, ieg, jsg, jeg, proc_in=process)    
 
-    !Need to fill boundaries with INITIAL coarse-grid potential temperature,
-    !because the nested grid cannot do it by itself (values of pkz in the halo are not saved)
-    !We will want to INTERPOLATE pkz from the coarse grid and then use it to compute
-    !theta on the haloes of the nested grid. Computing theta on the coarse grid and then
-    !interpolating yields a different (and inconsistent) answer with the way it is computed
-    !in the interior
-
-    if ( Atm%flagstruct%nwat > 0 ) then
-       sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-    else
-       sphum = 1
-    endif
-    if ( Atm%parent_grid%flagstruct%adiabatic .or. Atm%parent_grid%flagstruct%do_Held_Suarez ) then
-       zvir = 0.         ! no virtual effect
-    else
-       zvir = rvgas/rdgas - 1.
-    endif
-
-    allocate(pt_coarse(isd:ied,jsd:jed,npz))
-
-!! FIXME: nested_grid_BC does not work very well with pkz, since pkz does not have
-    !! a halo; hence the having to allocate a new variable and such.
-
-    pt_coarse = 0.
-    allocate(g_dat(isd_p:ied_p,  jsd_p:jed_p  , npz))
-    g_dat = 0.
-    if (Atm%neststruct%parent_proc) g_dat(isc_p:iec_p,  jsc_p:jec_p  , :) = Atm%parent_grid%pkz
-!    call nested_grid_BC(pt_coarse, Atm%parent_grid%pkz, Atm%neststruct%nest_domain, &
-    call nested_grid_BC(pt_coarse, g_dat, Atm%neststruct%nest_domain, &
-         Atm%neststruct%ind_h, Atm%neststruct%wt_h, 0, 0, &
-         Atm%npx, Atm%npy, npz, Atm%bd, isg, ieg, jsg, jeg, proc_in=process)
-    deallocate(g_dat)
-    
-
-    if (process) then
-
-    if (is == 1) then
-       do k=1,npz
-          do j=jsd,jed
-             do i=isd,0
-                Atm%pt(i,j,k) = cp_air*Atm%pt(i,j,k)/pt_coarse(i,j,k)*(1.+zvir*Atm%q(i,j,k,sphum))
-             end do
-          end do
-       end do
-    end if
-
-    if (js == 1) then
-       if (is == 1) then
-          istart = is
-       else
-          istart = isd
-       end if
-       if (ie == Atm%npx-1) then
-          iend = ie
-       else
-          iend = ied
-       end if
-
-       do k=1,npz
-          do j=jsd,0
-             do i=istart,iend
-                Atm%pt(i,j,k) = cp_air*Atm%pt(i,j,k)/pt_coarse(i,j,k)*(1.+zvir*Atm%q(i,j,k,sphum))
-             end do
-          end do
-       end do
-    end if
-
-    if (ie == Atm%npx-1) then
-       do k=1,npz
-          do j=jsd,jed
-             do i=Atm%npx,ied
-                Atm%pt(i,j,k) = cp_air*Atm%pt(i,j,k)/pt_coarse(i,j,k)*(1.+zvir*Atm%q(i,j,k,sphum))
-             end do
-          end do
-       end do
-    end if
-
-    if (je == Atm%npy-1) then
-       if (is == 1) then
-          istart = is
-       else
-          istart = isd
-       end if
-       if (ie == Atm%npx-1) then
-          iend = ie
-       else
-          iend = ied
-       end if
-
-       do k=1,npz
-          do j=Atm%npy,jed
-             do i=istart,iend
-                Atm%pt(i,j,k) = cp_air*Atm%pt(i,j,k)/pt_coarse(i,j,k)*(1.+zvir*Atm%q(i,j,k,sphum))
-             end do
-          end do
-       end do
-    end if
-
-#ifdef USE_COND
-    if (is == 1) then
-       do k=1,npz
-          do j=jsd,jed
-             do i=isd,0
-#ifdef USE_NWAT3
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
-#else
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
-                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
-#endif
-             end do
-          end do
-       end do
-    end if
-
-    if (js == 1) then
-       if (is == 1) then
-          istart = is
-       else
-          istart = isd
-       end if
-       if (ie == Atm%npx-1) then
-          iend = ie
-       else
-          iend = ied
-       end if
-
-       do k=1,npz
-          do j=jsd,0
-             do i=istart,iend
-#ifdef USE_NWAT3
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
-#else
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
-                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
-#endif
-             end do
-          end do
-       end do
-    end if
-
-    if (ie == Atm%npx-1) then
-       do k=1,npz
-          do j=jsd,jed
-             do i=Atm%npx,ied
-#ifdef USE_NWAT3
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
-#else
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
-                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
-#endif
-             end do
-          end do
-       end do
-    end if
-
-    if (je == Atm%npy-1) then
-       if (is == 1) then
-          istart = is
-       else
-          istart = isd
-       end if
-       if (ie == Atm%npx-1) then
-          iend = ie
-       else
-          iend = ied
-       end if
-
-       do k=1,npz
-          do j=Atm%npy,jed
-             do i=istart,iend
-#ifdef USE_NWAT3
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat)
-#else
-                Atm%q_con(i,j,k) = Atm%q(i,j,k,liq_wat) + Atm%q(i,j,k,ice_wat) + &
-                     Atm%q(i,j,k,rainwat) + Atm%q(i,j,k,snowwat) + Atm%q(i,j,k,graupel)
-#endif
-             end do
-          end do
-       end do
-    end if
-
-#endif
-    end if !process
-
-    deallocate(pt_coarse)
-
     if (.not. Atm%flagstruct%hydrostatic) then
-
 
        !w
        call nested_grid_BC(Atm%w(:,:,:), &
@@ -887,15 +728,27 @@ contains
     
   end subroutine fill_nested_grid_topo_halo
 
-  subroutine fill_nested_grid_topo(Atm) 
+!!! We call this routine to fill the nested grid with topo so that we can do the boundary smoothing.
+!!! Interior topography is then over-written in get_external_ic.
+  subroutine fill_nested_grid_topo(Atm, proc_in) 
 
     type(fv_atmos_type), intent(INOUT) :: Atm
+    logical, intent(IN), OPTIONAL :: proc_in
     real, allocatable :: g_dat(:,:,:)
     integer :: p, sending_proc
     integer :: isd_p, ied_p, jsd_p, jed_p
     integer :: isg, ieg, jsg,jeg
 
-    if (.not. Atm%neststruct%nested) return
+    logical :: process
+
+    process = .true.
+    if (present(proc_in)) then
+       process = proc_in
+    else
+       process = .true.
+    endif
+
+!!$    if (.not. Atm%neststruct%nested) return
 
     call mpp_get_global_domain( Atm%parent_grid%domain, &
          isg, ieg, jsg, jeg)
@@ -907,6 +760,8 @@ contains
 
     !!! FIXME: For whatever reason this code CRASHES if the lower-left corner
     !!!        of the nested grid lies within the first PE of a grid tile.
+
+    if (is_master() .and. .not. Atm%flagstruct%external_ic ) print*, ' FILLING NESTED GRID INTERIOR WITH INTERPOLATED TERRAIN'
 
     sending_proc = Atm%parent_grid%pelist(1) + (Atm%neststruct%parent_tile-1)*Atm%parent_grid%npes_per_tile
     if (Atm%neststruct%parent_proc .and. Atm%neststruct%parent_tile == Atm%parent_grid%tile) then
@@ -925,7 +780,7 @@ contains
     endif
 
     call timing_off('COMM_TOTAL')
-    call fill_nested_grid(Atm%phis, g_dat(isg:,jsg:,1), &
+    if (process) call fill_nested_grid(Atm%phis, g_dat(isg:,jsg:,1), &
          Atm%neststruct%ind_h, Atm%neststruct%wt_h, &
          0, 0,  isg, ieg, jsg, jeg, Atm%bd)
 
@@ -978,23 +833,11 @@ contains
 
     if (process) then 
        
-       ! * Initialize coriolis param:
-       
-       do j=jsd,jed+1
-          do i=isd,ied+1
-             Atm(1)%gridstruct%fc(i,j) = 2.*omega*( -1.*cos(Atm(1)%gridstruct%grid(i,j,1))*cos(Atm(1)%gridstruct%grid(i,j,2))*sin(alpha) + &
-                  sin(Atm(1)%gridstruct%grid(i,j,2))*cos(alpha) )
-          enddo
-       enddo
+       call mpp_error(NOTE, "FILLING NESTED GRID DATA")
 
-       do j=jsd,jed
-          do i=isd,ied
-             Atm(1)%gridstruct%f0(i,j) = 2.*omega*( -1.*cos(Atm(1)%gridstruct%agrid(i,j,1))*cos(Atm(1)%gridstruct%agrid(i,j,2))*sin(alpha) + &
-                  sin(Atm(1)%gridstruct%agrid(i,j,2))*cos(alpha) )
-          enddo
-       enddo
+    else
 
-       call mpp_update_domains( Atm(1)%gridstruct%f0, Atm(1)%domain )
+       call mpp_error(NOTE, "SENDING TO FILL NESTED GRID DATA")
 
     endif
 
@@ -1085,13 +928,6 @@ contains
          Atm(1)%neststruct%ind_h, Atm(1)%neststruct%wt_h, &
          0, 0,  isg, ieg, jsg, jeg, npz, Atm(1)%bd)
 
-
-    !Need to fill boundaries with INITIAL coarse-grid potential temperature,
-    !because the nested grid cannot do it by itself (values of pkz in the halo are not saved)
-    !We will want to INTERPOLATE pkz from the coarse grid and then use it to compute
-    !theta on the haloes of the nested grid. Computing theta on the coarse grid and then
-    !interpolating yields a different (and inconsistent) answer with the way it is computed
-    !in the interior
 
     if ( Atm(1)%flagstruct%nwat > 0 ) then
        sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
@@ -1547,9 +1383,7 @@ contains
   ! </SUBROUTINE> NAME="fv_restart_end"
 
  subroutine d2c_setup(u, v, &
-#ifdef DIVG_BC
       ua, va, &
-#endif
 	  uc, vc, dord4, &
       isd,ied,jsd,jed, is,ie,js,je, npx,npy, &
       grid_type, nested, &
@@ -1559,10 +1393,8 @@ contains
   logical, intent(in):: dord4
   real, intent(in) ::  u(isd:ied,jsd:jed+1)
   real, intent(in) ::  v(isd:ied+1,jsd:jed)
-#ifdef DIVG_BC
   real, intent(out), dimension(isd:ied  ,jsd:jed  ):: ua
   real, intent(out), dimension(isd:ied  ,jsd:jed  ):: va
-#endif
   real, intent(out), dimension(isd:ied+1,jsd:jed  ):: uc
   real, intent(out), dimension(isd:ied  ,jsd:jed+1):: vc
   integer, intent(in) :: isd,ied,jsd,jed, is,ie,js,je, npx,npy,grid_type
@@ -1619,14 +1451,13 @@ contains
         vtmp(i,j) = 0.5*(v(i,j)+v(i+1,j))
      enddo
 
-#ifdef DIVG_BC
      do j=jsd,jed
         do i=isd,ied
            ua(i,j) = (utmp(i,j)-vtmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
            va(i,j) = (vtmp(i,j)-utmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
         enddo
      enddo
-#endif
+
   else
 
      !----------
@@ -1686,14 +1517,12 @@ contains
         endif
 
      endif
-#ifdef DIVG_BC
      do j=js-1-id,je+1+id
         do i=is-1-id,ie+1+id
            ua(i,j) = (utmp(i,j)-vtmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
            va(i,j) = (vtmp(i,j)-utmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
         enddo
      enddo
-#endif
 
   end if
 

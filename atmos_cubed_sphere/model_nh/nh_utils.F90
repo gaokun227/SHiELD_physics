@@ -1721,7 +1721,7 @@ CONTAINS
                do i=ifirst,0
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
 #endif
@@ -1837,7 +1837,7 @@ CONTAINS
                do i=npx,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
 #endif
@@ -1949,7 +1949,7 @@ CONTAINS
                do i=ifirst,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
 #endif
@@ -2067,7 +2067,7 @@ CONTAINS
                do i=ifirst,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
 #endif

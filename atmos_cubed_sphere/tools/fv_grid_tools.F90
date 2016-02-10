@@ -117,6 +117,7 @@ contains
     if(grid_form .NE. "gnomonic_ed") call mpp_error(FATAL, &
          "fv_grid_tools(read_grid): the grid should be 'gnomonic_ed' when reading from grid file, contact developer")
 
+    !FIXME: Doesn't work for a nested grid
     ntiles = get_mosaic_ntiles(atm_mosaic)
     if(ntiles .NE. 6) call mpp_error(FATAL, &
        'fv_grid_tools(read_grid): ntiles should be 6 in mosaic file '//trim(atm_mosaic) )
@@ -1130,10 +1131,8 @@ contains
       integer, pointer, dimension(:,:,:) :: ind_h, ind_u, ind_v, ind_update_h
       real,    pointer, dimension(:,:,:) :: wt_h, wt_u, wt_v
 
-#ifdef DIVG_BC
       integer, pointer, dimension(:,:,:) :: ind_b
       real,    pointer, dimension(:,:,:) :: wt_b
-#endif
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
@@ -1164,10 +1163,9 @@ contains
       wt_u => Atm%neststruct%wt_u
       wt_v => Atm%neststruct%wt_v
 
-#ifdef DIVG_BC
       ind_b => Atm%neststruct%ind_b
       wt_b => Atm%neststruct%wt_b
-#endif
+
       call mpp_get_data_domain( Atm%parent_grid%domain, &
            isd_p,  ied_p,  jsd_p,  jed_p  )
       call mpp_get_global_domain( Atm%parent_grid%domain, &
@@ -1177,17 +1175,12 @@ contains
       allocate(p_grid_v(isg:ieg+1,jsg:jeg  ,1:2))
       allocate(pa_grid(isg:ieg,jsg:jeg  ,1:2))
       p_ind = -1000000000
-#ifdef DIVG_BC
+
       allocate(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2) )
       p_grid = 1.e25
-#endif
 
          !Need to RECEIVE grid_global; matching mpp_send of grid_global from parent grid is in fv_control
       if( is_master() ) then
-#ifndef DIVG_BC
-         allocate(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2) )
-         p_grid = 1.e25
-#endif
          p_ind = -1000000000
 
          call mpp_recv(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2), size(p_grid( isg-ng:ieg+1+ng, jsg-ng:jeg+1+ng,1:2)), &
@@ -1275,12 +1268,6 @@ contains
             end do
          end do
 
-#ifndef DIVG_BC
-         deallocate(p_grid)
-#endif
-
-
-
       end if
 
       call mpp_broadcast(grid_global(1-ng:npx+ng,  1-ng:npy+ng  ,:,1), &
@@ -1294,10 +1281,8 @@ contains
       call mpp_broadcast(  p_grid_v( isg:ieg+1, jsg:jeg  , :), &
            (ieg-isg+2)*(jeg-jsg+1)*ndims, mpp_root_pe())
 
-#ifdef DIVG_BC
       call mpp_broadcast( p_grid(isg-ng:ieg+ng+1, jsg-ng:jeg+ng+1, :), &
            (ieg-isg+2+2*ng)*(jeg-jsg+2+2*ng)*ndims, mpp_root_pe() )
-#endif
 
       do n=1,ndims
          do j=jsd,jed+1
@@ -1337,7 +1322,6 @@ contains
          end do
       end do
 
-#ifdef DIVG_BC
       ind_b = -999999999
       do j=jsd,jed+1
       do i=isd,ied+1
@@ -1353,7 +1337,6 @@ contains
          ind_b(i,j,4) = jmod
       enddo
       enddo
-#endif
 
          !In a concurrent simulation, p_ind was passed off to the parent processes above, so they can create ind_update_h
 
@@ -1471,7 +1454,6 @@ contains
 
       deallocate(pa_grid)
 
-#ifdef DIVG_BC
       do j=jsd,jed+1
       do i=isd,ied+1
          
@@ -1495,7 +1477,6 @@ contains
       enddo
 
       deallocate(p_grid)
-#endif
 
 
       allocate(c_grid_u(isd:ied+1,jsd:jed,2))
@@ -1619,37 +1600,6 @@ contains
 
          end do
       end do
-!!$#ifdef DIVG_BC
-!!$      !B-grid weights
-!!$      do j=jsd,jed+1
-!!$         do i=isd,ied+1
-!!$
-!!$            ic = ind_b(i,j,1)
-!!$            jc = ind_b(i,j,2)
-!!$
-!!$            if (ic+1 > ieg .or. ic < isg .or. jc+1 > jeg+1 .or. jc < jsg) then
-!!$               print*, 'IND_V ', i, j, ' OUT OF BOUNDS'
-!!$               print*, ic, jc
-!!$               print*, isg, ieg, jsg, jeg
-!!$            end if
-!!$
-!!$            dist1 = dist2side_latlon(p_grid(ic,jc,:)    ,p_grid(ic,jc+1,:),  grid(i,j,:))
-!!$            dist2 = dist2side_latlon(p_grid(ic,jc+1,:)  ,p_grid(ic+1,jc+1,:),grid(i,j,:))
-!!$            dist3 = dist2side_latlon(p_grid(ic+1,jc+1,:),p_grid(ic+1,jc,:),  grid(i,j,:))
-!!$            dist4 = dist2side_latlon(p_grid(ic,jc,:)  ,p_grid(ic+1,jc,:),    grid(i,j,:))
-!!$
-!!$            wt_b(i,j,1)=dist2*dist3      ! ic,   jc    weight
-!!$            wt_b(i,j,2)=dist3*dist4      ! ic,   jc+1  weight
-!!$            wt_b(i,j,3)=dist4*dist1      ! ic+1, jc+1  weight
-!!$            wt_b(i,j,4)=dist1*dist2      ! ic+1, jc    weight
-!!$
-!!$            sum=wt_b(i,j,1)+wt_b(i,j,2)+wt_b(i,j,3)+wt_b(i,j,4)
-!!$            wt_b(i,j,:)=wt_b(i,j,:)/sum
-!!$
-!!$         end do
-!!$      end do
-!!$#endif
-
 
       deallocate(c_grid_u)
       deallocate(c_grid_v)

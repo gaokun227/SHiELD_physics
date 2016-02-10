@@ -505,6 +505,8 @@ contains
                      domain=fv_domain, tile_count=n)
        id_restart =  register_restart_field(Atm(n)%Fv_tile_restart, fname, 'phis', Atm(n)%phis, &
                      domain=fv_domain, tile_count=n)
+
+       !--- include agrid winds in restarts for use in data assimilation 
        if (Atm(n)%flagstruct%agrid_vel_rst) then
          id_restart =  register_restart_field(Atm(n)%Fv_tile_restart, fname, 'ua', Atm(n)%ua, &
                        domain=fv_domain, tile_count=n, mandatory=.false.)

@@ -121,10 +121,14 @@ contains
     logical :: hybrid
     logical :: cold_start_grids(size(Atm))
     character(len=128):: tname, errstring, fname, tracer_name
+    character(len=120):: fname_ne, fname_sw
     character(len=3) :: gn
 
     integer :: npts
     real    :: sumpertn
+
+    fname_ne = 'fv_BC_ne.res.nc'
+    fname_sw = 'fv_BC_sw.res.nc'
 
     rgrav = 1. / grav
 
@@ -163,6 +167,13 @@ contains
                 call fill_nested_grid_topo(Atm(n), .false.)
                 call setup_nested_boundary_halo(Atm(n),.false.) 
                 if ( Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n), .false.)
+             else
+                if (is_master()) print*, 'Searching for nested grid BC file ', trim(fname)
+                if (.not. (file_exist('INPUT/'//fname_ne) .and. file_exist('INPUT/'//fname_sw))) then
+                   call fill_nested_grid_topo_halo(Atm(n), .false.)
+                   call setup_nested_boundary_halo(Atm(n), .false.)
+                   Atm(N)%neststruct%first_step = .true.                   
+                endif
              end if
 
              if (.not. Atm(n)%flagstruct%hydrostatic .and. Atm(n)%flagstruct%make_nh) then
@@ -246,7 +257,16 @@ contains
              if ( npz_rst /= 0 .and. npz_rst /= npz ) then
                 call setup_nested_boundary_halo(Atm(n)) 
              else
-                call fv_io_read_BCs(Atm(n))
+                !If BC file is found, then read them in. Otherwise we need to initialize the BCs.
+                if (is_master()) print*, 'Searching for nested grid BC file ', trim(fname)
+                if (file_exist('INPUT/'//fname_ne) .and. file_exist('INPUT/'//fname_sw)) then
+                   call fv_io_read_BCs(Atm(n))
+                else
+                   if ( is_master() ) write(*,*) 'BC files not found, re-generating nested grid boundary conditions'
+                   call fill_nested_grid_topo_halo(Atm(n), .true.)
+                   call setup_nested_boundary_halo(Atm(n), .true.)
+                   Atm(N)%neststruct%first_step = .true.
+                endif
                 !Following line to make sure u and v are consistent across processor subdomains
                 call mpp_update_domains(Atm(n)%u, Atm(n)%v, Atm(n)%domain, gridtype=DGRID_NE, complete=.true.)
              endif

@@ -127,9 +127,6 @@ contains
     integer :: npts
     real    :: sumpertn
 
-    fname_ne = 'fv_BC_ne.res.nc'
-    fname_sw = 'fv_BC_sw.res.nc'
-
     rgrav = 1. / grav
 
     if(.not.module_is_initialized) call mpp_error(FATAL, 'You must call fv_restart_init.')
@@ -145,14 +142,16 @@ contains
 
        if (Atm(n)%neststruct%nested) then
           write(fname,'(A, I2.2, A)') 'INPUT/fv_core.res.nest', Atm(n)%grid_number, '.nc'
+          write(fname_ne,'(A, I2.2, A)') 'INPUT/fv_BC_ne.res.nest', Atm(n)%grid_number, '.nc'
+          write(fname_sw,'(A, I2.2, A)') 'INPUT/fv_BC_sw.res.nest', Atm(n)%grid_number, '.nc'
           if (Atm(n)%flagstruct%external_ic) then
              if (is_master()) print*, 'External IC set on grid', Atm(n)%grid_number, ', re-initializing grid'
              cold_start_grids(n) = .true.
              Atm(n)%flagstruct%warm_start = .false. !resetting warm_start flag to avoid FATAL error below
           else
              if (is_master()) print*, 'Searching for nested grid restart file ', trim(fname)
-             cold_start_grids(n) = .not. file_exist(fname)
-             Atm(n)%flagstruct%warm_start = file_exist(fname)!resetting warm_start flag to avoid FATAL error below
+             cold_start_grids(n) = .not. file_exist(fname, Atm(n)%domain)
+             Atm(n)%flagstruct%warm_start = file_exist(fname, Atm(n)%domain)!resetting warm_start flag to avoid FATAL error below
           endif
        endif
 
@@ -168,8 +167,12 @@ contains
                 call setup_nested_boundary_halo(Atm(n),.false.) 
                 if ( Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n), .false.)
              else
-                if (is_master()) print*, 'Searching for nested grid BC file ', trim(fname)
-                if (.not. (file_exist('INPUT/'//fname_ne) .and. file_exist('INPUT/'//fname_sw))) then
+                if (is_master()) print*, 'Searching for nested grid BC files ', trim(fname_ne), ' ', trim (fname_sw)
+
+                !!!! PROBLEM: file_exist doesn't know to look for fv_BC_ne.res.nest02.nc instead of fv_BC_ne.res.nc on coarse grid
+                if (file_exist(fname_ne, Atm(n)%domain) .and. file_exist(fname_sw, Atm(n)%domain)) then
+                else
+                   if ( is_master() ) write(*,*) 'BC files not found, re-generating nested grid boundary conditions'
                    call fill_nested_grid_topo_halo(Atm(n), .false.)
                    call setup_nested_boundary_halo(Atm(n), .false.)
                    Atm(N)%neststruct%first_step = .true.                   
@@ -258,8 +261,8 @@ contains
                 call setup_nested_boundary_halo(Atm(n)) 
              else
                 !If BC file is found, then read them in. Otherwise we need to initialize the BCs.
-                if (is_master()) print*, 'Searching for nested grid BC file ', trim(fname)
-                if (file_exist('INPUT/'//fname_ne) .and. file_exist('INPUT/'//fname_sw)) then
+                if (is_master()) print*, 'Searching for nested grid BC files ', trim(fname_ne), ' ', trim (fname_sw)
+                if (file_exist(fname_ne, Atm(n)%domain) .and. file_exist(fname_sw, Atm(n)%domain)) then
                    call fv_io_read_BCs(Atm(n))
                 else
                    if ( is_master() ) write(*,*) 'BC files not found, re-generating nested grid boundary conditions'

@@ -163,9 +163,13 @@ contains
           if (Atm(n)%neststruct%nested) then
              if (cold_start_grids(n)) then
                 if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .false.)
-                call fill_nested_grid_topo(Atm(n), .false.)
+                if (Atm(n)%flagstruct%nggps_ic) then
+                   call fill_nested_grid_topo_halo(Atm(n), .false.)
+                else
+                   if ( Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n), .false.)
+                   call fill_nested_grid_topo(Atm(n), .false.)
+                endif
                 call setup_nested_boundary_halo(Atm(n),.false.) 
-                if ( Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n), .false.)
              else
                 if (is_master()) print*, 'Searching for nested grid BC files ', trim(fname_ne), ' ', trim (fname_sw)
 
@@ -227,7 +231,7 @@ contains
 ! Read, interpolate (latlon to cubed), then remap vertically with terrain adjustment if needed
 !---------------------------------------------------------------------------------------------
     if (Atm(n)%neststruct%nested) then
-          if (cold_start_grids(n)) call fill_nested_grid_topo(Atm(n), .true.)
+          if (cold_start_grids(n) .and. .not. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo(Atm(n), .true.)
     endif
     if ( Atm(n)%flagstruct%external_ic ) then
          if( is_master() ) write(*,*) 'Calling get_external_ic'
@@ -251,7 +255,7 @@ contains
        ! Init model data
        if (Atm(n)%neststruct%nested) then
           if (cold_start_grids(n)) then
-             if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .true.)
+             if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo_halo(Atm(n), .true.)
           end if
        endif
        if(.not.cold_start_grids(n))then
@@ -424,7 +428,7 @@ contains
           ! Only fill nested-grid data if external_ic is called for the cubed-sphere grid
           if (Atm(n)%neststruct%nested) then
              call setup_nested_boundary_halo(Atm(n), .true.) 
-             if (Atm(n)%flagstruct%external_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n))
+             if (Atm(n)%flagstruct%external_ic .and.  .not. Atm(n)%flagstruct%nggps_ic .and. grid_type < 4 ) call fill_nested_grid_data(Atm(n:n))
           end if
 
        endif  !end cold_start check

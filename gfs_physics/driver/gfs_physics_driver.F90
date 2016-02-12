@@ -128,7 +128,8 @@ module gfs_physics_driver_mod
 !--- NAMELIST/CONFIGURATION parameters
 !--- convenience variables
     integer :: lonr, latr
-    integer :: nsswr, nslwr   ! trigger aids for radiation
+    integer :: nsswr, nslwr   ! trigger aid for radiation
+    integer :: nscyc          ! trigger aid for surface cycle
 
 !--- gfs initialization variables
     integer :: ipt = 1 
@@ -238,9 +239,15 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), dimension(240) :: fdiag
     real(kind=kind_phys) :: fhzero = 6.
 
+! surface data cycling parameters
+    real(kind=kind_phys) :: fhcyc = 0.
+    logical :: use_ufo = .true.
+    logical :: nst_anl = .false.
+
 !--- namelist ---
-   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw, &
-                              ozcalc,cdmbgwd,fdiag,fhzero,prslrd0,xkzm_m,xkzm_h,xkzm_s
+   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
+                              ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -366,6 +373,7 @@ module gfs_physics_driver_mod
 !--- set some configurational parameters that are derived from others
     nsswr = nint(fhswr/dt_phys)
     nslwr = nint(fhlwr/dt_phys)
+    nscyc = nint(fhcyc*3600./dt_phys)
     sas_shal = (sashal .and. (.not. ras))
 
 !--- read in ozone datasets for prognostic ozone interpolation
@@ -593,10 +601,6 @@ module gfs_physics_driver_mod
       print *,' solhr ', mod(phour+Mdl_parms%idate(1),cons_24)
     endif
 
-!--- may need this to repopulate sfc properties for AMIP runs
-!    call sfc_populate (Sfc_props)
-
-
 !--- set up random seed index for the whole tile in a reproducible way
     if (isubc_lw==2 .or. isubc_sw==2) then
       ipseed = mod(nint(100.0*sqrt(real(sec))), ipsdlim) + 1 + ipsd0
@@ -666,6 +670,17 @@ module gfs_physics_driver_mod
                         O3dat(nb)%j1, O3dat(nb)%j2, ozplin, Tbd_data(nb)%prdout, &
                         O3dat(nb)%ddy)
       endif
+
+!--- repopulate specific time-varying sfc properties for AMIP runs
+      if (nscyc >  0) then
+        if (mod(Dyn_parms(nb)%kdt,nscyc) == 1) THEN
+           call gcycle(Mdl_parms%me, ngptc, Mdl_parms%lsoil, Mdl_parms%idate,      &
+                       phour, fhcyc, Dyn_parms(nb)%xlon ,Dyn_parms(nb)%xlat,       &
+                       Sfc_props(nb), Cld_props(nb), Tbd_data(nb), ialb, &
+                       use_ufo, nst_anl)
+        endif
+      endif
+
     enddo
 
     if (debug) then

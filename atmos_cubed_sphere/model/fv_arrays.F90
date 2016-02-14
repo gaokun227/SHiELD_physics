@@ -417,6 +417,7 @@ module fv_arrays_mod
    logical :: ncep_ic = .false.       ! use NCEP ICs 
    logical :: nggps_ic = .false.      ! use NGGPS ICs 
    logical :: gfs_phil = .false.      ! if .T., compute geopotential inside of GFS physics
+   logical :: agrid_vel_rst = .false. ! if .T., include ua/va (agrid winds) in the restarts
    logical :: use_new_ncep = .false.  ! use the NCEP ICs created after 2014/10/22, if want to read CWAT
    logical :: use_ncep_phy = .false.  ! if .T., separate CWAT by weights of liq_wat and liq_ice in FV_IC
    logical :: fv_diag_ic = .false.    ! reconstruct IC from fv_diagnostics on lat-lon grid

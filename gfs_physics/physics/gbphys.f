@@ -534,6 +534,8 @@
      &                       con_hvap, con_hfus, con_rerth, con_pi
      &,                      rhc_max, dxmin, dxinv, pa2mb, rlapse,ozcalc
       use cs_conv, only : cs_convr
+!---GFDL addition
+      use gfs_fv3_needs, only : get_prs_fv3, get_phi_fv3
 
       implicit none
 !
@@ -662,7 +664,10 @@
      &      u10mi_cpl,v10mi_cpl,tseai_cpl,psurfi_cpl,                   &
 !    &      u10mi_cpl,v10mi_cpl,tseai_cpl,psurfi_cpl,oro_cpl,slmsk_cpl, &
 
-     &      tref,    z_c,     c_0,     c_d,     w_0,   w_d, rqtk
+     &      tref,    z_c,     c_0,     c_d,     w_0,   w_d
+!  ---  changed intent to be consistent with scope of variable
+      real(kind=kind_phys), dimension(im), optional, intent(inout) ::   &
+     &      rqtk 
 
       real(kind=kind_phys), dimension(ix,levs),       intent(out) ::    &
      &      gt0, gu0, gv0
@@ -750,8 +755,6 @@
 #ifndef GFS_HYDRO
 ! *** GFDL modification by SJL ***
       real:: del_gz(im,levs+1)
-      real (kind=kind_phys), parameter :: zero = 0.0
-      real (kind=kind_phys), parameter :: half = 0.5
 #endif
 !
 !===> ...  begin here
@@ -902,16 +905,8 @@
      &             gen_coord_hybrid,                                    &
      &             prsi,prsik,prsl,prslk,phii,phil,del)
 #else
-! *** GFDL modification by SJL ***
 ! SJL: Adjust the geopotential height hydrostatically in a way consistent with FV3 discretization
-! del_gz is a temp array recording the old info before (t,q) are adjusted
-      do k=1,levs
-         do i=1,im
-               del(i,k) = prsi(i,k) - prsi(i,k+1)
-            del_gz(i,k) = (phii(i,k+1) - phii(i,k)) /                    &
-     &                  (tgrs(i,k)*(1.+con_fvirt*max(zero,qgrs(i,k,1))))
-         enddo
-      enddo
+      call get_prs_fv3(ix,levs,ntrac,phii,prsi,tgrs,qgrs,del,del_gz)
       calc_phil = .true.
 #endif
 !
@@ -1921,17 +1916,7 @@
       endif
 #else
 ! SJL: Adjust the heighz hydrostatically in a way consistent with FV3 discretization
-      do i=1,im
-         phii(i,1) = zero
-      enddo
-      do k=1,levs
-         do i=1,im
-            del_gz(i,k) = del_gz(i,k)*gt0(i,k) *                          &
-     &                    (1.+con_fvirt*max(zero,gq0(i,k,1)))
-            phii(i,k+1) = phii(i,k) + del_gz(i,k)
-            phil(i,k)   = half*(phii(i,k) + phii(i,k+1))
-         enddo
-      enddo
+      call get_phi_fv3(ix,levs,ntrac,gt0,gq0,del_gz,phii,phil)
 #endif
 
 !     if (lprnt) then

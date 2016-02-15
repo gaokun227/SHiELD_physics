@@ -177,7 +177,7 @@ contains
     integer              :: ntileMe
     integer, allocatable :: tile_id(:)
     character(len=64)    :: fname
-    character(len=3)  :: gn
+    character(len=7)  :: gn
     integer              ::  n
     integer              ::  jbeg, jend
     real ftop
@@ -759,7 +759,7 @@ contains
       else
          gn = ''
       end if
-      call set_filename_appendix(gn)
+      call set_filename_appendix('')
 
 !--- test for existence of the GFS control file
       if (.not. file_exist('INPUT/'//trim(fn_gfs_ctl), no_domain=.TRUE.)) then

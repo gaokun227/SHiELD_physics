@@ -131,6 +131,7 @@
 #endif
       public :: case9_forcing1, case9_forcing2, case51_forcing
       public :: init_double_periodic, init_latlon
+      public :: checker_tracers
 
  !---- version number -----
       character(len=128) :: version = '$Id$'

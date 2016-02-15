@@ -608,6 +608,11 @@ module gfs_physics_driver_mod
       call random_index (ipsdlim, numrdm, stat)
     endif
 
+!$OMP PARALLEL DO default(none) &
+!$OMP              shared(Atm_block,Dyn_parms,fhour,fms_date,phour,Mdl_parms,nsswr, &
+!$OMP                     nslwr,isubc_lw,isubc_sw,numrdm,lon_cs,lat_cs,dxmin,dxinv, &
+!$OMP                     Cld_props,flgmin,ozcalc,O3dat,ozplin,Tbd_data)            &
+!$OMP             private(nb,ibs,ibe,jbs,jbe,nx,ny,ngptc,ix,j,i,work1)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -648,10 +653,9 @@ module gfs_physics_driver_mod
         do j = 1,ny
           do i = 1,nx
             ix = ix + 1
-!rab            Dyn_parms(nb)%icsdsw(ix) = 100
-!rab            Dyn_parms(nb)%icsdlw(ix) = 100
+            !for testing purposes, replace numrdm with '100'
             Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs)
-            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs + lat_cs)
+            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs + lat_cs*lon_cs)
 
             if (Mdl_parms%num_p3d == 3) then
               work1 = (log(Dyn_parms(nb)%dx(ix)) - dxmin) * dxinv
@@ -670,18 +674,20 @@ module gfs_physics_driver_mod
                         O3dat(nb)%j1, O3dat(nb)%j2, ozplin, Tbd_data(nb)%prdout, &
                         O3dat(nb)%ddy)
       endif
+    enddo
 
 !--- repopulate specific time-varying sfc properties for AMIP runs
-      if (nscyc >  0) then
+    if (nscyc >  0) then
+      do nb = 1, Atm_block%nblks
         if (mod(Dyn_parms(nb)%kdt,nscyc) == 1) THEN
-           call gcycle(Mdl_parms%me, ngptc, Mdl_parms%lsoil, Mdl_parms%idate,      &
-                       phour, fhcyc, Dyn_parms(nb)%xlon ,Dyn_parms(nb)%xlat,       &
-                       Sfc_props(nb), Cld_props(nb), Tbd_data(nb), ialb, &
-                       use_ufo, nst_anl)
+          call gcycle(Mdl_parms%me, ngptc, Mdl_parms%lsoil, Mdl_parms%idate,      &
+                      phour, fhcyc, Dyn_parms(nb)%xlon ,Dyn_parms(nb)%xlat,       &
+                      Sfc_props(nb), Cld_props(nb), Tbd_data(nb), ialb, &
+                      use_ufo, nst_anl)
         endif
-      endif
+      enddo
+    endif
 
-    enddo
 
     if (debug) then
       if (mpp_pe() == mpp_root_pe()) then
@@ -742,11 +748,11 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
-!$             schedule (guided) & 
-!$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
-!$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends)          &
-!$             firstprivate (Mdl_parms)  &
-!$             private (nb)
+!$OMP          schedule (static,1) & 
+!$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props,   &
+!$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends) &
+!$OMP          firstprivate (Mdl_parms)  &
+!$OMP          private (nb)
       do nb = 1, Atm_block%nblks
         if ((Mdl_parms%me == 0) .and. (nb /= 1)) then
           Mdl_parms%me = -99
@@ -778,12 +784,12 @@ module gfs_physics_driver_mod
     fhour = Dyn_parms(1)%fhour
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
-!$             schedule (guided) & 
-!$             shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
-!$                      Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
-!$                      Stateout, fdiag, fhzero, levs) &
-!$             firstprivate (Mdl_parms, fhour, Time_diag)  &
-!$             private (nb, nx, ny)
+!$OMP          schedule (static,1) & 
+!$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
+!$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
+!$OMP                   Stateout, fdiag, fhzero, levs) &
+!$OMP          firstprivate (Mdl_parms, fhour, Time_diag)  &
+!$OMP          private (nb, nx, ny)
     do nb = 1, Atm_block%nblks
 
       if ((Mdl_parms%me == 0) .and. (nb /= 1)) then

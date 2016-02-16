@@ -102,9 +102,8 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call fms_init()
  call mpp_init()
  initClock = mpp_clock_id( 'Initialization' )
- mainClock = mpp_clock_id( 'Main loop' )
- termClock = mpp_clock_id( 'Termination' )
- call mpp_clock_begin (initClock)
+ ! call mpp_clock_begin (initClock) !nesting problem
+ 
   
  call fms_init
  call constants_init
@@ -112,7 +111,9 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call coupler_init
  call print_memuse_stats('after coupler init')
 
- call mpp_clock_end (initClock) !end initialization
+! call mpp_clock_end (initClock) !end initialization
+ mainClock = mpp_clock_id( 'Main loop' )
+ termClock = mpp_clock_id( 'Termination' )
  call mpp_clock_begin(mainClock) !begin main loop
 
  do nc = 1, num_cpld_calls

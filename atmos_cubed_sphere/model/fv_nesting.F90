@@ -17,15 +17,13 @@ module fv_nesting_mod
    use fv_arrays_mod,       only: allocate_fv_nest_BC_type, fv_atmos_type, fv_grid_bounds_type
    use fv_grid_utils_mod,   only: ptop_min, g_sum, cubed_to_latlon, f_p
    use init_hydro_mod,      only: p_var
-   use constants_mod,       only: grav, pi=>pi_8, radius, hlv, rdgas    ! latent heat of water vapor
+   use constants_mod,       only: grav, pi=>pi_8, radius, hlv, rdgas, cp_air, rvgas, cp_vapor, kappa
    use fv_mapz_mod,         only: compute_total_energy, mappm, E_Flux_nest
    use fv_timing_mod,       only: timing_on, timing_off
    use fv_mp_mod,           only: is_master
    use fv_mp_mod,           only: mp_reduce_sum
    use fv_diagnostics_mod,  only: sphum_ll_fix
-#ifdef DIVG_BC
    use sw_core_mod,         only: divergence_corner, divergence_corner_nest
-#endif
 
 implicit none
    logical :: RF_initialized = .false.
@@ -49,7 +47,7 @@ public :: twoway_nesting, setup_nested_grid_BCs
 
 contains
 
- subroutine setup_nested_grid_BCs(npx, npy, npz, cp_air, zvir, ncnst, sphum,     &
+ subroutine setup_nested_grid_BCs(npx, npy, npz, zvir, ncnst,     &
                         u, v, w, pt, delp, delz,q, uc, vc, pkz, &
                         nested, inline_q, make_nh, ng, &
                         gridstruct, flagstruct, neststruct, &
@@ -58,11 +56,10 @@ contains
 
    
     type(fv_grid_bounds_type), intent(IN) :: bd
-    real, intent(IN) :: cp_air
     real, intent(IN) :: zvir
 
     integer, intent(IN) :: npx, npy, npz
-    integer, intent(IN) :: ncnst, sphum, ng, nwat
+    integer, intent(IN) :: ncnst, ng, nwat
     logical, intent(IN) :: inline_q, make_nh,nested
 
     real, intent(inout), dimension(bd%isd:bd%ied  ,bd%jsd:bd%jed+1,npz) :: u ! D grid zonal wind (m/s)
@@ -81,14 +78,12 @@ contains
     type(fv_flags_type), intent(INOUT) :: flagstruct
     type(fv_nest_type), intent(INOUT), target :: neststruct
     type(domain2d), intent(INOUT) :: domain
-#ifdef DIVG_BC
     real :: divg(bd%isd:bd%ied+1,bd%jsd:bd%jed+1, npz)
     real :: ua(bd%isd:bd%ied,bd%jsd:bd%jed)
     real :: va(bd%isd:bd%ied,bd%jsd:bd%jed)
-#endif
 
     real :: pkz_coarse(  bd%isd:bd%ied  ,bd%jsd:bd%jed  ,npz)
-    integer :: i,j,k,n,p
+    integer :: i,j,k,n,p, sphum
     logical :: do_pd
 
    type(fv_nest_BC_type_3d) :: pkz_BC
@@ -98,10 +93,6 @@ contains
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
-
-#ifdef MOIST_CAPPA
-      call mpp_error(FATAL, 'MOIST_CAPPA not yet implemented for nesting')
-#endif
 
       is  = bd%is
       ie  = bd%ie
@@ -141,9 +132,7 @@ contains
        call timing_off('COMM_TOTAL')
        do k=1,npz
           call d2c_setup(u(isd,jsd,k),  v(isd,jsd,k),   &
-#ifdef DIVG_BC
                ua, va, &
-#endif
                uc(isd,jsd,k), vc(isd,jsd,k), flagstruct%nord>0, &
                isd,ied,jsd,jed, is,ie,js,je, npx,npy, &
                gridstruct%grid_type, gridstruct%nested, &
@@ -151,24 +140,24 @@ contains
                gridstruct%ne_corner, gridstruct%nw_corner, &
                gridstruct%rsin_u, gridstruct%rsin_v, &
                gridstruct%cosa_s, gridstruct%rsin2 )
-#ifdef DIVG_BC
           if (nested) then
              call divergence_corner_nest(u(isd,jsd,k), v(isd,jsd,k), ua, va, divg(isd,jsd,k), gridstruct, flagstruct, bd)
           else
              call divergence_corner(u(isd,jsd,k), v(isd,jsd,k), ua, va, divg(isd,jsd,k), gridstruct, flagstruct, bd)
           endif
-#endif
        end do       
     endif
 
 #ifndef SW_DYNAMICS
-    do k=1,npz
-    do j=js,je
-    do i=is,ie
-       pkz_coarse(i,j,k) = pkz(i,j,k)
-    enddo
-    enddo
-    enddo
+    if (flagstruct%hydrostatic) then
+       do k=1,npz
+       do j=js,je
+       do i=is,ie
+          pkz_coarse(i,j,k) = pkz(i,j,k)
+       enddo
+       enddo
+       enddo
+    endif
 #endif 
 !! Nested grid: receive from parent grid
     if (neststruct%nested) then
@@ -186,11 +175,11 @@ contains
        call nested_grid_BC_recv(neststruct%nest_domain, 0, 0, npz, bd, &
             pt_buf)
 
-       call allocate_fv_nest_BC_type(pkz_BC,is,ie,js,je,isd,ied,jsd,jed,npx,npy,npz,ng,0,0,0,.false.)
-       call nested_grid_BC_recv(neststruct%nest_domain, 0, 0, npz, bd, &
-            pkz_buf)
-
-       if (.not. flagstruct%hydrostatic) then
+       if (flagstruct%hydrostatic) then
+          call allocate_fv_nest_BC_type(pkz_BC,is,ie,js,je,isd,ied,jsd,jed,npx,npy,npz,ng,0,0,0,.false.)
+          call nested_grid_BC_recv(neststruct%nest_domain, 0, 0, npz, bd, &
+               pkz_buf)
+       else
           call nested_grid_BC_recv(neststruct%nest_domain, 0, 0,  npz, bd, &
                w_buf)
           call nested_grid_BC_recv(neststruct%nest_domain, 0, 0,  npz, bd, &
@@ -205,10 +194,8 @@ contains
             v_buf)
        call nested_grid_BC_recv(neststruct%nest_domain, 1, 0,  npz, bd, &
             uc_buf)
-#ifdef DIVG_BC
        call nested_grid_BC_recv(neststruct%nest_domain, 1, 1,  npz, bd, &
             divg_buf)
-#endif
     endif
 
 
@@ -223,10 +210,10 @@ contains
 #ifndef SW_DYNAMICS
           call nested_grid_BC_send(pt, neststruct%nest_domain_all(p), 0, 0)
 
-          !Working with PKZ is more complicated since it is only defined on the interior of the grid.
-          call nested_grid_BC_send(pkz_coarse, neststruct%nest_domain_all(p), 0, 0)
-
-          if (.not. flagstruct%hydrostatic) then
+          if (flagstruct%hydrostatic) then
+             !Working with PKZ is more complicated since it is only defined on the interior of the grid.
+             call nested_grid_BC_send(pkz_coarse, neststruct%nest_domain_all(p), 0, 0)
+          else
              call nested_grid_BC_send(w, neststruct%nest_domain_all(p), 0, 0)
              call nested_grid_BC_send(delz, neststruct%nest_domain_all(p), 0, 0)
           endif          
@@ -235,9 +222,7 @@ contains
           call nested_grid_BC_send(vc, neststruct%nest_domain_all(p), 0, 1)
           call nested_grid_BC_send(v, neststruct%nest_domain_all(p), 1, 0)
           call nested_grid_BC_send(uc, neststruct%nest_domain_all(p), 1, 0)
-#ifdef DIVG_BC
        call nested_grid_BC_send(divg, neststruct%nest_domain_all(p), 1, 1)
-#endif
        endif
     enddo
     
@@ -252,25 +237,37 @@ contains
                neststruct%q_BC(n), q_buf(n), pd_in=do_pd)
        enddo
 #ifndef SW_DYNAMICS
-#ifdef USE_COND
-       call setup_q_con_BC(neststruct%q_BC, neststruct%q_con_BC, npx, npy, npz, bd, ncnst, nwat)
-#endif
+!!$#ifdef USE_COND
+!!$       call setup_q_con_BC(neststruct%q_BC, neststruct%q_con_BC, npx, npy, npz, bd, ncnst, nwat)
+!!$#endif
        call nested_grid_BC_save_proc(neststruct%nest_domain, &
             neststruct%ind_h, neststruct%wt_h, 0, 0, npx,  npy,  npz, bd, &
             neststruct%pt_BC, pt_buf)
-       call nested_grid_BC_save_proc(neststruct%nest_domain, &
+
+       sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
+       if (flagstruct%hydrostatic) then
+          call nested_grid_BC_save_proc(neststruct%nest_domain, &
             neststruct%ind_h, neststruct%wt_h, 0, 0, npx,  npy,  npz, bd, &
             pkz_BC, pkz_buf)
-       call setup_pt_BC(neststruct%pt_BC, pkz_BC, neststruct%q_BC(sphum), npx, npy, npz, cp_air, zvir, bd)
-
-       if (.not. flagstruct%hydrostatic) then
+          call setup_pt_BC(neststruct%pt_BC, pkz_BC, neststruct%q_BC(sphum), npx, npy, npz, zvir, bd)
+       else
           call nested_grid_BC_save_proc(neststruct%nest_domain, &
                neststruct%ind_h, neststruct%wt_h, 0, 0,  npx,  npy,  npz, bd, &
                neststruct%w_BC, w_buf)
           call nested_grid_BC_save_proc(neststruct%nest_domain, &
                neststruct%ind_h, neststruct%wt_h, 0, 0,  npx,  npy,  npz, bd, &
                neststruct%delz_BC, delz_buf) !Need a negative-definite method? 
-    endif
+          
+          call setup_pt_NH_BC(neststruct%pt_BC, neststruct%delp_BC, neststruct%delz_BC, &
+               neststruct%q_BC(sphum), &
+#ifdef USE_COND
+               neststruct%q_BC, neststruct%q_con_BC, ncnst, &
+#ifdef MOIST_CAPPA
+               neststruct%cappa_BC, &
+#endif
+#endif
+               npx, npy, npz, zvir, bd)
+       endif
 #endif
        call nested_grid_BC_save_proc(neststruct%nest_domain, &
             neststruct%ind_u, neststruct%wt_u, 0, 1,  npx,  npy,  npz, bd, &
@@ -285,40 +282,41 @@ contains
             neststruct%ind_v, neststruct%wt_v, 1, 0,  npx,  npy,  npz, bd, &
             neststruct%uc_BC, uc_buf)
 
-#ifdef DIVG_BC
        call nested_grid_BC_save_proc(neststruct%nest_domain, &
             neststruct%ind_b, neststruct%wt_b, 1, 1,  npx,  npy,  npz, bd, &
             neststruct%divg_BC, divg_buf)
-#endif
     endif
 
     if (neststruct%first_step) then
        if (neststruct%nested) call set_BCs_t0(ncnst, flagstruct%hydrostatic, neststruct)
        neststruct%first_step = .false.
+       if (.not. flagstruct%hydrostatic) flagstruct%make_nh= .false. 
     else if (flagstruct%make_nh) then
        if (neststruct%nested) call set_NH_BCs_t0(neststruct)
+       flagstruct%make_nh= .false. 
     endif
-#ifdef DIVG_BC
-    if ( neststruct%nested .and. .not. neststruct%divg_BC%initialized) then
-       neststruct%divg_BC%east_t0  = neststruct%divg_BC%east_t1
-       neststruct%divg_BC%west_t0  = neststruct%divg_BC%west_t1
-       neststruct%divg_BC%north_t0 = neststruct%divg_BC%north_t1
-       neststruct%divg_BC%south_t0 = neststruct%divg_BC%south_t1 
-       neststruct%divg_BC%initialized = .true.
-    endif
-#endif
+
+    !Unnecessary?
+!!$    if ( neststruct%nested .and. .not. neststruct%divg_BC%initialized) then
+!!$       neststruct%divg_BC%east_t0  = neststruct%divg_BC%east_t1
+!!$       neststruct%divg_BC%west_t0  = neststruct%divg_BC%west_t1
+!!$       neststruct%divg_BC%north_t0 = neststruct%divg_BC%north_t1
+!!$       neststruct%divg_BC%south_t0 = neststruct%divg_BC%south_t1 
+!!$       neststruct%divg_BC%initialized = .true.
+!!$    endif
+
 
     call mpp_sync_self
 
  end subroutine setup_nested_grid_BCs
 
- subroutine setup_pt_BC(pt_BC, pkz_BC, sphum_BC, npx, npy, npz, cp_air, zvir, bd)
+ subroutine setup_pt_BC(pt_BC, pkz_BC, sphum_BC, npx, npy, npz, zvir, bd)
 
    type(fv_grid_bounds_type), intent(IN) :: bd
    type(fv_nest_BC_type_3d), intent(IN), target    :: pkz_BC, sphum_BC
    type(fv_nest_BC_type_3d), intent(INOUT), target :: pt_BC
    integer, intent(IN) :: npx, npy, npz
-   real, intent(IN) :: cp_air, zvir
+   real, intent(IN) :: zvir
 
    real, dimension(:,:,:), pointer :: ptBC, pkzBC, sphumBC
 
@@ -459,7 +457,7 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q_BC(ice_wat)%west_t1(i,j,k)
 #else
-#ifdef USE_NWAT2
+#ifdef GFS_PHYS
          q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k)
 #else
          q_con_BC%west_t1(i,j,k) = q_BC(liq_wat)%west_t1(i,j,k) + q_BC(ice_wat)%west_t1(i,j,k) + &
@@ -489,7 +487,7 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q_BC(ice_wat)%south_t1(i,j,k)
 #else
-#ifdef USE_NWAT2
+#ifdef GFS_PHYS
          q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k)
 #else
          q_con_BC%south_t1(i,j,k) = q_BC(liq_wat)%south_t1(i,j,k) + q_BC(ice_wat)%south_t1(i,j,k) + &
@@ -509,7 +507,7 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q_BC(ice_wat)%east_t1(i,j,k)
 #else
-#ifdef USE_NWAT2
+#ifdef GFS_PHYS
          q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k)
 #else
          q_con_BC%east_t1(i,j,k) = q_BC(liq_wat)%east_t1(i,j,k) + q_BC(ice_wat)%east_t1(i,j,k) + &
@@ -539,7 +537,7 @@ contains
 #ifdef USE_NWAT3
          q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q_BC(ice_wat)%north_t1(i,j,k)
 #else
-#ifdef USE_NWAT2
+#ifdef GFS_PHYS
          q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k)
 #else
          q_con_BC%north_t1(i,j,k) = q_BC(liq_wat)%north_t1(i,j,k) + q_BC(ice_wat)%north_t1(i,j,k) + &
@@ -552,6 +550,303 @@ contains
    end if
    
  end subroutine setup_q_con_BC
+
+ subroutine setup_pt_NH_BC(pt_BC, delp_BC, delz_BC, sphum_BC, &
+#ifdef USE_COND
+      q_BC, q_con_BC, nq, &
+#ifdef MOIST_CAPPA
+      cappa_BC, &
+#endif
+#endif
+      npx, npy, npz, zvir, bd)
+
+   type(fv_grid_bounds_type), intent(IN) :: bd
+   type(fv_nest_BC_type_3d), intent(IN), target    :: delp_BC, delz_BC, sphum_BC
+   type(fv_nest_BC_type_3d), intent(INOUT), target :: pt_BC
+#ifdef USE_COND
+   integer, intent(IN) :: nq
+   type(fv_nest_BC_type_3d), intent(INOUT), target :: q_con_BC
+   type(fv_nest_BC_type_3d), intent(IN), target :: q_BC(nq)
+#ifdef MOIST_CAPPA
+   type(fv_nest_BC_type_3d), intent(INOUT), target :: cappa_BC
+#endif
+#endif
+   integer, intent(IN) :: npx, npy, npz
+   real, intent(IN) :: zvir
+
+    real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+    real, parameter:: c_ice = 2106.       ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
+    real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
+
+   real, dimension(:,:,:), pointer :: ptBC, sphumBC, qconBC, delpBC, delzBC, cappaBC
+   real, dimension(:,:,:), pointer :: liq_watBC, ice_watBC, rainwatBC, snowwatBC, graupelBC
+
+   real :: dp1, q_liq, q_sol, q_con = 0., cvm, pkz, rdg, cv_air
+
+   integer :: i,j,k, istart, iend
+   integer :: liq_wat, ice_wat, rainwat, snowwat, graupel
+
+   integer :: is,  ie,  js,  je
+   integer :: isd, ied, jsd, jed
+
+   is  = bd%is
+   ie  = bd%ie
+   js  = bd%js
+   je  = bd%je
+   isd = bd%isd
+   ied = bd%ied
+   jsd = bd%jsd
+   jed = bd%jed
+   
+   rdg = -rdgas / grav
+   cv_air =  cp_air - rdgas
+
+   liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+   ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+   rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+   snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+   graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+
+   if (is == 1) then
+      ptBC    =>    pt_BC%west_t1
+      sphumBC => sphum_BC%west_t1
+#ifdef USE_COND
+      qconBC  => q_con_BC%west_t1
+      liq_watBC => q_BC(liq_wat)%west_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%west_t1
+      rainwatBC => q_BC(rainwat)%west_t1
+      snowwatBC => q_BC(snowwat)%west_t1
+      graupelBC => q_BC(graupel)%west_t1
+#endif
+#ifdef MOIST_CAPPA
+      cappaBC =>  cappa_BC%west_t1
+#endif
+#endif
+      delpBC  =>  delp_BC%west_t1
+      delzBC  =>  delz_BC%west_t1
+
+      do k=1,npz
+      do j=jsd,jed
+      do i=isd,0
+         dp1 = zvir*sphumBC(i,j,k)
+#ifdef USE_COND
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_liq = q_con
+         q_sol = 0. ! Temporary
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_con = q_liq + q_sol
+#endif 
+         qconBC(i,j,k) = q_con
+#ifdef MOIST_CAPPA
+         cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
+         pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))
+#endif
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)*(1.-q_con)/pkz
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)/delzBC(i,j,k)))
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)/pkz
+#endif
+      end do
+      end do
+      end do
+   end if
+
+
+   if (js == 1) then
+      ptBC    =>    pt_BC%south_t1
+      sphumBC => sphum_BC%south_t1
+#ifdef USE_COND
+      qconBC  => q_con_BC%south_t1
+      liq_watBC => q_BC(liq_wat)%south_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%south_t1
+      rainwatBC => q_BC(rainwat)%south_t1
+      snowwatBC => q_BC(snowwat)%south_t1
+      graupelBC => q_BC(graupel)%south_t1
+#endif
+#ifdef MOIST_CAPPA
+      cappaBC =>  cappa_BC%south_t1
+#endif
+#endif
+      delpBC  =>  delp_BC%south_t1
+      delzBC  =>  delz_BC%south_t1
+      if (is == 1) then
+         istart = is
+      else
+         istart = isd
+      end if
+      if (ie == npx-1) then
+         iend = ie
+      else
+         iend = ied
+      end if
+
+      do k=1,npz
+      do j=jsd,0
+      do i=istart,iend
+         dp1 = zvir*sphumBC(i,j,k)
+#ifdef USE_COND
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_liq = q_con
+         q_sol = 0. ! Temporary
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_con = q_liq + q_sol
+#endif 
+         qconBC(i,j,k) = q_con
+#ifdef MOIST_CAPPA
+         cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
+         pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))
+#endif
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)*(1.-q_con)/pkz
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)/delzBC(i,j,k)))
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)/pkz
+#endif
+      end do
+      end do
+      end do
+   end if
+
+
+   if (ie == npx-1) then
+      ptBC    =>    pt_BC%east_t1
+      sphumBC => sphum_BC%east_t1
+#ifdef USE_COND
+      qconBC  => q_con_BC%east_t1
+      liq_watBC => q_BC(liq_wat)%east_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%east_t1
+      rainwatBC => q_BC(rainwat)%east_t1
+      snowwatBC => q_BC(snowwat)%east_t1
+      graupelBC => q_BC(graupel)%east_t1
+#endif
+#ifdef MOIST_CAPPA
+      cappaBC =>  cappa_BC%east_t1
+#endif
+#endif
+      delpBC  =>  delp_BC%east_t1
+      delzBC  =>  delz_BC%east_t1
+      do k=1,npz
+      do j=jsd,jed
+      do i=npx,ied
+         dp1 = zvir*sphumBC(i,j,k)
+#ifdef USE_COND
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_liq = q_con
+         q_sol = 0. ! Temporary
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_con = q_liq + q_sol
+#endif 
+         qconBC(i,j,k) = q_con
+#ifdef MOIST_CAPPA
+         cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
+         pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))
+#endif
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)*(1.-q_con)/pkz
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)/delzBC(i,j,k)))
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)/pkz
+#endif
+      end do
+      end do
+      end do
+   end if
+
+   if (je == npy-1) then
+      ptBC    =>    pt_BC%north_t1
+      sphumBC => sphum_BC%north_t1
+#ifdef USE_COND
+      qconBC  => q_con_BC%north_t1
+      liq_watBC => q_BC(liq_wat)%north_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%north_t1
+      rainwatBC => q_BC(rainwat)%north_t1
+      snowwatBC => q_BC(snowwat)%north_t1
+      graupelBC => q_BC(graupel)%north_t1
+#endif
+#ifdef MOIST_CAPPA
+      cappaBC =>  cappa_BC%north_t1
+#endif
+#endif
+      delpBC  =>  delp_BC%north_t1
+      delzBC  =>  delz_BC%north_t1
+      if (is == 1) then
+         istart = is
+      else
+         istart = isd
+      end if
+      if (ie == npx-1) then
+         iend = ie
+      else
+         iend = ied
+      end if
+
+      do k=1,npz
+      do j=npy,jed
+      do i=istart,iend
+         dp1 = zvir*sphumBC(i,j,k)
+#ifdef USE_COND
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_liq = q_con
+         q_sol = 0. ! Temporary
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_con = q_liq + q_sol
+#endif 
+         qconBC(i,j,k) = q_con
+#ifdef MOIST_CAPPA
+         cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
+         pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))
+#endif
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)*(1.-q_con)/pkz
+#else
+         pkz = exp( kappa*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
+              (1.+dp1)/delzBC(i,j,k)))
+         ptBC(i,j,k) = cp_air*ptBC(i,j,k)*(1.+dp1)/pkz
+#endif
+      end do
+      end do
+      end do
+   end if
+
+
+
+ end subroutine setup_pt_NH_BC
 
 
  subroutine set_NH_BCs_t0(neststruct)
@@ -605,10 +900,12 @@ contains
    neststruct%q_con_BC%west_t0    = neststruct%q_con_BC%west_t1
    neststruct%q_con_BC%north_t0   = neststruct%q_con_BC%north_t1
    neststruct%q_con_BC%south_t0   = neststruct%q_con_BC%south_t1
-   neststruct%q_con_BC%east_t0    = neststruct%q_con_BC%east_t1
-   neststruct%q_con_BC%west_t0    = neststruct%q_con_BC%west_t1
-   neststruct%q_con_BC%north_t0   = neststruct%q_con_BC%north_t1
-   neststruct%q_con_BC%south_t0   = neststruct%q_con_BC%south_t1
+#ifdef MOIST_CAPPA
+   neststruct%cappa_BC%east_t0    = neststruct%cappa_BC%east_t1
+   neststruct%cappa_BC%west_t0    = neststruct%cappa_BC%west_t1
+   neststruct%cappa_BC%north_t0   = neststruct%cappa_BC%north_t1
+   neststruct%cappa_BC%south_t0   = neststruct%cappa_BC%south_t1
+#endif
 #endif
 
    if (.not. hydrostatic) then
@@ -633,12 +930,11 @@ contains
    neststruct%uc_BC%west_t0  = neststruct%uc_BC%west_t1
    neststruct%uc_BC%north_t0 = neststruct%uc_BC%north_t1
    neststruct%uc_BC%south_t0 = neststruct%uc_BC%south_t1
-#ifdef DIVG_BC
+
    neststruct%divg_BC%east_t0  = neststruct%divg_BC%east_t1
    neststruct%divg_BC%west_t0  = neststruct%divg_BC%west_t1
    neststruct%divg_BC%north_t0 = neststruct%divg_BC%north_t1
    neststruct%divg_BC%south_t0 = neststruct%divg_BC%south_t1
-#endif
 
 
  end subroutine set_BCs_t0
@@ -667,25 +963,25 @@ contains
 !!  not updated at all. For tracers this requires setting
 !!  nestbctype > 1; this is not implemented for air mass (delp)
 
-subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt_atmos)
+subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 
    type(fv_atmos_type), intent(INOUT) :: Atm(ngrids)
    integer, intent(IN) :: ngrids
    logical, intent(IN) :: grids_on_this_pe(ngrids)
-   real, intent(IN) :: kappa, cp_air, zvir, dt_atmos
+   real, intent(IN) :: zvir, dt_atmos
 
    integer :: n, p, sphum
 
    
    if (ngrids > 1) then
-      if (Atm(1)%neststruct%parent_of_twoway .and. grids_on_this_pe(1)) then
-         call before_twoway_nest_update(Atm(1)%npx, Atm(1)%npy, Atm(1)%npz, Atm(1)%ng, &
-              kappa, cp_air, zvir, Atm(1)%ncnst,   &
-              Atm(1)%u, Atm(1)%v, Atm(1)%w, Atm(1)%delz, Atm(1)%pt, Atm(1)%delp, Atm(1)%q,   &
-              Atm(1)%ps, Atm(1)%pe, Atm(1)%pk, Atm(1)%peln, Atm(1)%pkz, &
-              Atm(1)%phis, Atm(1)%ua, Atm(1)%va, &
-              Atm(1)%grid_number, Atm(1)%gridstruct, Atm(1)%flagstruct, Atm(1)%idiag, Atm(1)%domain, Atm(1)%bd)
-      endif
+!!$      if (Atm(1)%neststruct%parent_of_twoway .and. grids_on_this_pe(1)) then
+!!$         call before_twoway_nest_update(Atm(1)%npx, Atm(1)%npy, Atm(1)%npz, Atm(1)%ng, &
+!!$              zvir, Atm(1)%ncnst,   &
+!!$              Atm(1)%u, Atm(1)%v, Atm(1)%w, Atm(1)%delz, Atm(1)%pt, Atm(1)%delp, Atm(1)%q,   &
+!!$              Atm(1)%ps, Atm(1)%pe, Atm(1)%pk, Atm(1)%peln, Atm(1)%pkz, &
+!!$              Atm(1)%phis, Atm(1)%ua, Atm(1)%va, &
+!!$              Atm(1)%grid_number, Atm(1)%gridstruct, Atm(1)%flagstruct, Atm(1)%idiag, Atm(1)%domain, Atm(1)%bd)
+!!$      endif
 
       do n=ngrids,2,-1 !loop backwards to allow information to propagate from finest to coarsest grids
 
@@ -693,10 +989,10 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
          if (Atm(n)%neststruct%twowaynest ) then
             if  (grids_on_this_pe(n) .or. grids_on_this_pe(Atm(n)%parent_grid%grid_number)) then
                sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-               call twoway_nest_update(Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, cp_air, zvir, &
+               call twoway_nest_update(Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, zvir, &
                     Atm(n)%ncnst, sphum, Atm(n)%u, Atm(n)%v, Atm(n)%w, Atm(n)%omga, &
                     Atm(n)%pt, Atm(n)%delp, Atm(n)%q, Atm(n)%uc, Atm(n)%vc, &
-                    kappa, Atm(n)%pkz, Atm(n)%delz, Atm(n)%ps, Atm(n)%ptop, &
+                    Atm(n)%pkz, Atm(n)%delz, Atm(n)%ps, Atm(n)%ptop, &
                     Atm(n)%gridstruct, Atm(n)%flagstruct, Atm(n)%neststruct, Atm(n)%parent_grid, Atm(N)%bd, .false.)
             endif
          endif
@@ -707,7 +1003,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
       do n=1,ngrids
          if (Atm(n)%neststruct%parent_of_twoway .and. grids_on_this_pe(n)) then
             call after_twoway_nest_update( Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, Atm(n)%ng, dt_atmos,  &
-                 kappa, cp_air, zvir, Atm(n)%ncnst,   &
+                 zvir, Atm(n)%ncnst,   &
                  Atm(n)%u,  Atm(n)%v,  Atm(n)%w,  Atm(n)%delz, &
                  Atm(n)%pt,  Atm(n)%delp,  Atm(n)%q,   &
                  Atm(n)%ps,  Atm(n)%pe,  Atm(n)%pk,  Atm(n)%peln,  Atm(n)%pkz, &
@@ -726,13 +1022,12 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
 
 !!!CLEANUP: this routine assumes that the PARENT GRID has pt = (regular) temperature,
 !!!not potential temperature; which may cause problems when updating if this is not the case.
- subroutine twoway_nest_update(npx, npy, npz, cp_air, zvir, ncnst, sphum,     &
+ subroutine twoway_nest_update(npx, npy, npz, zvir, ncnst, sphum,     &
                         u, v, w, omga, pt, delp, q,   &
-                        uc, vc, kappa, pkz, delz, ps, ptop, &
+                        uc, vc, pkz, delz, ps, ptop, &
                         gridstruct, flagstruct, neststruct, &
                         parent_grid, bd, conv_theta_in)
 
-    real, intent(IN) :: kappa, cp_air
     real, intent(IN) :: zvir, ptop
 
     integer, intent(IN) :: npx, npy, npz
@@ -1170,12 +1465,11 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
  end subroutine level_sum
 !Do ua,va need to be converted back from lat-lon coords?
  subroutine before_twoway_nest_update(npx, npy, npz, ng, &
-                        kappa, cp_air, zvir, ncnst,   &
+                        zvir, ncnst,   &
                         u, v, w, delz, pt, delp, q,   &
                         ps, pe, pk, peln, pkz, phis, ua, va, &
                         grid_number, gridstruct, flagstruct, idiag, domain, bd)
 
-    real, intent(IN) :: kappa, cp_air
     real, intent(IN) :: zvir
 
     integer, intent(IN) :: npx, npy, npz
@@ -1260,29 +1554,29 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
 
    if (grid_number /= 1) return   
 
-#ifndef SW_DYNAMICS
-
-   if (.not. allocated(te_2d_coarse)) allocate(te_2d_coarse(isc:iec, jsc:jec))
-   if (.not. allocated(dp1_coarse)) allocate(dp1_coarse(is:ie,js:je,npz))
-   do k=1,npz
-      do j=js,je
-         do i=is,ie
-            dp1_coarse(i,j,k) = zvir*q(i,j,k,sphum)
-         enddo
-      enddo
-   enddo
-   rg = kappa*cp_air
-   call compute_total_energy(is, ie, js, je, isd, ied, jsd, jed, npz,  &
-        u, v, w, delz, pt, delp, q, dp1_coarse, pe, &
-        peln, phis, gridstruct%rsin2, gridstruct%cosa_s, zvir, cp_air,  rg, hlv, te_2d_coarse, &
-        ua, va, teq, flagstruct%moist_phys, flagstruct%nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, flagstruct%hydrostatic,idiag%id_te)
-
-#endif
+!!$#ifndef SW_DYNAMICS
+!!$
+!!$   if (.not. allocated(te_2d_coarse)) allocate(te_2d_coarse(isc:iec, jsc:jec))
+!!$   if (.not. allocated(dp1_coarse)) allocate(dp1_coarse(isd:ied,jsd:jed,npz))
+!!$   do k=1,npz
+!!$      do j=js,je
+!!$         do i=is,ie
+!!$            dp1_coarse(i,j,k) = zvir*q(i,j,k,sphum)
+!!$         enddo
+!!$      enddo
+!!$   enddo
+!!$   rg = kappa*cp_air
+!!$   call compute_total_energy(is, ie, js, je, isd, ied, jsd, jed, npz,  &
+!!$        u, v, w, delz, pt, delp, q, dp1_coarse, pe, &
+!!$        peln, phis, gridstruct%rsin2, gridstruct%cosa_s, zvir, cp_air,  rg, hlv, te_2d_coarse, &
+!!$        ua, va, teq, flagstruct%moist_phys, flagstruct%nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, flagstruct%hydrostatic,idiag%id_te)
+!!$
+!!$#endif
 
  end subroutine before_twoway_nest_update
 
  subroutine after_twoway_nest_update(npx, npy, npz, ng, bdt,               &
-                        kappa, cp_air, zvir, ncnst,   &
+                        zvir, ncnst,   &
                         u, v, w, delz, pt, delp, q,   &
                         ps, pe, pk, peln, pkz, phis, omga, ua, va, uc, vc,          &
                         ptop, ak, bk, gridstruct, flagstruct, idiag, &
@@ -1290,7 +1584,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
 
    type(fv_grid_bounds_type), intent(IN) :: bd
     real, intent(IN) :: bdt  ! Large time-step
-    real, intent(IN) :: kappa, cp_air, ptop
+    real, intent(IN) :: ptop
     real, intent(IN) :: zvir
 
     integer, intent(IN) :: ng, npx, npy, npz
@@ -1392,26 +1686,27 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt
         flagstruct%moist_phys,  flagstruct%hydrostatic, &
         flagstruct%nwat, domain, .false.)
 
-   !DIAGNOSTIC: compute energy after update
-   if (grid_number /= 1) return   
-
-   do k=1,npz
-      do j=js,je
-         do i=is,ie
-            dp1_coarse(i,j,k) = zvir*q(i,j,k,sphum)
-         enddo
-      enddo
-   enddo
-   
-   rg = kappa*cp_air
-   call compute_total_energy(is, ie, js, je, isd, ied, jsd, jed, npz,  &
-        u, v, w, delz, pt, delp, q, dp1_coarse, pe, &
-        peln, phis, gridstruct%rsin2, gridstruct%cosa_s, zvir, cp_air,  rg, hlv, te_2d_coarse_after, &
-        ua, va, teq, flagstruct%moist_phys, flagstruct%nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel,flagstruct%hydrostatic,idiag%id_te)
-
-   te_2d_coarse = te_2d_coarse - te_2d_coarse_after
-   tpe = g_sum(domain, te_2d_coarse, is, ie, js, je, ng, gridstruct%area_64, 0)
-   E_Flux_nest = tpe / (grav*bdt*4.*pi*radius**2)
+!!$   !DIAGNOSTIC: compute energy after update
+!!$   if (grid_number /= 1) return   
+!!$
+!!$   do k=1,npz
+!!$      do j=js,je
+!!$         do i=is,ie
+!!$            dp1_coarse(i,j,k) = zvir*q(i,j,k,sphum)
+!!$         enddo
+!!$      enddo
+!!$   enddo
+!!$   
+!!$   rg = kappa*cp_air
+!!$	!Check this...
+!!$   call compute_total_energy(is, ie, js, je, isd, ied, jsd, jed, npz,  &
+!!$        u, v, w, delz, pt, delp, q, dp1_coarse, pe, &
+!!$        peln, phis, gridstruct%rsin2, gridstruct%cosa_s, zvir, cp_air,  rg, hlv, te_2d_coarse_after, &
+!!$        ua, va, teq, flagstruct%moist_phys,  flagstruct%nwat, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel,flagstruct%hydrostatic,idiag%id_te)
+!!$
+!!$   te_2d_coarse = te_2d_coarse - te_2d_coarse_after
+!!$   tpe = g_sum(domain, te_2d_coarse, is, ie, js, je, ng, gridstruct%area_64, 0)
+!!$   E_Flux_nest = tpe / (grav*bdt*4.*pi*radius**2)
 
 #endif
 

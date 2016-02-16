@@ -510,7 +510,6 @@ contains
             neststruct%uc_BC, bctype=neststruct%nestbctype )
 
        !QUESTION: What to do with divgd in nested halo?
-#ifdef DIVG_BC
             call nested_grid_BC_apply_intT(divgd, &
                  1, 1, npx, npy, npz, bd, split_timestep_bc, real(n_split*flagstruct%k_split), &
             neststruct%divg_BC, bctype=neststruct%nestbctype )
@@ -518,7 +517,6 @@ contains
 !!$               do j=jsd,5
 !!$                  write(mpp_pe()+2000,*) j, divg(isd:5,j,1)
 !!$            endif
-#endif
 
       end if
 
@@ -837,6 +835,7 @@ contains
        else
           call nh_p_grad(u, v, pkc, gz, delp, pk3, dt, ng, gridstruct, bd, npx, npy, npz, flagstruct%use_logp)
        endif
+
 #ifdef ROT3
        if ( flagstruct%do_f3d ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,ua,gridstruct,w,va,isd,ied,jsd,jed)

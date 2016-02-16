@@ -35,6 +35,7 @@ module external_ic_mod
    use sim_nc_mod,        only: open_ncfile, close_ncfile, get_ncdim1, get_var1_double, get_var2_real,   &
                                 get_var3_r4, get_var1_real
    use fv_nwp_nudge_mod,  only: T_is_Tv
+   use test_cases_mod,    only: checker_tracers
 ! The "T" field in NCEP analysis is actually virtual temperature (Larry H. post processing)
 ! BEFORE 20051201
 
@@ -552,11 +553,14 @@ contains
       logical :: ncep_plevels = .false.
       logical :: gfs_dwinds = .true.
       integer :: levp = 64
+      logical :: checker_tr = .false.
+      integer :: nt_checker = 0
       real(kind=R_GRID), dimension(2):: p1, p2, p3
       real(kind=R_GRID), dimension(3):: e1, e2, ex, ey
-      integer:: i,j,k
+      integer:: i,j,k,nts
       integer:: liq_wat
-      namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds
+      namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds, &
+                                 checker_tr, nt_checker
 #ifdef GFSL64
    real, dimension(65):: ak_sj, bk_sj
    data ak_sj/20.00000,      68.00000,     137.79000,   &
@@ -850,20 +854,20 @@ contains
         ! prognostic meridional wind (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v', va, domain=Atm(n)%domain)
 
-      if ( gfs_dwinds ) then
-        ! prognostic horizonal wind (m/s)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_s', u_s, domain=Atm(n)%domain,position=NORTH)
-        ! prognostic meridional wind (m/s)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_s', v_s, domain=Atm(n)%domain,position=NORTH)
-        ! prognostic horizonal wind (m/s)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_w', u_w, domain=Atm(n)%domain,position=EAST)
-        ! prognostic meridional wind (m/s)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_w', v_w, domain=Atm(n)%domain,position=EAST)
-      endif
+        if ( gfs_dwinds ) then
+          ! prognostic horizonal wind (m/s)
+          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_s', u_s, domain=Atm(n)%domain,position=NORTH)
+          ! prognostic meridional wind (m/s)
+          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_s', v_s, domain=Atm(n)%domain,position=NORTH)
+          ! prognostic horizonal wind (m/s)
+          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_w', u_w, domain=Atm(n)%domain,position=EAST)
+          ! prognostic meridional wind (m/s)
+          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_w', v_w, domain=Atm(n)%domain,position=EAST)
+        endif
 
         ! prognostic vertical velocity 'omga' (Pa/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
-! Height at edges (including surface height)
+        ! Height at edges (including surface height)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'ZH', zh, domain=Atm(n)%domain)
 
         ! prognostic tracers
@@ -915,7 +919,7 @@ contains
  
 ! SJL: 20151104
 !         Atm(n)%pt  (is:ie,js:je,1:npz) = t   (is:ie,js:je,itoa:levp)
-! Retrieve pt hydrostatically from delta_zh, and if non-hydro, compute w and delz
+!--- Retrieve pt hydrostatically from delta_zh, and if non-hydro, compute w and delz
           call get_pt_wdz( Atm(n), npz, zh )
 
           ! map the A-grid winds onto the D-grid winds
@@ -939,59 +943,67 @@ contains
 
           call remap_scalar_nggps(Atm(n), levp, npz, ntracers, ak, bk, ps, q, omga, zh)
 
-       if ( gfs_dwinds ) then
-          allocate ( ud(is:ie,  js:je+1, 1:levp) )
-          allocate ( vd(is:ie+1,js:je,   1:levp) )
-          do k=1,levp
-             do j=js,je+1
-                do i=is,ie
-                   p1(:) = Atm(1)%gridstruct%grid(i,  j,1:2)
-                   p2(:) = Atm(1)%gridstruct%grid(i+1,j,1:2)
-                   call  mid_pt_sphere(p1, p2, p3)
-                   call get_unit_vect2(p1, p2, e1)
-                   call get_latlon_vector(p3, ex, ey)
-                   ud(i,j,k) = u_s(i,j,k)*inner_prod(e1,ex) + v_s(i,j,k)*inner_prod(e1,ey)
+          if ( gfs_dwinds ) then
+             allocate ( ud(is:ie,  js:je+1, 1:levp) )
+             allocate ( vd(is:ie+1,js:je,   1:levp) )
+             do k=1,levp
+                do j=js,je+1
+                   do i=is,ie
+                      p1(:) = Atm(1)%gridstruct%grid(i,  j,1:2)
+                      p2(:) = Atm(1)%gridstruct%grid(i+1,j,1:2)
+                      call  mid_pt_sphere(p1, p2, p3)
+                      call get_unit_vect2(p1, p2, e1)
+                      call get_latlon_vector(p3, ex, ey)
+                      ud(i,j,k) = u_s(i,j,k)*inner_prod(e1,ex) + v_s(i,j,k)*inner_prod(e1,ey)
+                   enddo
+                enddo
+                do j=js,je
+                   do i=is,ie+1
+                      p1(:) = Atm(1)%gridstruct%grid(i,j  ,1:2)
+                      p2(:) = Atm(1)%gridstruct%grid(i,j+1,1:2)
+                      call  mid_pt_sphere(p1, p2, p3)
+                      call get_unit_vect2(p1, p2, e2)
+                      call get_latlon_vector(p3, ex, ey)
+                      vd(i,j,k) = u_w(i,j,k)*inner_prod(e2,ex) + v_w(i,j,k)*inner_prod(e2,ey)
+                   enddo
                 enddo
              enddo
-             do j=js,je
-                do i=is,ie+1
-                   p1(:) = Atm(1)%gridstruct%grid(i,j  ,1:2)
-                   p2(:) = Atm(1)%gridstruct%grid(i,j+1,1:2)
-                   call  mid_pt_sphere(p1, p2, p3)
-                   call get_unit_vect2(p1, p2, e2)
-                   call get_latlon_vector(p3, ex, ey)
-                   vd(i,j,k) = u_w(i,j,k)*inner_prod(e2,ex) + v_w(i,j,k)*inner_prod(e2,ey)
-                enddo
-             enddo
-          enddo
-          deallocate ( u_w )
-          deallocate ( v_w )
-          deallocate ( u_s )
-          deallocate ( v_s )
+             deallocate ( u_w )
+             deallocate ( v_w )
+             deallocate ( u_s )
+             deallocate ( v_s )
 
-          call remap_dwinds(levp, npz, ak, bk, ps, ud, vd, Atm(n))
-          deallocate ( ud )
-          deallocate ( vd )
-       else
-          call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
-       endif
+             call remap_dwinds(levp, npz, ak, bk, ps, ud, vd, Atm(n))
+             deallocate ( ud )
+             deallocate ( vd )
+          else
+             call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
+          endif
 
         endif
-      ! populate the haloes of Atm(:)%phis
-      call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
+        ! populate the haloes of Atm(:)%phis
+        call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
 
-!!!   if ( .not. Atm(1)%flagstruct%hydrostatic ) then
-          liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
-! Add cloud condensate from GFS to total MASS
-          do k=1,npz
-             do j=js,je
-                do i=is,ie
-                   Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
-                enddo
-             enddo
-          enddo
-!!!   endif
+!!!     if ( .not. Atm(1)%flagstruct%hydrostatic ) then
+           liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+!--- Add cloud condensate from GFS to total MASS
+           do k=1,npz
+              do j=js,je
+                 do i=is,ie
+                    Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
+                 enddo
+              enddo
+           enddo
+!!!     endif
 
+!--- reset the tracers beyond condensate to a checkerboard pattern 
+        if (checker_tr) then
+          nts = ntracers - nt_checker+1
+          call checker_tracers(is,ie, js,je, isd,ied, jsd,jed, nt_checker, &
+                               npz, Atm(n)%q(:,:,:,nts:ntracers),          &
+                               Atm(n)%gridstruct%agrid_64(is:ie,js:je,1),     &
+                               Atm(n)%gridstruct%agrid_64(is:ie,js:je,2), 9., 9.)
+        endif
       enddo ! n-loop
 
       Atm(1)%flagstruct%make_nh = .false.

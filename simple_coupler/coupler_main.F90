@@ -29,7 +29,7 @@ use       fms_mod,     only: open_namelist_file, file_exist, check_nml_error,  &
 use    fms_io_mod,     only: fms_io_exit
 
 use mpp_mod,           only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
-                             stdlog, mpp_error, NOTE, FATAL, WARNING
+                             mpp_set_current_pelist, stdlog, mpp_error, NOTE, FATAL, WARNING
 use mpp_mod,           only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
 
 use mpp_io_mod,        only: mpp_open, mpp_close, &
@@ -102,7 +102,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call fms_init()
  call mpp_init()
  initClock = mpp_clock_id( 'Initialization' )
- ! call mpp_clock_begin (initClock) !nesting problem
+ call mpp_clock_begin (initClock) !nesting problem
  
   
  call fms_init
@@ -111,7 +111,8 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call coupler_init
  call print_memuse_stats('after coupler init')
 
-! call mpp_clock_end (initClock) !end initialization
+ call mpp_set_current_pelist()
+ call mpp_clock_end (initClock) !end initialization
  mainClock = mpp_clock_id( 'Main loop' )
  termClock = mpp_clock_id( 'Termination' )
  call mpp_clock_begin(mainClock) !begin main loop
@@ -147,10 +148,12 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
 !-----------------------------------------------------------------------
 
+ call mpp_set_current_pelist()
  call mpp_clock_end(mainClock)
  call mpp_clock_begin(termClock)
 
  call coupler_end
+ call mpp_set_current_pelist()
  call mpp_clock_end(termClock)
 
  call fms_end
@@ -376,6 +379,7 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
 !------ initialize component models ------
 
       call  atmos_model_init (Atm,  Time_init, Time_atmos, Time_step_atmos)
+
       call print_memuse_stats('after atmos model init')
 
       call mpp_get_global_domain(Atm%Domain, xsize=gnlon, ysize=gnlat)
@@ -390,8 +394,10 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
 
-    call mpp_open( unit, 'RESTART/file' )
-    call mpp_close(unit, MPP_DELETE)
+      if (mpp_pe() == 0 ) then
+         call mpp_open( unit, 'RESTART/file' )
+         call mpp_close(unit, MPP_DELETE)
+      endif
 
 !-----------------------------------------------------------------------
 

@@ -367,30 +367,11 @@ contains
           last_step = .false.
      endif
        
-#ifdef JUNK_NESTBC_TEST
-      k = 1
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'u: C'
-            print*, u(-1:1, -1:1,k)
-            print*, 'v: '
-            print*, v(-1:1, -1:1,k)
-         endif
-#endif
                                                      call timing_on('COMM_TOTAL')
      call complete_group_halo_update(i_pack(8), domain)
      if( .not. hydrostatic )  &
           call complete_group_halo_update(i_pack(7), domain)
                                                      call timing_off('COMM_TOTAL')
-
-#ifdef JUNK_NESTBC_TEST
-      k = 1
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'u: D'
-            print*, u(-1:1, -1:1,k)
-            print*, 'v: '
-            print*, v(-1:1, -1:1,k)
-         endif
-#endif
 
                                                      call timing_on('c_sw')
 !$OMP parallel do default(none) shared(npz,isd,jsd,delpc,delp,ptc,pt,u,v,w,uc,vc,ua,va, &
@@ -836,20 +817,6 @@ contains
 !----------------------------
 ! Compute pressure gradient:
 !----------------------------
-#ifdef JUNK_NESTBC_TEST
-      do k=1,4
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'u E: ', it, k
-            print*, u(1:2, 1:2,k)/gridstruct%dx(1:2,1:2)
-            print*, 'v E: ', it, k
-            print*, v(1:2, 1:2,k)/gridstruct%dy(1:2,1:2)
-            print*, 'gz E: ', it, k
-            print*, gz(0:2, 0:2,k)
-            print*, 'pkc E: ', it, k
-            print*, pkc(0:2, 0:2,k)
-         endif
-      enddo
-#endif
                                        call timing_on('PG_D')
     if ( hydrostatic ) then
        if ( beta > 0. ) then
@@ -868,17 +835,6 @@ contains
        else
           call nh_p_grad(u, v, pkc, gz, delp, pk3, dt, ng, gridstruct, bd, npx, npy, npz, flagstruct%use_logp)
        endif
-
-#ifdef JUNK_NESTBC_TEST
-      do k=1,4
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'u F: ', it
-            print*, u(1:2,1:2,k)
-            print*, 'v F: ', it
-            print*, v(1:2,1:2,k)
-         endif
-      enddo
-#endif
 
 #ifdef ROT3
        if ( flagstruct%do_f3d ) then

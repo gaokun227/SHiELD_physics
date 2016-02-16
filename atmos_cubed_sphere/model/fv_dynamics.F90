@@ -172,29 +172,6 @@ contains
               gridstruct, flagstruct, neststruct, &
               neststruct%nest_timestep, neststruct%tracer_nest_timestep, &
               domain, bd, nwat)
-#ifdef JUNK_NESTBC_TEST
-      k = 1
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'uc: '
-            print*, uc(-1:1, -1:1,k)
-            print*, 'vc: '
-            print*, vc(-1:1, -1:1,k)
-            print*, 'u: '
-            print*, u(-1:1, -1:1,k)
-            print*, 'v: '
-            print*, v(-1:1, -1:1,k)
-            print*, 'delp: '
-            print*, delp(-1:1, -1:1,k)
-            print*, 'delz: '
-            print*, delz(-1:1, -1:1,k)
-            print*, 'pt: '
-            print*, pt(-1:1, -1:1,k)
-            print*, 'q_con: '
-            print*, q_con(-1:1, -1:1,k)
-            print*, 'cappa: '
-            print*, cappa(-1:1, -1:1,k)
-         endif
-#endif
 
 #ifndef SW_DYNAMICS
          if (gridstruct%nested) then
@@ -338,16 +315,6 @@ contains
         endif
       endif
 
-#ifdef JUNK_NESTBC_TEST
-      k = 1
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'u: A'
-            print*, u(-1:1, -1:1,k)
-            print*, 'v: A'
-            print*, v(-1:1, -1:1,k)
-         endif
-#endif
-
 #endif
 
 #ifndef SW_DYNAMICS
@@ -428,15 +395,6 @@ contains
                                            call timing_off('COMM_TOTAL')
 #endif
 
-#ifdef JUNK_NESTBC_TEST
-      k = 1
-         if (gridstruct%nested .and. is == 1 .and. js == 1) then
-            print*, 'u: B'
-            print*, u(-1:1, -1:1,k)
-            print*, 'v: B'
-            print*, v(-1:1, -1:1,k)
-         endif
-#endif
                                            call timing_on('DYN_CORE')
       call dyn_core(npx, npy, npz, ng, sphum, nq, mdt, n_split, zvir, cp_air, akap, cappa, grav, hydrostatic, &
                     u, v, w, delz, pt, q, delp, pe, pk, phis, ws, omga, ptop, pfull, ua, va,           & 
@@ -880,12 +838,6 @@ contains
     call mpp_update_domains(u2f, domain)
                                         call timing_off('COMM_TOTAL')
 
-#ifdef JUNK_NESTBC_TEST
-     write(mpp_pe()+2000,*) u(is:is+1,js:js+1,1)
-     write(mpp_pe()+2000,*) v(is:is+1,js:js+1,1)
-     write(mpp_pe()+2000,*) 
-#endif
-
 !$OMP parallel do default(none) shared(is,ie,js,je,kmax,pm,rf_cutoff,w,rf,u,v, &
 !$OMP                                  conserve,hydrostatic,pt,ua,va,u2f,cp,rg,ptop,rcv)
      do k=1,kmax
@@ -925,12 +877,6 @@ contains
           endif
         endif
      enddo
-
-#ifdef JUNK_NESTBC_TEST
-     write(mpp_pe()+2000,*) u2f(is-1:is+1,js-1:js+1,1)
-     write(mpp_pe()+2000,*) u(is:is+1,js:js+1,1)
-     write(mpp_pe()+2000,*) v(is:is+1,js:js+1,1)
-#endif
 
      deallocate ( u2f )
 

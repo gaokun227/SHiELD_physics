@@ -506,6 +506,14 @@ contains
        id_restart =  register_restart_field(Atm(n)%Fv_tile_restart, fname, 'phis', Atm(n)%phis, &
                      domain=fv_domain, tile_count=n)
 
+       !--- include agrid winds in restarts for use in data assimilation 
+       if (Atm(n)%flagstruct%agrid_vel_rst) then
+         id_restart =  register_restart_field(Atm(n)%Fv_tile_restart, fname, 'ua', Atm(n)%ua, &
+                       domain=fv_domain, tile_count=n, mandatory=.false.)
+         id_restart =  register_restart_field(Atm(n)%Fv_tile_restart, fname, 'va', Atm(n)%va, &
+                       domain=fv_domain, tile_count=n, mandatory=.false.)
+       endif
+
        fname = 'fv_srf_wnd.res'//trim(stile_name)//'.nc'
        id_restart =  register_restart_field(Atm(n)%Rsf_restart, fname, 'u_srf', Atm(n)%u_srf, &
                      domain=fv_domain, tile_count=n)
@@ -911,10 +919,6 @@ contains
        call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
                             fname_ne, fname_sw, trim(tname), Atm%q(:,:,:,n), Atm%neststruct%q_BC(n), mandatory=.false.)
     enddo
-#ifdef USE_COND
-       call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
-                            fname_ne, fname_sw, trim(tname), var_bc=Atm%neststruct%q_con_BC, mandatory=.false.)
-#endif
     do n=ntprog+1,ntracers
        call get_tracer_names(MODEL_ATMOS, n, tname)
        call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
@@ -930,6 +934,14 @@ contains
       call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
                            fname_ne, fname_sw, 'delz', Atm%delz, Atm%neststruct%delz_BC, mandatory=.false.)
     endif
+#ifdef USE_COND
+       call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
+                            fname_ne, fname_sw,'q_con', var_bc=Atm%neststruct%q_con_BC, mandatory=.false.)
+#ifdef MOIST_CAPPA
+       call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
+            fname_ne, fname_sw, 'cappa', var_bc=Atm%neststruct%cappa_BC, mandatory=.false.)
+#endif
+#endif
 #endif
     call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
                          fname_ne, fname_sw, 'u', Atm%u, Atm%neststruct%u_BC, jstag=1)
@@ -939,11 +951,10 @@ contains
                          fname_ne, fname_sw, 'uc', var_bc=Atm%neststruct%uc_BC, istag=1)
     call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
                          fname_ne, fname_sw, 'vc', var_bc=Atm%neststruct%vc_BC, jstag=1)
-#ifdef DIVG_BC
     call register_bcs_3d(Atm, Atm%neststruct%BCfile_ne, Atm%neststruct%BCfile_sw, &
                          fname_ne, fname_sw, 'divg', var_bc=Atm%neststruct%divg_BC, istag=1,jstag=1, mandatory=.false.)
     Atm%neststruct%divg_BC%initialized = field_exist(fname_ne, 'divg_north_t1', Atm%domain)
-#endif
+
 
     return
   end subroutine fv_io_register_restart_BCs

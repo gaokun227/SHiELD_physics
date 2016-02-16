@@ -111,7 +111,7 @@
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
-      real phis_coarse(bd%is:bd%ie, bd%js:bd%je)
+      real phis_coarse(bd%isd:bd%ied, bd%jsd:bd%jed)
       real wt
 
       is  = bd%is
@@ -130,8 +130,9 @@
                phis(i,j) = phis(i,j)*rgrav
             enddo
          enddo
-         do j=js,je
-            do i=is,ie
+         !Save interpolated coarse-grid data for blending
+         do j=jsd,jed
+            do i=isd,ied
                phis_coarse(i,j) = phis(i,j)
             enddo
          enddo
@@ -342,11 +343,15 @@
       ! land fraction and sub-grid variance unchanged
 
       ! Here, we blend in the four cells nearest to the boundary.
+      ! In the halo we set the value to that interpolated from the coarse
+      !  grid. (Previously this was erroneously not being done, which was causing
+      !  the halo to be filled with unfiltered nested-grid terrain, creating
+      !  ugly edge artifacts.)
       if (nested) then
          if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
-         do j=js,je
-         do i=is,ie
-            wt = real(5 - min(i,j,npx-i,npy-j,5))/5.
+         do j=jsd,jed
+         do i=isd,ied
+            wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
             phis(i,j) = (1.-wt)*phis(i,j) + wt*phis_coarse(i,j)
 
          enddo

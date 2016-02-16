@@ -13,7 +13,7 @@ module fv_control_mod
    use mpp_mod,             only: FATAL, mpp_error, mpp_pe, stdlog, &
                                   mpp_npes, mpp_get_current_pelist, &
                                   input_nml_file, get_unit, WARNING, &
-                                  read_ascii_file, INPUT_STR_LENGTH, mpp_pe
+                                  read_ascii_file, INPUT_STR_LENGTH
    use mpp_domains_mod,     only: mpp_get_data_domain, mpp_get_compute_domain
    use tracer_manager_mod,  only: tm_get_number_tracers => get_number_tracers, &
                                   tm_get_tracer_index   => get_tracer_index,   &
@@ -170,6 +170,7 @@ module fv_control_mod
    logical , pointer :: ncep_ic 
    logical , pointer :: nggps_ic 
    logical , pointer :: gfs_phil
+   logical , pointer :: agrid_vel_rst
    logical , pointer :: use_new_ncep 
    logical , pointer :: use_ncep_phy 
    logical , pointer :: fv_diag_ic 
@@ -244,7 +245,7 @@ module fv_control_mod
                          phys_hydrostatic, use_hydro_pressure, make_hybrid_z, old_divg_damp, add_noise, &
                          nested, twowaynest, parent_grid_num, parent_tile, &
                          refinement, nestbctype, nestupdate, nsponge, s_weight, &
-                         ioffset, joffset, check_negative, nudge_ic, halo_update_type, gfs_phil
+                         ioffset, joffset, check_negative, nudge_ic, halo_update_type, gfs_phil, agrid_vel_rst
 
    namelist /test_case_nml/test_case,alpha, nsolitons, soliton_Umax, soliton_size
 
@@ -1115,6 +1116,7 @@ module fv_control_mod
      ncep_ic                       => Atm%flagstruct%ncep_ic
      nggps_ic                      => Atm%flagstruct%nggps_ic
      gfs_phil                      => Atm%flagstruct%gfs_phil
+     agrid_vel_rst                 => Atm%flagstruct%agrid_vel_rst
      use_new_ncep                  => Atm%flagstruct%use_new_ncep
      use_ncep_phy                  => Atm%flagstruct%use_ncep_phy
      fv_diag_ic                    => Atm%flagstruct%fv_diag_ic

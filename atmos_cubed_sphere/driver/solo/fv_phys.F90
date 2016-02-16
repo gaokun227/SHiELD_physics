@@ -6,7 +6,7 @@ use constants_mod,         only: grav, rdgas, rvgas, pi, cp_air, cp_vapor, hlv, 
 use time_manager_mod,      only: time_type, get_time
 use lin_cld_microphys_mod, only: lin_cld_microphys_driver, sg_conv, qsmith, wet_bulb
 use hswf_mod,              only: Held_Suarez_Tend
-use fv_sg_mod,             only: fv_dry_conv
+use fv_sg_mod,             only: fv_subgrid_z
 use fv_update_phys_mod,    only: fv_update_phys
 use fv_timing_mod,         only: timing_on, timing_off
 use monin_obukhov_mod,     only: mon_obkv
@@ -21,6 +21,7 @@ use fv_diagnostics_mod,    only: prt_maxmin
 use fv_arrays_mod,          only: fv_grid_type, fv_flags_type, fv_nest_type, fv_grid_bounds_type
 use mpp_domains_mod,       only: domain2d
 use diag_manager_mod,      only: register_diag_field, register_static_field, send_data
+use qs_tables_mod,         only: qs_wat_init, qs_wat
 
 implicit none
 
@@ -191,6 +192,12 @@ contains
 !   if (.not. sim_phys_initialized) call fv_phys_init(is, ie, js, je, nwat, ts, time, axes, &
 !        gridstruct%agrid(:,:,2))
     sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
+   liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+   ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+   rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+   snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+   graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+   cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
 
     rkv = pdt / (tau_drag*24.*3600.)
 
@@ -227,7 +234,7 @@ contains
      enddo
 
      if ( fv_sg_adj > 0 ) then
-          call fv_dry_conv(isd, ied, jsd, jed, is, ie, js, je, npz, nq, pdt,  &
+         call fv_subgrid_z(isd, ied, jsd, jed, is, ie, js, je, npz, min(6,nq), pdt,  &
                            fv_sg_adj, nwat, delp, pe, peln, pkz, pt, q, ua, va,  &
                            hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt )
          no_tendency = .false.
@@ -299,6 +306,7 @@ contains
        enddo   ! j-loop
 
        if (id_rain > 0) then
+          rain(:,:) = rain (:,:) / pdt * 86400.
           used=send_data(id_rain, rain, time)
        endif
     endif
@@ -313,12 +321,13 @@ contains
             K_cycle = max(1, nint(pdt/30.))   ! 30 sec base time step
             if( master ) write(*,*) 'Kessler warm-rain-phys cycles =', K_cycle
        endif
-       call K_warm_rain(pdt, is, ie, js, je, ng, npz, zvir, ua, va,   &
+       call K_warm_rain(pdt, is, ie, js, je, ng, npz, nq, zvir, ua, va,   &
                         w, u_dt, v_dt, q, pt, delp, delz, pe, peln, pk, ps, rain, Time)
 
        if( do_K_momentum )  no_tendency = .false.
 
        if ( id_rain>0 ) then
+            rain(:,:) = rain (:,:) / pdt * 86400.
             used = send_data(id_rain, rain, time)
        endif
     endif
@@ -530,16 +539,6 @@ contains
    sday  = 24.*3600.*fac_sm
 
 
-     sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
-   liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
-   ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
-   cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
-
-   if ( nq.ge.6 ) then
-        rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
-        snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-        graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
-   endif
 
 
 
@@ -809,20 +808,6 @@ endif
                 w, q3, delp, p3, pe, sst, mu, dz, u_dt, v_dt, t_dt, q_dt, gridstruct%area, print_diag )
  endif
 
-  if ( mixed_layer .and. gray_rad ) then
-     do j=js, je
-        do i=is, ie
-           sst(i,j) = sst(i,j)+pdt*(sw_surf(i,j)+lwd(i,j)-flux_t(i,j)-hlv*flux_q(i,j)-lwu(i,j))/c0
-        enddo 
-     enddo
-  endif
-
-! if ( do_sg_conv .and. fv_sg_adj > 0 ) then
-!       call sg_conv(is, ie, js, je, isd, ied, jsd, jed, km, nq, pdt, fv_sg_adj,   &
-!                    delp, phalf, p3, zfull, zhalf, t3, q3, u3, v3, w, &
-!                    u_dt, v_dt, t_dt, q_dt, sphum, liq_wat, ice_wat, rainwat, snowwat, graupel, &
-!                    hydrostatic, phys_hydrostatic)
-! endif
 
   if ( do_lin_microphys ) then
       land(:,:) = 0.
@@ -1439,7 +1424,7 @@ endif
     endif
 
     id_rain = register_diag_field (mod_name, 'rain', axes(1:2), time,        &
-                'rain_sim_phys', 'mm', missing_value=missing_value )
+                'rain_sim_phys', 'mm/day', missing_value=missing_value )
     id_vr_k = register_diag_field (mod_name, 'vr_k', axes(1:3), time,        &
                 'Terminal fall V_Kessler', 'm/s', missing_value=missing_value )
 
@@ -1525,14 +1510,14 @@ endif
 
  end function g0_sum
 
- subroutine K_warm_rain(dt, is, ie, js, je, ng, km, zvir, u, v, w, u_dt, v_dt, &
+ subroutine K_warm_rain(dt, is, ie, js, je, ng, km, nq, zvir, u, v, w, u_dt, v_dt, &
                         q, pt, dp, delz, pe, peln, pk, ps, rain, Time)
  type (time_type), intent(in) :: Time
  real, intent(in):: dt ! time step
  real, intent(in):: zvir
- integer, intent(in):: is, ie, js, je, km, ng
+ integer, intent(in):: is, ie, js, je, km, ng, nq
  real, intent(inout), dimension(is-ng:ie+ng,js-ng:je+ng,km):: dp, delz, pt, w, u, v, u_dt, v_dt
- real, intent(inout), dimension(is-ng:ie+ng,js-ng:je+ng,km,*):: q
+ real, intent(inout), dimension(is-ng:ie+ng,js-ng:je+ng,km,nq):: q
  real, INTENT(INOUT)::  pk(is:ie, js:je, km+1)
  real, INTENT(INOUT) :: pe(is-1:ie+1,1:km+1,js-1:je+1)
  real, INTENT(INOUT) :: peln(is:ie,1:km+1,js:je)
@@ -1569,6 +1554,19 @@ endif
           q1(k) = qa(k) * dm(k)
           q2(k) = qb(k) * dm(k)
           q3(k) = qc(k) * dm(k)
+!-------------------------------------------
+          qcon = q2(k) + q3(k)
+          if ( qcon > 0. ) then
+! Fix negative condensates if for some reason it existed:
+             if ( q2(k) < 0. ) then
+                q2(k) = 0.
+                q3(k) = qcon
+             elseif ( q3(k) < 0. ) then
+                q3(k) = 0.
+                q2(k) = qcon
+             endif
+          endif
+!-------------------------------------------
 ! Dry air mass per unit area
           drym(k) = dm(k) - (q1(k)+q2(k)+q3(k))
           dz(k) = -delz(i,j,k)
@@ -1593,8 +1591,8 @@ endif
        enddo
 
    do n=1,K_cycle
-! Time implicit upwind scheme; sub-cycling if time step is too large for sedimentation/evap
-          do k=1, km
+! Calling the K scheme, sub-cycling if time step is too large for sedimentation/evap
+      do k=1,km
 ! For condensate transport
          qcon = q2(k) + q3(k)
          q0(k) = q1(k) + qcon ! total water
@@ -1604,7 +1602,7 @@ endif
                 q2(k) = 0.
                 q3(k) = qcon
              elseif ( q3(k) < 0. ) then
-                q3(k) = 0.
+                q3(k) =  0.
                 q2(k) = qcon
        endif
          endif
@@ -1616,7 +1614,8 @@ endif
        do k=2,km
           m1(k) = m1(k-1) + drym(k)*(q0(k)-(q1(k)+q2(k)+q3(k)))
        enddo
-       rain(i,j) = rain(i,j) + max(0., m1(km)) / (grav*sdt)
+!      rain(i,j) = rain(i,j) + max(0., m1(km)) / (grav*sdt)
+       rain(i,j) = rain(i,j) + max(0., m1(km)) / grav
 
     if ( do_K_momentum ) then
 ! Momentum transport
@@ -1728,11 +1727,13 @@ endif
    REAL ERN, QRPROD, PROD, QVS, dqsdt, hlvm, dq
    INTEGER K
 
-   do k=1,nz
+! Need to compute rho(nz) first:
+   do k=nz,1,-1
       rho(k) = drym(k)/(grav*dz(k))
        pc(k) = 3.8e2 / (rho(k)*rdgas*T(k))
         r(k) = 0.001*rho(k)
-       vr(k) = 36.34 * sqrt(rho(nz)/rho(k)) * exp( 0.1364*log(r(k)*qr(k)) )
+      rqr(k) = r(k)*max(qr(k), qr_min)
+       vr(k) = 36.34 * sqrt(rho(nz)/rho(k)) * exp( 0.1364*log(rqr(k)) )
        vr(k) = max(vr_min, vr(k))
    enddo
 
@@ -1748,7 +1749,7 @@ endif
        qc(K) = qc(k) - QRPROD
        qr(K) = qr(k) + QRPROD
       rqr(k) = r(k)*max(qr(k), qr_min)
-      QVS =  qs_wat(T(K), rho(k), dqsdt)
+      QVS =  qs_wat(T(k), rho(k), dqsdt)
       hlvm = (Lv0+dc_vap*T(k)) / (cv_air+qv(k)*cv_vap+(qc(k)+qr(k))*c_liq)
       PROD = (qv(k)-QVS) / (1.+dqsdt*hlvm)
 ! Evaporation rate following K&W78 Eq3. 3.8-3.10
@@ -2224,69 +2225,4 @@ endif
 
  end subroutine reed_sim_physics 
 
- real function qs_wat(ta, den, dqdt)
-! Pure water phase; universal dry/moist formular using air density
-! Input "den" can be either dry or moist air density
-  real, intent(in):: ta, den
-  real, intent(out):: dqdt
-! local:
-  real es, ap1, dem
-  real, parameter:: tmin = tice - 160.
-  integer it
-
-! if (.not. qs_table_is_initialized) call qs_wat_init
-       ap1 = 10.*dim(ta, tmin) + 1.    ! lower bound enforced 
-       ap1 = min(2621., ap1)           ! upper bound enforced
-        it = ap1
-        es = table_w(it) + (ap1-it)*des_w(it)
-       dem = rvgas*ta*den
-    qs_wat = es / dem
-        it = ap1 - 0.5
-! Finite diff, del_T = 0.1:
-      dqdt = 10.*(des_w(it) + (ap1-it)*(des_w(it+1)-des_w(it))) / dem
-
- end function qs_wat
-
- subroutine qs_wat_init
-  integer, parameter:: length=2621
-  integer i
-
-  if( .not. qs_table_is_initialized ) then
-
-    master = (mpp_pe().eq.mpp_root_pe())
-    if (master) print*, 'Initializing qs table over water'
-!                            generate es table (dt = 0.1 deg. c)
-       allocate ( table_w(length) )
-       allocate (   des_w(length) )
-
-       call qs_table_w(length )
-
-       do i=1,length-1
-          des_w(i) = max(0., table_w(i+1) - table_w(i))
-       enddo
-       des_w(length) = des_w(length-1)
-
-       qs_table_is_initialized = .true.
-  endif
-
- end subroutine qs_wat_init
-
- subroutine qs_table_w(n)
-      integer, intent(in):: n
-!     esbasi =    6107.1   ! from GFDL Tables
-      real, parameter:: del_t=0.1
-      real:: tmin, tem, f0
-      integer i
-
-! constants
-     tmin = tice - 160.
-
-     do i=1,n
-        tem = tmin + del_t*real(i-1)
-!  compute es over water
-! Lv0 =  hlv - dc_vap*tice
-        table_w(i) = e0*exp((dc_vap*log(tem/tice)+Lv0*(tem-tice)/(tem*tice))/rvgas)
-     enddo
-
- end subroutine qs_table_w
 end module fv_phys_mod

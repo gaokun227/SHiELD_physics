@@ -195,14 +195,19 @@ contains
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
    integer, intent(in) :: n
-   real, parameter:: wt = 2.  ! was 3.
-   real:: xt
+   real, parameter:: wt = 1.5  !  2.
+   real:: xt, esl
    integer:: isc, iec, jsc, jec, npz
    integer:: m, i,j,k
 
    character(len=80) :: errstr
 
    xt = 1./(1.+wt)
+   if ( Atm(n)%flagstruct%moist_phys ) then
+        esl = zvir
+   else
+        esl = 0.
+   endif
 
    write(errstr,'(A, I4, A)') 'Performing adiabatic init',  Atm(n)%flagstruct%na_init, ' times'
    call mpp_error(NOTE, errstr)
@@ -227,6 +232,9 @@ contains
      allocate ( v0(isc:iec+1,jsc:jec,   npz) )
      allocate ( t0(isc:iec,jsc:jec, npz) )
      allocate (dp0(isc:iec,jsc:jec, npz) )
+     call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
+                Atm(n)%delp, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
 
 !$omp parallel do default(shared)
        do k=1,npz
@@ -242,7 +250,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                t0(i,j,k) = Atm(n)%pt(i,j,k)
+                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))
                dp0(i,j,k) = Atm(n)%delp(i,j,k)
              enddo
           enddo
@@ -292,15 +300,23 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+esl*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
        enddo
 
      call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
-                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%delp, Atm(n)%ps, Atm(n)%pe,     &
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+             enddo
+          enddo
+       enddo
 
 ! Backward
     call fv_dynamics(Atm(n)%npx, Atm(n)%npy, npz,  Atm(n)%ncnst, Atm(n)%ng, -dt_atmos, 0.,      &
@@ -345,16 +361,24 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k))
+!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+esl*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
        enddo
 
      call p_adi(npz, Atm(n)%ng, isc, iec, jsc, jec, Atm(n)%ptop,  &
-                Atm(n)%delp, Atm(n)%pt, Atm(n)%ps, Atm(n)%pe,     &
+                Atm(n)%delp, Atm(n)%ps, Atm(n)%pe,     &
                 Atm(n)%peln, Atm(n)%pk, Atm(n)%pkz, Atm(n)%flagstruct%hydrostatic)
 
+!$omp parallel do default(shared)
+       do k=1,npz
+          do j=jsc,jec
+             do i=isc,iec
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+             enddo
+          enddo
+       enddo
      enddo
 
      deallocate ( u0 )
@@ -426,7 +450,7 @@ contains
 
     if (ngrids > 1 .and. psc < p_split) then
        call timing_on('TWOWAY_UPDATE')
-       call twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt_atmos)
+       call twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
        call timing_off('TWOWAY_UPDATE')
     endif
 
@@ -462,7 +486,7 @@ contains
 
     if (ngrids > 1) then
        call timing_on('TWOWAY_UPDATE')
-       call twoway_nesting(Atm, ngrids, grids_on_this_pe, kappa, cp_air, zvir, dt_atmos)
+       call twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
        call timing_off('TWOWAY_UPDATE')
     endif
 
@@ -512,7 +536,7 @@ contains
  end subroutine atmosphere_domain
 
  subroutine p_adi(km, ng, ifirst, ilast, jfirst, jlast, ptop,   &
-                  delp, pt, ps, pe, peln, pk, pkz, hydrostatic)
+                  delp, ps, pe, peln, pk, pkz, hydrostatic)
                
 ! Given (ptop, delp) computes (ps, pk, pe, peln, pkz)
 ! Input:
@@ -521,7 +545,6 @@ contains
    integer,  intent(in):: jfirst, jlast            ! Latitude strip
    logical, intent(in)::  hydrostatic
    real, intent(in):: ptop
-   real, intent(in)::   pt(ifirst-ng:ilast+ng,jfirst-ng:jlast+ng, km)
    real, intent(in):: delp(ifirst-ng:ilast+ng,jfirst-ng:jlast+ng, km)
 ! Output:
    real, intent(out) ::   ps(ifirst-ng:ilast+ng, jfirst-ng:jlast+ng)

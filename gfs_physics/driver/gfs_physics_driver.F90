@@ -463,9 +463,6 @@ module gfs_physics_driver_mod
        enddo
       enddo
 
-#ifdef JUNK
-      enddo
-#else
 !--- set up interpolation indices and weights for prognostic ozone interpolation
       if (ozcalc) then
         call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
@@ -478,7 +475,6 @@ module gfs_physics_driver_mod
 !--- initialize diagnostics ---
     call gfs_diag_register(Time, Atm_block, axes, NFXR)
 
-#endif
 !--- mark the module as initialized ---
       module_is_initialized = .true.
 

@@ -414,6 +414,15 @@ module gfs_physics_driver_mod
     allocate ( Rad_tends(Atm_block%nblks) )
     allocate ( Intr_flds(Atm_block%nblks) )
     if (ozcalc) allocate ( O3dat(Atm_block%nblks) )
+!rab this openmp loop seems to have malloc/free issues which I will deal with later
+!rab!$OMP PARALLEL DO default(none) & 
+!rab!$OMP            schedule(static,1) &
+!rab!$OMP              shared(Atm_block,ozcalc,O3dat,Tbd_data,Mdl_parms,xkzm_m,xkzm_h,xkzm_s, &
+!rab!$OMP                     evpco,psautco,prautco,wminco,pl_pres,Dyn_parms,kdt,jdate,solhr, &
+!rab!$OMP                     fhlwr,fhswr,lssav,ipt,lprnt,dt_phys,latgfs,clstp,nnp,fhour,     &
+!rab!$OMP                     Gfs_diags,NFXR,Sfc_props,Cld_props,sup,Rad_tends,Intr_flds,SW0, & 
+!rab!$OMP                     SWB,LW0,LWB,State_out,State_in,area,lat,lon) &
+!rab!$OMP             private(nb,ibs,ibe,jbs,jbe,ngptc,ix,j,i)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -470,12 +479,14 @@ module gfs_physics_driver_mod
         if (ozcalc) O3dat(nb)%gaul(ix) = lat(i,j)*180.0_kind_phys/pi
        enddo
       enddo
+    enddo
 
 !--- set up interpolation indices and weights for prognostic ozone interpolation
-      if (ozcalc) then
+    if (ozcalc) then
+      do nb = 1, Atm_block%nblks
         call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
-      endif
-    enddo
+      enddo
+    endif
 
 !--- read in surface data from chgres ---
     call surface_props_input (Atm_block)
@@ -694,6 +705,8 @@ module gfs_physics_driver_mod
         write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour, &
                      '  lsswr ',Dyn_parms(1)%lsswr,' lslwr ',Dyn_parms(1)%lslwr
       endif
+      if (Mdl_parms%me == 0 ) write(6,*) '  after phys_rad_setup_step '
+      call checksum (Atm_block)
     endif
  100 format (a,i5.5,a,f10.4,a,L1,a,L1)
 
@@ -763,6 +776,10 @@ module gfs_physics_driver_mod
       enddo
     endif
 
+    if (debug) then
+      if (Mdl_parms%me == 0 ) write(6,*) '  after radiation '
+      call checksum (Atm_block, Statein)
+    endif
   end subroutine radiation_driver
 !-------------------------------------------------------------------------      
  
@@ -831,6 +848,10 @@ module gfs_physics_driver_mod
       enddo
     endif
 
+    if (debug) then
+      if (Mdl_parms%me == 0 ) write(6,*) '  after physics '
+      call checksum (Atm_block, Statein)
+    endif
   end subroutine physics_driver
 !-------------------------------------------------------------------------      
 
@@ -3241,5 +3262,160 @@ module gfs_physics_driver_mod
 #endif
 
   end subroutine surface_props_output
+
+  subroutine checksum(Atm_block, Statein)
+   type (block_control_type),   intent(in) :: Atm_block
+   type(state_fields_in), dimension(:), intent(in),optional :: Statein
+   integer :: outunit, j, i, ix, jbs, jbe, ibs, ibe, nb
+   real :: temp2d(Atm_block%isc:Atm_block%iec,Atm_block%jsc:Atm_block%jec,83)
+   real :: temp3d(Atm_block%isc:Atm_block%iec,Atm_block%jsc:Atm_block%jec,Atm_block%npz,23)
+   character(len=32) :: name
+
+   temp2d = 0.
+   temp3d = 0.
+
+   do nb = 1,Atm_block%nblks
+     ibs = Atm_block%ibs(nb)
+     ibe = Atm_block%ibe(nb)
+     jbs = Atm_block%jbs(nb)
+     jbe = Atm_block%jbe(nb)
+
+     do j=jbs,jbe
+       do i=ibs,ibe
+         ix = Atm_block%ix(nb)%ix(i,j)
+         temp2d(i,j, 1) = Tbd_data(nb)%slc(ix,1)
+         temp2d(i,j, 2) = Tbd_data(nb)%slc(ix,2)
+         temp2d(i,j, 3) = Tbd_data(nb)%slc(ix,3)
+         temp2d(i,j, 4) = Tbd_data(nb)%slc(ix,4)
+         temp2d(i,j, 5) = Tbd_data(nb)%smc(ix,1)
+         temp2d(i,j, 6) = Tbd_data(nb)%smc(ix,2)
+         temp2d(i,j, 7) = Tbd_data(nb)%smc(ix,3)
+         temp2d(i,j, 8) = Tbd_data(nb)%smc(ix,4)
+         temp2d(i,j, 9) = Tbd_data(nb)%stc(ix,1)
+         temp2d(i,j,10) = Tbd_data(nb)%stc(ix,2)
+         temp2d(i,j,11) = Tbd_data(nb)%stc(ix,3)
+         temp2d(i,j,12) = Tbd_data(nb)%stc(ix,4)
+         temp2d(i,j,13) = Tbd_data(nb)%tprcp(ix)
+         if (Mdl_parms%nst_fcst > 0 )  then
+           temp2d(i,j,14) = Tbd_data(nb)%tref(ix)
+           temp2d(i,j,15) = Tbd_data(nb)%z_c(ix)
+           temp2d(i,j,16) = Tbd_data(nb)%c_0(ix)
+           temp2d(i,j,17) = Tbd_data(nb)%c_d(ix)
+           temp2d(i,j,18) = Tbd_data(nb)%w_0(ix)
+           temp2d(i,j,19) = Tbd_data(nb)%w_d(ix)
+         endif
+         temp2d(i,j,20) = Tbd_data(nb)%fscav(ix)
+         temp2d(i,j,21) = Tbd_data(nb)%fswtr(ix)
+
+         temp2d(i,j,22) = Sfc_props(nb)%slmsk(ix)
+         temp2d(i,j,23) = Sfc_props(nb)%tsfc(ix)
+         temp2d(i,j,24) = Sfc_props(nb)%snowd(ix)
+         temp2d(i,j,25) = Sfc_props(nb)%sncovr(ix)
+         temp2d(i,j,26) = Sfc_props(nb)%snoalb(ix)
+         temp2d(i,j,27) = Sfc_props(nb)%zorl(ix)
+         temp2d(i,j,28) = Sfc_props(nb)%hprim(ix)
+         temp2d(i,j,29) = Sfc_props(nb)%fice(ix)
+         temp2d(i,j,30) = Sfc_props(nb)%tisfc(ix)
+         temp2d(i,j,31) = Sfc_props(nb)%alvsf(ix)
+         temp2d(i,j,32) = Sfc_props(nb)%alnsf(ix)
+         temp2d(i,j,33) = Sfc_props(nb)%alvwf(ix)
+         temp2d(i,j,34) = Sfc_props(nb)%alnwf(ix)
+         temp2d(i,j,35) = Sfc_props(nb)%facsf(ix)
+         temp2d(i,j,36) = Sfc_props(nb)%facwf(ix)
+         temp2d(i,j,37) = Sfc_props(nb)%slope(ix)
+         temp2d(i,j,38) = Sfc_props(nb)%shdmin(ix)
+         temp2d(i,j,39) = Sfc_props(nb)%shdmax(ix)
+         temp2d(i,j,40) = Sfc_props(nb)%tg3(ix)
+         temp2d(i,j,41) = Sfc_props(nb)%vfrac(ix)
+         temp2d(i,j,42) = Sfc_props(nb)%vtype(ix)
+         temp2d(i,j,43) = Sfc_props(nb)%stype(ix)
+         temp2d(i,j,44) = Sfc_props(nb)%uustar(ix)
+         temp2d(i,j,45) = Sfc_props(nb)%oro(ix)
+         temp2d(i,j,46) = Sfc_props(nb)%oro_uf(ix)
+         temp2d(i,j,47) = Sfc_props(nb)%hice(ix)
+         temp2d(i,j,48) = Sfc_props(nb)%weasd(ix)
+         temp2d(i,j,49) = Sfc_props(nb)%canopy(ix)
+         temp2d(i,j,50) = Sfc_props(nb)%ffmm(ix)
+         temp2d(i,j,51) = Sfc_props(nb)%ffhh(ix)
+         temp2d(i,j,52) = Sfc_props(nb)%f10m(ix)
+         temp2d(i,j,53) = Sfc_props(nb)%t2m(ix)
+
+         temp2d(i,j,54) = Intr_flds(nb)%sfcdsw(ix)
+         temp2d(i,j,55) = Intr_flds(nb)%sfcnsw(ix)
+         temp2d(i,j,56) = Intr_flds(nb)%sfcdlw(ix)
+         temp2d(i,j,57) = Intr_flds(nb)%sfcfsw(ix)%upfxc
+         temp2d(i,j,58) = Intr_flds(nb)%sfcfsw(ix)%dnfxc
+         temp2d(i,j,59) = Intr_flds(nb)%sfcfsw(ix)%upfx0
+         temp2d(i,j,60) = Intr_flds(nb)%sfcfsw(ix)%dnfx0
+         temp2d(i,j,61) = Intr_flds(nb)%sfcflw(ix)%upfxc
+         temp2d(i,j,62) = Intr_flds(nb)%sfcflw(ix)%upfx0
+         temp2d(i,j,63) = Intr_flds(nb)%sfcflw(ix)%dnfxc
+         temp2d(i,j,64) = Intr_flds(nb)%sfcflw(ix)%dnfx0
+
+         temp2d(i,j,65) = Cld_props(nb)%cv(ix)
+         temp2d(i,j,66) = Cld_props(nb)%cvt(ix)
+         temp2d(i,j,67) = Cld_props(nb)%cvb(ix)
+         temp2d(i,j,68) = Cld_props(nb)%flgmin(ix)
+
+         temp2d(i,j,69) = Rad_tends(nb)%sfalb(ix)
+         temp2d(i,j,70) = Rad_tends(nb)%coszen(ix)
+         temp2d(i,j,71) = Rad_tends(nb)%tsflw(ix)
+         temp2d(i,j,72) = Rad_tends(nb)%semis(ix)
+         temp2d(i,j,73) = Rad_tends(nb)%coszdg(ix)
+         temp2d(i,j,74) = Rad_tends(nb)%rqtk(ix)
+
+         temp2d(i,j,75) = Dyn_parms(nb)%xlon(ix)
+         temp2d(i,j,76) = Dyn_parms(nb)%xlat(ix)
+         temp2d(i,j,77) = Dyn_parms(nb)%area(ix)
+         temp2d(i,j,78) = Dyn_parms(nb)%dx(ix)
+         temp2d(i,j,79) = Dyn_parms(nb)%dy(ix)
+         temp2d(i,j,80) = Dyn_parms(nb)%sinlat(ix)
+         temp2d(i,j,81) = Dyn_parms(nb)%coslat(ix)
+         temp2d(i,j,82) = Dyn_parms(nb)%icsdsw(ix)
+         temp2d(i,j,83) = Dyn_parms(nb)%icsdlw(ix)
+
+         if (present(Statein)) then
+           temp3d(i,j,:, 1) = Statein(nb)%qgrs_rad(ix,:)
+           temp3d(i,j,:, 2) = Statein(nb)%tracer(ix,:,1)
+           temp3d(i,j,:, 3) = Statein(nb)%tracer(ix,:,2)
+           temp3d(i,j,:, 4) = Statein(nb)%vvl(ix,:)
+           temp3d(i,j,:, 5) = Statein(nb)%prsi(ix,:)
+           temp3d(i,j,:, 6) = Statein(nb)%prsl(ix,:)
+           temp3d(i,j,:, 7) = Statein(nb)%prslk(ix,:)
+           temp3d(i,j,:, 8) = Statein(nb)%prsik(ix,:)
+           temp3d(i,j,:, 9) = Statein(nb)%phii(ix,:)
+           temp3d(i,j,:,10) = Statein(nb)%phil(ix,:)
+         endif
+
+         temp3d(i,j,:,11) = Cld_props(nb)%fcice(ix,:)
+         temp3d(i,j,:,12) = Cld_props(nb)%frain(ix,:)
+         temp3d(i,j,:,13) = Cld_props(nb)%rrime(ix,:)
+         temp3d(i,j,:,14) = Cld_props(nb)%deltaq(ix,:)
+         temp3d(i,j,:,15) = Cld_props(nb)%cnvw(ix,:)
+         temp3d(i,j,:,16) = Cld_props(nb)%cnvc(ix,:)
+         temp3d(i,j,:,17) = Cld_props(nb)%cnvqc_v(ix,:)
+         temp3d(i,j,:,18) = Cld_props(nb)%cldcov(ix,:)
+
+         temp3d(i,j,:,19) = Rad_tends(nb)%htrsw(ix,:)
+         temp3d(i,j,:,20) = Rad_tends(nb)%htrlw(ix,:)
+         temp3d(i,j,:,21) = Rad_tends(nb)%dtdtr(ix,:)
+         temp3d(i,j,:,22) = Rad_tends(nb)%swhc(ix,:)
+         temp3d(i,j,:,23) = Rad_tends(nb)%hlwc(ix,:)
+
+       enddo
+     enddo
+   enddo
+
+   outunit = stdout()
+   do i = 1, 83
+     write (name, '(i2.2,3x,4a)') i, ' 2d '
+     write(outunit,100) name, mpp_chksum(temp2d(:,:,i:i))
+   enddo
+   do i = 1, 23
+     write (name, '(i2.2,3x,4a)') i, ' 3d '
+     write(outunit,100) name, mpp_chksum(temp3d(:,:,:,i:i))
+   enddo
+100 format("CHECKSUM::",A32," = ",Z20)
+   end subroutine checksum
 
 end module gfs_physics_driver_mod

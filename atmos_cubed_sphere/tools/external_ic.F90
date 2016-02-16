@@ -13,7 +13,7 @@ module external_ic_mod
    use fms_io_mod,         only: get_tile_string, field_size, free_restart_type
    use fms_io_mod,         only: restart_file_type, register_restart_field
    use fms_io_mod,         only: save_restart, restore_state, set_filename_appendix
-   use mpp_mod,            only: mpp_error, FATAL, NOTE, mpp_pe
+   use mpp_mod,            only: mpp_error, FATAL, NOTE, mpp_pe, mpp_root_pe
    use mpp_mod,            only: stdlog, input_nml_file
    use mpp_parameter_mod,  only: AGRID_PARAM=>AGRID
    use mpp_domains_mod,    only: mpp_get_tile_id, domain2d, mpp_update_domains, NORTH, EAST
@@ -110,7 +110,7 @@ contains
       if ( Atm(1)%flagstruct%mountain ) then
            call get_cubed_sphere_terrain(Atm, fv_domain)
       else
-           Atm(1)%phis = 0.
+         if (.not. Atm(1)%neststruct%nested) Atm(1)%phis = 0.
       endif
  
 ! Read in the specified external dataset and do all the needed transformation
@@ -178,7 +178,7 @@ contains
     integer              :: ntileMe
     integer, allocatable :: tile_id(:)
     character(len=64)    :: fname
-    character(len=3)  :: gn
+    character(len=7)  :: gn
     integer              ::  n
     integer              ::  jbeg, jend
     real ftop
@@ -199,19 +199,21 @@ contains
       jed = Atm(1)%bd%jed
 
     if (Atm(1)%grid_number > 1) then
-       write(gn,'(A2, I1)') ".g", Atm(1)%grid_number
+       !write(gn,'(A2, I1)') ".g", Atm(1)%grid_number
+       write(gn,'(A5, I2.2)') ".nest", Atm(1)%grid_number
     else
        gn = ''
     end if
 
     ntileMe = size(Atm(:))  ! This will have to be modified for mult tiles per PE
-                            ! always one at this point
+                            ! ASSUMED always one at this point
 
     allocate( tile_id(ntileMe) )
     tile_id = mpp_get_tile_id( fv_domain )
     do n=1,ntileMe
 
-       call get_tile_string(fname, 'INPUT/fv_core'//trim(gn)//'.res.tile', tile_id(n), '.nc' )
+       call get_tile_string(fname, 'INPUT/fv_core.res'//trim(gn)//'.tile', tile_id(n), '.nc' )
+       if (mpp_pe() == mpp_root_pe()) print*, 'external_ic: looking for ', fname
 
        
        if( file_exist(fname) ) then
@@ -228,26 +230,9 @@ contains
        endif
 
     end do
- 
-    call mpp_update_domains( Atm(1)%phis, Atm(1)%domain )
-    if (Atm(1)%neststruct%nested) then
-       call mpp_get_compute_domain( Atm(1)%parent_grid%domain, &
-            isc_p,  iec_p,  jsc_p,  jec_p  )
-!!$       call mpp_get_data_domain( Atm(1)%parent_grid%domain, &
-!!$            isc_p,  iec_p,  jsc_p,  jec_p  )
-       call mpp_get_global_domain( Atm(1)%parent_grid%domain, &
-            isg, ieg, jsg, jeg)
 
-       allocate(g_dat2( isg:ieg, jsg:jeg,1) )
-       
-       g_dat2 = 0.
-       if (ANY(mpp_pe()==Atm(1)%parent_grid%pelist)) g_dat2(isc_p:iec_p,  jsc_p:jec_p  , 1) = Atm(1)%parent_grid%phis
-       call nested_grid_BC(Atm(1)%phis, g_dat2(:,:,1), Atm(1)%neststruct%nest_domain, &
-         Atm(1)%neststruct%ind_h, Atm(1)%neststruct%wt_h, 0, 0, &
-         Atm(1)%npx, Atm(1)%npy, Atm(1)%bd, isg, ieg, jsg, jeg, proc_in=.true.)
-
-       deallocate(g_dat2)
-    end if
+	!Needed for reproducibility. DON'T REMOVE THIS!!
+    call mpp_update_domains( Atm(1)%phis, Atm(1)%domain ) 
     ftop = g_sum(Atm(1)%domain, Atm(1)%phis(is:ie,js:je), is, ie, js, je, ng, Atm(1)%gridstruct%area_64, 1)
  
     call prt_maxmin('ZS', Atm(1)%phis,  is, ie, js, je, ng, 1, 1./grav)
@@ -778,7 +763,7 @@ contains
       else
          gn = ''
       end if
-      call set_filename_appendix(gn)
+      call set_filename_appendix('')
 
 !--- test for existence of the GFS control file
       if (.not. file_exist('INPUT/'//trim(fn_gfs_ctl), no_domain=.TRUE.)) then

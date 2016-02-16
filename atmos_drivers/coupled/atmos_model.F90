@@ -55,6 +55,7 @@ use atmosphere_mod,     only: atmosphere_restart
 use atmosphere_mod,     only: atmosphere_state_update
 use atmosphere_mod,     only: atmos_phys_driver_statein
 use atmosphere_mod,     only: atmosphere_control_data, atmosphere_pref
+use atmosphere_mod,     only: set_atmosphere_pelist
 use coupler_types_mod,  only: coupler_2d_bc_type
 use block_control_mod,  only: block_control_type, define_blocks
 use gfs_physics_driver_mod, only: state_fields_in, state_fields_out, &
@@ -197,6 +198,7 @@ subroutine update_atmos_radiation_physics (Atmos)
 
     if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "statein driver"
 !--- get atmospheric state from the dynamic core
+    call set_atmosphere_pelist()
     call mpp_clock_begin(getClock)
     call atmos_phys_driver_statein (Statein, Atm_block)
     call mpp_clock_end(getClock)
@@ -432,6 +434,7 @@ subroutine update_atmos_model_dynamics (Atmos)
 ! run the atmospheric dynamics to advect the properties
   type (atmos_data_type), intent(in) :: Atmos
 
+    call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
     call atmosphere_dynamics (Atmos%Time)
     call mpp_clock_end(fv3Clock)
@@ -450,6 +453,7 @@ subroutine update_atmos_model_state (Atmos)
 !--- local variables
   real :: tmax, tmin
 
+    call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
     call mpp_clock_begin(updClock)
     call atmosphere_state_update (Atmos%Time, Statein, Stateout, Atm_block)

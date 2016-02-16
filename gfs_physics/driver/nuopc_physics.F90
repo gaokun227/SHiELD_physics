@@ -1718,6 +1718,7 @@
 !GFDL         allocate(this%cvt     (IX))
 !GFDL         allocate(this%cvb     (IX))
          allocate(this%cnvqc_v (IX,Model%levs))
+         this%cnvqc_v = clear_val
 
        end subroutine
 

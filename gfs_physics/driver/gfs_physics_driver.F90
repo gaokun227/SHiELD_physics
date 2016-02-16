@@ -414,6 +414,15 @@ module gfs_physics_driver_mod
     allocate ( Rad_tends(Atm_block%nblks) )
     allocate ( Intr_flds(Atm_block%nblks) )
     if (ozcalc) allocate ( O3dat(Atm_block%nblks) )
+!rab this openmp loop seems to have malloc/free issues which I will deal with later
+!rab!$OMP PARALLEL DO default(none) & 
+!rab!$OMP            schedule(static,1) &
+!rab!$OMP              shared(Atm_block,ozcalc,O3dat,Tbd_data,Mdl_parms,xkzm_m,xkzm_h,xkzm_s, &
+!rab!$OMP                     evpco,psautco,prautco,wminco,pl_pres,Dyn_parms,kdt,jdate,solhr, &
+!rab!$OMP                     fhlwr,fhswr,lssav,ipt,lprnt,dt_phys,latgfs,clstp,nnp,fhour,     &
+!rab!$OMP                     Gfs_diags,NFXR,Sfc_props,Cld_props,sup,Rad_tends,Intr_flds,SW0, & 
+!rab!$OMP                     SWB,LW0,LWB,State_out,State_in,area,lat,lon) &
+!rab!$OMP             private(nb,ibs,ibe,jbs,jbe,ngptc,ix,j,i)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -470,12 +479,14 @@ module gfs_physics_driver_mod
         if (ozcalc) O3dat(nb)%gaul(ix) = lat(i,j)*180.0_kind_phys/pi
        enddo
       enddo
+    enddo
 
 !--- set up interpolation indices and weights for prognostic ozone interpolation
-      if (ozcalc) then
+    if (ozcalc) then
+      do nb = 1, Atm_block%nblks
         call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
-      endif
-    enddo
+      enddo
+    endif
 
 !--- read in surface data from chgres ---
     call surface_props_input (Atm_block)

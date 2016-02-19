@@ -253,13 +253,13 @@
         print *,                                  &
         '  -----------------------------------------------------'
         print *,                                  &
-        '     Block          User time  System Time   Total Time'
+        '     Block                    User time  System Time   Total Time   GID '
         print *,                                  &
         '  -----------------------------------------------------'
 
         do n = 1, tblk
-           print '(3x,a20,2x,3(1x,f12.4))', blkname(n),     &
-               tmp(n)%usr, tmp(n)%sys, tmp(n)%usr + tmp(n)%sys
+           print '(3x,a20,2x,3(1x,f12.4), 2x, I6)', blkname(n),     &
+               tmp(n)%usr, tmp(n)%sys, tmp(n)%usr + tmp(n)%sys, gid
         end do
 
 

@@ -164,6 +164,7 @@ contains
              if (cold_start_grids(n)) then
                 if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .false.)
                 if (Atm(n)%flagstruct%nggps_ic) then
+                   call fill_nested_grid_topo(Atm(n), .false.)
                    call fill_nested_grid_topo_halo(Atm(n), .false.)
                    call setup_nested_boundary_halo(Atm(n),.false.) 
                 else
@@ -232,7 +233,11 @@ contains
 ! Read, interpolate (latlon to cubed), then remap vertically with terrain adjustment if needed
 !---------------------------------------------------------------------------------------------
     if (Atm(n)%neststruct%nested) then
-          if (cold_start_grids(n) .and. .not. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo(Atm(n), .true.)
+          if (cold_start_grids(n)) call fill_nested_grid_topo(Atm(n), .true.)
+          !if (cold_start_grids(n) .and. .not. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo(Atm(n), .true.)
+       if (cold_start_grids(n)) then
+          if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo_halo(Atm(n), .true.)
+       end if
     endif
     if ( Atm(n)%flagstruct%external_ic ) then
          if( is_master() ) write(*,*) 'Calling get_external_ic'
@@ -253,12 +258,7 @@ contains
        ncnst = Atm(n)%ncnst
        isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
 
-       ! Init model data
-       if (Atm(n)%neststruct%nested) then
-          if (cold_start_grids(n)) then
-             if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo_halo(Atm(n), .true.)
-          end if
-       endif
+    ! Init model data
        if(.not.cold_start_grids(n))then
           Atm(N)%neststruct%first_step = .false.
           if (Atm(n)%neststruct%nested) then
@@ -279,6 +279,7 @@ contains
                 call mpp_update_domains(Atm(n)%u, Atm(n)%v, Atm(n)%domain, gridtype=DGRID_NE, complete=.true.)
              endif
           endif
+
         if ( Atm(n)%flagstruct%mountain ) then
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! !!! Additional terrain filter -- should not be called repeatedly !!!

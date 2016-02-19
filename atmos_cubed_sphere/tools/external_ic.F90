@@ -29,6 +29,8 @@ module external_ic_mod
    use fv_mapz_mod,       only: mappm
    use fv_mp_mod,         only: ng, is_master, fill_corners, YDir, mp_reduce_min, mp_reduce_max
    use fv_surf_map_mod,   only: surfdrv
+   use fv_surf_map_mod,   only: sgh_g, oro_g
+   use fv_surf_map_mod,   only: del2_cubed_sphere, del4_cubed_sphere
    use fv_timing_mod,     only: timing_on, timing_off
    use init_hydro_mod,    only: p_var
    use fv_fill_mod,       only: fillz
@@ -46,6 +48,7 @@ module external_ic_mod
    private
 
    real, parameter:: zvir = rvgas/rdgas - 1.
+   real(kind=R_GRID), parameter :: cnst_0p20=0.20d0
    real :: deg2rad
 
    public get_external_ic, get_cubed_sphere_terrain
@@ -535,8 +538,9 @@ contains
       real, dimension(:,:,:), allocatable:: ud, vd, u_s, v_s, u_w, v_w
       real, dimension(:,:,:), allocatable:: zh(:,:,:)  ! 3D height at 65 edges
       real, dimension(:,:,:,:), allocatable:: q
-      real rdg
-      integer:: n, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac
+      real, dimension(:,:), allocatable :: phis_coarse ! lmh
+      real rdg, wt
+      integer:: n, npx, npy, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res
@@ -818,6 +822,17 @@ contains
       endif
 
       do n = 1,size(Atm(:))
+
+         !!! If a nested grid, save the filled coarse-grid topography for blending
+         if (Atm(n)%neststruct%nested) then
+            allocate(phis_coarse(isd:ied,jsd:jed))
+            do j=jsd,jed
+            do i=isd,ied
+               phis_coarse(i,j) = Atm(n)%phis(i,j)
+            enddo
+            enddo
+         endif
+
 !--- read in surface temperature (k) and land-frac
         ! surface skin temperature
         id_res = register_restart_field (SFC_restart, fn_sfc_ics, 'tsea', Atm(n)%ts, domain=Atm(n)%domain)
@@ -981,9 +996,58 @@ contains
           endif
 
         endif
-        ! populate the haloes of Atm(:)%phis
-        call mpp_update_domains( Atm(n)%phis, Atm(n)%domain )
+        
+        !!! Perform terrain smoothing, if desired
+        if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
 
+        if (Atm(n)%neststruct%nested) then
+           if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
+           npx = Atm(n)%npx
+           npy = Atm(n)%npy
+           do j=jsd,jed
+              do i=isd,ied
+                 wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
+                 Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
+                 
+              enddo
+           enddo
+        endif
+
+           if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
+              call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
+                   Atm(n)%gridstruct%area_64, Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
+                   Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
+                   Atm(n)%flagstruct%n_zs_filter, cnst_0p20*Atm(n)%gridstruct%da_min, &
+                   .false., oro_g, Atm(n)%neststruct%nested, Atm(n)%domain, Atm(n)%bd)
+              if ( is_master() ) write(*,*) 'Warning !!! del-2 terrain filter has been applied ', &
+                   Atm(n)%flagstruct%n_zs_filter, ' times'
+           else if( Atm(n)%flagstruct%nord_zs_filter == 4 ) then
+              call del4_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, Atm(n)%gridstruct%area_64, &
+                   Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
+                   Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
+                   Atm(n)%flagstruct%n_zs_filter, .false., oro_g, Atm(n)%neststruct%nested, &
+                   Atm(n)%domain, Atm(n)%bd)
+              if ( is_master() ) write(*,*) 'Warning !!! del-4 terrain filter has been applied ', &
+                   Atm(n)%flagstruct%n_zs_filter, ' times'
+           endif
+
+        endif
+
+        if (Atm(n)%neststruct%nested) then
+           npx = Atm(n)%npx
+           npy = Atm(n)%npy
+           do j=jsd,jed
+              do i=isd,ied
+                 wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
+                 Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
+                 
+              enddo
+           enddo
+
+           deallocate(phis_coarse)
+        endif
+
+        call mpp_update_domains( Atm(n)%phis, Atm(n)%domain, complete=.true. )
 !!!     if ( .not. Atm(1)%flagstruct%hydrostatic ) then
            liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
 !--- Add cloud condensate from GFS to total MASS

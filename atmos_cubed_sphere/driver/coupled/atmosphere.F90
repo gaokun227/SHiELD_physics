@@ -330,10 +330,10 @@ contains
    call mpp_clock_begin (id_dynam)
 
    n = mytile
-   do psc=1,p_split
+   do psc=1,abs(p_split)
                     call timing_on('fv_dynamics')
 !uc/vc only need be same on coarse grid? However BCs do need to be the same
-     call fv_dynamics(npx, npy, npz, nq, Atm(n)%ng, dt_atmos/real(p_split),&
+     call fv_dynamics(npx, npy, npz, nq, Atm(n)%ng, dt_atmos/real(abs(p_split)),&
                       Atm(n)%flagstruct%consv_te, Atm(n)%flagstruct%fill,  &
                       Atm(n)%flagstruct%reproduce_sum, kappa, cp_air, zvir,&
                       Atm(n)%ptop, Atm(n)%ks, nq,                          &
@@ -353,7 +353,7 @@ contains
 
      call timing_off('fv_dynamics')
 
-    if (ngrids > 1 .and. psc < p_split) then
+    if (ngrids > 1 .and. (psc < p_split .or. p_split < 0)) then
        call timing_on('TWOWAY_UPDATE')
        call twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
        call timing_off('TWOWAY_UPDATE')
@@ -812,7 +812,7 @@ contains
 
 !--- nesting update after updating atmospheric variables with
 !--- physics tendencies
-    if (ngrids > 1) then
+    if (ngrids > 1 .and. p_split > 0) then
        call timing_on('TWOWAY_UPDATE')
        call twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
        call timing_off('TWOWAY_UPDATE')

@@ -418,10 +418,11 @@ contains
 ! mass fluxes
                                               call timing_on('tracer_2d')
        !!! CLEANUP: merge these two calls?
-       if (gridstruct%nested .or. ANY(neststruct%child_grids)) then
+       if (gridstruct%nested) then
          call tracer_2d_nested(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy, npz, nq,    &
                         flagstruct%hord_tr, q_split, mdt, idiag%id_divg, i_pack(10), &
-                        flagstruct%z_tracer, k_split, neststruct, parent_grid)          
+                        flagstruct%z_tracer, flagstruct%nord_tr, flagstruct%trdm2, &
+                        k_split, neststruct, parent_grid)          
        else
          call tracer_2d(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy, npz, nq,    &
                         flagstruct%hord_tr, q_split, mdt, idiag%id_divg, i_pack(10), &

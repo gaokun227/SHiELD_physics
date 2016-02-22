@@ -301,41 +301,23 @@ module fv_update_phys_mod
 
       if ( hydrostatic ) then
          do j=js,je
-#ifndef HYDRO_CVM
             call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-#ifdef USE_2P1
-                          ice_wat, snowwat, graupel, q, qc, cvm)
-#else
                           ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k) )
-#endif
             do i=is,ie
+!!!            pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
             enddo
-#else
-            do i=is,ie
-                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
-            enddo
-#endif
           enddo
        else
          if ( flagstruct%phys_hydrostatic ) then
 ! Constant pressure
              do j=js,je
-#ifdef MOIST_CAPPA
                 call moist_cp(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-#ifdef USE_2P1
-                              ice_wat, snowwat, graupel, q, qc, cvm)
-#else
                               ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k) )
-#endif
-#endif
                 do i=is,ie
                    delz(i,j,k) = delz(i,j,k) / pt(i,j,k)
-#ifdef MOIST_CAPPA
+!!!                pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
                    pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
-#else
-                   pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt
-#endif
                    delz(i,j,k) = delz(i,j,k) * pt(i,j,k)
                 enddo
              enddo
@@ -349,20 +331,11 @@ module fv_update_phys_mod
                enddo
             else
                do j=js,je
-#ifdef MOIST_CAPPA
                   call moist_cv(is,ie,isd,ied,jsd,jed, npz, j, k, nwat, sphum, liq_wat, rainwat,    &
-#ifdef USE_2P1
-                                ice_wat, snowwat, graupel, q, qc, cvm)
-#else
                                 ice_wat, snowwat, graupel, q, qc, cvm, pt(is:ie,j,k))
-#endif
-#endif
                   do i=is,ie
-#ifdef MOIST_CAPPA
+!!!                  pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cv_air
                      pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cvm(i)
-#else
-                     pt(i,j,k) = pt(i,j,k) + t_dt(i,j,k)*dt*con_cp/cv_air
-#endif
                   enddo
                enddo
             endif

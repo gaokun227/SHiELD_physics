@@ -492,7 +492,7 @@ end subroutine tracer_2d
 
 
 subroutine tracer_2d_nested(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy, npz,   &
-                     nq,  hord, q_split, dt, id_divg, q_pack, z_tracer, nord_tr, trdm, &
+                     nq,  hord, q_split, dt, id_divg, q_pack, nord_tr, trdm, &
                      k_split, neststruct, parent_grid)
 
       type(fv_grid_bounds_type), intent(IN) :: bd
@@ -504,7 +504,6 @@ subroutine tracer_2d_nested(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, np
       integer, intent(IN) :: q_split, k_split
       integer, intent(IN) :: id_divg
       real   , intent(IN) :: dt, trdm
-      logical, intent(IN) :: z_tracer
       type(group_halo_update_type), intent(inout) :: q_pack
       real   , intent(INOUT) :: q(bd%isd:bd%ied,bd%jsd:bd%jed,npz,nq)   ! Tracers
       real   , intent(INOUT) :: dp1(bd%isd:bd%ied,bd%jsd:bd%jed,npz)        ! DELP before dyn_core

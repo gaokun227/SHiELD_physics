@@ -424,16 +424,20 @@ contains
                         flagstruct%z_tracer, flagstruct%nord_tr, flagstruct%trdm2, &
                         k_split, neststruct, parent_grid)          
        else
+         if ( flagstruct%z_tracer ) then
+         call tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy, npz, nq,    &
+                        flagstruct%hord_tr, q_split, mdt, idiag%id_divg, i_pack(10), &
+                        flagstruct%nord_tr, flagstruct%trdm2)
+         else
          call tracer_2d(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy, npz, nq,    &
                         flagstruct%hord_tr, q_split, mdt, idiag%id_divg, i_pack(10), &
-                        flagstruct%z_tracer, flagstruct%nord_tr, flagstruct%trdm2,  k_split)
+                        flagstruct%nord_tr, flagstruct%trdm2)
+         endif
        endif
                                              call timing_off('tracer_2d')
 
      if ( flagstruct%moist_phys ) then
                                                   call timing_on('Fill2D')
-!sjl      if ( sphum > 0 )    &
-!sjl       call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum),   delp, gridstruct%area, domain, neststruct%nested, npx, npy)
       if ( liq_wat > 0 )  &
        call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
       if ( nwat > 2 ) then       ! FV3_GFS nwat=2; nq=4

@@ -114,6 +114,7 @@
 
   real(kind=kind_phys) :: dxmax, dxmin, dxinv
   logical :: ozcalc
+  logical :: nocnv
 
 !........................................!
       end module physcons                !

@@ -40,9 +40,9 @@ module gfs_physics_driver_mod
                                 diagnostics, tbd_ddt
 !--- GFS Physics share module ---
   use physcons,           only: pi => con_pi
+  use physcons,           only: dxmax, dxmin, dxinv, con_g
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
-  use physcons,           only: dxmax, dxmin, dxinv, con_g
   use ozne_def,           only: pl_pres, ozplin
 !--- variables needed for calculating 'sncovr'
   use namelist_soilveg,   only: salp_data, snupx
@@ -154,6 +154,7 @@ module gfs_physics_driver_mod
     integer :: ntcw     = 2
     integer :: ntoz     = 4
     logical :: ozcalc   = .false.
+    logical :: nocnv    = .false.
     integer :: levs     = 63
     integer :: levr     = 63
     integer :: me           ! set by call to mpp_pe
@@ -247,7 +248,7 @@ module gfs_physics_driver_mod
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
-                              prslrd0,xkzm_m,xkzm_h,xkzm_s
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -365,6 +366,13 @@ module gfs_physics_driver_mod
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
     endif
 
+!--- check to see if prognostic ozone calculation active
+    if (nocnv) then
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'DEEP CONVECTION is NOT being parameterized'
+    else
+      if (mpp_pe() == mpp_root_pe() ) write(6,*) 'DEEP CONVECTION is being parameterized'
+    endif
+
 !--- write version number and namelist to log file ---
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
     logunit = stdlog()
@@ -396,7 +404,7 @@ module gfs_physics_driver_mod
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
                           gen_coord_hybrid, npz, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
-                          dxmaxin, dxminin, dxinvin, ozcalc, &
+                          dxmaxin, dxminin, dxinvin, ozcalc,nocnv, &
                           ! NEW from nems_slg_shoc
                           cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                           ! For radiation

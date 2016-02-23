@@ -62,7 +62,7 @@
        module nuopc_physics
 
        use machine,  only: kind_phys
-       use physcons, only: dxmax, dxmin, dxinv, ozcalc  ! lon lat dependant variables set in initialize
+       use physcons, only: dxmax, dxmin, dxinv, ozcalc, nocnv  ! lon lat dependant variables set in initialize
        use funcphys, only: gfuncphys
        use module_microphysics, only: gsmconst
  
@@ -1979,7 +1979,7 @@
                                  lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                                  mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
                                  gen_coord_hybrid, levr, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
-                                 dxmaxin, dxminin, dxinvin, ozcalcin, &
+                                 dxmaxin, dxminin, dxinvin, ozcalcin, nocnvin, &
                                  ! NEW from nems_slg_shoc
                                  cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                                  ! For radiation
@@ -2063,6 +2063,7 @@
 
          real(kind=kind_phys) :: dxmaxin, dxminin, dxinvin
          logical :: ozcalcin
+         logical :: nocnvin
 
          ! For rad_initialize
          real (kind=kind_phys), intent(in) :: si(levr+1)
@@ -2161,6 +2162,7 @@
          dxmin = dxminin
          dxinv = dxinvin
          ozcalc = ozcalcin
+         nocnv = nocnvin
 
 !/GFDL - had to add the following to get things working...
          call gfuncphys ()

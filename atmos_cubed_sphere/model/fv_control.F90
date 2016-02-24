@@ -341,7 +341,7 @@ module fv_control_mod
 
             !!!CLEANUP: Are these correctly writing out on all pes?
             if ( is_master() ) then
-               sdt =  dt_atmos/real(n_split*k_split*p_split)
+               sdt =  dt_atmos/real(n_split*k_split*abs(p_split))
                write(*,*) ' '
                write(*,*) 'Divergence damping Coefficients'
                write(*,*) 'For small dt=', sdt
@@ -662,13 +662,13 @@ module fv_control_mod
       n0split = max ( 1, n0split )
 
       if ( n_split == 0 ) then
-           n_split = nint( real(n0split)/real(k_split*p_split) * stretch_fac + 0.5 )
+           n_split = nint( real(n0split)/real(k_split*abs(p_split)) * stretch_fac + 0.5 )
            if(is_master()) write(*,*) 'For k_split (remapping)=', k_split
            if(is_master()) write(*,198) 'n_split is set to ', n_split, ' for resolution-dt=',npx,npy,ntiles,dt_atmos
       else
           if(is_master()) write(*,199) 'Using n_split from the namelist: ', n_split
       endif
-      if (is_master() .and. n == 1 .and. p_split > 1) then
+      if (is_master() .and. n == 1 .and. abs(p_split) > 1) then
          write(*,199) 'Using p_split = ', p_split
       endif
 
@@ -755,7 +755,7 @@ module fv_control_mod
 
       if ( .not.hydrostatic ) then
          if ( m_split==0 ) then
-              m_split = 1. + abs(dt_atmos)/real(k_split*n_split*p_split)
+              m_split = 1. + abs(dt_atmos)/real(k_split*n_split*abs(p_split))
          endif
          if(is_master()) write(*,198) 'm_split is set to ', m_split
          if(is_master()) then

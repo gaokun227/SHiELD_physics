@@ -55,7 +55,7 @@ module fv_restart_mod
    use field_manager_mod,  only: MODEL_ATMOS
    use fv_timing_mod,      only: timing_on, timing_off
   use mpp_domains_mod,     only: mpp_get_compute_domain, mpp_get_data_domain, mpp_get_global_domain
-  use mpp_mod,             only: mpp_send, mpp_recv, mpp_sync_self, mpp_set_current_pelist, mpp_get_current_pelist, mpp_npes, mpp_pe
+  use mpp_mod,             only: mpp_send, mpp_recv, mpp_sync_self, mpp_set_current_pelist, mpp_get_current_pelist, mpp_npes, mpp_pe, mpp_sync
   use mpp_domains_mod,     only: CENTER, CORNER, NORTH, EAST,  mpp_get_C2F_index, WEST, SOUTH
   use mpp_domains_mod,     only: mpp_global_field
   use fms_mod,             only: file_exist
@@ -164,6 +164,7 @@ contains
              if (cold_start_grids(n)) then
                 if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0) call fill_nested_grid_topo_halo(Atm(n), .false.)
                 if (Atm(n)%flagstruct%nggps_ic) then
+                   call fill_nested_grid_topo(Atm(n), .false.)
                    call fill_nested_grid_topo_halo(Atm(n), .false.)
                    call setup_nested_boundary_halo(Atm(n),.false.) 
                 else
@@ -232,7 +233,11 @@ contains
 ! Read, interpolate (latlon to cubed), then remap vertically with terrain adjustment if needed
 !---------------------------------------------------------------------------------------------
     if (Atm(n)%neststruct%nested) then
-          if (cold_start_grids(n) .and. .not. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo(Atm(n), .true.)
+          if (cold_start_grids(n)) call fill_nested_grid_topo(Atm(n), .true.)
+          !if (cold_start_grids(n) .and. .not. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo(Atm(n), .true.)
+       if (cold_start_grids(n)) then
+          if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo_halo(Atm(n), .true.)
+       end if
     endif
     if ( Atm(n)%flagstruct%external_ic ) then
          if( is_master() ) write(*,*) 'Calling get_external_ic'
@@ -253,12 +258,7 @@ contains
        ncnst = Atm(n)%ncnst
        isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
 
-       ! Init model data
-       if (Atm(n)%neststruct%nested) then
-          if (cold_start_grids(n)) then
-             if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo_halo(Atm(n), .true.)
-          end if
-       endif
+    ! Init model data
        if(.not.cold_start_grids(n))then
           Atm(N)%neststruct%first_step = .false.
           if (Atm(n)%neststruct%nested) then
@@ -279,6 +279,7 @@ contains
                 call mpp_update_domains(Atm(n)%u, Atm(n)%v, Atm(n)%domain, gridtype=DGRID_NE, complete=.true.)
              endif
           endif
+
         if ( Atm(n)%flagstruct%mountain ) then
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! !!! Additional terrain filter -- should not be called repeatedly !!!
@@ -697,6 +698,7 @@ contains
             Atm%neststruct%nest_domain, Atm%neststruct%ind_h, Atm%neststruct%wt_h, 0, 0, &
             Atm%npx, Atm%npy, npz, Atm%bd, isg, ieg, jsg, jeg, proc_in=process)
 
+
        !delz
        call nested_grid_BC(Atm%delz(:,:,:), &
             Atm%parent_grid%delz(:,:,:), &
@@ -704,7 +706,6 @@ contains
             Atm%npx, Atm%npy, npz, Atm%bd, isg, ieg, jsg, jeg, proc_in=process)
 
     end if
-
 
 #endif
 
@@ -735,8 +736,11 @@ contains
 !!$       end do
 !!$    end do
 !!$#endif
-         call mpp_update_domains(Atm%u, Atm%v, Atm%domain, gridtype=DGRID_NE, complete=.true.)
+       call mpp_update_domains(Atm%u, Atm%v, Atm%domain, gridtype=DGRID_NE, complete=.true.)
+       call mpp_update_domains(Atm%w, Atm%domain) ! needs an update-domain for rayleigh damping
       endif
+
+      call mpp_sync()
 
   end subroutine setup_nested_boundary_halo
 
@@ -1111,6 +1115,7 @@ contains
        if (process) call fill_nested_grid(Atm(1)%w, g_dat, &
             Atm(1)%neststruct%ind_h, Atm(1)%neststruct%wt_h, &
             0, 0,  isg, ieg, jsg, jeg, npz, Atm(1)%bd)
+       !
 
     end if
 

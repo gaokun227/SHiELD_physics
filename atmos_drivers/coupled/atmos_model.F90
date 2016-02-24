@@ -324,21 +324,6 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
    logunit = stdlog()
 
-   IF ( file_exist('input.nml')) THEN
-#ifdef INTERNAL_FILE_NML
-      read(input_nml_file, nml=atmos_model_nml, iostat=io)
-      ierr = check_nml_error(io, 'atmos_model_nml')
-#else
-      unit = open_namelist_file ( )
-      ierr=1
-      do while (ierr /= 0)
-         read  (unit, nml=atmos_model_nml, iostat=io, end=10)
-         ierr = check_nml_error(io,'atmos_model_nml')
-      enddo
- 10     call close_file (unit)
-#endif
-   endif
-
 !-----------------------------------------------------------------------
 ! how many tracers have been registered?
 !  (will print number below)
@@ -357,6 +342,20 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
                          Atmos%grid, Atmos%dx, Atmos%dy, Atmos%area)
 
+   IF ( file_exist('input.nml')) THEN
+#ifdef INTERNAL_FILE_NML
+      read(input_nml_file, nml=atmos_model_nml, iostat=io)
+      ierr = check_nml_error(io, 'atmos_model_nml')
+#else
+      unit = open_namelist_file ( )
+      ierr=1
+      do while (ierr /= 0)
+         read  (unit, nml=atmos_model_nml, iostat=io, end=10)
+         ierr = check_nml_error(io,'atmos_model_nml')
+      enddo
+ 10     call close_file (unit)
+#endif
+   endif
 !-----------------------------------------------------------------------
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)

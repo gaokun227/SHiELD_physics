@@ -2139,6 +2139,8 @@
 !
 !GFDL --- following if-test added to turn off deep convection parameterization
       if (nocnv) then ! bypass convective parameterization
+       rain1(:)=0.0
+      else   ! no cnv
       if (.not. ras .and. .not. cscnv) then
 
         if (newsas) then             ! no random cloud top
@@ -2249,8 +2251,6 @@
         endif
       endif   ! end if_not_ras
 !GFDL --- following added to turn off deep convection parameterization
-      else   ! no cnv
-       rain1(:)=0.0
       endif
 !GFDL --- above added to turn off deep convection parameterization
 !

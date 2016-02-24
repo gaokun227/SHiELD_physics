@@ -531,8 +531,9 @@
 !
       use machine ,   only : kind_phys
       use physcons,   only : con_cp, con_fvirt, con_g, con_rd, con_rv,  &
-     &                       con_hvap, con_hfus, con_rerth, con_pi
-     &,                      rhc_max, dxmin, dxinv, pa2mb, rlapse,ozcalc
+     &                       con_hvap, con_hfus, con_rerth, con_pi,     &
+     &                       rhc_max, dxmin, dxinv, pa2mb, rlapse,      &
+     &                       ozcalc,nocnv
       use cs_conv, only : cs_convr
 !---GFDL addition
       use gfs_fv3_needs, only : get_prs_fv3, get_phi_fv3
@@ -2136,6 +2137,8 @@
 
 !  --- ...  calling convective parameterization
 !
+!GFDL --- following if-test added to turn off deep convection parameterization
+      if (nocnv) then ! bypass convective parameterization
       if (.not. ras .and. .not. cscnv) then
 
         if (newsas) then             ! no random cloud top
@@ -2245,6 +2248,11 @@
           endif
         endif
       endif   ! end if_not_ras
+!GFDL --- following added to turn off deep convection parameterization
+      else   ! no cnv
+       rain1(:)=0.0
+      endif
+!GFDL --- above added to turn off deep convection parameterization
 !
       do i = 1, im
         rainc(i) = frain * rain1(i)

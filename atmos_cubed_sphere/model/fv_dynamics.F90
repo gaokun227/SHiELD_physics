@@ -418,9 +418,10 @@ contains
 ! mass fluxes
                                               call timing_on('tracer_2d')
        !!! CLEANUP: merge these two calls?
-       if (gridstruct%nested .or. ANY(neststruct%child_grids)) then
+       if (gridstruct%nested) then
          call tracer_2d_nested(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy, npz, nq,    &
                         flagstruct%hord_tr, q_split, mdt, idiag%id_divg, i_pack(10), &
+                        flagstruct%nord_tr, flagstruct%trdm2, &
                         k_split, neststruct, parent_grid)          
        else
          if ( flagstruct%z_tracer ) then
@@ -801,6 +802,9 @@ contains
              else
                 do i=is-1,ie+1
                    if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
+                      !!! DEBUG CODE
+                      !print*, i,j,k, ua(i,j,k), va(i,j,k), w(i,j,k)
+                      !!! END DEBUG CODE
                       u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
                    else
                       u2f(i,j,k) = 1.

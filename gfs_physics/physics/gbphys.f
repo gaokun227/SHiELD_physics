@@ -2138,7 +2138,7 @@
 !  --- ...  calling convective parameterization
 !
 !GFDL --- following if-test added to turn off deep convection parameterization
-      if (nocnv) then ! bypass convective parameterization
+      if (.not. nocnv) then ! bypass convective parameterization
       if (.not. ras .and. .not. cscnv) then
 
         if (newsas) then             ! no random cloud top

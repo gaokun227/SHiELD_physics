@@ -3072,9 +3072,6 @@ module gfs_physics_driver_mod
     nx = (iec - isc + 1)
     ny = (jec - jsc + 1)
 
-#ifdef OVERLOAD_R4
-    if (mpp_pe() .eq. mpp_root_pe()) print *, 'Restarts are not implemented for 32-bit'
-#else
     if (.not. allocated(sfc_name2)) then
 !--- allocate the various containers needed for restarts
       allocate(sfc_name2(nvar2))
@@ -3267,7 +3264,6 @@ module gfs_physics_driver_mod
     enddo
 
     call save_restart(Sfc_restart, timestamp)
-#endif
 
   end subroutine surface_props_output
 

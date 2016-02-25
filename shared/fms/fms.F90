@@ -138,7 +138,7 @@ use       mpp_io_mod, only:  mpp_io_init, mpp_open, mpp_close,         &
                        fieldtype, mpp_get_atts, mpp_get_info, mpp_get_fields
 
 use fms_io_mod, only : fms_io_init, fms_io_exit, field_size, &
-                       read_data, write_data, read_compressed, read_distributed, &
+                       read_data, write_data, read_distributed, &
                        open_namelist_file, open_restart_file, open_ieee32_file, close_file, &
                        set_domain, get_domain_decomp, nullify_domain, &
                        open_file, open_direct_file, string, get_mosaic_tile_grid, &
@@ -160,7 +160,7 @@ public :: open_namelist_file, open_restart_file, &
           open_file, open_direct_file
 
 ! routines for reading/writing distributed data
-public :: set_domain, read_data, write_data, read_compressed, read_distributed
+public :: set_domain, read_data, write_data, read_distributed
 public :: get_domain_decomp, field_size, nullify_domain
 public :: get_global_att_value
 

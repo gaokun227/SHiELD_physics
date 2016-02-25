@@ -866,10 +866,24 @@ type :: atttype
 !    complete.
 ! </NOTE>
 ! </INTERFACE>
+
+
+  interface write_record
+     module procedure write_record_r4
+#ifdef OVERLOAD_R4
+     module procedure write_record_r8
+#endif
+  end interface
+
   interface mpp_write
      module procedure mpp_write_2ddecomp_r2d
      module procedure mpp_write_2ddecomp_r3d
      module procedure mpp_write_2ddecomp_r4d
+#ifdef OVERLOAD_R4
+     module procedure mpp_write_2ddecomp_r2d_r8
+     module procedure mpp_write_2ddecomp_r3d_r8
+     module procedure mpp_write_2ddecomp_r4d_r8
+#ENDIF
      module procedure mpp_write_r0D
      module procedure mpp_write_r1D
      module procedure mpp_write_r2D
@@ -877,7 +891,6 @@ type :: atttype
      module procedure mpp_write_r4D
      module procedure mpp_write_axis
   end interface
-
 
 !***********************************************************************
 ! <INTERFACE NAME="mpp_write_compressed">

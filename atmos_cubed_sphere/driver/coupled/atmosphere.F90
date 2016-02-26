@@ -107,7 +107,6 @@ character(len=7)   :: mod_name = 'atmos'
 
 !---dynamics tendencies for use in fv_subgrid_z and during fv_update_phys
   real, allocatable, dimension(:,:,:)   :: u_dt, v_dt, t_dt
-  real, allocatable, dimension(:,:,:,:) :: q_dt
   real, allocatable :: pref(:,:), dum1d(:)
 
   logical :: first_diag = .true.
@@ -213,8 +212,7 @@ contains
 !----- allocate and zero out the dynamics (and accumulated) tendencies
    allocate( u_dt(isd:ied,jsd:jed,npz), &
              v_dt(isd:ied,jsd:jed,npz), &
-             t_dt(isc:iec,jsc:jec,npz), &
-             q_dt(isc:iec,jsc:jec,npz,nq) )
+             t_dt(isc:iec,jsc:jec,npz) )
 !--- allocate pref
     allocate(pref(npz+1,2), dum1d(npz+1))
 
@@ -370,7 +368,6 @@ contains
     u_dt(:,:,:)   = 0 
     v_dt(:,:,:)   = 0 
     t_dt(:,:,:)   = 0 
-    q_dt(:,:,:,:) = 0 
 
     w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff' )
     if ( Atm(n)%flagstruct%fv_sg_adj > 0 ) then
@@ -383,9 +380,10 @@ contains
                         Atm(n)%flagstruct%nwat, Atm(n)%delp, Atm(n)%pe,     &
                         Atm(n)%peln, Atm(n)%pkz, Atm(n)%pt, Atm(n)%q,       &
                         Atm(n)%ua, Atm(n)%va, Atm(n)%flagstruct%hydrostatic,&
-                        Atm(n)%w, Atm(n)%delz, u_dt, v_dt, t_dt, q_dt, Atm(n)%flagstruct%n_sponge)
+                        Atm(n)%w, Atm(n)%delz, u_dt, v_dt, t_dt, Atm(n)%flagstruct%n_sponge)
     endif
 
+#ifdef USE_Q_DT
     if ( .not. Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
 !$OMP parallel do default (none) &
 !$OMP              shared (isc, iec, jsc, jec, w_diff, n, Atm, q_dt) &
@@ -395,6 +393,7 @@ contains
           q_dt(:,:,k,w_diff) = 0.
         enddo
     endif
+#endif
 
    call mpp_clock_end (id_dryconv)
 
@@ -421,7 +420,7 @@ contains
    call fv_end(Atm, grids_on_this_pe)
    deallocate (Atm)
 
-   deallocate( u_dt, v_dt, t_dt, q_dt, pref, dum1d )
+   deallocate( u_dt, v_dt, t_dt, pref, dum1d )
 
  end subroutine atmosphere_end
 
@@ -704,7 +703,8 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q1, q2, q3, ps_dt, rdt
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, rdt
+   real:: dp
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -720,7 +720,7 @@ contains
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
 !$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (q1,q2,q3,nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, ps_dt)
+!$OMP             private (dp,q0,q1,q2,q3,nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -740,20 +740,20 @@ contains
          u_dt(i,j,k1) = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k)) * rdt
          v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
          t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
-         q2 = Atm(n)%delp(i,j,k1)   ! convert to GFS precision (64-bit) in case FV3 uses 32-bit
-! q1: water vapor
-         q3 = (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1)) / q2 ! q3 is mixing ratio adjustment
-         q1 = q3*(Stateout(nb)%gq0(ix,k,1) - Statein(nb)%qgrs(ix,k,1))
-         Atm(n)%q(i,j,k1,1) = Atm(n)%q(i,j,k1,1) + q1
-! q2: cloud condensate
-         q2 = q3*(Stateout(nb)%gq0(ix,k,2) - Statein(nb)%qgrs(ix,k,2))
-         Atm(n)%q(i,j,k1,2) = Atm(n)%q(i,j,k1,2) + q2
-         Atm(n)%q(i,j,k1,3) = Atm(n)%q(i,j,k1,3) + q3*(Stateout(nb)%gq0(ix,k,3)-Statein(nb)%qgrs(ix,k,3))
-         ps_dt = 1.d0 + q1 + q2
-         Atm(n)%delp(i,j,k1) = Atm(n)%delp(i,j,k1)*ps_dt
-         Atm(n)%q(i,j,k1,1)  = Atm(n)%q(i,j,k1,1)/ps_dt
-         Atm(n)%q(i,j,k1,2)  = Atm(n)%q(i,j,k1,2)/ps_dt
-         Atm(n)%q(i,j,k1,3)  = Atm(n)%q(i,j,k1,3)/ps_dt
+!
+         q0 = Statein(nb)%prsi(ix,k) - Statein(nb)%prsi(ix,k+1)
+! tracer mass increments:
+         q1 = q0*(Stateout(nb)%gq0(ix,k,1) - Statein(nb)%qgrs(ix,k,1))
+         q2 = q0*(Stateout(nb)%gq0(ix,k,2) - Statein(nb)%qgrs(ix,k,2))
+         q3 = q0*(Stateout(nb)%gq0(ix,k,3) - Statein(nb)%qgrs(ix,k,3))
+! Original total air mass:  64bit <-- 32bit
+         dp = Atm(n)%delp(i,j,k1)
+! Updated total air mass:
+         q0 = q1 + q2 + dp
+         Atm(n)%delp(i,j,k1) = q0
+         Atm(n)%q(i,j,k1,1)  = (q1+dp*Atm(n)%q(i,j,k1,1)) / q0
+         Atm(n)%q(i,j,k1,2)  = (q2+dp*Atm(n)%q(i,j,k1,2)) / q0
+         Atm(n)%q(i,j,k1,3)  = (q3+dp*Atm(n)%q(i,j,k1,3)) / q0
        enddo
       enddo
      enddo
@@ -800,6 +800,7 @@ contains
    endif
 
 !--- adjust w and heat tendency for non-hydrostatic case
+#ifdef USE_Q_DT
     if ( .not.Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
       rcp = 1. / cp_air
 !$OMP parallel do default (none) &
@@ -817,6 +818,7 @@ contains
          enddo
        enddo
     endif
+#endif
 
    call mpp_clock_begin (id_dynam)
        call timing_on('FV_UPDATE_PHYS')
@@ -826,7 +828,7 @@ contains
                          Atm(n)%ua, Atm(n)%va,  Atm(n)%ps, Atm(n)%pe,   Atm(n)%peln,       &
                          Atm(n)%pk, Atm(n)%pkz, Atm(n)%ak, Atm(n)%bk,   Atm(n)%phis,       &
                          Atm(n)%u_srf, Atm(n)%v_srf, Atm(n)%ts, Atm(n)%delz,               &
-                         Atm(n)%flagstruct%hydrostatic, u_dt, v_dt, t_dt, q_dt,            &
+                         Atm(n)%flagstruct%hydrostatic, u_dt, v_dt, t_dt,             &
                          .true., Time_next, Atm(n)%flagstruct%nudge, Atm(n)%gridstruct,    &
                          Atm(n)%gridstruct%agrid(:,:,1), Atm(n)%gridstruct%agrid(:,:,2),   &
                          Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, Atm(n)%flagstruct,            &

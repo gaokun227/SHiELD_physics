@@ -40,7 +40,7 @@ module fv_update_phys_mod
   subroutine fv_update_phys ( dt, is, ie, js, je, isd, ied, jsd, jed, ng, nq,     &
                               u, v, w, delp, pt, q, qdiag, ua, va, ps, pe,  peln, pk, pkz,  &
                               ak, bk, phis, u_srf, v_srf, ts, delz, hydrostatic,  &
-                              u_dt, v_dt, t_dt, q_dt, moist_phys, Time, nudge,    &
+                              u_dt, v_dt, t_dt, moist_phys, Time, nudge,    &
                               gridstruct, lona, lata, npx, npy, npz, flagstruct,  &
                               neststruct, bd, domain, ptop)
     real, intent(in)   :: dt, ptop
@@ -69,7 +69,6 @@ module fv_update_phys_mod
 ! Tendencies from Physics:
     real, intent(inout), dimension(isd:ied,jsd:jed,npz):: u_dt, v_dt
     real, intent(inout):: t_dt(is:ie,js:je,npz)
-    real, intent(inout):: q_dt(is:ie,js:je,npz,nq)
 
 ! Saved Bottom winds for GFDL Physics Interface
     real, intent(out), dimension(is:ie,js:je):: u_srf, v_srf, ts
@@ -160,9 +159,6 @@ module fv_update_phys_mod
 
     if ( flagstruct%fv_debug ) then
        call prt_maxmin('delp_b_update', delp, is, ie, js,  je, ng, npz, 0.01)
-       do m=1,nq
-          call prt_maxmin('q_dt', q_dt(is,js,1,m), is, ie, js, je, 0, npz, 1.)
-       enddo
        call prt_maxmin('u_dt', u_dt, is, ie, js,  je, ng, npz, 1.)
        call prt_maxmin('v_dt', v_dt, is, ie, js,  je, ng, npz, 1.)
        call prt_maxmin('T_dt', t_dt, is, ie, js,  je, 0, npz, 1.)
@@ -170,140 +166,12 @@ module fv_update_phys_mod
 
     call get_eta_level(npz, 1.0E5, pfull, phalf, ak, bk)
 
-!$OMP parallel do default(none) shared(is,ie,js,je,npz,flagstruct,pfull,q_dt,sphum,q,qdiag, &
+!$OMP parallel do default(none) shared(is,ie,js,je,npz,flagstruct,pfull,sphum,q,qdiag, &
 !$OMP                                  nq,w_diff,dt,nwat,liq_wat,rainwat,ice_wat,snowwat,   &
 !$OMP                                  graupel,delp,cld_amt,hydrostatic,pt,t_dt,delz,       &
 !$OMP                                  gama_dt,cv_air,ua,u_dt,va,v_dt,isd,ied,jsd,jed)      &
 !$OMP                          private(cvm, qc, qstar, ps_dt, p_fac)
     do k=1, npz
-
-       if ( flagstruct%tau_h2o<0.0 .and. pfull(k) < 100.E2 ) then
-! Wipe the stratosphere clean:
-! This should only be used for initialization from a bad model state
-           p_fac = -flagstruct%tau_h2o*86400.
-           do j=js,je
-              do i=is,ie
-                 q_dt(i,j,k,sphum) = q_dt(i,j,k,sphum) + (3.E-6-q(i,j,k,sphum))/p_fac
-              enddo
-           enddo
-       elseif ( flagstruct%tau_h2o>0.0 .and. pfull(k) < 3000. ) then
-! Do idealized Ch4 chemistry
-
-           if ( pfull(k) < 1. ) then
-               qstar = q1_h2o
-               p_fac = 0.2 * flagstruct%tau_h2o*86400.
-           elseif ( pfull(k) <   7. .and. pfull(k) >=    1. ) then
-               qstar = q1_h2o + (q7_h2o-q1_h2o)*log(pfull(k)/1.)/log(7.)
-               p_fac = 0.3 * flagstruct%tau_h2o*86400.
-           elseif ( pfull(k) <  100. .and. pfull(k) >=    7. ) then
-               qstar = q7_h2o + (q100_h2o-q7_h2o)*log(pfull(k)/7.)/log(100./7.)
-               p_fac = 0.4 * flagstruct%tau_h2o*86400.
-           elseif ( pfull(k) < 1000. .and. pfull(k) >=  100. ) then
-               qstar = q100_h2o + (q1000_h2o-q100_h2o)*log(pfull(k)/1.E2)/log(10.)
-               p_fac = 0.5 * flagstruct%tau_h2o*86400.
-           elseif ( pfull(k) < 2000. .and. pfull(k) >= 1000. ) then
-               qstar = q1000_h2o + (q2000_h2o-q1000_h2o)*log(pfull(k)/1.E3)/log(2.)
-               p_fac = 0.75 * flagstruct%tau_h2o*86400.
-           else
-               qstar = q3000_h2o
-               p_fac = flagstruct%tau_h2o*86400.
-           endif
-
-           do j=js,je
-              do i=is,ie
-                 q_dt(i,j,k,sphum) = q_dt(i,j,k,sphum) + (qstar-q(i,j,k,sphum))/p_fac
-              enddo
-           enddo
-       endif
-
-!----------------
-! Update tracers:
-!----------------
-#ifndef GFS_PHYS
-       do m=1,nq
-          if( m /= w_diff ) then 
-          do j=js,je
-             do i=is,ie
-                q(i,j,k,m) = q(i,j,k,m) + dt*q_dt(i,j,k,m)
-             enddo
-          enddo
-          endif
-       enddo
-#endif
-
-!--------------------------------------------------------
-! Adjust total air mass due to changes in water substance
-!--------------------------------------------------------
-
-      if ( nwat==6 ) then
-! micro-physics with 6 water substances
-        do j=js,je
-           do i=is,ie
-              ps_dt(i,j)  = 1. + dt * ( q_dt(i,j,k,sphum  ) +    &
-                                        q_dt(i,j,k,liq_wat) +    &
-                                        q_dt(i,j,k,rainwat) +    &
-                                        q_dt(i,j,k,ice_wat) +    &
-                                        q_dt(i,j,k,snowwat) +    &
-                                        q_dt(i,j,k,graupel) )
-              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
-           enddo
-        enddo
-      elseif ( nwat==4 ) then
-! micro-physics with fake ice
-        do j=js,je
-           do i=is,ie
-              ps_dt(i,j)  = 1. + dt * ( q_dt(i,j,k,sphum  ) +    &
-                                        q_dt(i,j,k,liq_wat) +    &
-                                        q_dt(i,j,k,rainwat) )
-              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
-           enddo
-        enddo
-      elseif( nwat==3 ) then
-! GFDL AM2/3 phys (cloud water + cloud ice)
-        do j=js,je
-           do i=is,ie
-               ps_dt(i,j) = 1. + dt*(q_dt(i,j,k,sphum  ) +    &
-                                     q_dt(i,j,k,liq_wat) +    &
-                                     q_dt(i,j,k,ice_wat) )
-              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
-           enddo
-        enddo
-      elseif( nwat==2 ) then
-! NGGPS-GFS: the total condensate is "liq_wat"
-#ifndef GFS_PHYS
-        do j=js,je
-           do i=is,ie
-               ps_dt(i,j) = 1.d0 + q_dt(i,j,k,sphum) + q_dt(i,j,k,liq_wat)
-              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
-           enddo
-        enddo
-#endif
-      elseif ( nwat>0 ) then
-        do j=js,je
-           do i=is,ie
-              ps_dt(i,j)  = 1. + dt*sum(q_dt(i,j,k,1:nwat))
-              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
-           enddo
-        enddo
-      endif
-
-!-----------------------------------------
-! Adjust mass mixing ratio of all tracers 
-!-----------------------------------------
-#ifndef GFS_PHYS
-      if ( nwat /=0 ) then
-        do m=1,flagstruct%ncnst
-!-- check to query field_table to determine if tracer needs mass adjustment
-          if( m /= cld_amt .and. m /= w_diff .and. adjust_mass(MODEL_ATMOS,m)) then 
-            if (m <= nq)  then
-              q(is:ie,js:je,k,m) = q(is:ie,js:je,k,m) / ps_dt(is:ie,js:je)
-            else
-              qdiag(is:ie,js:je,k,m) = qdiag(is:ie,js:je,k,m) / ps_dt(is:ie,js:je)
-            endif
-          endif
-        enddo
-      endif
-#endif
 
       if ( hydrostatic ) then
          do j=js,je
@@ -377,11 +245,6 @@ module fv_update_phys_mod
            ps(i,j) = pe(i,npz+1,j)
          enddo
         enddo
-#ifndef GFS_PHYS
-        call fv_nwp_nudge ( Time, dt, npx, npy, npz,  ps_dt, u_dt, v_dt, t_dt, q_dt,   &
-                            zvir, ptop, ak, bk, ts, ps, delp, ua, va, pt,    &
-                            nwat, q,  phis, gridstruct, bd, domain )
-#endif
   endif         ! end nudging       
 
   if ( .not.flagstruct%dwind_2d ) then

@@ -61,7 +61,7 @@ subroutine tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, n
       real :: xfx(bd%is:bd%ie+1,bd%jsd:bd%jed  ,npz)
       real :: yfx(bd%isd:bd%ied,bd%js: bd%je+1, npz)
       real :: cmax(npz)
-      real :: cmax_t, frac
+      real :: frac
       integer :: nsplt
       integer :: i,j,k,it,iq
 
@@ -91,15 +91,14 @@ subroutine tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, n
       dy     => gridstruct%dy  
 
 !$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,cx,xfx,dxa,dy, &
-!$OMP                                  sin_sg,cy,yfx,dya,dx,cmax)   &
-!$OMP                          private( cmax_t )
+!$OMP                                  sin_sg,cy,yfx,dya,dx,cmax)
   do k=1,npz
      do j=jsd,jed
         do i=is,ie+1
            if (cx(i,j,k) > 0.) then
               xfx(i,j,k) = cx(i,j,k)*dxa(i-1,j)*dy(i,j)*sin_sg(i-1,j,3)
            else
-              xfx(i,j,k) = cx(i,j,k)*dxa(i,j)*dy(i,j)*sin_sg(i,j,1)
+              xfx(i,j,k) = cx(i,j,k)*dxa(i,  j)*dy(i,j)*sin_sg(i,  j,1)
            endif
         enddo
      enddo
@@ -108,26 +107,24 @@ subroutine tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, n
            if (cy(i,j,k) > 0.) then
               yfx(i,j,k) = cy(i,j,k)*dya(i,j-1)*dx(i,j)*sin_sg(i,j-1,4)
            else
-              yfx(i,j,k) = cy(i,j,k)*dya(i,j)*dx(i,j)*sin_sg(i,j,2)
+              yfx(i,j,k) = cy(i,j,k)*dya(i,j  )*dx(i,j)*sin_sg(i,j,  2)
            endif
         enddo
      enddo
 
      cmax(k) = 0.
      if ( k < npz/6 ) then
-        do j=js,je
-           do i=is,ie
-              cmax_t  = max( abs(cx(i,j,k)), abs(cy(i,j,k)) )
-              cmax(k) = max( cmax_t, cmax(k) )
-           enddo
-        enddo
+          do j=js,je
+             do i=is,ie
+                cmax(k) = max( cmax(k), abs(cx(i,j,k)), abs(cy(i,j,k)) )
+             enddo
+          enddo
      else
-        do j=js,je
-           do i=is,ie
-              cmax_t  = max(abs(cx(i,j,k)), abs(cy(i,j,k))) + 1.-sin_sg(i,j,5)
-              cmax(k) = max( cmax_t, cmax(k) )
-           enddo
-        enddo
+          do j=js,je
+             do i=is,ie
+                cmax(k) = max( cmax(k), max(abs(cx(i,j,k)),abs(cy(i,j,k)))+1.-sin_sg(i,j,5) )
+             enddo
+          enddo
      endif
   enddo  ! k-loop
 
@@ -201,6 +198,7 @@ subroutine tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, n
 !$OMP                                  nord_tr,nq,gridstruct,bd,cy,yfx,mfx,mfy,qn2,q,ra_x,ra_y,dp1,dp2,rarea) &
 !$OMP                          private(fx,fy)
         do iq=1,nq
+        if ( nsplt /= 1 ) then
            if ( it==1 ) then
               do j=jsd,jed
                  do i=isd,ied
@@ -208,18 +206,9 @@ subroutine tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, n
                  enddo
               enddo
            endif
-
-           if ( it==1 .and. trdm>1.e-4 ) then
-            call fv_tp_2d(qn2(isd,jsd,iq), cx(is,jsd,k), cy(isd,js,k), &
-                          npx, npy, hord, fx, fy, xfx(is,jsd,k), yfx(isd,js,k), &
-                          gridstruct, bd, ra_x, ra_y, mfx=mfx(is,js,k), mfy=mfy(is,js,k),   &
-                          mass=dp1(isd,jsd,k), nord=nord_tr, damp_c=trdm)
-           else
            call fv_tp_2d(qn2(isd,jsd,iq), cx(is,jsd,k), cy(isd,js,k), &
                          npx, npy, hord, fx, fy, xfx(is,jsd,k), yfx(isd,js,k), &
                          gridstruct, bd, ra_x, ra_y, mfx=mfx(is,js,k), mfy=mfy(is,js,k))
-           endif
-
            if ( it < nsplt ) then   ! not last call
               do j=js,je
               do i=is,ie
@@ -233,7 +222,18 @@ subroutine tracer_2d_1L(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, n
               enddo
               enddo
            endif
+        else
+           call fv_tp_2d(q(isd,jsd,k,iq), cx(is,jsd,k), cy(isd,js,k), &
+                         npx, npy, hord, fx, fy, xfx(is,jsd,k), yfx(isd,js,k), &
+                         gridstruct, bd, ra_x, ra_y, mfx=mfx(is,js,k), mfy=mfy(is,js,k))
+           do j=js,je
+              do i=is,ie
+                 q(i,j,k,iq) = (q(i,j,k,iq)*dp1(i,j,k)+(fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*rarea(i,j))/dp2(i,j)
+              enddo
+           enddo
+        endif
         enddo   !  tracer-loop
+
         if ( it < nsplt ) then   ! not last call
              do j=js,je
                 do i=is,ie
@@ -283,7 +283,6 @@ subroutine tracer_2d(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy,
       real :: xfx(bd%is:bd%ie+1,bd%jsd:bd%jed  ,npz)
       real :: yfx(bd%isd:bd%ied,bd%js: bd%je+1, npz)
       real :: cmax(npz)
-      real :: cmax_t
       real :: c_global
       real :: frac, rdt
       integer :: ksplt(npz)
@@ -316,8 +315,7 @@ subroutine tracer_2d(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy,
       dy     => gridstruct%dy  
 
 !$OMP parallel do default(none) shared(is,ie,js,je,isd,ied,jsd,jed,npz,cx,xfx,dxa,dy, &  
-!$OMP                                  sin_sg,cy,yfx,dya,dx,cmax,q_split,ksplt)    &
-!$OMP                          private(cmax_t )
+!$OMP                                  sin_sg,cy,yfx,dya,dx,cmax,q_split,ksplt)
     do k=1,npz
        do j=jsd,jed
           do i=is,ie+1
@@ -343,15 +341,13 @@ subroutine tracer_2d(q, dp1, mfx, mfy, cx, cy, gridstruct, bd, domain, npx, npy,
          if ( k < npz/6 ) then
             do j=js,je
                do i=is,ie
-                  cmax_t  = max( abs(cx(i,j,k)), abs(cy(i,j,k)) )
-                  cmax(k) = max( cmax_t, cmax(k) )
+                  cmax(k) = max( cmax(k), abs(cx(i,j,k)), abs(cy(i,j,k)) )
                enddo
             enddo
          else
             do j=js,je
                do i=is,ie
-                  cmax_t  = max(abs(cx(i,j,k)), abs(cy(i,j,k))) + 1.-sin_sg(i,j,5)
-                  cmax(k) = max( cmax_t, cmax(k) )
+                  cmax(k) = max( cmax(k), max(abs(cx(i,j,k)),abs(cy(i,j,k)))+1.-sin_sg(i,j,5) )
                enddo
             enddo
          endif

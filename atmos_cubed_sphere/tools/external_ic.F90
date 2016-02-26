@@ -909,9 +909,9 @@ contains
         call restore_state (SFC_restart)
         call restore_state (GFS_restart)
         ! free the restart type to be re-used by the nest
-!rab        call free_restart_type(ORO_restart)
-!rab        call free_restart_type(SFC_restart)
-!rab        call free_restart_type(GFS_restart)
+        call free_restart_type(ORO_restart)
+        call free_restart_type(SFC_restart)
+        call free_restart_type(GFS_restart)
 
         ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
         zs = zs*grav

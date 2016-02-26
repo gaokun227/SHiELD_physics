@@ -106,7 +106,7 @@
          enddo; enddo
          ! cludge for now; need resizing accessor
          field%size(1) = nelems
-         call write_record( unit, field, nelems*nz, cdata, tstamp)
+         call write_record_r4( unit, field, nelems*nz, cdata, tstamp)
          deallocate(rbuff,cdata)
       endif
 

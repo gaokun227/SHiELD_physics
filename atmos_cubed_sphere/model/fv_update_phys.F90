@@ -219,6 +219,7 @@ module fv_update_phys_mod
 !----------------
 ! Update tracers:
 !----------------
+#ifndef GFS_PHYS
        do m=1,nq
           if( m /= w_diff ) then 
           do j=js,je
@@ -228,6 +229,7 @@ module fv_update_phys_mod
           enddo
           endif
        enddo
+#endif
 
 !--------------------------------------------------------
 ! Adjust total air mass due to changes in water substance
@@ -268,12 +270,14 @@ module fv_update_phys_mod
         enddo
       elseif( nwat==2 ) then
 ! NGGPS-GFS: the total condensate is "liq_wat"
+#ifndef GFS_PHYS
         do j=js,je
            do i=is,ie
-               ps_dt(i,j) = 1. + dt*(q_dt(i,j,k,sphum) + q_dt(i,j,k,liq_wat))
+               ps_dt(i,j) = 1.d0 + q_dt(i,j,k,sphum) + q_dt(i,j,k,liq_wat)
               delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
            enddo
         enddo
+#endif
       elseif ( nwat>0 ) then
         do j=js,je
            do i=is,ie
@@ -286,6 +290,7 @@ module fv_update_phys_mod
 !-----------------------------------------
 ! Adjust mass mixing ratio of all tracers 
 !-----------------------------------------
+#ifndef GFS_PHYS
       if ( nwat /=0 ) then
         do m=1,flagstruct%ncnst
 !-- check to query field_table to determine if tracer needs mass adjustment
@@ -298,6 +303,7 @@ module fv_update_phys_mod
           endif
         enddo
       endif
+#endif
 
       if ( hydrostatic ) then
          do j=js,je
@@ -371,9 +377,11 @@ module fv_update_phys_mod
            ps(i,j) = pe(i,npz+1,j)
          enddo
         enddo
+#ifndef GFS_PHYS
         call fv_nwp_nudge ( Time, dt, npx, npy, npz,  ps_dt, u_dt, v_dt, t_dt, q_dt,   &
                             zvir, ptop, ak, bk, ts, ps, delp, ua, va, pt,    &
                             nwat, q,  phis, gridstruct, bd, domain )
+#endif
   endif         ! end nudging       
 
   if ( .not.flagstruct%dwind_2d ) then

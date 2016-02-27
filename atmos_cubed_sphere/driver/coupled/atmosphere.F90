@@ -703,8 +703,7 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q0, q1, q2, q3, rdt
-   real:: dp
+   real(kind=kind_phys):: rcp, q0, qc, rdt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -720,7 +719,7 @@ contains
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
 !$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (dp,q0,q1,q2,q3,nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
+!$OMP             private (q0,qc,nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -740,25 +739,22 @@ contains
          u_dt(i,j,k1) = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k)) * rdt
          v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
          t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
-!
+! GFS definition of total air mass (minus condensates)
          q0 = Statein(nb)%prsi(ix,k) - Statein(nb)%prsi(ix,k+1)
-! tracer mass increments:
-         q1 = q0*(Stateout(nb)%gq0(ix,k,1) - Statein(nb)%qgrs(ix,k,1))
-         q2 = q0*(Stateout(nb)%gq0(ix,k,2) - Statein(nb)%qgrs(ix,k,2))
-         q3 = q0*(Stateout(nb)%gq0(ix,k,3) - Statein(nb)%qgrs(ix,k,3))
-! Original total air mass:  64bit <-- 32bit
-         dp = Atm(n)%delp(i,j,k1)
-! Updated total air mass:
-         q0 = q1 + q2 + dp
-         Atm(n)%delp(i,j,k1) = q0
-         Atm(n)%q(i,j,k1,1)  = (q1+dp*Atm(n)%q(i,j,k1,1)) / q0
-         Atm(n)%q(i,j,k1,2)  = (q2+dp*Atm(n)%q(i,j,k1,2)) / q0
-         Atm(n)%q(i,j,k1,3)  = (q3+dp*Atm(n)%q(i,j,k1,3)) / q0
+! qc = Updated total air mass in 64bit precision
+         qc = Atm(n)%delp(i,j,k1) + q0*( Stateout(nb)%gq0(ix,k,1)+Stateout(nb)%gq0(ix,k,2) -   &
+                                        (Statein(nb)%qgrs(ix,k,1)+Statein(nb)%qgrs(ix,k,2)) )
+         Atm(n)%delp(i,j,k1) = qc
+         qc = q0/qc   ! 64bit conversion factor
+! Final updates to tracer mixing ratios:
+         Atm(n)%q(i,j,k1,1) = qc*Stateout(nb)%gq0(ix,k,1)
+         Atm(n)%q(i,j,k1,2) = qc*Stateout(nb)%gq0(ix,k,2)
+         Atm(n)%q(i,j,k1,3) = qc*Stateout(nb)%gq0(ix,k,3)
        enddo
       enddo
      enddo
 
-!rab#ifdef GFS_TRACER_TRANSPORT
+#ifdef GFS_TRACER_TRANSPORT
 ! The following does nothing...
      if ( nq > 3 ) then
      do iq=4, nq
@@ -774,7 +770,7 @@ contains
        enddo
      enddo
      endif
-!rab#endif
+#endif
 
      !--- diagnostic tracers are being updated in-place
      !--- tracer fields must be returned to the Atm structure

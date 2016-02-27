@@ -739,10 +739,18 @@ contains
          u_dt(i,j,k1) = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k)) * rdt
          v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
          t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
-! GFS definition of total air mass = dry_air + water_vapor
-         q0 = 1.d0 + Stateout(nb)%gq0(ix,k,2)
+
+! GFS total air mass:  = dry_mass + water_vapor (condensate excluded)
+! GFS mixing ratios: q = tracer_mass / (air_mass + vapor_mass)
+ 
+! FV3 total air mass:   Atm%delp = dry_mass + [water_vapor + condensate ]
+! FV3 mixing ratios:       Atm%q = tracer_mass / (dry_mass+vapor_mass+cond_mass)
+
+         q0 = 1.0_kind_phys - Statein(nb)%qgrs(ix,k,1) + Stateout(nb)%gq0(ix,k,1) + Stateout(nb)%gq0(ix,k,2)
          Atm(n)%delp(i,j,k1) = q0*(Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))
-! Direct updates to tracer mixing ratios:
+! Note: the last term within the () above is the GFS air_mass (dry + vapor_at_input_time)
+
+!  Atm(n)%q(i,j,k1,1:3) = Stateout(nb)%gq0(ix,k,1:3) / q0  ! is this faster?
          Atm(n)%q(i,j,k1,1) = Stateout(nb)%gq0(ix,k,1) / q0
          Atm(n)%q(i,j,k1,2) = Stateout(nb)%gq0(ix,k,2) / q0
          Atm(n)%q(i,j,k1,3) = Stateout(nb)%gq0(ix,k,3) / q0
@@ -750,7 +758,7 @@ contains
       enddo
      enddo
 
-#ifdef GFS_TRACER_TRANSPORT
+!rab#ifdef GFS_TRACER_TRANSPORT
 ! The following does nothing...
      if ( nq > 3 ) then
      do iq=4, nq
@@ -766,7 +774,7 @@ contains
        enddo
      enddo
      endif
-#endif
+!rab#endif
 
      !--- diagnostic tracers are being updated in-place
      !--- tracer fields must be returned to the Atm structure

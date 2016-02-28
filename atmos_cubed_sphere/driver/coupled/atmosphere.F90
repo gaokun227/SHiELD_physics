@@ -703,7 +703,7 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q0, rdt
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, rdt, ps_dt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -719,7 +719,7 @@ contains
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
 !$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (q0,nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, ps_dt)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -740,6 +740,7 @@ contains
          v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
          t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
 
+#ifdef USE_LATEST_TRACER_UPDATE
 ! GFS total air mass:  = dry_mass + water_vapor (condensate excluded)
 ! GFS mixing ratios: q = tracer_mass / (air_mass + vapor_mass)
  
@@ -754,6 +755,22 @@ contains
          Atm(n)%q(i,j,k1,1) = Stateout(nb)%gq0(ix,k,1) / q0
          Atm(n)%q(i,j,k1,2) = Stateout(nb)%gq0(ix,k,2) / q0
          Atm(n)%q(i,j,k1,3) = Stateout(nb)%gq0(ix,k,3) / q0
+#else
+         q2 = Atm(n)%delp(i,j,k1)   ! convert to GFS precision (64-bit) in case FV3 uses 32-bit
+! q1: water vapor
+         q3 = (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1)) / q2 ! q3 is mixing ratio adjustment
+         q1 = q3*(Stateout(nb)%gq0(ix,k,1) - Statein(nb)%qgrs(ix,k,1))
+         Atm(n)%q(i,j,k1,1) = Atm(n)%q(i,j,k1,1) + q1
+! q2: cloud condensate
+         q2 = q3*(Stateout(nb)%gq0(ix,k,2) - Statein(nb)%qgrs(ix,k,2))
+         Atm(n)%q(i,j,k1,2) = Atm(n)%q(i,j,k1,2) + q2
+         Atm(n)%q(i,j,k1,3) = Atm(n)%q(i,j,k1,3) + q3*(Stateout(nb)%gq0(ix,k,3)-Statein(nb)%qgrs(ix,k,3))
+         ps_dt = 1.d0 + q1 + q2
+         Atm(n)%delp(i,j,k1) = Atm(n)%delp(i,j,k1)*ps_dt
+         Atm(n)%q(i,j,k1,1)  = Atm(n)%q(i,j,k1,1)/ps_dt
+         Atm(n)%q(i,j,k1,2)  = Atm(n)%q(i,j,k1,2)/ps_dt
+         Atm(n)%q(i,j,k1,3)  = Atm(n)%q(i,j,k1,3)/ps_dt
+#endif
        enddo
       enddo
      enddo

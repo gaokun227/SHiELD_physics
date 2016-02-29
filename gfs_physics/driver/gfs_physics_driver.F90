@@ -457,7 +457,7 @@ module gfs_physics_driver_mod
       call Sfc_props(nb)%setrad  (ngptc, Mdl_parms, .FALSE.)  ! last argument determines gsm vs atmos-only
       call Sfc_props(nb)%setphys (ngptc, Mdl_parms)
       call Cld_props(nb)%setrad  (ngptc, Mdl_parms, sup)
-      call Cld_props(nb)%setphys (ngptc, Mdl_parms, sup)
+      call Cld_props(nb)%setphys (ngptc, Mdl_parms, sup, flgmin)
       call Rad_tends(nb)%set     (ngptc, Mdl_parms)
       call Intr_flds(nb)%setrad  (ngptc, Mdl_parms, SW0, SWB, LW0, LWB)
       call Intr_flds(nb)%setphys (ngptc, Mdl_parms)
@@ -600,6 +600,7 @@ module gfs_physics_driver_mod
     integer :: ibs, ibe, jbs, jbe, nx, ny, ngptc
     integer :: sec, ipseed, fms_date(8)
     integer :: numrdm(lon_cs*lat_cs*2)
+    logical :: lsswr, lslwr
     type (random_stat) :: stat
     real(kind=kind_phys) :: phour, fhour
     real(kind=kind_phys) :: work1, work2
@@ -612,6 +613,8 @@ module gfs_physics_driver_mod
     phour = real(sec)/3600.
     call get_time(Time - Time_init, sec)
     fhour = real(sec)/3600.
+    lsswr = (mod(Dyn_parms(1)%kdt+1, nsswr) == 1)
+    lslwr = (mod(Dyn_parms(1)%kdt+1, nslwr) == 1)
 
     if (debug .and. mpp_pe() == mpp_root_pe()) then
       print *,'   kdt ', Dyn_parms(1)%kdt + 1
@@ -621,16 +624,18 @@ module gfs_physics_driver_mod
     endif
 
 !--- set up random seed index for the whole tile in a reproducible way
-    if (isubc_lw==2 .or. isubc_sw==2) then
-      ipseed = mod(nint(100.0*sqrt(real(sec))), ipsdlim) + 1 + ipsd0
-      call random_setseed (ipseed, stat)
-      call random_index (ipsdlim, numrdm, stat)
+    if (lsswr .or. lslwr) then
+      if (isubc_lw==2 .or. isubc_sw==2) then
+        ipseed = mod(nint(100.0*sqrt(real(sec))), ipsdlim) + 1 + ipsd0
+        call random_setseed (ipseed, stat)
+        call random_index (ipsdlim, numrdm, stat)
+      endif
     endif
 
 !$OMP PARALLEL DO default(none) &
-!$OMP              shared(Atm_block,Dyn_parms,fhour,fms_date,phour,Mdl_parms,nsswr, &
-!$OMP                     nslwr,isubc_lw,isubc_sw,numrdm,lon_cs,lat_cs,dxmin,dxinv, &
-!$OMP                     Cld_props,flgmin,ozcalc,O3dat,ozplin,Tbd_data)            &
+!$OMP              shared(Atm_block,Dyn_parms,fhour,fms_date,phour,Mdl_parms,nsswr,  &
+!$OMP                     nslwr,isubc_lw,isubc_sw,numrdm,lon_cs,lat_cs,dxmin,dxinv,  &
+!$OMP                     Cld_props,flgmin,ozcalc,O3dat,ozplin,Tbd_data,lsswr,lslwr) &
 !$OMP             private(nb,ibs,ibe,jbs,jbe,nx,ny,ngptc,ix,j,i,work1)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
@@ -655,8 +660,8 @@ module gfs_physics_driver_mod
 !--- set the solar hour based on a combination of phour and time initial hour
       Dyn_parms(nb)%solhr = mod(phour+Mdl_parms%idate(1),cons_24)
 !--- radiation triggers
-      Dyn_parms(nb)%lsswr = (mod(Dyn_parms(nb)%kdt, nsswr) == 1)
-      Dyn_parms(nb)%lslwr = (mod(Dyn_parms(nb)%kdt, nslwr) == 1)
+      Dyn_parms(nb)%lsswr = lsswr
+      Dyn_parms(nb)%lslwr = lslwr
 ! **************  Ken Campana Stuff  ********************************
 !...  set switch for saving convective clouds
       if(Dyn_parms(nb)%lsswr) then
@@ -667,14 +672,16 @@ module gfs_physics_driver_mod
 ! **************  Ken Campana Stuff  ********************************
 
 !--- set the random seeds for each column
-      if (isubc_lw==2 .or. isubc_sw==2) then
+      if (lsswr .or. lslwr) then
         ix = 0 
         do j = 1,ny
           do i = 1,nx
             ix = ix + 1
-            !for testing purposes, replace numrdm with '100'
-            Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs)
-            Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs + lat_cs*lon_cs)
+            if (isubc_lw==2 .or. isubc_sw==2) then
+              !for testing purposes, replace numrdm with '100'
+              Dyn_parms(nb)%icsdsw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs)
+              Dyn_parms(nb)%icsdlw(ix) = numrdm(i+ibs-1 + (j+jbs-2)*lon_cs + lat_cs*lon_cs)
+            endif
 
             if (Mdl_parms%num_p3d == 3) then
               work1 = (log(Dyn_parms(nb)%dx(ix)) - dxmin) * dxinv

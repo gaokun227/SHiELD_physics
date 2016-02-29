@@ -138,6 +138,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
     if ((nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
       timestamp = date_to_string (Time_restart)
       call atmos_model_restart(Atm, timestamp)
+      call coupler_res(timestamp)
       Time_restart = Time_restart + Time_step_restart
     endif
   endif
@@ -402,6 +403,32 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
 !-----------------------------------------------------------------------
 
    end subroutine coupler_init
+
+!#######################################################################
+   subroutine coupler_res(timestamp)
+    character(len=32), intent(in) :: timestamp
+
+    integer :: unit, date(6)
+
+!----- compute current date ------
+
+      call get_date (Time_atmos, date(1), date(2), date(3),  &
+                                 date(4), date(5), date(6))
+
+!----- write restart file ------
+
+    if (mpp_pe() == mpp_root_pe())then
+        call mpp_open( unit, 'RESTART/'//trim(timestamp)//'.coupler.res', nohdrs=.TRUE. )
+        write( unit, '(i6,8x,a)' )calendar_type, &
+             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
+
+        write( unit, '(6i6,8x,a)' )date_init, &
+             'Model start time:   year, month, day, hour, minute, second'
+        write( unit, '(6i6,8x,a)' )date, &
+             'Current model time: year, month, day, hour, minute, second'
+        call mpp_close(unit)
+    endif
+   end subroutine coupler_res
 
 !#######################################################################
 

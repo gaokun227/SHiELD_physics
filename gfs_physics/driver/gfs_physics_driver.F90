@@ -211,6 +211,7 @@ module gfs_physics_driver_mod
     logical :: shocaftcnv = .false.
     integer :: ntot3d     = 4
     integer :: ntot2d     = 3
+    logical :: shoc_cld   = .false.
 ! Radiation option control parameters
     integer :: ictm     = 1 
     integer :: isol     = 2
@@ -409,7 +410,7 @@ module gfs_physics_driver_mod
                           cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                           ! For radiation
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
-                          iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
+                          iovr_sw,iovr_lw,isubc_sw,isubc_lw,shoc_cld,   &
                           sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dt_phys,unit)
     call close_file (unit)
 
@@ -580,6 +581,15 @@ module gfs_physics_driver_mod
          print *, "norad_precip : ", norad_precip
          print *, "idate : ", Mdl_parms%idate
          print *, "iflip : ", iflip
+         print *, "cscnv : ", Mdl_parms%cscnv
+         print *, " nctp : ", Mdl_parms%nctp
+         print *, " ntke : ", Mdl_parms%ntke
+         print *, " do_shoc : ", Mdl_parms%do_shoc
+         print *, " shocaftcnv : ", Mdl_parms%shocaftcnv
+         print *, " ntot3d : ", Mdl_parms%ntot3d
+         print *, " ntot2d : ", Mdl_parms%ntot2d
+         print *, " shoc_cld : ", Mdl_parms%shoc_cld
+
        end if ! debug
 
   end subroutine phys_rad_driver_init

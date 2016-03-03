@@ -582,13 +582,13 @@ module gfs_physics_driver_mod
          print *, "idate : ", Mdl_parms%idate
          print *, "iflip : ", iflip
          print *, "cscnv : ", Mdl_parms%cscnv
-         print *, " nctp : ", Mdl_parms%nctp
-         print *, " ntke : ", Mdl_parms%ntke
-         print *, " do_shoc : ", Mdl_parms%do_shoc
-         print *, " shocaftcnv : ", Mdl_parms%shocaftcnv
-         print *, " ntot3d : ", Mdl_parms%ntot3d
-         print *, " ntot2d : ", Mdl_parms%ntot2d
-         print *, " shoc_cld : ", Mdl_parms%shoc_cld
+         print *, "nctp : ", Mdl_parms%nctp
+         print *, "ntke : ", Mdl_parms%ntke
+         print *, "do_shoc : ", Mdl_parms%do_shoc
+         print *, "shocaftcnv : ", Mdl_parms%shocaftcnv
+         print *, "ntot3d : ", Mdl_parms%ntot3d
+         print *, "ntot2d : ", Mdl_parms%ntot2d
+         print *, "shoc_cld : ", Mdl_parms%shoc_cld
 
        end if ! debug
 

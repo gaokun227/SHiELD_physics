@@ -1987,7 +1987,7 @@
                                  cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                                  ! For radiation
                                  si, ictm, isol, ico2, iaer, ialb, iems,                    &
-                                 iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
+                                 iovr_sw,iovr_lw,isubc_sw,isubc_lw,shoc_cld,   &
                                  sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dtp,nlunit)
 
          ! use physcons, only: dxmin, dxmax, dxinv
@@ -2159,6 +2159,7 @@
          mdl%shocaftcnv       = shocaftcnv
          mdl%ntot3d           = ntot3d
          mdl%ntot2d           = ntot2d
+         mdl%shoc_cld         = shoc_cld
 
          ! physcons module variables
          dxmax = dxmaxin

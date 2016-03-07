@@ -393,7 +393,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
                              Atmos%dxmax,       &
                              dt_phys,           &
                              Atm_block,         &
-                             Statein, Stateout) 
+                             Statein, Stateout, &
+                             Atmos%domain) 
 
 !---- print version number to logfile ----
 

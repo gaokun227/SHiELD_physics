@@ -950,7 +950,12 @@
         tice(i) = tisfc(i)
 !
 !GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
-        work1(i)   = (log(dx(i)) - dxmin) * dxinv
+!GFDL   nlons will contain the global number of columns for the blending function
+        if (coslat(i) .le. 0._kind_phys) then
+          work1(i) = 1._kind_phys
+        else
+          work1(i)   = (log(coslat(i) / nlons(i)) - dxmin) * dxinv
+        endif
         work1(i)   = max(0.0, min(1.0,work1(i)))
         work2(i)   = 1.0 - work1(i)
         psurf(i)   = pgr(i)

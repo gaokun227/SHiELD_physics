@@ -1919,7 +1919,7 @@
 
 
        subroutine dyn_param_setphys (this, IX, IM, solhr, kdt, lssav, lat, dtp, dtf, &
-                                     clstp, nnp, fhour)
+                                     clstp, nnp, fhour, nlons)
 !GFDL       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
 !GFDL                                     kdt, lssav, lat, dtp, dtf, clstp,       &
 !GFDL                                     nnp, nlons, fhour, slag, sdec, cdec )
@@ -1928,7 +1928,7 @@
          class(dynamic_parameters) :: this
 
          real (kind=kind_phys) :: solhr
-         integer, intent(in) :: IX, IM, kdt
+         integer, intent(in) :: IX, IM, kdt, nlons
          logical :: lssav 
 
          ! Physics only
@@ -1961,7 +1961,7 @@
              this%fhour = fhour
 
              !  set a default value for nlons
-             this%nlons(:) = -9999
+             this%nlons(:) = nlons
            class default
              print *, "class default"
          end select

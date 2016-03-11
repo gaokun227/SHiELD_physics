@@ -699,7 +699,7 @@ module gfs_physics_driver_mod
             endif
 
             if (Mdl_parms%num_p3d == 3) then
-              work1 = (log(Dyn_parms(nb)%dx(ix)) - dxmin) * dxinv
+              work1 = (log(Dyn_parms(nb)%coslat(ix)/Dyn_parms(nb)%nlons(ix)) - dxmin) * dxinv
               work1 = max(0.0, min(1.0,work1))
               Cld_props(nb)%flgmin(ix) = flgmin(1)*work1 + flgmin(2)*(1.0-work1)
             else

@@ -41,6 +41,8 @@ module gfs_physics_driver_mod
                                 diagnostics, tbd_ddt
 !--- GFS Physics share module ---
   use physcons,           only: pi => con_pi
+  use physcons,           only: max_lon, max_lat
+  use physcons,           only: min_lon, min_lat
   use physcons,           only: dxmax, dxmin, dxinv, con_g
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
@@ -158,6 +160,7 @@ module gfs_physics_driver_mod
     logical :: nocnv    = .false.
     integer :: levs     = 63
     integer :: levr     = 63
+    integer :: ncols    = 3538944 ! total number of 13km physics columns
     integer :: me           ! set by call to mpp_pe
     integer :: lsoil    = 4
     integer :: lsm      = 1      ! NOAH LSM
@@ -250,7 +253,7 @@ module gfs_physics_driver_mod
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
-                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -265,16 +268,15 @@ module gfs_physics_driver_mod
 !--- phys_rad_driver_init ---
 !    constructor for gfs_physics_driver_mod
 !---------------------------------------------------------------------
-  subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz,       &
-                                   axes, dx, dy, area, indxmin, indxmax,  &
+  subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz, axes, area,  &
                                    dt_phys, Atm_block, State_in, State_out, fv_domain)
     type(time_type),           intent(in) :: Time, Time_init
     type (block_control_type), intent(in) :: Atm_block
     !--  set "one"-based arrays to domain-based
-    real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
+    real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
-    real (kind=kind_phys),     intent(in) :: indxmin, indxmax, dt_phys
+    real (kind=kind_phys),     intent(in) :: dt_phys
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
     type (domain2d),           intent(in) :: fv_domain
@@ -287,7 +289,6 @@ module gfs_physics_driver_mod
     integer :: idate(4) = (/0, 1, 1, 1/)
     real(kind=kind_phys) :: solhr = 0.0   
     real(kind=kind_phys) :: fhour = 0.
-    real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
     logical :: sas_shal
     real (kind=kind_phys) :: si(64)
     data si  /1.000000,      0.984375,      0.968750,      &
@@ -398,16 +399,19 @@ module gfs_physics_driver_mod
     unit = open_namelist_file ()
 
     me = mpp_pe()
-    dxmaxin = log(indxmax)
-    dxminin = log(indxmin)
-    dxinvin = 1.0/(dxmaxin-dxminin)
+!---these have been replaced by the original NCEP/EMC definitions
+!rab    dxmaxin = log(indxmax)
+!rab    dxminin = log(indxmin)
+    dxmin = log(1.0_kind_phys/(min_lon*min_lat))
+    dxmax = log(1.0_kind_phys/(max_lon*max_lat))
+    dxinv = 1.0_kind_phys/(dxmax-dxmin)
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
                           lonr, latr, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
                           gen_coord_hybrid, npz, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
-                          dxmaxin, dxminin, dxinvin, ozcalc,nocnv, &
+                          dxmax, dxmin, dxinv, ozcalc,nocnv,&
                           ! NEW from nems_slg_shoc
                           cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                           ! For radiation
@@ -454,7 +458,7 @@ module gfs_physics_driver_mod
       call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, fhlwr, fhswr, &
                                   lssav, ipt, lprnt, dt_phys)
       call Dyn_parms(nb)%setphys (ngptc, ngptc, solhr, kdt, lssav, latgfs, &
-                                  dt_phys, dt_phys, clstp, nnp, fhour)
+                                  dt_phys, dt_phys, clstp, nnp, fhour, ncols)
       call Gfs_diags(nb)%setrad  (ngptc, NFXR)
       call Gfs_diags(nb)%setphys (ngptc, Mdl_parms)
       call Sfc_props(nb)%setrad  (ngptc, Mdl_parms, .FALSE.)  ! last argument determines gsm vs atmos-only
@@ -508,8 +512,8 @@ module gfs_physics_driver_mod
 !--- mark the module as initialized ---
       module_is_initialized = .true.
 
-      if ( (debug) .and. (me==0) ) then
-         print *, "DEBUG IN DRIVER AFTER setup"
+      if (me==0) then
+         print *, "in DRIVER AFTER setup"
          print *, "ntcw : ", Mdl_parms%ntcw
          print *, "ncld : ", Mdl_parms%ncld
          print *, "ntoz : ", Mdl_parms%ntoz
@@ -563,9 +567,9 @@ module gfs_physics_driver_mod
          print *, "redrag : ", Mdl_parms%redrag
          print *, "hybedmf : ", Mdl_parms%hybedmf
          print *, "dspheat : ", Mdl_parms%dspheat
-         print *, "dxmaxin : ", dxmaxin
-         print *, "dxminin : ", dxminin
-         print *, "dxinvin : ", dxinvin
+         print *, "dxmax : ", dxmax
+         print *, "dxmin : ", dxmin
+         print *, "dxinv : ", dxinv
          print *, "si : ", si
          print *, "ictm : ", ictm
          print *, "isol : ", isol
@@ -591,8 +595,7 @@ module gfs_physics_driver_mod
          print *, "ntot3d : ", Mdl_parms%ntot3d
          print *, "ntot2d : ", Mdl_parms%ntot2d
          print *, "shoc_cld : ", Mdl_parms%shoc_cld
-
-       end if ! debug
+       end if ! parameter output
 
   end subroutine phys_rad_driver_init
 !-----------------------------------------------------------------------

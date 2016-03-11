@@ -19,8 +19,9 @@ module gfs_physics_driver_mod
                                 file_exist, open_file, close_file,    &
                                 error_mesg, FATAL, WARNING, NOTE,     &
                                 write_version_number, field_exist
-  use fms_io_mod,         only: restart_file_type, register_restart_field, &
-                                restore_state, save_restart, &
+  use fms_io_mod,         only: restart_file_type, free_restart_type, &
+                                register_restart_field,               &
+                                restore_state, save_restart,          &
                                 get_mosaic_tile_file, read_data
   use mpp_domains_mod,    only: domain2d
   use time_manager_mod,   only: time_type, get_date, get_time, operator(-)
@@ -40,6 +41,8 @@ module gfs_physics_driver_mod
                                 diagnostics, tbd_ddt
 !--- GFS Physics share module ---
   use physcons,           only: pi => con_pi
+  use physcons,           only: max_lon, max_lat
+  use physcons,           only: min_lon, min_lat
   use physcons,           only: dxmax, dxmin, dxinv, con_g
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
@@ -86,12 +89,12 @@ module gfs_physics_driver_mod
   type(interface_fields),     dimension(:), allocatable :: Intr_flds
 
 !--- netcdf restart
-  type(restart_file_type) :: Phy_restart
+  type(restart_file_type) :: Oro_restart
   type(restart_file_type) :: Sfc_restart
 
 !--- Restart containers
-  character(len=32),    allocatable,         dimension(:)       :: sfc_name2, sfc_name3
-  real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: sfc_var2
+  character(len=32),    allocatable,         dimension(:)       :: oro_name2, sfc_name2, sfc_name3
+  real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: oro_var2, sfc_var2
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3
   real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: phy_f2d
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: phy_f3d
@@ -157,6 +160,7 @@ module gfs_physics_driver_mod
     logical :: nocnv    = .false.
     integer :: levs     = 63
     integer :: levr     = 63
+    integer :: ncols    = 3538944 ! total number of 13km physics columns
     integer :: me           ! set by call to mpp_pe
     integer :: lsoil    = 4
     integer :: lsm      = 1      ! NOAH LSM
@@ -249,7 +253,7 @@ module gfs_physics_driver_mod
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
-                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -264,18 +268,18 @@ module gfs_physics_driver_mod
 !--- phys_rad_driver_init ---
 !    constructor for gfs_physics_driver_mod
 !---------------------------------------------------------------------
-  subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz,       &
-                                   axes, dx, dy, area, indxmin, indxmax,  &
-                                   dt_phys, Atm_block, State_in, State_out)
+  subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz, axes, area,  &
+                                   dt_phys, Atm_block, State_in, State_out, fv_domain)
     type(time_type),           intent(in) :: Time, Time_init
     type (block_control_type), intent(in) :: Atm_block
     !--  set "one"-based arrays to domain-based
-    real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, dx, dy, area
+    real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
-    real (kind=kind_phys), intent(in) :: indxmin, indxmax, dt_phys
+    real (kind=kind_phys),     intent(in) :: dt_phys
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
+    type (domain2d),           intent(in) :: fv_domain
 !--- local variables
     integer :: ierr, io, unit, logunit, outunit
     integer :: nb, ibs, ibe, jbs, jbe, ngptc
@@ -285,7 +289,6 @@ module gfs_physics_driver_mod
     integer :: idate(4) = (/0, 1, 1, 1/)
     real(kind=kind_phys) :: solhr = 0.0   
     real(kind=kind_phys) :: fhour = 0.
-    real (kind=kind_phys) :: dxmaxin, dxminin, dxinvin
     logical :: sas_shal
     real (kind=kind_phys) :: si(64)
     data si  /1.000000,      0.984375,      0.968750,      &
@@ -396,16 +399,19 @@ module gfs_physics_driver_mod
     unit = open_namelist_file ()
 
     me = mpp_pe()
-    dxmaxin = log(indxmax)
-    dxminin = log(indxmin)
-    dxinvin = 1.0/(dxmaxin-dxminin)
+!---these have been replaced by the original NCEP/EMC definitions
+!rab    dxmaxin = log(indxmax)
+!rab    dxminin = log(indxmin)
+    dxmin = log(1.0_kind_phys/(min_lon*min_lat))
+    dxmax = log(1.0_kind_phys/(max_lon*max_lat))
+    dxinv = 1.0_kind_phys/(dxmax-dxmin)
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
                           lonr, latr, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
                           lssav_cpl, flipv, old_monin, cnvgwd, shal_cnv, sashal, newsas, cal_pre, mom4ice,  &
                           mstrat, trans_trac, nst_fcst, moist_adj, thermodyn_id, sfcpress_id,  &
                           gen_coord_hybrid, npz, lsidea, pdfcld, shcnvcw, redrag, hybedmf, dspheat, &
-                          dxmaxin, dxminin, dxinvin, ozcalc,nocnv, &
+                          dxmax, dxmin, dxinv, ozcalc,nocnv,&
                           ! NEW from nems_slg_shoc
                           cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                           ! For radiation
@@ -452,7 +458,7 @@ module gfs_physics_driver_mod
       call Dyn_parms(nb)%setrad  (ngptc, ngptc, kdt, jdate, solhr, fhlwr, fhswr, &
                                   lssav, ipt, lprnt, dt_phys)
       call Dyn_parms(nb)%setphys (ngptc, ngptc, solhr, kdt, lssav, latgfs, &
-                                  dt_phys, dt_phys, clstp, nnp, fhour)
+                                  dt_phys, dt_phys, clstp, nnp, fhour, ncols)
       call Gfs_diags(nb)%setrad  (ngptc, NFXR)
       call Gfs_diags(nb)%setphys (ngptc, Mdl_parms)
       call Sfc_props(nb)%setrad  (ngptc, Mdl_parms, .FALSE.)  ! last argument determines gsm vs atmos-only
@@ -498,7 +504,7 @@ module gfs_physics_driver_mod
     endif
 
 !--- read in surface data from chgres ---
-    call surface_props_input (Atm_block)
+    call surface_props_input (Atm_block, fv_domain)
 
 !--- initialize diagnostics ---
     call gfs_diag_register(Time, Atm_block, axes, NFXR)
@@ -506,8 +512,8 @@ module gfs_physics_driver_mod
 !--- mark the module as initialized ---
       module_is_initialized = .true.
 
-      if ( (debug) .and. (me==0) ) then
-         print *, "DEBUG IN DRIVER AFTER setup"
+      if (me==0) then
+         print *, "in DRIVER AFTER setup"
          print *, "ntcw : ", Mdl_parms%ntcw
          print *, "ncld : ", Mdl_parms%ncld
          print *, "ntoz : ", Mdl_parms%ntoz
@@ -561,9 +567,9 @@ module gfs_physics_driver_mod
          print *, "redrag : ", Mdl_parms%redrag
          print *, "hybedmf : ", Mdl_parms%hybedmf
          print *, "dspheat : ", Mdl_parms%dspheat
-         print *, "dxmaxin : ", dxmaxin
-         print *, "dxminin : ", dxminin
-         print *, "dxinvin : ", dxinvin
+         print *, "dxmax : ", dxmax
+         print *, "dxmin : ", dxmin
+         print *, "dxinv : ", dxinv
          print *, "si : ", si
          print *, "ictm : ", ictm
          print *, "isol : ", isol
@@ -589,8 +595,7 @@ module gfs_physics_driver_mod
          print *, "ntot3d : ", Mdl_parms%ntot3d
          print *, "ntot2d : ", Mdl_parms%ntot2d
          print *, "shoc_cld : ", Mdl_parms%shoc_cld
-
-       end if ! debug
+       end if ! parameter output
 
   end subroutine phys_rad_driver_init
 !-----------------------------------------------------------------------
@@ -916,219 +921,330 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- surface_props_input ---
 !-------------------------------------------------------------------------      
-  subroutine surface_props_input (Atm_block, GSM)
+  subroutine surface_props_input (Atm_block, fv_domain, GSM)
     type (block_control_type), intent(in) :: Atm_block
+    type (domain2d),           intent(in) :: fv_domain
     logical, intent(in), optional :: GSM
 !--- local variables
-    integer :: i, j, k, num, ibs, ibe, jbs, jbe, nct
-    integer :: nb, nx, ny, ngptc
-    integer :: start(4), nread(4)
-    character(len=32)  :: fn_srf = 'INPUT/sfc_data.nc'
-    character(len=32)  :: fn_oro = 'INPUT/oro_data.nc'
-    character(len=128) :: errmsg
-    character(len=2)   :: c2
-    real(kind=kind_phys), pointer,     dimension(:,:)     :: var2 => NULL()
-    real(kind=kind_phys), allocatable, dimension(:,:,:)   :: var3
+    integer :: i, j, k, ii, jj, ibs, ibe, jbs, jbe, nb, ix, lsoil, num
+    integer :: isc, iec, jsc, jec, nx, ny, npz, ngptc
+    integer :: id_restart
+    integer :: nvar_o2, nvar_s2, nvar_s3
+    character(len=32)  :: fn_oro = 'oro_data.nc'
+    character(len=32)  :: fn_srf = 'sfc_data.nc'
+    character(len=2)   :: c2 = ''
+    real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
+    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
     logical :: exists
     real :: tsmin, tsmax, timin, timax
 !--- local variables for sncovr calculation
     real(kind=kind_phys) :: vegtyp, rsnow
+    
+    nvar_o2 = 17
+    nvar_s2 = 32
+    nvar_s3 = 3
 
+    isc = Atm_block%isc
+    iec = Atm_block%iec
+    jsc = Atm_block%jsc
+    jec = Atm_block%jec
+    npz = Atm_block%npz
+    nx = (iec - isc + 1)
+    ny = (jec - jsc + 1)
 
-    call get_mosaic_tile_file (fn_srf, fn_srf, .FALSE.)
-    call get_mosaic_tile_file (fn_oro, fn_oro, .FALSE.)
+!--- OROGRAPHY FILE
+    if (.not. allocated(oro_name2)) then
+!--- allocate the various containers needed for orography data
+      allocate(oro_name2(nvar_o2))
+      allocate(oro_var2(nx,ny,nvar_o2))
+      oro_var2 = -9999._kind_phys
 
-    inquire(file=trim(fn_srf), exist=exists)
-    if (exists) then
-      errmsg = 'opening file '//trim(fn_srf)//' for input'
-      call error_mesg ('phys_rad_driver_init', trim(errmsg), NOTE)
-    else
-      errmsg = 'error opening file '//trim(fn_srf)//' for input'
-      call error_mesg ('phys_rad_driver_init', trim(errmsg), FATAL)
+      oro_name2(1)  = 'stddev'     ! hprim
+      oro_name2(2)  = 'stddev'     ! hprime2(ix,1)
+      oro_name2(3)  = 'convexity'  ! hprime2(ix,2)
+      oro_name2(4)  = 'oa1'        ! hprime2(ix,3)
+      oro_name2(5)  = 'oa2'        ! hprime2(ix,4)
+      oro_name2(6)  = 'oa3'        ! hprime2(ix,5)
+      oro_name2(7)  = 'oa4'        ! hprime2(ix,6)
+      oro_name2(8)  = 'ol1'        ! hprime2(ix,7)
+      oro_name2(9)  = 'ol2'        ! hprime2(ix,8)
+      oro_name2(10) = 'ol3'        ! hprime2(ix,9)
+      oro_name2(11) = 'ol4'        ! hprime2(ix,10)
+      oro_name2(12) = 'theta'      ! hprime2(ix,11)
+      oro_name2(13) = 'gamma'      ! hprime2(ix,12)
+      oro_name2(14) = 'sigma'      ! hprime2(ix,13)
+      oro_name2(15) = 'elvmax'     ! hprime2(ix,14)
+      oro_name2(16) = 'orog_filt'  ! oro
+      oro_name2(17) = 'orog_raw'   ! oro_uf
+
+!--- register the 2D fields
+      do num = 1,nvar_o2
+        var2_p => oro_var2(:,:,num)
+        id_restart = register_restart_field(Oro_restart, fn_oro, oro_name2(num), var2_p, domain=fv_domain)
+      enddo
+      nullify(var2_p)
     endif
 
-    inquire(file=trim(fn_oro), exist=exists)
-    if (exists) then
-      errmsg = 'opening file '//trim(fn_oro)//' for input'
-      call error_mesg ('phys_rad_driver_init', trim(errmsg), NOTE)
-    else
-      errmsg = 'error opening file '//trim(fn_oro)//' for input'
-      call error_mesg ('phys_rad_driver_init', trim(errmsg), FATAL)
-    endif
+!--- read and free the restarts/data
+    call restore_state(Oro_restart)
 
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
       jbs = Atm_block%jbs(nb)
       jbe = Atm_block%jbe(nb)
-      nx = (ibe - ibs + 1)
-      ny = (jbe - jbs + 1) 
-      ngptc = nx * ny
-      start(1) = ibs
-      start(2) = jbs
-      start(3) = 1
-      start(4) = 1
-      nread(1) = nx
-      nread(2) = ny
-      nread(3) = 1
-      nread(4) = 1
+!--- 2D variables
+      do jj=jbs,jbe
+        j = jj - jsc + 1
+        do ii=ibs,ibe
+          i = ii - isc + 1
+          ix = Atm_block%ix(nb)%ix(ii,jj)
+          !--- stddev
+          Sfc_props(nb)%hprim(ix)      = oro_var2(i,j,1)
+          !--- hprime2(1:14)
+          Sfc_props(nb)%hprime2(ix,1)  = oro_var2(i,j,2)
+          Sfc_props(nb)%hprime2(ix,2)  = oro_var2(i,j,3)
+          Sfc_props(nb)%hprime2(ix,3)  = oro_var2(i,j,4)
+          Sfc_props(nb)%hprime2(ix,4)  = oro_var2(i,j,5)
+          Sfc_props(nb)%hprime2(ix,5)  = oro_var2(i,j,6)
+          Sfc_props(nb)%hprime2(ix,6)  = oro_var2(i,j,7)
+          Sfc_props(nb)%hprime2(ix,7)  = oro_var2(i,j,8)
+          Sfc_props(nb)%hprime2(ix,8)  = oro_var2(i,j,9)
+          Sfc_props(nb)%hprime2(ix,9)  = oro_var2(i,j,10)
+          Sfc_props(nb)%hprime2(ix,10) = oro_var2(i,j,11)
+          Sfc_props(nb)%hprime2(ix,11) = oro_var2(i,j,12)
+          Sfc_props(nb)%hprime2(ix,12) = oro_var2(i,j,13)
+          Sfc_props(nb)%hprime2(ix,13) = oro_var2(i,j,14)
+          Sfc_props(nb)%hprime2(ix,14) = oro_var2(i,j,15)
+          !--- oro
+          Sfc_props(nb)%oro(ix)        = oro_var2(i,j,16)
+          !--- oro_uf
+          Sfc_props(nb)%oro_uf(ix)     = oro_var2(i,j,17)
+        enddo
+      enddo
+    enddo
 
-!--- OROGRAPHY FILE
-!--- stddev
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,1)
-      call read_data(fn_oro,'stddev',var2,start,nread)
-      Sfc_props(nb)%hprim(1:ngptc) = Sfc_props(nb)%hprime2(1:ngptc,1)
-!--- convexity
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,2)
-      call read_data(fn_oro,'convexity',var2,start,nread)
-!--- oa1
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,3)
-      call read_data(fn_oro,'oa1',var2,start,nread)
-!--- oa2
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,4)
-      call read_data(fn_oro,'oa2',var2,start,nread)
-!--- oa3
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,5)
-      call read_data(fn_oro,'oa3',var2,start,nread)
-!--- oa4
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,6)
-      call read_data(fn_oro,'oa4',var2,start,nread)
-!--- ol1
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,7)
-      call read_data(fn_oro,'ol1',var2,start,nread)
-!--- ol2
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,8)
-      call read_data(fn_oro,'ol2',var2,start,nread)
-!--- ol3
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,9)
-      call read_data(fn_oro,'ol3',var2,start,nread)
-!--- ol4
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,10)
-      call read_data(fn_oro,'ol4',var2,start,nread)
-!--- theta
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,11)
-      call read_data(fn_oro,'theta',var2,start,nread)
-!--- gamma
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,12)
-      call read_data(fn_oro,'gamma',var2,start,nread)
-!--- sigma
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,13)
-      call read_data(fn_oro,'sigma',var2,start,nread)
-!--- elvmax
-      var2(1:nx,1:ny) => Sfc_props(nb)%hprime2(1:ngptc,14)
-      call read_data(fn_oro,'elvmax',var2,start,nread)
-!--- oro (orog_filt)
-      var2(1:nx,1:ny) => Sfc_props(nb)%oro(1:ngptc)
-      call read_data(fn_oro,'orog_filt',var2,start,nread)
-!--- oro_uf (orog_raw)
-      var2(1:nx,1:ny) => Sfc_props(nb)%oro_uf(1:ngptc)
-      call read_data(fn_oro,'orog_raw',var2,start,nread)
+!--- deallocate containers and free restart container
+    deallocate(oro_name2, oro_var2)
+    call free_restart_type(Oro_restart)
 
 !--- SURFACE FILE
-!--- slmsk
-      var2(1:nx,1:ny) => Sfc_props(nb)%slmsk(1:ngptc)
-      call read_data(fn_srf,'slmsk',var2,start,nread)
-!--- tsfc (tsea in sfc file)
-      var2(1:nx,1:ny) => Sfc_props(nb)%tsfc(1:ngptc)
-      call read_data(fn_srf,'tsea',var2,start,nread)
-!--- weasd (sheleg in sfc file)
-      var2(1:nx,1:ny) => Sfc_props(nb)%weasd(1:ngptc)
-      call read_data(fn_srf,'sheleg',var2,start,nread)
-!--- tg3
-      var2(1:nx,1:ny) => Sfc_props(nb)%tg3(1:ngptc)
-      call read_data(fn_srf,'tg3',var2,start,nread)
-!--- zorl
-      var2(1:nx,1:ny) => Sfc_props(nb)%zorl(1:ngptc)
-      call read_data(fn_srf,'zorl',var2,start,nread)
-!rab      if (present(GSM)) then
-!rab        if (GSM) then
-!---     alvsf
-          var2(1:nx,1:ny) => Sfc_props(nb)%alvsf(1:ngptc)
-          call read_data(fn_srf,'alvsf',var2,start,nread)
-!---     alvwf
-          var2(1:nx,1:ny) => Sfc_props(nb)%alvwf(1:ngptc)
-          call read_data(fn_srf,'alvwf',var2,start,nread)
-!---     alnsf
-          var2(1:nx,1:ny) => Sfc_props(nb)%alnsf(1:ngptc)
-          call read_data(fn_srf,'alnsf',var2,start,nread)
-!---     alnwf
-          var2(1:nx,1:ny) => Sfc_props(nb)%alnwf(1:ngptc)
-          call read_data(fn_srf,'alnwf',var2,start,nread)
-!---     facsf
-          var2(1:nx,1:ny) => Sfc_props(nb)%facsf(1:ngptc)
-          call read_data(fn_srf,'facsf',var2,start,nread)
-!---     facwf
-          var2(1:nx,1:ny) => Sfc_props(nb)%facwf(1:ngptc)
-          call read_data(fn_srf,'facwf',var2,start,nread)
-!rab        endif
-!rab      endif
-!--- vfrac
-      var2(1:nx,1:ny) => Sfc_props(nb)%vfrac(1:ngptc)
-      call read_data(fn_srf,'vfrac',var2,start,nread)
-!--- canopy
-      var2(1:nx,1:ny) => Sfc_props(nb)%canopy(1:ngptc)
-      call read_data(fn_srf,'canopy',var2,start,nread)
-!--- f10m
-      var2(1:nx,1:ny) => Sfc_props(nb)%f10m(1:ngptc)
-      call read_data(fn_srf,'f10m',var2,start,nread)
-!--- t2m
-      var2(1:nx,1:ny) => Sfc_props(nb)%t2m(1:ngptc)
-      call read_data(fn_srf,'t2m',var2,start,nread)
-!--- q2m
-      var2(1:nx,1:ny) => Sfc_props(nb)%q2m(1:ngptc)
-      call read_data(fn_srf,'q2m',var2,start,nread)
-!--- vtype
-      var2(1:nx,1:ny) => Sfc_props(nb)%vtype(1:ngptc)
-      call read_data(fn_srf,'vtype',var2,start,nread)
-!--- stype
-      var2(1:nx,1:ny) => Sfc_props(nb)%stype(1:ngptc)
-      call read_data(fn_srf,'stype',var2,start,nread)
-!--- uustar
-      var2(1:nx,1:ny) => Sfc_props(nb)%uustar(1:ngptc)
-      call read_data(fn_srf,'uustar',var2,start,nread)
-!--- ffmm
-      var2(1:nx,1:ny) => Sfc_props(nb)%ffmm(1:ngptc)
-      call read_data(fn_srf,'ffmm',var2,start,nread)
-!--- ffhh
-      var2(1:nx,1:ny) => Sfc_props(nb)%ffhh(1:ngptc)
-      call read_data(fn_srf,'ffhh',var2,start,nread)
-!--- hice
-      var2(1:nx,1:ny) => Sfc_props(nb)%hice(1:ngptc)
-      call read_data(fn_srf,'hice',var2,start,nread)
-!--- fice
-      var2(1:nx,1:ny) => Sfc_props(nb)%fice(1:ngptc)
-      call read_data(fn_srf,'fice',var2,start,nread)
-!--- tisfc
-      var2(1:nx,1:ny) => Sfc_props(nb)%tisfc(1:ngptc)
-      call read_data(fn_srf,'tisfc',var2,start,nread)
-!--- tprcp
-      var2(1:nx,1:ny) => Tbd_data(nb)%tprcp(1:ngptc)
-      call read_data(fn_srf,'tprcp',var2,start,nread)
-!--- srflag
-      var2(1:nx,1:ny) => Tbd_data(nb)%srflag(1:ngptc)
-      call read_data(fn_srf,'srflag',var2,start,nread)
-!--- snowd (snwdph in the file)
-      var2(1:nx,1:ny) => Sfc_props(nb)%snowd(1:ngptc)
-      call read_data(fn_srf,'snwdph',var2,start,nread)
-!--- shdmin
-      var2(1:nx,1:ny) => Sfc_props(nb)%shdmin(1:ngptc)
-      call read_data(fn_srf,'shdmin',var2,start,nread)
-!--- shdmax
-      var2(1:nx,1:ny) => Sfc_props(nb)%shdmax(1:ngptc)
-      call read_data(fn_srf,'shdmax',var2,start,nread)
-!--- slope
-      var2(1:nx,1:ny) => Sfc_props(nb)%slope(1:ngptc)
-      call read_data(fn_srf,'slope',var2,start,nread)
-!--- snoalb
-      var2(1:nx,1:ny) => Sfc_props(nb)%snoalb(1:ngptc)
-      call read_data(fn_srf,'snoalb',var2,start,nread)
-!--- sncovr
-      if (field_exist(fn_srf,'sncovr')) then
-        var2(1:nx,1:ny) => Sfc_props(nb)%sncovr(1:ngptc)
-        call read_data(fn_srf,'sncovr',var2,start,nread)
-      else
+    if (.not. allocated(sfc_name2)) then
+!--- allocate the various containers needed for restarts
+      allocate(sfc_name2(nvar_s2))
+      allocate(sfc_name3(nvar_s3))
+      allocate(sfc_var2(nx,ny,nvar_s2))
+      allocate(sfc_var3(nx,ny,Mdl_parms%lsoil,nvar_s3))
+      sfc_var2 = -9999._kind_phys
+      sfc_var3 = -9999._kind_phys
+
+!--- names of the 2D variables to save
+      sfc_name2(1)  = 'slmsk'
+      sfc_name2(2)  = 'tsea'    !tsfc
+      sfc_name2(3)  = 'sheleg'  !weasd
+      sfc_name2(4)  = 'tg3'
+      sfc_name2(5)  = 'zorl'
+      sfc_name2(6)  = 'alvsf'
+      sfc_name2(7)  = 'alvwf'
+      sfc_name2(8)  = 'alnsf'
+      sfc_name2(9)  = 'alnwf'
+      sfc_name2(10) = 'facsf'
+      sfc_name2(11) = 'facwf'
+      sfc_name2(12) = 'vfrac'
+      sfc_name2(13) = 'canopy'
+      sfc_name2(14) = 'f10m'
+      sfc_name2(15) = 't2m'
+      sfc_name2(16) = 'q2m'
+      sfc_name2(17) = 'vtype'
+      sfc_name2(18) = 'stype'
+      sfc_name2(19) = 'uustar'
+      sfc_name2(20) = 'ffmm'
+      sfc_name2(21) = 'ffhh'
+      sfc_name2(22) = 'hice'
+      sfc_name2(23) = 'fice'
+      sfc_name2(24) = 'tisfc'
+      sfc_name2(25) = 'tprcp'
+      sfc_name2(26) = 'srflag'
+      sfc_name2(27) = 'snwdph'  !snowd
+      sfc_name2(28) = 'shdmin'
+      sfc_name2(29) = 'shdmax'
+      sfc_name2(30) = 'slope'
+      sfc_name2(31) = 'snoalb'
+      sfc_name2(32) = 'sncovr'
+
+!--- register the 2D fields
+      do num = 1,nvar_s2
+        var2_p => sfc_var2(:,:,num)
+        if (trim(sfc_name2(num)) == 'sncovr') then
+          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=.false.)
+        else
+          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
+        endif
+      enddo
+      nullify(var2_p)
+
+!--- names of the 2D variables to save
+      sfc_name3(1) = 'stc'
+      sfc_name3(2) = 'smc'
+      sfc_name3(3) = 'slc'
+
+!--- register the 3D fields
+      do num = 1,nvar_s3
+        var3_p => sfc_var3(:,:,:,num)
+        id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(num), var3_p, domain=fv_domain)
+      enddo
+      nullify(var3_p)
+    endif
+
+    if (.not. allocated(phy_f2d)) then
+      allocate(phy_f2d(nx,ny,Mdl_parms%num_p2d))
+      allocate(phy_f3d(nx,ny,npz,Mdl_parms%num_p3d+Mdl_parms%npdf3d))
+      phy_f2d = 0.0_kind_phys
+      phy_f3d = 0.0_kind_phys
+      id_restart = register_restart_field(Sfc_restart, fn_srf, 'phy_f2d', phy_f2d, domain=fv_domain, mandatory=.false.)
+      do num = 1,size(phy_f3d,4)
+        write(c2,'(i2.2)') num
+        var3_p => phy_f3d(:,:,:,num)
+        id_restart = register_restart_field(Sfc_restart, fn_srf, 'phy_f3d_'//c2, var3_p, domain=fv_domain, mandatory=.false.)
+      enddo
+      nullify(var3_p)
+    endif
+
+!--- read and free the restarts/data
+    call restore_state(Sfc_restart)
+   
+    do nb = 1, Atm_block%nblks
+      ibs = Atm_block%ibs(nb)
+      ibe = Atm_block%ibe(nb)
+      jbs = Atm_block%jbs(nb)
+      jbe = Atm_block%jbe(nb)
+!--- 2D variables
+      do jj=jbs,jbe
+        j = jj - jsc + 1
+        do ii=ibs,ibe
+          i = ii - isc + 1
+          ix = Atm_block%ix(nb)%ix(ii,jj)
+          !--- slmsk
+          Sfc_props(nb)%slmsk(ix)  = sfc_var2(i,j,1)
+          !--- tsfc (tsea in sfc file)
+          Sfc_props(nb)%tsfc(ix)   = sfc_var2(i,j,2)
+          !--- weasd (sheleg in sfc file)
+          Sfc_props(nb)%weasd(ix)  = sfc_var2(i,j,3)
+          !--- tg3
+          Sfc_props(nb)%tg3(ix)    = sfc_var2(i,j,4)
+          !--- zorl
+          Sfc_props(nb)%zorl(ix)   = sfc_var2(i,j,5)
+          !--- alvsf
+          Sfc_props(nb)%alvsf(ix)  = sfc_var2(i,j,6)
+          !--- alvwf
+          Sfc_props(nb)%alvwf(ix)  = sfc_var2(i,j,7)
+          !--- alnsf
+          Sfc_props(nb)%alnsf(ix)  = sfc_var2(i,j,8)
+          !--- alnwf
+          Sfc_props(nb)%alnwf(ix)  = sfc_var2(i,j,9)
+          !--- facsf
+          Sfc_props(nb)%facsf(ix)  = sfc_var2(i,j,10)
+          !--- facwf
+          Sfc_props(nb)%facwf(ix)  = sfc_var2(i,j,11)
+          !--- vfrac
+          Sfc_props(nb)%vfrac(ix)  = sfc_var2(i,j,12)
+          !--- canopy
+          Sfc_props(nb)%canopy(ix) = sfc_var2(i,j,13)
+          !--- f10m
+          Sfc_props(nb)%f10m(ix)   = sfc_var2(i,j,14)
+          !--- t2m
+          Sfc_props(nb)%t2m(ix)    = sfc_var2(i,j,15)
+          !--- q2m
+          Sfc_props(nb)%q2m(ix)    = sfc_var2(i,j,16)
+          !--- vtype
+          Sfc_props(nb)%vtype(ix)  = sfc_var2(i,j,17)
+          !--- stype
+          Sfc_props(nb)%stype(ix)  = sfc_var2(i,j,18)
+          !--- uustar
+          Sfc_props(nb)%uustar(ix) = sfc_var2(i,j,19)
+          !--- ffmm
+          Sfc_props(nb)%ffmm(ix)   = sfc_var2(i,j,20)
+          !--- ffhh
+          Sfc_props(nb)%ffhh(ix)   = sfc_var2(i,j,21)
+          !--- hice
+          Sfc_props(nb)%hice(ix)   = sfc_var2(i,j,22)
+          !--- fice
+          Sfc_props(nb)%fice(ix)   = sfc_var2(i,j,23)
+          !--- tisfc
+          Sfc_props(nb)%tisfc(ix)  = sfc_var2(i,j,24)
+          !--- tprcp
+          Tbd_data(nb)%tprcp(ix)   = sfc_var2(i,j,25)
+          !--- srflag
+          Tbd_data(nb)%srflag(ix)  = sfc_var2(i,j,26)
+          !--- snowd (snwdph in the file)
+          Sfc_props(nb)%snowd(ix)  = sfc_var2(i,j,27)
+          !--- shdmin
+          Sfc_props(nb)%shdmin(ix) = sfc_var2(i,j,28)
+          !--- shdmax
+          Sfc_props(nb)%shdmax(ix) = sfc_var2(i,j,29)
+          !--- slope
+          Sfc_props(nb)%slope(ix)  = sfc_var2(i,j,30)
+          !--- snoalb
+          Sfc_props(nb)%snoalb(ix) = sfc_var2(i,j,31)
+          !--- sncovr
+          Sfc_props(nb)%sncovr(ix) = sfc_var2(i,j,32)
+        enddo
+      enddo
+!--- 3D variables
+      do lsoil = 1,Mdl_parms%lsoil
+        do jj=jbs,jbe
+          j = jj - jsc + 1
+          do ii=ibs,ibe
+            i = ii - isc + 1
+            ix = Atm_block%ix(nb)%ix(ii,jj)
+            !--- stc
+            Tbd_data(nb)%stc(ix,lsoil) = sfc_var3(i,j,lsoil,1)
+            !--- smc
+            Tbd_data(nb)%smc(ix,lsoil) = sfc_var3(i,j,lsoil,2)
+            !--- slc
+            Tbd_data(nb)%slc(ix,lsoil) = sfc_var3(i,j,lsoil,3)
+          enddo
+        enddo
+      enddo
+
+!--- phy_f*d variables
+      do num = 1,size(phy_f2d,3)
+        do jj=jbs,jbe
+          j = jj - jsc + 1
+          do ii=ibs,ibe
+            i = ii - isc + 1
+            ix = Atm_block%ix(nb)%ix(ii,jj)
+            Tbd_data(nb)%phy_f2d(ix,num) = phy_f2d(i,j,num)
+          enddo
+        enddo
+      enddo
+      do num = 1,size(phy_f3d,4)
+        do k=1,npz
+          do jj=jbs,jbe
+            j = jj - jsc + 1
+            do ii=ibs,ibe
+              i = ii - isc + 1
+              ix = Atm_block%ix(nb)%ix(ii,jj)
+              Tbd_data(nb)%phy_f3d(ix,k,num) = phy_f3d(i,j,k,num)
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+
+!--- if sncovr does not exist in the restart, need to create it
+    if (nint(sfc_var2(1,1,32)) == -9999) then
+      if (Mdl_parms%me == 0 ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr') 
 !--- compute sncovr from existing variables
 !--- code taken directly from read_fix.f
+      do nb = 1, Atm_block%nblks
+        ibs = Atm_block%ibs(nb)
+        ibe = Atm_block%ibe(nb)
+        jbs = Atm_block%jbs(nb)
+        jbe = Atm_block%jbe(nb)
+        nx = (ibe - ibs + 1)
+        ny = (jbe - jbs + 1)
+        ngptc = nx * ny
         do i=1,ngptc
           Sfc_props(nb)%sncovr(i) = 0.0
           if (Sfc_props(nb)%slmsk(i) > 0.001 .AND. abs(Sfc_props(nb)%vtype(i)) >= 0.5 ) then
@@ -1141,93 +1257,9 @@ module gfs_physics_driver_mod
             endif
           endif
         enddo
-      endif
-!
-!--- 3D variables
-      allocate(var3(1:nx,1:ny,1:Mdl_parms%lsoil))
-      start(1) = ibs
-      start(2) = jbs
-      start(3) = 1
-      start(4) = 1
-      nread(1) = nx
-      nread(2) = ny
-      nread(3) = Mdl_parms%lsoil
-      nread(4) = 1
-!--- stc
-      call read_data(fn_srf,'stc',var3,start,nread)
-      do j = 1, ny
-       do i = 1, nx
-         nct = (j-1)*nx + i
-         Tbd_data(nb)%stc(nct,1:Mdl_parms%lsoil) = var3(i,j,1:Mdl_parms%lsoil)
-       enddo
       enddo
-!--- smc
-      call read_data(fn_srf,'smc',var3,start,nread)
-      do j = 1, ny
-       do i = 1, nx
-         nct = (j-1)*nx + i
-         Tbd_data(nb)%smc(nct,1:Mdl_parms%lsoil) = var3(i,j,1:Mdl_parms%lsoil)
-       enddo
-      enddo
-!--- slc
-      call read_data(fn_srf,'slc',var3,start,nread)
-      do j = 1, ny
-       do i = 1, nx
-         nct = (j-1)*nx + i
-         Tbd_data(nb)%slc(nct,1:Mdl_parms%lsoil) = var3(i,j,1:Mdl_parms%lsoil)
-       enddo
-      enddo
-      deallocate(var3)
-    
-      if (field_exist(fn_srf,'phy_f2d')) then
-!--- phy_f2d
-        start(1) = ibs
-        start(2) = jbs
-        start(3) = 1
-        start(4) = 1
-        nread(1) = nx
-        nread(2) = ny
-        nread(3) = Mdl_parms%num_p2d
-        nread(4) = 1
-        allocate(var3(1:nx,1:ny,Mdl_parms%num_p2d))
-        call read_data(fn_srf,'phy_f2d',var3,start,nread)
-        do num = 1, Mdl_parms%num_p2d
-          do j = 1, ny
-            do i = 1, nx
-              nct = (j-1)*nx + i
-              Tbd_data(nb)%phy_f2d(nct,num) = var3(i,j,num)
-            enddo
-          enddo
-        enddo
-        deallocate(var3)
-!--- phy_f3d
-        start(1) = ibs
-        start(2) = jbs
-        start(3) = 1
-        start(4) = 1
-        nread(1) = nx
-        nread(2) = ny
-        nread(3) = Atm_block%npz
-        nread(4) = 1
-        allocate(var3(1:nx,1:ny,Atm_block%npz))
-        do num = 1,Mdl_parms%num_p3d+Mdl_parms%npdf3d
-          write(c2,'(i2.2)') num
-          call read_data(fn_srf,'phy_f3d_'//c2,var3,start,nread)
-          do k = 1, Atm_block%npz
-            do j = 1, ny
-              do i = 1, nx
-                nct = (j-1)*nx + i
-                Tbd_data(nb)%phy_f3d(nct,k,num) = var3(i,j,k)
-              enddo
-            enddo
-          enddo
-        enddo
-        deallocate(var3)
-      endif
-    enddo
-   
-!--- nullify/deallocate any temporaries used
-    nullify(var2)
+    endif
+
 
   end subroutine surface_props_input
 

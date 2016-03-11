@@ -3303,15 +3303,13 @@ subroutine restore_state_all(fileObj, directory)
                        if ( is_there_a_checksum ) &
                          checksum_data = mpp_chksum(fileObj%p3dr(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd, :) )
                     else if( Associated(fileObj%p2dr8(k,j)%p) ) then
-                       call mpp_error(FATAL, "fms_io(restore_state_all): not support mix of r4 and r8, contact developer")
-!                       call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p2dr8(k,j)%p, tlev)
-!                       if ( is_there_a_checksum ) &
-!                         checksum_data = mpp_chksum(fileObj%p2dr8(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd) )
+                       call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p2dr8(k,j)%p, tlev)
+                       if ( is_there_a_checksum ) &
+                         checksum_data = mpp_chksum(fileObj%p2dr8(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd) )
                     else if( Associated(fileObj%p3dr8(k,j)%p) ) then
-                        call mpp_error(FATAL, "fms_io(restore_state_all): not support mix of r4 and r8, contact developer")
-!                       call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p3dr8(k,j)%p, tlev)
-!                       if ( is_there_a_checksum ) &
-!                         checksum_data = mpp_chksum(fileObj%p3dr8(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd, :) )
+                       call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p3dr8(k,j)%p, tlev)
+                       if ( is_there_a_checksum ) &
+                         checksum_data = mpp_chksum(fileObj%p3dr8(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd, :) )
                     else if( Associated(fileObj%p4dr(k,j)%p) ) then
                        call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p4dr(k,j)%p, tlev)
                        if ( is_there_a_checksum ) &

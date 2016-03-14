@@ -950,7 +950,12 @@
         tice(i) = tisfc(i)
 !
 !GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
-        work1(i)   = (log(dx(i)) - dxmin) * dxinv
+!GFDL   nlons will contain the global number of columns for the blending function
+        if (coslat(i) .le. 0._kind_phys) then
+          work1(i) = 1._kind_phys
+        else
+          work1(i)   = (log(coslat(i) / nlons(i)) - dxmin) * dxinv
+        endif
         work1(i)   = max(0.0, min(1.0,work1(i)))
         work2(i)   = 1.0 - work1(i)
         psurf(i)   = pgr(i)
@@ -2138,9 +2143,7 @@
 !  --- ...  calling convective parameterization
 !
 !GFDL --- following if-test added to turn off deep convection parameterization
-      if (nocnv) then ! bypass convective parameterization
-       rain1(:)=0.0
-      else   ! no cnv
+      if (.not. nocnv) then ! bypass convective parameterization
       if (.not. ras .and. .not. cscnv) then
 
         if (newsas) then             ! no random cloud top
@@ -2251,6 +2254,8 @@
         endif
       endif   ! end if_not_ras
 !GFDL --- following added to turn off deep convection parameterization
+      else   ! no cnv
+       rain1(:)=0.0
       endif
 !GFDL --- above added to turn off deep convection parameterization
 !

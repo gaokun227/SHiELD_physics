@@ -595,6 +595,7 @@
 
          ! grrad, gbphys in
          real (kind=kind_phys), pointer :: flgmin(:) => null()    ! minimim large ice fraction                     !  phys
+         real (kind=kind_phys), pointer :: flgmin_coeff(:) => null()    ! minimim large ice fraction               !  phys
 
          ! grrad in
          real (kind=kind_phys), pointer :: deltaq(:,:) => null()  ! half width of uniform total water distribution
@@ -1698,7 +1699,7 @@
        end subroutine
 
 
-       subroutine cld_prop_setphys (this, IX, Model, sup)
+       subroutine cld_prop_setphys (this, IX, Model, sup, flgmin_coeff)
 
          implicit none
 
@@ -1706,12 +1707,14 @@
          integer, intent(in) :: IX
          type(model_parameters), intent(in) :: Model
          real(kind=kind_phys), intent(in) :: sup
+         real(kind=kind_phys), intent(in) :: flgmin_coeff(2)
 
          call dbgprint("cld_prop_setphys")
 
 !GFDL are these the same from cld_prop_setrad
          ! Input
-!GFDL         allocate(this%flgmin => flgmin
+         allocate(this%flgmin_coeff(2))
+         this%flgmin_coeff = flgmin_coeff
          ! Input/output
          this%sup = sup
 !GFDL         allocate(this%cv      (IX))
@@ -1916,7 +1919,7 @@
 
 
        subroutine dyn_param_setphys (this, IX, IM, solhr, kdt, lssav, lat, dtp, dtf, &
-                                     clstp, nnp, fhour)
+                                     clstp, nnp, fhour, nlons)
 !GFDL       subroutine dyn_param_setphys (this, IX, IM, xlon, xlat, sinlat, coslat, solhr, &
 !GFDL                                     kdt, lssav, lat, dtp, dtf, clstp,       &
 !GFDL                                     nnp, nlons, fhour, slag, sdec, cdec )
@@ -1925,7 +1928,7 @@
          class(dynamic_parameters) :: this
 
          real (kind=kind_phys) :: solhr
-         integer, intent(in) :: IX, IM, kdt
+         integer, intent(in) :: IX, IM, kdt, nlons
          logical :: lssav 
 
          ! Physics only
@@ -1958,7 +1961,7 @@
              this%fhour = fhour
 
              !  set a default value for nlons
-             this%nlons(:) = -9999
+             this%nlons(:) = nlons
            class default
              print *, "class default"
          end select
@@ -1984,7 +1987,7 @@
                                  cscnv, nctp, ntke, do_shoc, shocaftcnv, ntot3d, ntot2d,   &
                                  ! For radiation
                                  si, ictm, isol, ico2, iaer, ialb, iems,                    &
-                                 iovr_sw,iovr_lw,isubc_sw,isubc_lw,   &
+                                 iovr_sw,iovr_lw,isubc_sw,isubc_lw,shoc_cld,   &
                                  sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dtp,nlunit)
 
          ! use physcons, only: dxmin, dxmax, dxinv
@@ -2156,6 +2159,7 @@
          mdl%shocaftcnv       = shocaftcnv
          mdl%ntot3d           = ntot3d
          mdl%ntot2d           = ntot2d
+         mdl%shoc_cld         = shoc_cld
 
          ! physcons module variables
          dxmax = dxmaxin
@@ -2728,7 +2732,7 @@
          call gbphys ( dyn%im, dyn%ix, mdl%levs, mdl%lsoil, mdl%lsm, mdl%ntrac,  &
                  mdl%ncld, mdl%ntoz, mdl%ntcw, mdl%ntke, mdl%nmtvr, mdl%nrcm, mdl%levozp,  &
                  mdl%lonr, mdl%latr, mdl%jcap, mdl%num_p3d, mdl%num_p2d, mdl%npdf3d, dyn%kdt,  &
-                 dyn%lat, mdl%me, mdl%pl_coeff, dyn%nlons, mdl%ncw, cld%flgmin,  &
+                 dyn%lat, mdl%me, mdl%pl_coeff, dyn%nlons, mdl%ncw, cld%flgmin_coeff,  &
                  mdl%crtrh, mdl%cdmbgwd, mdl%ccwf, mdl%dlqf, mdl%ctei_rm, dyn%clstp,  &
                  mdl%cgwf, mdl%prslrd0, dyn%dtp, dyn%dtf, dyn%fhour, dyn%solhr,  &
                  dyn%slag, dyn%sdec, dyn%cdec, dyn%sinlat, dyn%coslat, statein%pgr,  &

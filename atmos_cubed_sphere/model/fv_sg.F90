@@ -47,7 +47,7 @@ contains
 #ifdef GFS_PHYS
  subroutine fv_subgrid_z( isd, ied, jsd, jed, is, ie, js, je, km, nq, dt,    &
                          tau, nwat, delp, pe, peln, pkz, ta, qa, ua, va,  &
-                         hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt, k_bot )
+                         hydrostatic, w, delz, u_dt, v_dt, t_dt, k_bot )
 ! Dry convective adjustment-mixing
 !-------------------------------------------
       integer, intent(in):: is, ie, js, je, km, nq, nwat
@@ -70,7 +70,6 @@ contains
       real, intent(inout):: u_dt(isd:ied,jsd:jed,km) 
       real, intent(inout):: v_dt(isd:ied,jsd:jed,km) 
       real, intent(inout):: t_dt(is:ie,js:je,km) 
-      real, intent(inout):: q_dt(is:ie,js:je,km,nq) 
 !---------------------------Local variables-----------------------------
       real, dimension(is:ie,km):: u0, v0, w0, t0, hd, te, gz, tvm, pm, den
       real q0(is:ie,km,nq), qcon(is:ie,km) 

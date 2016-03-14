@@ -107,7 +107,6 @@ character(len=7)   :: mod_name = 'atmos'
 
 !---dynamics tendencies for use in fv_subgrid_z and during fv_update_phys
   real, allocatable, dimension(:,:,:)   :: u_dt, v_dt, t_dt
-  real, allocatable, dimension(:,:,:,:) :: q_dt
   real, allocatable :: pref(:,:), dum1d(:)
 
   logical :: first_diag = .true.
@@ -213,8 +212,7 @@ contains
 !----- allocate and zero out the dynamics (and accumulated) tendencies
    allocate( u_dt(isd:ied,jsd:jed,npz), &
              v_dt(isd:ied,jsd:jed,npz), &
-             t_dt(isc:iec,jsc:jec,npz), &
-             q_dt(isc:iec,jsc:jec,npz,nq) )
+             t_dt(isc:iec,jsc:jec,npz) )
 !--- allocate pref
     allocate(pref(npz+1,2), dum1d(npz+1))
 
@@ -370,7 +368,6 @@ contains
     u_dt(:,:,:)   = 0 
     v_dt(:,:,:)   = 0 
     t_dt(:,:,:)   = 0 
-    q_dt(:,:,:,:) = 0 
 
     w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff' )
     if ( Atm(n)%flagstruct%fv_sg_adj > 0 ) then
@@ -383,9 +380,10 @@ contains
                         Atm(n)%flagstruct%nwat, Atm(n)%delp, Atm(n)%pe,     &
                         Atm(n)%peln, Atm(n)%pkz, Atm(n)%pt, Atm(n)%q,       &
                         Atm(n)%ua, Atm(n)%va, Atm(n)%flagstruct%hydrostatic,&
-                        Atm(n)%w, Atm(n)%delz, u_dt, v_dt, t_dt, q_dt, Atm(n)%flagstruct%n_sponge)
+                        Atm(n)%w, Atm(n)%delz, u_dt, v_dt, t_dt, Atm(n)%flagstruct%n_sponge)
     endif
 
+#ifdef USE_Q_DT
     if ( .not. Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
 !$OMP parallel do default (none) &
 !$OMP              shared (isc, iec, jsc, jec, w_diff, n, Atm, q_dt) &
@@ -395,6 +393,7 @@ contains
           q_dt(:,:,k,w_diff) = 0.
         enddo
     endif
+#endif
 
    call mpp_clock_end (id_dryconv)
 
@@ -421,7 +420,7 @@ contains
    call fv_end(Atm, grids_on_this_pe)
    deallocate (Atm)
 
-   deallocate( u_dt, v_dt, t_dt, q_dt, pref, dum1d )
+   deallocate( u_dt, v_dt, t_dt, pref, dum1d )
 
  end subroutine atmosphere_end
 
@@ -704,55 +703,96 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real ::  rcp
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, rdt, ps_dt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
+   rdt = 1.d0 / dt_atmos
 
    n = mytile
+
+   if( nq<3 ) call mpp_error(FATAL, 'GFS phys must have 3 interactive tracers')
 
    call set_domain ( Atm(mytile)%domain )
 
    call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
-!$OMP              shared (n, nq, npz, ncnst, mytile, u_dt, v_dt, t_dt, q_dt, Atm, Statein, Stateout, Atm_block, dt_atmos) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix)
+!$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, ps_dt)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
      jbs = Atm_block%jbs(nb)
      jbe = Atm_block%jbe(nb)
 
+!SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
+!     This call may be commented out if RAS or other positivity-preserving CPS is used.
+     ix = Atm_block%ix(nb)%ix(ibe,jbe)
+     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
+
      do k = 1, npz
       k1 = npz+1-k !reverse the k direction 
       do j=jbs,jbe
        do i=ibs,ibe
          ix = Atm_block%ix(nb)%ix(i,j)
-         u_dt(i,j,k1)   = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k))/dt_atmos
-         v_dt(i,j,k1)   = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k))/dt_atmos
-         t_dt(i,j,k1)   = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k))/dt_atmos
+         u_dt(i,j,k1) = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k)) * rdt
+         v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
+         t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
+
+#ifdef USE_LATEST_TRACER_UPDATE
+! GFS total air mass:  = dry_mass + water_vapor (condensate excluded)
+! GFS mixing ratios: q = tracer_mass / (air_mass + vapor_mass)
+ 
+! FV3 total air mass:   Atm%delp = dry_mass + [water_vapor + condensate ]
+! FV3 mixing ratios:       Atm%q = tracer_mass / (dry_mass+vapor_mass+cond_mass)
+
+         q0 = 1.0_kind_phys - Statein(nb)%qgrs(ix,k,1) + Stateout(nb)%gq0(ix,k,1) + Stateout(nb)%gq0(ix,k,2)
+         Atm(n)%delp(i,j,k1) = q0*(Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))
+! Note: the last term within the () above is the GFS air_mass (dry + vapor_at_input_time)
+
+!  Atm(n)%q(i,j,k1,1:3) = Stateout(nb)%gq0(ix,k,1:3) / q0  ! is this faster?
+         Atm(n)%q(i,j,k1,1) = Stateout(nb)%gq0(ix,k,1) / q0
+         Atm(n)%q(i,j,k1,2) = Stateout(nb)%gq0(ix,k,2) / q0
+         Atm(n)%q(i,j,k1,3) = Stateout(nb)%gq0(ix,k,3) / q0
+#else
+         q2 = Atm(n)%delp(i,j,k1)   ! convert to GFS precision (64-bit) in case FV3 uses 32-bit
+! q1: water vapor
+         q3 = (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1)) / q2 ! q3 is mixing ratio adjustment
+         q1 = q3*(Stateout(nb)%gq0(ix,k,1) - Statein(nb)%qgrs(ix,k,1))
+         Atm(n)%q(i,j,k1,1) = Atm(n)%q(i,j,k1,1) + q1
+! q2: cloud condensate
+         q2 = q3*(Stateout(nb)%gq0(ix,k,2) - Statein(nb)%qgrs(ix,k,2))
+         Atm(n)%q(i,j,k1,2) = Atm(n)%q(i,j,k1,2) + q2
+         Atm(n)%q(i,j,k1,3) = Atm(n)%q(i,j,k1,3) + q3*(Stateout(nb)%gq0(ix,k,3)-Statein(nb)%qgrs(ix,k,3))
+         ps_dt = 1.d0 + q1 + q2
+         Atm(n)%delp(i,j,k1) = Atm(n)%delp(i,j,k1)*ps_dt
+         Atm(n)%q(i,j,k1,1)  = Atm(n)%q(i,j,k1,1)/ps_dt
+         Atm(n)%q(i,j,k1,2)  = Atm(n)%q(i,j,k1,2)/ps_dt
+         Atm(n)%q(i,j,k1,3)  = Atm(n)%q(i,j,k1,3)/ps_dt
+#endif
        enddo
       enddo
      enddo
 
-!SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
-!     This call may be commented out if RAS or other positivity-preserving CPS is used.
-     call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
-
-     do iq = 1, nq
+!rab#ifdef GFS_TRACER_TRANSPORT
+! The following does nothing...
+     if ( nq > 3 ) then
+     do iq=4, nq
        do k = 1, npz
          k1 = npz+1-k !reverse the k direction 
          do j=jbs,jbe
            do i=ibs,ibe
              ix = Atm_block%ix(nb)%ix(i,j)
-! Redefine mixing ratios from GFS back to FV3:
-             q_dt(i,j,k1,iq) = (Stateout(nb)%gq0(ix,k,iq) - Statein(nb)%qgrs(ix,k,iq))/dt_atmos     &
-                             * (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))/Atm(n)%delp(i,j,k1)
+             Atm(n)%q(i,j,k1,iq) = Atm(n)%q(i,j,k1,iq) + (Stateout(nb)%gq0(ix,k,iq)-Statein(nb)%qgrs(ix,k,iq))
+!                                * (Statein(nb)%prsi(ix,k)-Statein(nb)%prsi(ix,k+1))/Atm(n)%delp(i,j,k1)
            enddo
          enddo
        enddo
      enddo
+     endif
+!rab#endif
+
      !--- diagnostic tracers are being updated in-place
      !--- tracer fields must be returned to the Atm structure
      do iq = nq+1, ncnst
@@ -766,7 +806,8 @@ contains
          enddo
        enddo
      enddo
-   enddo
+   enddo  ! nb-loop
+
    call timing_off('GFS_TENDENCIES')
 
    w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff' )
@@ -776,6 +817,7 @@ contains
    endif
 
 !--- adjust w and heat tendency for non-hydrostatic case
+#ifdef USE_Q_DT
     if ( .not.Atm(n)%flagstruct%hydrostatic .and. w_diff /= NO_TRACER ) then
       rcp = 1. / cp_air
 !$OMP parallel do default (none) &
@@ -793,6 +835,7 @@ contains
          enddo
        enddo
     endif
+#endif
 
    call mpp_clock_begin (id_dynam)
        call timing_on('FV_UPDATE_PHYS')
@@ -802,7 +845,7 @@ contains
                          Atm(n)%ua, Atm(n)%va,  Atm(n)%ps, Atm(n)%pe,   Atm(n)%peln,       &
                          Atm(n)%pk, Atm(n)%pkz, Atm(n)%ak, Atm(n)%bk,   Atm(n)%phis,       &
                          Atm(n)%u_srf, Atm(n)%v_srf, Atm(n)%ts, Atm(n)%delz,               &
-                         Atm(n)%flagstruct%hydrostatic, u_dt, v_dt, t_dt, q_dt,            &
+                         Atm(n)%flagstruct%hydrostatic, u_dt, v_dt, t_dt,             &
                          .true., Time_next, Atm(n)%flagstruct%nudge, Atm(n)%gridstruct,    &
                          Atm(n)%gridstruct%agrid(:,:,1), Atm(n)%gridstruct%agrid(:,:,2),   &
                          Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, Atm(n)%flagstruct,            &

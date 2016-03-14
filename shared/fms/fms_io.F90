@@ -107,7 +107,6 @@ use mpp_mod,         only: input_nml_file, mpp_get_current_pelist_name, uppercas
 use mpp_mod,         only: mpp_gather, mpp_scatter, mpp_send, mpp_recv, mpp_sync_self, COMM_TAG_1, EVENT_RECV
 use mpp_mod,         only: MPP_FILL_DOUBLE,MPP_FILL_INT
 
-use platform_mod, only: r8_kind
 
 implicit none
 private
@@ -204,14 +203,20 @@ type Ptr1Dr
    real, dimension(:),     pointer :: p => NULL()
 end type Ptr1Dr
 
-type Ptr2Dr
+type Ptr2dr
    real, dimension(:,:),   pointer :: p => NULL()
-end type Ptr2Dr
+end type Ptr2dr
 
 type Ptr3Dr
    real, dimension(:,:,:), pointer :: p => NULL()
 end type Ptr3Dr
+type Ptr2dr8
+   real(DOUBLE_KIND), dimension(:,:),   pointer :: p => NULL()
+end type Ptr2dr8
 
+type Ptr3Dr8
+   real(DOUBLE_KIND), dimension(:,:,:), pointer :: p => NULL()
+end type Ptr3Dr8
 type Ptr4Dr
    real, dimension(:,:,:,:), pointer :: p => NULL()
 end type Ptr4Dr
@@ -249,8 +254,10 @@ type restart_file_type
    type(var_type), dimension(:),   pointer  :: var  => NULL()
    type(Ptr0Dr),   dimension(:,:), pointer  :: p0dr => NULL()
    type(Ptr1Dr),   dimension(:,:), pointer  :: p1dr => NULL()
-   type(Ptr2Dr),   dimension(:,:), pointer  :: p2dr => NULL()
+   type(Ptr2dr),   dimension(:,:), pointer  :: p2dr => NULL()
    type(Ptr3Dr),   dimension(:,:), pointer  :: p3dr => NULL()
+   type(Ptr2dr8),   dimension(:,:), pointer  :: p2dr8 => NULL()
+   type(Ptr3Dr8),   dimension(:,:), pointer  :: p3dr8 => NULL()
    type(Ptr4Dr),   dimension(:,:), pointer  :: p4dr => NULL()
    type(Ptr0Di),   dimension(:,:), pointer  :: p0di => NULL()
    type(Ptr1Di),   dimension(:,:), pointer  :: p1di => NULL()
@@ -323,6 +330,12 @@ interface register_restart_field
    module procedure register_restart_field_r1d
    module procedure register_restart_field_r2d
    module procedure register_restart_field_r3d
+#ifdef OVERLOAD_R4
+   module procedure register_restart_field_r2d8
+   module procedure register_restart_field_r3d8
+   module procedure register_restart_field_r2d8_2level
+   module procedure register_restart_field_r3d8_2level
+#endif
    module procedure register_restart_field_r4d
    module procedure register_restart_field_i0d
    module procedure register_restart_field_i1d
@@ -338,12 +351,6 @@ interface register_restart_field
    module procedure register_restart_field_i3d_2level
    module procedure register_restart_region_r2d
    module procedure register_restart_region_r3d
-end interface
-
-interface register_restart_axis
-   module procedure register_restart_axis_r1d
-   module procedure register_restart_axis_i1d
-   module procedure register_restart_axis_unlimited
 end interface
 
 interface reset_field_pointer
@@ -433,7 +440,7 @@ public  :: get_restart_io_mode, get_tile_string, string
 public  :: get_mosaic_tile_grid, get_mosaic_tile_file, get_file_name
 public  :: get_global_att_value, get_var_att_value
 public  :: file_exist, field_exist
-public  :: register_restart_field, register_restart_axis, save_restart, restore_state
+public  :: register_restart_field, save_restart, restore_state
 public  :: set_meta_global
 public  :: save_restart_border, restore_state_border
 public  :: restart_file_type, query_initialized, set_initialized, free_restart_type
@@ -1108,176 +1115,6 @@ subroutine write_data_3d_new(filename, fieldname, data, domain, no_domain, scala
 end subroutine write_data_3d_new
 ! </SUBROUTINE>
 
-!-------------------------------------------------------------------------------
-!
-!   This routine will register an integer restart file axis
-!
-!-------------------------------------------------------------------------------
-subroutine register_restart_axis_r1d(fileObj,filename,fieldname,data,cartesian,units,longname,sense,min,calendar)
-  type(restart_file_type),    intent(inout)      :: fileObj
-  character(len=*),           intent(in)         :: filename, fieldname
-  real,                       intent(in), target :: data(:)
-  character(len=*),           intent(in)         :: cartesian
-  character(len=*), optional, intent(in)         :: units, longname
-  integer,          optional, intent(in)         :: sense
-  real,             optional, intent(in)         :: min !valid min for real axis data
-  character(len=*), optional, intent(in)         :: calendar
-
-  integer :: idx
-
-
-  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(register_restart_axis_r1d): need to call fms_io_init')
-
-  select case(trim(cartesian))
-    case('X')
-      idx = XIDX
-    case('Y')
-      idx = YIDX
-    case('Z')
-      idx = ZIDX
-    case('T')
-      idx = TIDX
-    case('CC')
-      idx = CCIDX
-    case default
-      call mpp_error(FATAL,'fms_io(register_restart_axis_r1d): Axis must be one of X,Y,Z,T or CC ' // &
-                                                           'but has value '//trim(cartesian))
-  end select
-  if(.not. ALLOCATED(fileObj%axes)) allocate(fileObj%axes(NIDX))
-  if(ASSOCIATED(fileObj%axes(idx)%data)) &
-       call mpp_error(FATAL,'fms_io(register_restart_axis_r1d): '//trim(cartesian)//' axis has already been defined')
-  fileObj%name = filename
-  fileObj%axes(idx)%name = fieldname
-  fileObj%axes(idx)%data =>data
-  fileObj%axes(idx)%cartesian = cartesian
-  fileObj%axes(idx)%dimlen = -1   ! This is not a compressed axis
-  if(PRESENT(units)) fileObj%axes(idx)%units = units
-  if(PRESENT(longname)) fileObj%axes(idx)%longname = longname
-  if(PRESENT(min)) fileObj%axes(idx)%min = min
-  if(idx == TIDX) then
-     if(PRESENT(calendar)) fileObj%axes(idx)%calendar = trim(calendar)
-  endif
-  if(PRESENT(sense)) then
-     if(idx /= ZIDX) call mpp_error(FATAL,'fms_io(register_restart_axis_r1d): Only the Z axis may define sense; ' // &
-                                    'Axis = '//trim(cartesian))
-     if(abs(sense) /= 1) call mpp_error(FATAL,'fms_io(register_restart_axis_r1d): Value of sense must be +/- 1')
-     fileObj%axes(idx)%sense = sense
-  endif
-end subroutine register_restart_axis_r1d
-
-!-------------------------------------------------------------------------------
-!
-!   This routine will register the compressed index restart file axis
-!
-!-------------------------------------------------------------------------------
-subroutine register_restart_axis_i1d(fileObj,filename,fieldname,data,compressed, &
-                                     compressed_axis,dimlen,dimlen_name,dimlen_lname,units,longname,imin)
-  type(restart_file_type),    intent(inout)      :: fileObj
-  character(len=*),           intent(in)         :: filename, fieldname
-  integer,                    intent(in)         :: data(:)
-  character(len=*),           intent(in)         :: compressed
-  character(len=*),           intent(in)         :: compressed_axis !< which compressed axis (C or H)
-  integer,                    intent(in)         :: dimlen
-  character(len=*), optional, intent(in)         :: dimlen_name, dimlen_lname !< dimlen axis name and longname
-  character(len=*), optional, intent(in)         :: units, longname
-  integer,          optional, intent(in)         :: imin !valid min for integer axis data
-
-  integer :: ssize,rsize,npes
-  integer :: idx
-  integer, allocatable :: pelist(:)
-  type(domain2d), pointer :: io_domain=>NULL()
-
-
-  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(register_restart_axis_i1d): need to call fms_io_init')
-
-  select case(trim(compressed_axis))
-  case('C')
-     idx = CIDX
-  case('H')
-     idx = HIDX
-  case default
-     call mpp_error(FATAL,'fms_io(register_restart_axis_r1d): Axis must be one of C or H ' // &
-          'but has value '//trim(compressed_axis))
-  end select
-
-  if(.not. ALLOCATED(fileObj%axes)) allocate(fileObj%axes(NIDX))
-  if(ALLOCATED(fileObj%axes(idx)%idx)) &
-                 call mpp_error(FATAL,'fms_io(register_restart_axis_i1d): Compressed axis ' //&
-                 trim(compressed_axis) // ' has already been defined')
-  fileObj%name = filename
-  fileObj%is_compressed = .true.
-  fileObj%unlimited_axis = .false.
-  fileObj%axes(idx)%name = fieldname
-  if(ASSOCIATED(current_domain)) then
-     fileObj%axes(idx)%domain =>current_domain
-     io_domain =>mpp_get_io_domain(current_domain)
-     if(.not. ASSOCIATED(io_domain)) &
-                 call mpp_error(FATAL,'fms_io(register_restart_axis_i1d): The io domain must be defined')
-     npes = mpp_get_domain_npes(io_domain)
-     allocate(fileObj%axes(idx)%nelems(npes)); fileObj%axes(idx)%nelems = 0
-     allocate(pelist(npes))
-     call mpp_get_pelist(io_domain,pelist)
-     ssize = size(data)
-     call mpp_gather((/ssize/),fileObj%axes(idx)%nelems,pelist)
-     rsize = sum(fileObj%axes(idx)%nelems)
-     allocate( fileObj%axes(idx)%idx(rsize) )
-  !  Note that the gatherV implied here is asymmetric; only root needs to know the vector of recv sizes
-     call mpp_gather(data,ssize,fileObj%axes(idx)%idx,fileObj%axes(idx)%nelems,pelist)
-     deallocate(pelist); io_domain=>NULL()
-  else
-     call mpp_error(FATAL,'fms_io(register_restart_axis_i1d): The domain must be defined through set_domain')
-  endif
-  fileObj%axes(idx)%compressed = compressed
-  fileObj%axes(idx)%dimlen = dimlen
-  if(PRESENT(dimlen_name)) fileObj%axes(idx)%dimlen_name = dimlen_name
-  if(PRESENT(dimlen_lname)) fileObj%axes(idx)%dimlen_lname = dimlen_lname
-  if(PRESENT(units)) fileObj%axes(idx)%units = units
-  if(PRESENT(longname)) fileObj%axes(idx)%longname = longname
-  if(PRESENT(imin)) fileObj%axes(idx)%imin = imin
-end subroutine register_restart_axis_i1d
-
-!-------------------------------------------------------------------------------
-
-subroutine register_restart_axis_unlimited(fileObj,filename,fieldname,nelem,units,longname)
-  type(restart_file_type),    intent(inout)      :: fileObj
-  character(len=*),           intent(in)         :: filename, fieldname
-  integer                                        :: nelem  ! Number of elements on rank
-  character(len=*), optional, intent(in)         :: units, longname
-
-  integer :: idx,npes
-  integer, allocatable :: pelist(:)
-  type(domain2d), pointer :: io_domain=>NULL()
-
-
-  if(.not.module_is_initialized) &
-                call mpp_error(FATAL,'fms_io(register_restart_axis_unlimited): need to call fms_io_init')
-  idx = UIDX
-
-  if(.not. ALLOCATED(fileObj%axes)) allocate(fileObj%axes(NIDX))
-  if(ALLOCATED(fileObj%axes(idx)%idx)) &
-               call mpp_error(FATAL,'fms_io(register_restart_axis_unlimited): Unlimited axis has already been defined')
-  fileObj%name = filename
-  fileObj%is_compressed = .false.
-  fileObj%unlimited_axis = .true.
-  fileObj%axes(idx)%name = fieldname
-  if(ASSOCIATED(current_domain)) then
-     fileObj%axes(idx)%domain =>current_domain
-     io_domain =>mpp_get_io_domain(current_domain)
-     if(.not. ASSOCIATED(io_domain)) &
-                 call mpp_error(FATAL,'fms_io(register_restart_axis_i1d): The io domain must be defined')
-     npes = mpp_get_domain_npes(io_domain)
-     allocate(fileObj%axes(idx)%nelems(npes)); fileObj%axes(idx)%nelems = 0
-     allocate(pelist(npes))
-     call mpp_get_pelist(io_domain,pelist)
-     call mpp_gather((/nelem/),fileObj%axes(idx)%nelems,pelist)
-     deallocate(pelist); io_domain=>NULL()
-  else
-     call mpp_error(FATAL,'fms_io(register_restart_axis_unlimited): The domain must be defined through set_domain')
-  endif
-  if(PRESENT(units)) fileObj%axes(idx)%units = units
-  if(PRESENT(longname)) fileObj%axes(idx)%longname = longname
-end subroutine register_restart_axis_unlimited
-
 !
 !   This routine is the destructor for the file object
 !
@@ -1287,16 +1124,16 @@ subroutine free_restart_type(fileObj)
   type(meta_type),pointer                :: this
   type(meta_type),pointer                :: this_p
   integer :: id, n
-
   !--- remove file name from registered_file
-  id = fileObj%register_id
-  if( id > num_registered_files .OR. id < 1 ) then
-     print*, " register_id = ", id, " and num_registered_files = ", num_registered_files
-     call mpp_error(FATAL, &
-        'fms_io(free_restart_type): fileObj%register_id should be between 1 and num_registered_files')
-  endif
-  if( trim(fileObj%name) .NE. trim(registered_file(id)) ) &
-     call mpp_error(FATAL, 'fms_io(free_restart_type): fileObj%name .NE. registered_file(id)')
+  id = 0
+  do n = 1, num_registered_files
+     if( trim(fileObj%name) == trim(registered_file(n)) ) then
+        id = n
+        exit
+     endif
+  enddo
+  if( id < 0) &
+     call mpp_error(FATAL, 'fms_io(free_restart_type): fileObj%name is not found in registered_files')
   do n = id+1, num_registered_files
      registered_file(n-1) = trim(registered_file(n))
   enddo
@@ -1316,6 +1153,8 @@ subroutine free_restart_type(fileObj)
   if(ASSOCIATED(fileObj%p1dr)) deallocate(fileObj%p1dr)
   if(ASSOCIATED(fileObj%p2dr)) deallocate(fileObj%p2dr)
   if(ASSOCIATED(fileObj%p3dr)) deallocate(fileObj%p3dr)
+  if(ASSOCIATED(fileObj%p2dr8)) deallocate(fileObj%p2dr8)
+  if(ASSOCIATED(fileObj%p3dr8)) deallocate(fileObj%p3dr8)
   if(ASSOCIATED(fileObj%p0di)) deallocate(fileObj%p0di)
   if(ASSOCIATED(fileObj%p1di)) deallocate(fileObj%p1di)
   if(ASSOCIATED(fileObj%p2di)) deallocate(fileObj%p2di)
@@ -1448,7 +1287,7 @@ end function register_restart_field_r0d
 !
 !-------------------------------------------------------------------------------
 function register_restart_field_r1d(fileObj, filename, fieldname, data, domain, mandatory, &
-                             no_domain, position, tile_count, data_default, longname, units, compressed_axis, read_only)
+                             no_domain, position, tile_count, data_default, longname, units, read_only)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   real, dimension(:),         intent(in), target :: data
@@ -1457,7 +1296,7 @@ function register_restart_field_r1d(fileObj, filename, fieldname, data, domain, 
   real,             optional, intent(in)         :: data_default
   integer,          optional, intent(in)         :: position, tile_count
   logical,          optional, intent(in)         :: mandatory
-  character(len=*), optional, intent(in)         :: longname, units, compressed_axis
+  character(len=*), optional, intent(in)         :: longname, units
   logical,          optional, intent(in)         :: read_only
   integer                                        :: index_field
   integer                                        :: register_restart_field_r1d
@@ -1465,7 +1304,7 @@ function register_restart_field_r1d(fileObj, filename, fieldname, data, domain, 
   if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(register_restart_field_r1d): need to call fms_io_init')
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), 1, 1, 1/), index_field, domain, mandatory, &
                        no_domain, scalar_or_1d=.true., position=position, tile_count=tile_count, &
-                       data_default=data_default, longname=longname, units=units, compressed_axis=compressed_axis, &
+                       data_default=data_default, longname=longname, units=units, &
                        read_only=read_only )
 
   fileObj%p1dr(fileObj%var(index_field)%siz(4), index_field)%p => data
@@ -1482,8 +1321,8 @@ end function register_restart_field_r1d
 !
 !-------------------------------------------------------------------------------
 function register_restart_field_r2d(fileObj, filename, fieldname, data, domain, mandatory, no_domain, &
-                                    compressed, position, tile_count, data_default, longname, units, &
-                                    compressed_axis, read_only)
+                                     compressed, position, tile_count, data_default, longname, units, &
+                                    read_only)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   real,     dimension(:,:),   intent(in), target :: data
@@ -1493,7 +1332,7 @@ function register_restart_field_r2d(fileObj, filename, fieldname, data, domain, 
   logical,          optional, intent(in)         :: compressed
   integer,          optional, intent(in)         :: position, tile_count
   logical,          optional, intent(in)         :: mandatory
-  character(len=*), optional, intent(in)         :: longname, units, compressed_axis
+  character(len=*), optional, intent(in)         :: longname, units
   logical,          optional, intent(in)         :: read_only
   logical                                        :: is_compressed
   integer                                        :: index_field
@@ -1504,7 +1343,7 @@ function register_restart_field_r2d(fileObj, filename, fieldname, data, domain, 
   if(present(compressed)) is_compressed=compressed
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), 1, 1/), &
                        index_field, domain, mandatory, no_domain, is_compressed, &
-                       position, tile_count, data_default, longname, units, compressed_axis, read_only=read_only)
+                       position, tile_count, data_default, longname, units, read_only=read_only)
   fileObj%p2dr(fileObj%var(index_field)%siz(4), index_field)%p => data
   fileObj%var(index_field)%ndim = 2
   register_restart_field_r2d = index_field
@@ -1520,8 +1359,8 @@ end function register_restart_field_r2d
 !
 !-------------------------------------------------------------------------------
 function register_restart_field_r3d(fileObj, filename, fieldname, data, domain, mandatory, &
-                             no_domain, position, tile_count, data_default, longname, units, read_only, &
-                             compressed, compressed_axis)
+                             no_domain, position, tile_count, data_default, longname, units, &
+                             read_only, compressed)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   real,     dimension(:,:,:), intent(in), target :: data
@@ -1530,7 +1369,7 @@ function register_restart_field_r3d(fileObj, filename, fieldname, data, domain, 
   logical,          optional, intent(in)         :: no_domain
   integer,          optional, intent(in)         :: position, tile_count
   logical,          optional, intent(in)         :: mandatory
-  character(len=*), optional, intent(in)         :: longname, units, compressed_axis
+  character(len=*), optional, intent(in)         :: longname, units
   logical,          optional, intent(in)         :: read_only
   logical,          optional, intent(in)         :: compressed
   logical                                        :: is_compressed
@@ -1545,7 +1384,7 @@ function register_restart_field_r3d(fileObj, filename, fieldname, data, domain, 
   endif
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), size(data,3), 1/), &
                        index_field, domain, mandatory, no_domain, is_compressed, &
-                       position, tile_count, data_default, longname, units, compressed_axis, read_only=read_only)
+                       position, tile_count, data_default, longname, units, read_only=read_only)
   fileObj%p3dr(fileObj%var(index_field)%siz(4), index_field)%p => data
   fileObj%var(index_field)%ndim = 3
   register_restart_field_r3d = index_field
@@ -1555,6 +1394,85 @@ function register_restart_field_r3d(fileObj, filename, fieldname, data, domain, 
 end function register_restart_field_r3d
 
 
+!-------------------------------------------------------------------------------
+!
+!   The routine will register a 2-D real restart file field with one time level
+!
+!-------------------------------------------------------------------------------
+#ifdef OVERLOAD_R4
+function register_restart_field_r2d8(fileObj, filename, fieldname, data, domain, mandatory, no_domain, &
+                                    compressed, position, tile_count, data_default, longname, units, &
+                                    read_only)
+  type(restart_file_type), intent(inout)         :: fileObj
+  character(len=*),           intent(in)         :: filename, fieldname
+  real(DOUBLE_KIND), dimension(:,:),   intent(in), target :: data
+  type(domain2d),   optional, intent(in), target :: domain
+  real,             optional, intent(in)         :: data_default
+  logical,          optional, intent(in)         :: no_domain
+  integer,          optional, intent(in)         :: position, tile_count
+  logical,          optional, intent(in)         :: mandatory
+  character(len=*), optional, intent(in)         :: longname, units
+  logical,          optional, intent(in)         :: read_only
+  logical,          optional, intent(in)         :: compressed
+  logical                                        :: is_compressed
+  integer                                        :: index_field
+  integer                                        :: register_restart_field_r2d8
+
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(register_restart_field_r2d8): need to call fms_io_init')
+  is_compressed = .false.
+  if(present(compressed)) is_compressed=compressed
+  call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), 1, 1/), &
+                       index_field, domain, mandatory, no_domain, is_compressed, &
+                       position, tile_count, data_default, longname, units, read_only=read_only)
+  fileObj%p2dr8(fileObj%var(index_field)%siz(4), index_field)%p => data
+  fileObj%var(index_field)%ndim = 2
+  register_restart_field_r2d8 = index_field
+
+  return
+
+end function register_restart_field_r2d8
+
+
+!-------------------------------------------------------------------------------
+!
+!   The routine will register a 3-D real restart file field with one time level
+!
+!-------------------------------------------------------------------------------
+function register_restart_field_r3d8(fileObj, filename, fieldname, data, domain, mandatory, &
+                             no_domain, position, tile_count, data_default, longname, units, read_only, &
+                             compressed)
+  type(restart_file_type), intent(inout)         :: fileObj
+  character(len=*),           intent(in)         :: filename, fieldname
+  real(DOUBLE_KIND),  dimension(:,:,:), intent(in), target :: data
+  type(domain2d),   optional, intent(in), target :: domain
+  real,             optional, intent(in)         :: data_default
+  logical,          optional, intent(in)         :: no_domain
+  integer,          optional, intent(in)         :: position, tile_count
+  logical,          optional, intent(in)         :: mandatory
+  character(len=*), optional, intent(in)         :: longname, units
+  logical,          optional, intent(in)         :: read_only
+  logical,          optional, intent(in)         :: compressed
+  logical                                        :: is_compressed
+  integer                                        :: index_field
+  integer                                        :: register_restart_field_r3d8
+
+  if(.not.module_is_initialized) call mpp_error(FATAL,'fms_io(register_restart_field_r3d8): need to call fms_io_init')
+  if(present(compressed)) then
+    is_compressed=compressed
+  else
+    is_compressed = .false.
+  endif
+  call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), size(data,3), 1/), &
+                       index_field, domain, mandatory, no_domain, is_compressed, &
+                       position, tile_count, data_default, longname, units, read_only=read_only)
+  fileObj%p3dr8(fileObj%var(index_field)%siz(4), index_field)%p => data
+  fileObj%var(index_field)%ndim = 3
+  register_restart_field_r3d8 = index_field
+
+  return
+
+end function register_restart_field_r3d8
+#endif
 !-------------------------------------------------------------------------------
 !
 !   The routine will register a 4-D real restart file field with one time level
@@ -1634,7 +1552,7 @@ end function register_restart_field_i0d
 !-------------------------------------------------------------------------------
 function register_restart_field_i1d(fileObj, filename, fieldname, data, domain, mandatory, &
                              no_domain, position, tile_count, data_default, longname, units, &
-                             compressed_axis, read_only)
+                             read_only)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   integer, dimension(:),      intent(in), target :: data
@@ -1643,7 +1561,7 @@ function register_restart_field_i1d(fileObj, filename, fieldname, data, domain, 
   integer,          optional, intent(in)         :: position, tile_count
   logical,          optional, intent(in)         :: mandatory
   logical,          optional, intent(in)         :: no_domain
-  character(len=*), optional, intent(in)         :: longname, units, compressed_axis
+  character(len=*), optional, intent(in)         :: longname, units
   logical,          optional, intent(in)         :: read_only
   integer                                        :: index_field
   integer                                        :: register_restart_field_i1d
@@ -1657,7 +1575,7 @@ function register_restart_field_i1d(fileObj, filename, fieldname, data, domain, 
 
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), 1, 1, 1/), index_field, domain, &
                        mandatory, no_domain=no_domain, scalar_or_1d=.true., position=position, tile_count=tile_count, &
-                       data_default=data_default_r, longname=longname, units=units, compressed_axis=compressed_axis, &
+                       data_default=data_default_r, longname=longname, units=units, &
                        read_only=read_only)
   fileObj%p1di(fileObj%var(index_field)%siz(4), index_field)%p => data
   fileObj%var(index_field)%ndim = 1
@@ -1675,7 +1593,7 @@ end function register_restart_field_i1d
 !-------------------------------------------------------------------------------
 function register_restart_field_i2d(fileObj, filename, fieldname, data, domain, mandatory, no_domain, &
                              compressed, position, tile_count, data_default, longname, units, &
-                             compressed_axis, read_only)
+                             read_only)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),           intent(in)         :: filename, fieldname
   integer,  dimension(:,:),   intent(in), target :: data
@@ -1685,7 +1603,7 @@ function register_restart_field_i2d(fileObj, filename, fieldname, data, domain, 
   logical,          optional, intent(in)         :: compressed
   integer,          optional, intent(in)         :: position, tile_count
   logical,          optional, intent(in)         :: mandatory
-  character(len=*), optional, intent(in)         :: longname, units, compressed_axis
+  character(len=*), optional, intent(in)         :: longname, units
   logical,          optional, intent(in)         :: read_only
   logical                                        :: is_compressed
   integer                                        :: index_field
@@ -1702,7 +1620,7 @@ function register_restart_field_i2d(fileObj, filename, fieldname, data, domain, 
 
   call setup_one_field(fileObj, filename, fieldname, (/size(data,1), size(data,2), 1, 1/), &
                        index_field, domain, mandatory, no_domain, is_compressed, &
-                       position, tile_count, data_default_r, longname, units, compressed_axis, &
+                       position, tile_count, data_default_r, longname, units, &
                        read_only=read_only)
   fileObj%p2di(fileObj%var(index_field)%siz(4), index_field)%p => data
   fileObj%var(index_field)%ndim = 2
@@ -1885,6 +1803,76 @@ function register_restart_field_r3d_2level(fileObj, filename, fieldname, data1, 
   return
 
 end function register_restart_field_r3d_2level
+
+!-------------------------------------------------------------------------------
+!
+!   The routine will register a 3-D real restart file field with two time level
+!
+!-------------------------------------------------------------------------------
+#ifdef OVERLOAD_R4
+function register_restart_field_r2d8_2level(fileObj, filename, fieldname, data1, data2, domain, mandatory, &
+                             no_domain, position, tile_count, data_default, longname, units, read_only)
+  type(restart_file_type), intent(inout)         :: fileObj
+  character(len=*),           intent(in)         :: filename, fieldname
+  real(DOUBLE_KIND),     dimension(:,:),   intent(in), target :: data1, data2
+  type(domain2d),   optional, intent(in), target :: domain
+  real,             optional, intent(in)         :: data_default
+  logical,          optional, intent(in)         :: no_domain
+  integer,          optional, intent(in)         :: position, tile_count
+  logical,          optional, intent(in)         :: mandatory
+  character(len=*), optional, intent(in)         :: longname, units
+  logical,          optional, intent(in)         :: read_only
+  integer                                        :: index_field
+  integer                                        :: register_restart_field_r2d8_2level
+
+  if(.not.module_is_initialized) call mpp_error(FATAL, &
+      'fms_io(register_restart_field_r2d_2level): need to call fms_io_init')
+  call setup_one_field(fileObj, filename, fieldname, (/size(data1,1), size(data1,2), 1, 2/), &
+                       index_field, domain, mandatory, no_domain, .false., &
+                       position, tile_count, data_default, longname, units, read_only=read_only)
+  fileObj%p2dr8(1, index_field)%p => data1
+  fileObj%p2dr8(2, index_field)%p => data2
+  fileObj%var(index_field)%ndim = 2
+  register_restart_field_r2d8_2level = index_field
+
+  return
+
+end function register_restart_field_r2d8_2level
+
+!-------------------------------------------------------------------------------
+!
+!   The routine will register a 3-D real restart file field with two time level
+!
+!-------------------------------------------------------------------------------
+function register_restart_field_r3d8_2level(fileObj, filename, fieldname, data1, data2, domain, mandatory, &
+                             no_domain, position, tile_count, data_default, longname, units, read_only)
+  type(restart_file_type), intent(inout)         :: fileObj
+  character(len=*),           intent(in)         :: filename, fieldname
+  real(DOUBLE_KIND),     dimension(:,:,:), intent(in), target :: data1, data2
+  type(domain2d),   optional, intent(in), target :: domain
+  real,             optional, intent(in)         :: data_default
+  logical,          optional, intent(in)         :: no_domain
+  integer,          optional, intent(in)         :: position, tile_count
+  logical,          optional, intent(in)         :: mandatory
+  character(len=*), optional, intent(in)         :: longname, units
+  logical,          optional, intent(in)         :: read_only
+  integer                                        :: index_field
+  integer                                        :: register_restart_field_r3d8_2level
+
+  if(.not.module_is_initialized) call mpp_error(FATAL, &
+      'fms_io(register_restart_field_r3d_2level): need to call fms_io_init')
+  call setup_one_field(fileObj, filename, fieldname, (/size(data1,1), size(data1,2), size(data1,3), 2/), &
+                       index_field, domain, mandatory, no_domain, .false., &
+                       position, tile_count, data_default, longname, units, read_only=read_only)
+  fileObj%p3dr8(1, index_field)%p => data1
+  fileObj%p3dr8(2, index_field)%p => data2
+  fileObj%var(index_field)%ndim = 3
+  register_restart_field_r3d8_2level = index_field
+
+  return
+
+end function register_restart_field_r3d8_2level
+#endif
 
 !-------------------------------------------------------------------------------
 !
@@ -2176,15 +2164,8 @@ subroutine save_restart(fileObj, time_stamp, directory, append, time_level)
      restartpath = trim(restartname)
   end if
 
-  if(fileObj%is_compressed .AND. ALLOCATED(fileObj%axes)) then
-     ! fileObj%axes must also be allocated if the file contains compressed axes
-     ! But will this always be true in the future?
-     call save_compressed_restart(fileObj,restartpath,append,time_level)
-  elseif(fileObj%unlimited_axis .AND. ALLOCATED(fileObj%axes)) then
-     call save_unlimited_axis_restart(fileObj,restartpath)
-  else
-     call save_default_restart(fileObj,restartpath)
-  endif
+  call save_default_restart(fileObj,restartpath)
+
 
   if(print_chksum) call write_chksum(fileObj, MPP_OVERWR)
 end subroutine save_restart
@@ -2206,421 +2187,6 @@ function all_field_read_only(fileObj)
   return
 
 end function all_field_read_only
-
-!-------------------------------------------------------------------------------
-!
-!  saves all registered variables to restart files. Those variables are set
-!  through register_restart_field
-!
-!-------------------------------------------------------------------------------
-
-subroutine save_compressed_restart(fileObj,restartpath,append,time_level)
-  type(restart_file_type), intent(inout),target :: fileObj
-  character(len=336)                     :: restartpath ! The restart file path (dir/file).
-
-  ! Optional arguments:
-
-  ! If neither append or time_level is present:
-  !   routine writes both meta data and field data.
-
-  ! If append is present and append=.true.:
-  !   Only field data is written.
-  !   The field data is appended to a new time level.
-  !   time_level must also be present and it must be >= 0.0
-  !   The value of time_level is written as a new value of the time axis data.
-
-  ! If time_level is present and time_level < 0.0:
-  !   A new file is opened and only the meta data is written.
-
-  ! If append is present and append=.false.:
-  !   Behaves the same was as if it were not present. That is, meta data is
-  !   written and whether or not field data is written is determined by time_level.
-
-  logical, intent(in), optional :: append
-  real,    intent(in), optional :: time_level
-
-  integer            :: unit                 ! The mpp unit of the open file.
-  type(axistype)                      :: x_axis, y_axis, z_axis, CC_axis, other_axis
-  type(axistype)                      :: t_axis, c_axis, h_axis  ! time & sparse compressed vector axes
-  type(axistype)                      :: comp_axis
-  logical                             :: naxis_z=.false.
-  type(axistype), dimension(4)        :: var_axes
-  type(var_type), pointer, save       :: cur_var=>NULL()
-  integer                             :: i, j, k, l, num_var_axes, cpack, idx, mpp_action
-  real                                :: tlev
-  real, allocatable, dimension(:,:)   :: r2d
-  real, allocatable, dimension(:)     :: r1d
-  real                                :: r0d
-  integer(LONG_KIND), allocatable, dimension(:)    :: check_val
-  character(len=256)                  :: checksum_char
-  logical                             :: domain_present, write_meta_data, write_field_data
-  logical                             :: c_axis_defined, h_axis_defined, CC_axis_defined
-  type(domain2d), pointer :: domain =>NULL()
-  type(ax_type),  pointer :: axis   =>NULL()
-
-  !-- no need to proceed if all the variables are read only.
-  if( all_field_read_only(fileObj) ) return
-
-  if (.not.ALLOCATED(fileObj%axes(CIDX)%idx) .and. .not.ALLOCATED(fileObj%axes(HIDX)%idx) ) then
-     call mpp_error(FATAL, "fms_io(save_compressed_restart): A compressed axis has "// &
-          "not been defined for file "//trim(fileObj%name))
-  else if (ALLOCATED(fileObj%axes(CIDX)%idx)) then
-     domain =>fileObj%axes(CIDX)%domain
-  else
-     domain =>fileObj%axes(HIDX)%domain
-  endif
-
-  if(present(append)) then
-    if(append .and. .not.present(time_level)) then
-      call mpp_error(FATAL, 'fms_io(save_compressed_restart): time_level must be present when append=.true.'// &
-                    ' for file '//trim(fileObj%name))
-    endif
-  endif
-
-  mpp_action = MPP_OVERWR
-  write_meta_data  = .true.
-  if(present(append)) then
-    if(append) then
-      mpp_action = MPP_APPEND
-      write_meta_data = .false. ! Assuming meta data is already written when routine is called to append to field data.
-      if(time_level < 0.0) then
-        call mpp_error(FATAL, 'fms_io(save_compressed_restart): time_level cannot be negative when append is .true.'// &
-                      ' for file '//trim(fileObj%name))
-      endif
-    endif
-  endif
-
-  write_field_data = .true.
-  if(present(time_level)) then
-    write_field_data = time_level >= 0.0 ! Using negative value of time_level as a flag that there is no valid field data to write.
-  endif
-
-  call mpp_open(unit,trim(restartpath),action=mpp_action,form=form, &
-          is_root_pe=fileObj%is_root_pe, domain=domain)
-
-  if(write_meta_data) then
-    ! User has defined axes and these are assumed to be unique
-    ! Unfortunately it has proven difficult to write a generalized form because
-    ! of the variations possible across all of the axes
-    ! Currently support only 1 user defined axis of each type
-    ! In fact, this config is specifically designed to support the land model
-    ! sparse, compressed tile data
-    axis => fileobj%axes(XIDX)
-    if(.not. ASSOCIATED(axis)) call mpp_error(FATAL, "fms_io(save_compressed_restart): "// &
-                " The X axis has not been defined for "// &
-                " file "//trim(fileObj%name) )
-    call mpp_write_meta(unit,x_axis,axis%name,axis%units,axis%longname,data=axis%data,cartesian='X')
-
-    axis => fileobj%axes(YIDX)
-    if(.not. ASSOCIATED(axis)) call mpp_error(FATAL, "fms_io(save_compressed_restart): "// &
-                " The Y axis has not been defined for "// &
-                " file "//trim(fileObj%name) )
-    call mpp_write_meta(unit,y_axis,axis%name,axis%units,axis%longname,data=axis%data,cartesian='Y')
-
-    axis => fileobj%axes(ZIDX)
-    naxis_z = .false.
-    if(ASSOCIATED(axis%data))then
-       call mpp_write_meta(unit,z_axis,axis%name,axis%units,axis%longname, &
-            data=axis%data,cartesian='Z')
-       naxis_z = .true.
-    endif
-
-    axis => fileobj%axes(CCIDX)
-    if(ASSOCIATED(axis%data))then
-       call mpp_write_meta(unit,CC_axis,axis%name,axis%units,axis%longname,data=axis%data,cartesian='CC')
-       CC_axis_defined = .TRUE.
-    else
-       CC_axis_defined = .FALSE.
-    endif
-
-    ! The compressed axis
-    axis => fileObj%axes(CIDX)
-    if(ALLOCATED(axis%idx)) then
-       call mpp_def_dim(unit,trim(axis%dimlen_name),axis%dimlen,trim(axis%dimlen_lname), (/(i,i=1,axis%dimlen)/))
-       call mpp_write_meta(unit,c_axis,axis%name,axis%units,axis%longname, &
-                           data=axis%idx,compressed=axis%compressed,min=axis%imin)
-       c_axis_defined = .TRUE.
-    else
-       c_axis_defined = .FALSE.
-    endif
-
-    axis => fileObj%axes(HIDX)
-    if (ALLOCATED(axis%idx)) then
-       call mpp_def_dim(unit,trim(axis%dimlen_name),axis%dimlen,trim(axis%dimlen_lname), (/(i,i=1,axis%dimlen)/))
-       call mpp_write_meta(unit,h_axis,axis%name,axis%units,axis%longname, &
-                         data=axis%idx,compressed=axis%compressed,min=axis%imin)
-       h_axis_defined = .TRUE.
-    else
-       h_axis_defined = .FALSE.
-    endif
-
-    ! write out time axis
-    axis => fileobj%axes(TIDX)
-    if(ASSOCIATED(axis%data))then
-       call mpp_write_meta(unit,t_axis, axis%name, units=axis%units, longname=axis%longname, cartesian='T', calendar=axis%calendar)
-    else
-       call mpp_write_meta(unit,t_axis, 'Time','time level','Time',cartesian='T')
-    endif
-
-    ! write metadata for fields
-    do j = 1,fileObj%nvar
-       cur_var => fileObj%var(j)
-       if(cur_var%read_only) cycle
-       if(cur_var%siz(4) > 1 .AND. cur_var%siz(4) .NE. fileObj%max_ntime ) call mpp_error(FATAL, &
-        "fms_io(save_restart): "//trim(cur_var%name)//" in file "//trim(fileObj%name)// &
-        " has more than one time level, but number of time level is not equal to max_ntime")
-
-       select case (trim(cur_var%compressed_axis))
-       case ('C')
-          comp_axis = c_axis
-          other_axis = z_axis
-       case ('C_CC')
-          comp_axis = c_axis
-          other_axis = CC_axis
-       case ('H')
-          comp_axis = h_axis
-       case default
-          if (ALLOCATED(fileObj%axes(CIDX)%idx)) then
-             comp_axis = c_axis
-             other_axis = z_axis
-          else
-             comp_axis = h_axis
-          endif
-       end select
-
-       if(cur_var%ndim == 0) then
-          num_var_axes = 1
-          var_axes(1) = t_axis
-       elseif(cur_var%ndim == 1) then
-          num_var_axes = 1
-          var_axes(1) = comp_axis
-          if(cur_var%siz(4) == fileObj%max_ntime) then
-             num_var_axes = 2
-             var_axes(2) = t_axis
-          endif
-       elseif(cur_var%ndim == 2) then
-          num_var_axes = 2
-          var_axes(1) = comp_axis
-          var_axes(2) = other_axis
-          if(cur_var%siz(4) == fileObj%max_ntime) then
-             num_var_axes = 3
-             var_axes(3) = t_axis
-          endif
-       elseif(cur_var%ndim == 3) then
-          num_var_axes = 3
-          var_axes(1) = comp_axis
-          var_axes(2) = z_axis
-          var_axes(3) = CC_axis
-          if(cur_var%siz(4) == fileObj%max_ntime) then
-             num_var_axes = 4
-             var_axes(4) = t_axis
-          endif
-       else
-        call mpp_error(FATAL, "fms_io(save_compressed_restart): "//trim(cur_var%name)//" in file "// &
-           trim(fileObj%name)//" has more than three dimensions (not including time level)")
-       endif
-
-       cpack = pack_size  ! Default size of real
-        allocate(check_val(max(1,cur_var%siz(4))))
-        do k = 1, cur_var%siz(4)
-           if ( Associated(fileObj%p0dr(k,j)%p) ) then
-              check_val(k) = mpp_chksum(fileObj%p0dr(k,j)%p, (/mpp_pe()/), mask_val=cur_var%default_data)
-           else if ( Associated(fileObj%p1dr(k,j)%p) ) then
-              check_val(k) = mpp_chksum(fileObj%p1dr(k,j)%p(:), mask_val=cur_var%default_data)
-           else if ( Associated(fileObj%p2dr(k,j)%p) ) then
-              check_val(k) = mpp_chksum(fileObj%p2dr(k,j)%p(:,:), mask_val=cur_var%default_data)
-           else if ( Associated(fileObj%p3dr(k,j)%p) ) then
-              check_val(k) = mpp_chksum(fileObj%p3dr(k,j)%p(:,:,:))
-           else if ( Associated(fileObj%p0di(k,j)%p) ) then
-              check_val(k) = fileObj%p0di(k,j)%p
-              cpack = 0  ! Write data as integer*4
-           else if ( Associated(fileObj%p1di(k,j)%p) ) then
-              check_val(k) = mpp_chksum(fileObj%p1di(k,j)%p(:), mask_val=cur_var%default_data)
-              cpack = 0  ! Write data as integer*4
-           else if ( Associated(fileObj%p2di(k,j)%p) ) then
-              check_val(k) = mpp_chksum(fileObj%p2di(k,j)%p(:,:), mask_val=cur_var%default_data)
-              cpack = 0  ! Write data as integer*4
-           else if ( Associated(fileObj%p3di(k,j)%p) ) then
-              call mpp_error(FATAL, "fms_io(save_compressed_restart): integer 3D restart fields are not currently supported"// &
-                   trim(cur_var%name)//" of file "//trim(fileObj%name) )
-           else
-              call mpp_error(FATAL, "fms_io(save_restart): There is no pointer associated with the data of field "// &
-                   trim(cur_var%name)//" of file "//trim(fileObj%name) )
-           end if
-        enddo
-! The chksum could not reproduce when running on different processor count. So commenting out now.
-! Also the chksum of compressed data is not read.
-       if(write_field_data) then ! Write checksums only if valid field data exists
-          call mpp_write_meta(unit,cur_var%field, var_axes(1:num_var_axes), cur_var%name, &
-                cur_var%units,cur_var%longname,pack=cpack,checksum=check_val,fill=cur_var%default_data)
-       else
-          call mpp_write_meta(unit,cur_var%field, var_axes(1:num_var_axes), cur_var%name, &
-                 cur_var%units,cur_var%longname,pack=cpack,fill=cur_var%default_data)
-       endif
-        deallocate(check_val)
-    enddo
-
-    ! write values for ndim of spatial and compressed axes
-    call mpp_write(unit,x_axis)
-    call mpp_write(unit,y_axis)
-    if (c_axis_defined) call mpp_write(unit,c_axis)
-    if (h_axis_defined) call mpp_write(unit,h_axis)
-    if (CC_axis_defined) call mpp_write(unit,CC_axis)
-    if(naxis_z) call mpp_write(unit,z_axis)
-
-  endif ! End of section to write meta data. Write meta data only if not appending.
-
-  if(write_field_data) then
-    ! write data of each field
-    do k = 1, fileObj%max_ntime
-       if(present(time_level)) then
-          tlev = time_level
-       else
-          tlev = k
-       endif
-       do j=1,fileObj%nvar
-          cur_var => fileObj%var(j)
-          if(cur_var%read_only) cycle
-
-          select case (trim(cur_var%compressed_axis))
-          case ('C')
-             idx = CIDX
-          case ('H')
-             idx = HIDX
-          case default
-             if (ALLOCATED(fileObj%axes(CIDX)%idx)) then
-                idx = CIDX
-             else
-                idx = HIDX
-             endif
-          end select
-
-          ! If some fields only have one time level, we do not need to write the second level, just keep
-          ! the data missing.
-          if(k <= cur_var%siz(4)) then
-             if ( Associated(fileObj%p0dr(k,j)%p) ) then
-                call mpp_write(unit, cur_var%field, fileObj%p0dr(k,j)%p, tlev)
-             elseif ( Associated(fileObj%p1dr(k,j)%p) ) then
-                call mpp_write_compressed(unit, cur_var%field, domain, fileObj%p1dr(k,j)%p, &
-                     fileObj%axes(idx)%nelems(:), tstamp=tlev, default_data=cur_var%default_data)
-             elseif ( Associated(fileObj%p2dr(k,j)%p) ) then
-                call mpp_write_compressed(unit, cur_var%field, domain, fileObj%p2dr(k,j)%p, &
-                     fileObj%axes(idx)%nelems(:), tstamp=tlev, default_data=cur_var%default_data)
-             elseif ( Associated(fileObj%p3dr(k,j)%p) ) then
-                call mpp_write_compressed(unit, cur_var%field, domain, fileObj%p3dr(k,j)%p, &
-                     fileObj%axes(idx)%nelems(:), tstamp=tlev, default_data=cur_var%default_data)
-             elseif ( Associated(fileObj%p0di(k,j)%p) ) then
-                r0d =  fileObj%p0di(k,j)%p
-                call mpp_write(unit, cur_var%field, r0d, tlev)
-             elseif ( Associated(fileObj%p1di(k,j)%p) ) then
-                allocate(r1d(cur_var%siz(1)) )
-                r1d = fileObj%p1di(k,j)%p
-                call mpp_write_compressed(unit, cur_var%field, domain, r1d, &
-                     fileObj%axes(idx)%nelems(:), tstamp=tlev, default_data=cur_var%default_data)
-                deallocate(r1d)
-             elseif ( Associated(fileObj%p2di(k,j)%p) ) then
-                allocate(r2d(cur_var%siz(1), cur_var%siz(2)) )
-                r2d = fileObj%p2di(k,j)%p
-                call mpp_write_compressed(unit, cur_var%field, domain, r2d, &
-                     fileObj%axes(idx)%nelems(:), tstamp=tlev, default_data=cur_var%default_data)
-                deallocate(r2d)
-             else
-                call mpp_error(FATAL, "fms_io(save_restart): There is no pointer associated with the data of field "// &
-                       trim(cur_var%name)//" of file "//trim(fileObj%name) )
-             endif
-          endif
-       enddo ! end j loop
-    enddo ! end k loop
-    cur_var =>NULL()
-  endif
-  call mpp_close(unit)
-end subroutine save_compressed_restart
-
-!-------------------------------------------------------------------------------
-!
-!  saves all registered variables to restart files. Those variables are set
-!  through register_restart_field
-!
-!-------------------------------------------------------------------------------
-
-subroutine save_unlimited_axis_restart(fileObj,restartpath)
-  type(restart_file_type), intent(inout),target :: fileObj
-  character(len=336)                     :: restartpath ! The restart file path (dir/file).
-
-  integer            :: unit                 ! The mpp unit of the open file.
-  type(axistype)                      :: u_axis
-  type(axistype), dimension(4)        :: var_axes
-  type(var_type), pointer, save       :: cur_var=>NULL()
-  integer                             :: i, j, k, l, num_var_axes, cpack, idx
-  real, allocatable, dimension(:)     :: r1d
-  integer(LONG_KIND)                  :: check_val
-  character(len=256)                  :: checksum_char
-  type(domain2d), pointer :: domain =>NULL()
-  type(ax_type),  pointer :: axis   =>NULL()
-
-
-  if ( .NOT.fileObj%unlimited_axis ) then
-     call mpp_error(FATAL, "fms_io(save_unlimited_axis_restart): An unlimited axis has "// &
-          "not been defined for file "//trim(fileObj%name))
-  endif
-  domain =>fileObj%axes(UIDX)%domain
-
-  call mpp_open(unit,trim(restartpath),action=MPP_OVERWR,form=form, &
-                is_root_pe=fileObj%is_root_pe, domain=domain)
-
-  ! Set unlimited axis
-  axis => fileobj%axes(UIDX)
-  call mpp_write_meta(unit,u_axis,axis%name,data=sum(axis%nelems(:)),unlimited=.true.)
-  call write_meta_global(unit,fileObj)  ! Write any additional global metadata
-  call mpp_write(unit,u_axis)
-
-  ! write metadata for fields
-  do j = 1,fileObj%nvar
-     cur_var => fileObj%var(j)
-     if(cur_var%siz(4) > 1) call mpp_error(FATAL, &
-      "fms_io(save_restart): "//trim(cur_var%name)//" in file "//trim(fileObj%name)// &
-      " has more than one time level. Only single time level is currrently supported")
-
-     if(cur_var%ndim == 1) then
-        num_var_axes = 1
-        var_axes(1) = u_axis
-        else
-        call mpp_error(FATAL, 'fms_io(save_unlimited_axis_restart): Only vectors are currently supported')
-     endif
-
-     cpack = pack_size  ! Default size of real
-     if ( Associated(fileObj%p1dr(1,j)%p) ) then
-        check_val = mpp_chksum(fileObj%p1dr(1,j)%p(:))
-     else if ( Associated(fileObj%p1di(1,j)%p) ) then
-           ! Fill values are -HUGE(i4) which don't behave as desired for checksum algorithm
-        check_val = mpp_chksum(INT(fileObj%p1di(1,j)%p(:),8))
-           cpack = 0  ! Write data as integer*4
-        else
-        call mpp_error(FATAL, "fms_io(save_unlimited_axis_restart): There is no pointer associated with the record data of field "// &
-                trim(cur_var%name)//" of file "//trim(fileObj%name) )
-        end if
-     call mpp_write_meta(unit,cur_var%field, var_axes(1:num_var_axes), cur_var%name, &
-              cur_var%units,cur_var%longname,pack=cpack,checksum=(/check_val/))
-  enddo ! end j loop
-
-  ! write data of each field
-     do j=1,fileObj%nvar
-        cur_var => fileObj%var(j)
-     if ( Associated(fileObj%p1dr(1,j)%p) ) then
-        call mpp_write_unlimited_axis(unit,cur_var%field,domain,fileObj%p1dr(1,j)%p,fileObj%axes(UIDX)%nelems(:))
-     elseif ( Associated(fileObj%p1di(1,j)%p) ) then
-              allocate(r1d(cur_var%siz(1)) )
-        r1d = fileObj%p1di(1,j)%p
-        call mpp_write_unlimited_axis(unit,cur_var%field,domain,r1d,fileObj%axes(UIDX)%nelems(:))
-              deallocate(r1d)
-           else
-              call mpp_error(FATAL, "fms_io(save_restart): There is no pointer associated with the data of field "// &
-                     trim(cur_var%name)//" of file "//trim(fileObj%name) )
-           endif
-     enddo ! end j loop
-  call mpp_close(unit)
-  cur_var =>NULL()
-end subroutine save_unlimited_axis_restart
 
 !-------------------------------------------------------------------------------
 !
@@ -2652,6 +2218,7 @@ subroutine save_default_restart(fileObj,restartpath)
   integer                             :: i, j, k, l, siz, ind_dom
   logical                             :: domain_present
   real                                :: tlev
+  real(DOUBLE_KIND)                   :: tlev_r8
   character(len=10)                   :: axisname
   integer                             :: meta_size
   type(domain2d)                      :: domain
@@ -2664,7 +2231,7 @@ subroutine save_default_restart(fileObj,restartpath)
   character(len=256)                  :: checksum_char
   integer :: isc, iec, jsc, jec
   integer :: isg, ieg, jsg, jeg
-  integer :: ishift, jshift, iadd, jadd
+  integer :: ishift, jshift, iadd, jadd, cpack_size
   logical :: write_on_this_pe
   type(domain2d), pointer :: io_domain =>NULL()
 
@@ -2880,6 +2447,7 @@ subroutine save_default_restart(fileObj,restartpath)
      if(jec == jeg) jadd = jadd + jshift
 
      allocate(check_val(max(1,cur_var%siz(4))))
+     cpack_size = pack_size
      do k = 1, cur_var%siz(4)
         if ( Associated(fileObj%p0dr(k,j)%p) ) then
            check_val(k) = mpp_chksum(fileObj%p0dr(k,j)%p, (/mpp_pe()/) )
@@ -2889,6 +2457,12 @@ subroutine save_default_restart(fileObj,restartpath)
            check_val(k) = mpp_chksum(fileObj%p2dr(k,j)%p(cur_var%is:cur_var%is+iadd, cur_var%js:cur_var%js+jadd) )
         else if ( Associated(fileObj%p3dr(k,j)%p) ) then
            check_val(k) = mpp_chksum(fileObj%p3dr(k,j)%p(cur_var%is:cur_var%is+iadd, cur_var%js:cur_var%js+jadd, :) )
+        else if ( Associated(fileObj%p2dr8(k,j)%p) ) then
+           cpack_size = 1
+           check_val(k) = mpp_chksum(fileObj%p2dr8(k,j)%p(cur_var%is:cur_var%is+iadd, cur_var%js:cur_var%js+jadd) )
+        else if ( Associated(fileObj%p3dr8(k,j)%p) ) then
+           cpack_size = 1
+           check_val(k) = mpp_chksum(fileObj%p3dr8(k,j)%p(cur_var%is:cur_var%is+iadd, cur_var%js:cur_var%js+jadd, :) )
         else if ( Associated(fileObj%p4dr(k,j)%p) ) then
            check_val(k) = mpp_chksum(fileObj%p4dr(k,j)%p(cur_var%is:cur_var%is+iadd, cur_var%js:cur_var%js+jadd, :, :) )
         else if ( Associated(fileObj%p0di(k,j)%p) ) then
@@ -2905,7 +2479,7 @@ subroutine save_default_restart(fileObj,restartpath)
         end if
      enddo
      call mpp_write_meta(unit,cur_var%field, var_axes(1:num_var_axes), cur_var%name, &
-              cur_var%units,cur_var%longname,pack=pack_size,checksum=check_val)
+              cur_var%units,cur_var%longname,pack=cpack_size,checksum=check_val)
      deallocate(check_val)
   enddo
 
@@ -2929,31 +2503,38 @@ subroutine save_default_restart(fileObj,restartpath)
      do j=1,fileObj%nvar
         cur_var => fileObj%var(j)
         if(cur_var%read_only) cycle
-        tlev=k
+        tlev =k
+        tlev_r8=k
         ! If some fields only have one time level, we do not need to write the second level, just keep
         ! the data missing.
         if(k <= cur_var%siz(4)) then
            if(cur_var%domain_present) then  ! one 2-D or 3-D case possible present domain
               if( Associated(fileObj%p2dr(k,j)%p) ) then
-                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p2dr(k,j)%p, tlev, &
-                                default_data=cur_var%default_data)
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p2dr(k,j)%p, tlev)!, &
+!                                default_data=cur_var%default_data)
               else if( Associated(fileObj%p3dr(k,j)%p) ) then
-                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p3dr(k,j)%p, tlev, &
-                                default_data=cur_var%default_data)
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p3dr(k,j)%p, tlev)!, &
+!                                default_data=cur_var%default_data)
+              else if( Associated(fileObj%p2dr8(k,j)%p) ) then
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p2dr8(k,j)%p, tlev_r8)!, &
+!                                default_data=cur_var%default_data)
+              else if( Associated(fileObj%p3dr8(k,j)%p) ) then
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p3dr8(k,j)%p, tlev_r8)!, &
+!                                default_data=cur_var%default_data)
               else if( Associated(fileObj%p4dr(k,j)%p) ) then
-                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p4dr(k,j)%p, tlev, &
-                                default_data=cur_var%default_data)
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), fileObj%p4dr(k,j)%p, tlev)!, &
+!                                default_data=cur_var%default_data)
               else if( Associated(fileObj%p2di(k,j)%p) ) then
                  allocate(r2d(cur_var%siz(1), cur_var%siz(2)) )
                  r2d = fileObj%p2di(k,j)%p
-                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), r2d, tlev, &
-                                default_data=cur_var%default_data)
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), r2d, tlev)!, &
+!                                default_data=cur_var%default_data)
                  deallocate(r2d)
               else if( Associated(fileObj%p3di(k,j)%p) ) then
                  allocate(r3d(cur_var%siz(1), cur_var%siz(2), cur_var%siz(3)) )
                  r3d = fileObj%p3di(k,j)%p
-                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), r3d, tlev, &
-                                default_data=cur_var%default_data)
+                 call mpp_write(unit, cur_var%field, array_domain(cur_var%domain_idx), r3d, tlev)!, &
+!                                default_data=cur_var%default_data)
                  deallocate(r3d)
               else
                  call mpp_error(FATAL, "fms_io(save_restart): domain is present, "// &
@@ -2969,6 +2550,10 @@ subroutine save_default_restart(fileObj,restartpath)
                  call mpp_write(unit, cur_var%field, fileObj%p2dr(k,j)%p, tlev)
               else if ( Associated(fileObj%p3dr(k,j)%p) ) then
                  call mpp_write(unit, cur_var%field, fileObj%p3dr(k,j)%p, tlev)
+!              else if ( Associated(fileObj%p2dr8(k,j)%p) ) then
+!                 call mpp_write(unit, cur_var%field, fileObj%p2dr8(k,j)%p, tlev_r8)
+!              else if ( Associated(fileObj%p3dr8(k,j)%p) ) then
+!                 call mpp_write(unit, cur_var%field, fileObj%p3dr8(k,j)%p, tlev_r8)
               else if ( Associated(fileObj%p4dr(k,j)%p) ) then
                  call mpp_write(unit, cur_var%field, fileObj%p4dr(k,j)%p, tlev)
               else if ( Associated(fileObj%p0di(k,j)%p) ) then
@@ -3717,6 +3302,14 @@ subroutine restore_state_all(fileObj, directory)
                        call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p3dr(k,j)%p, tlev)
                        if ( is_there_a_checksum ) &
                          checksum_data = mpp_chksum(fileObj%p3dr(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd, :) )
+                    else if( Associated(fileObj%p2dr8(k,j)%p) ) then
+                       call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p2dr8(k,j)%p, tlev)
+                       if ( is_there_a_checksum ) &
+                         checksum_data = mpp_chksum(fileObj%p2dr8(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd) )
+                    else if( Associated(fileObj%p3dr8(k,j)%p) ) then
+                       call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p3dr8(k,j)%p, tlev)
+                       if ( is_there_a_checksum ) &
+                         checksum_data = mpp_chksum(fileObj%p3dr8(k,j)%p(cur_var%is:cur_var%is+iadd,cur_var%js:cur_var%js+jadd, :) )
                     else if( Associated(fileObj%p4dr(k,j)%p) ) then
                        call mpp_read(unit(n), fields(l), array_domain(domain_idx), fileObj%p4dr(k,j)%p, tlev)
                        if ( is_there_a_checksum ) &
@@ -3802,6 +3395,7 @@ subroutine restore_state_all(fileObj, directory)
                     end if
                  end if
                  if ( ( is_there_a_checksum ) .and. (checksum_file(k) /= checksum_data) ) then
+                  print*, "data is ", mpp_pe(), fileObj%p0dr(k,j)%p
                    write (mesg,'(a,Z16,a,Z16,a)') "Checksum of input field "// uppercase(trim(varname))//" ", checksum_data,&
                                 " does not match value ", checksum_file(k), " stored in "//uppercase(trim(fileObj%name)//"." )
                    call mpp_error(FATAL, "fms_io(restore_state_all): "//trim(mesg) )
@@ -4141,7 +3735,7 @@ end subroutine restore_state_one_field
 !-------------------------------------------------------------------------------
 subroutine setup_one_field(fileObj, filename, fieldname, field_siz, index_field,  domain, mandatory, &
                            no_domain, scalar_or_1d, position, tile_count, data_default, longname, units, &
-                           compressed_axis, read_only)
+                           read_only)
   type(restart_file_type), intent(inout)         :: fileObj
   character(len=*),         intent(in)           :: filename, fieldname
   integer, dimension(:),    intent(in)           :: field_siz
@@ -4152,7 +3746,7 @@ subroutine setup_one_field(fileObj, filename, fieldname, field_siz, index_field,
   logical,        optional, intent(in)           :: scalar_or_1d
   integer,        optional, intent(in)           :: position, tile_count
   logical,          optional, intent(in)         :: mandatory
-  character(len=*), optional, intent(in)         :: longname, units, compressed_axis
+  character(len=*), optional, intent(in)         :: longname, units
   logical,        optional, intent(in)           :: read_only  !The variable will not be written to restart file.
 
   !--- local variables
@@ -4229,6 +3823,8 @@ subroutine setup_one_field(fileObj, filename, fieldname, field_siz, index_field,
      allocate(fileObj%p1dr(MAX_TIME_LEVEL_REGISTER, max_fields))
      allocate(fileObj%p2dr(MAX_TIME_LEVEL_REGISTER, max_fields))
      allocate(fileObj%p3dr(MAX_TIME_LEVEL_REGISTER, max_fields))
+     allocate(fileObj%p2dr8(MAX_TIME_LEVEL_REGISTER, max_fields))
+     allocate(fileObj%p3dr8(MAX_TIME_LEVEL_REGISTER, max_fields))
      allocate(fileObj%p4dr(MAX_TIME_LEVEL_REGISTER, max_fields))
      allocate(fileObj%p0di(MAX_TIME_LEVEL_REGISTER, max_fields))
      allocate(fileObj%p1di(MAX_TIME_LEVEL_REGISTER, max_fields))
@@ -4271,7 +3867,6 @@ subroutine setup_one_field(fileObj, filename, fieldname, field_siz, index_field,
         fileObj%var(i)%units          = 'none';
         fileObj%var(i)%mandatory      = .true.
         fileObj%var(i)%initialized    = .false.
-        fileObj%var(i)%compressed_axis = ''
         fileObj%var(i)%read_only      = .false.
      end do
   endif
@@ -4321,7 +3916,6 @@ subroutine setup_one_field(fileObj, filename, fieldname, field_siz, index_field,
      end if
      if(present(units))    cur_var%units    = units
      if(present(position)) cur_var%position = position
-     if(present(compressed_axis)) cur_var%compressed_axis = compressed_axis
      cur_var%is = 1; cur_var%ie =  cur_var%siz(1)
      cur_var%js = 1; cur_var%je =  cur_var%siz(2)
 

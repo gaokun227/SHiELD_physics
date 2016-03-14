@@ -909,9 +909,9 @@ contains
         call restore_state (SFC_restart)
         call restore_state (GFS_restart)
         ! free the restart type to be re-used by the nest
-!rab        call free_restart_type(ORO_restart)
-!rab        call free_restart_type(SFC_restart)
-!rab        call free_restart_type(GFS_restart)
+        call free_restart_type(ORO_restart)
+        call free_restart_type(SFC_restart)
+        call free_restart_type(GFS_restart)
 
         ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
         zs = zs*grav
@@ -1000,18 +1000,18 @@ contains
         !!! Perform terrain smoothing, if desired
         if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
 
-        if (Atm(n)%neststruct%nested) then
-           if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
-           npx = Atm(n)%npx
-           npy = Atm(n)%npy
-           do j=jsd,jed
-              do i=isd,ied
-                 wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
-                 Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
-                 
-              enddo
-           enddo
-        endif
+           if (Atm(n)%neststruct%nested) then
+             if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
+             npx = Atm(n)%npx
+             npy = Atm(n)%npy
+             do j=jsd,jed
+                do i=isd,ied
+                   wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
+                   Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
+                  
+                enddo
+             enddo
+           endif
 
            if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
               call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
@@ -1922,10 +1922,6 @@ contains
        call mpp_error(FATAL,'SPHUM must be 1st tracer')
   endif
 
-!rab  if ( o3mwr/=ncnst ) then
-!rab       call mpp_error(FATAL,'number of q species is not match')
-!rab  endif
-
   do 5000 j=js,je
      do k=1,km+1
         do i=is,ie
@@ -2162,6 +2158,7 @@ contains
   jsd = Atm%bd%jsd
   jed = Atm%bd%jed
 
+!RAB - NEED TO FIX PSD & PS FOR IN HALO REGION FOR NESTED GRIDS
   do j=js,je
      do i=is,ie
         psd(i,j) = psc(i,j)

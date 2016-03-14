@@ -8,6 +8,10 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 #undef MPP_READ_2DDECOMP_2D_
+#undef READ_RECORD_CORE_
+#define READ_RECORD_CORE_ mpp_read_record_core_r4
+#undef READ_RECORD_
+#define READ_RECORD_ mpp_read_record_r4
 #define MPP_READ_2DDECOMP_2D_ mpp_read_2ddecomp_r2d
 #undef MPP_READ_2DDECOMP_3D_
 #define MPP_READ_2DDECOMP_3D_ mpp_read_2ddecomp_r3d
@@ -16,6 +20,22 @@
 #undef MPP_TYPE_
 #define MPP_TYPE_ real
 #include <mpp_read_2Ddecomp.h>
+
+#ifdef OVERLOAD_R4
+#undef READ_RECORD_CORE_
+#define READ_RECORD_CORE_ mpp_read_record_core_r8
+#undef READ_RECORD_
+#define READ_RECORD_ mpp_read_record_r8
+#undef MPP_READ_2DDECOMP_2D_
+#define MPP_READ_2DDECOMP_2D_ mpp_read_2ddecomp_r2d_r8
+#undef MPP_READ_2DDECOMP_3D_
+#define MPP_READ_2DDECOMP_3D_ mpp_read_2ddecomp_r3d_r8
+#undef MPP_READ_2DDECOMP_4D_
+#define MPP_READ_2DDECOMP_4D_ mpp_read_2ddecomp_r4d_r8
+#undef MPP_TYPE_
+#define MPP_TYPE_ real(DOUBLE_KIND)
+#include <mpp_read_2Ddecomp.h>
+#endif
 
 #undef MPP_READ_COMPRESSED_1D_
 #define MPP_READ_COMPRESSED_1D_ mpp_read_compressed_r1d

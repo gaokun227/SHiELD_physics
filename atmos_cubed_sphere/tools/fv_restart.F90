@@ -736,11 +736,11 @@ contains
 !!$       end do
 !!$    end do
 !!$#endif
-       call mpp_update_domains(Atm%u, Atm%v, Atm%domain, gridtype=DGRID_NE, complete=.true.)
-       call mpp_update_domains(Atm%w, Atm%domain) ! needs an update-domain for rayleigh damping
+       call mpp_update_domains(Atm%u, Atm%v, Atm%domain, gridtype=DGRID_NE)
+       call mpp_update_domains(Atm%w, Atm%domain, complete=.true.) ! needs an update-domain for rayleigh damping
       endif
 
-      call mpp_sync()
+      call mpp_sync_self()
 
   end subroutine setup_nested_boundary_halo
 

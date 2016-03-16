@@ -215,13 +215,25 @@ subroutine update_atmos_radiation_physics (Atmos)
     else
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "setup step"
       call mpp_clock_begin(setupClock)
+#ifdef AVEC_TIMERS
+      call avec_timer_start(3)
+#endif
       call phys_rad_setup_step (Atmos%Time_init, Atmos%Time, Time_next, Atm_block)
+#ifdef AVEC_TIMERS
+      call avec_timer_stop(3)
+#endif
       call mpp_clock_end(setupClock)
 
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "radiation driver"
 !--- execute the GFS atmospheric radiation subcomponent (RRTM)
       call mpp_clock_begin(radClock)
+#ifdef AVEC_TIMERS
+      call avec_timer_start(4)
+#endif
       call radiation_driver (Atm_block, Statein)
+#ifdef AVEC_TIMERS
+      call avec_timer_stop(4)
+#endif
       call mpp_clock_end(radClock)
 
       if (surface_debug) call check_data ('RADIATION')
@@ -229,7 +241,13 @@ subroutine update_atmos_radiation_physics (Atmos)
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "physics driver"
 !--- execute the GFS atmospheric physics subcomponent
       call mpp_clock_begin(physClock)
+#ifdef AVEC_TIMERS
+      call avec_timer_start(5)
+#endif
       call physics_driver (Time_next, Atmos%Time_init, Atm_block, Statein, Stateout)
+#ifdef AVEC_TIMERS
+      call avec_timer_stop(5)
+#endif
       call mpp_clock_end(physClock)
 
       if (surface_debug) call check_data ('PHYSICS')

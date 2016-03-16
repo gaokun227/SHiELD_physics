@@ -256,6 +256,11 @@ contains
       call mpp_error(NOTE,'No adiabatic initialization correction in use')
    endif
 
+#ifdef DEBUG
+   call nullify_domain()
+   call fv_diag(Atm(mytile:mytile), zvir, Time, -1)
+#endif
+
    n = mytile
    call switch_current_Atm(Atm(n)) 
       
@@ -863,18 +868,20 @@ contains
    call nullify_domain()
 
   !---- diagnostics for FV dynamics -----
-   call mpp_clock_begin(id_fv_diag)
+   if (Atm(mytile)%flagstruct%print_freq /= -99) then
+     call mpp_clock_begin(id_fv_diag)
 
-   fv_time = Time_next
-   call get_time (fv_time, seconds,  days)
+     fv_time = Time_next
+     call get_time (fv_time, seconds,  days)
 
-   call nullify_domain()
-   call timing_on('FV_DIAG')
-   call fv_diag(Atm(mytile:mytile), zvir, fv_time, Atm(mytile)%flagstruct%print_freq)
-   first_diag = .false.
-   call timing_off('FV_DIAG')
+     call nullify_domain()
+     call timing_on('FV_DIAG')
+     call fv_diag(Atm(mytile:mytile), zvir, fv_time, Atm(mytile)%flagstruct%print_freq)
+     first_diag = .false.
+     call timing_off('FV_DIAG')
 
-   call mpp_clock_end(id_fv_diag)
+     call mpp_clock_end(id_fv_diag)
+   endif
 
  end subroutine atmosphere_state_update
 

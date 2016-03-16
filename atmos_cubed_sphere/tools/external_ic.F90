@@ -2159,11 +2159,19 @@ contains
   jed = Atm%bd%jed
 
 !RAB - NEED TO FIX PSD & PS FOR IN HALO REGION FOR NESTED GRIDS
-  do j=js,je
-     do i=is,ie
-        psd(i,j) = psc(i,j)
+  if (Atm%neststruct%nested) then
+     do j=jsd,jed
+     do i=isd,ied
+        psd(i,j) = Atm%ps(i,j)
      enddo
-  enddo
+     enddo
+  else
+     do j=js,je
+        do i=is,ie
+           psd(i,j) = psc(i,j)
+        enddo
+     enddo
+  endif
   call mpp_update_domains( psd,    Atm%domain, complete=.false. )
   call mpp_update_domains( Atm%ps, Atm%domain, complete=.true. )
 

@@ -474,6 +474,9 @@ contains
 
          do_omega = hydrostatic .and. last_step
                                                   call timing_on('Remapping')
+#ifdef AVEC_TIMERS
+                                                  call avec_timer_start(6)
+#endif
 
          call Lagrangian_to_Eulerian(last_step, consv_te, ps, pe, delp,          &
                      pkz, pk, mdt, bdt, npz, is,ie,js,je, isd,ied,jsd,jed,       &
@@ -485,6 +488,9 @@ contains
                      ptop, ak, bk, gridstruct, domain, ze0, flagstruct%remap_t,  &
                      flagstruct%do_sat_adj, hydrostatic, hybrid_z, do_omega, do_adiabatic_init)
 
+#ifdef AVEC_TIMERS
+                                                  call avec_timer_stop(6)
+#endif
                                                   call timing_off('Remapping')
 #ifdef MOIST_CAPPA
          if ( neststruct%nested .and. .not. last_step) then

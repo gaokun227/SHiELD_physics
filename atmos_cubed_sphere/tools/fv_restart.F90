@@ -166,6 +166,9 @@ contains
                 if (Atm(n)%flagstruct%nggps_ic) then
                    call fill_nested_grid_topo(Atm(n), .false.)
                    call fill_nested_grid_topo_halo(Atm(n), .false.)
+                   call nested_grid_BC(Atm(n)%ps, Atm(n)%parent_grid%ps, Atm(n)%neststruct%nest_domain, &
+                        Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+                        Atm(n)%npx, Atm(n)%npy,Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.false.)         
                    call setup_nested_boundary_halo(Atm(n),.false.) 
                 else
                    call fill_nested_grid_topo(Atm(n), .false.)
@@ -238,6 +241,12 @@ contains
        if (cold_start_grids(n)) then
           if (Atm(n)%parent_grid%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%nggps_ic) call fill_nested_grid_topo_halo(Atm(n), .true.)
        end if
+       if (Atm(n)%flagstruct%external_ic .and. Atm(n)%flagstruct%nggps_ic) then
+          !Fill nested grid halo with ps
+          call nested_grid_BC(Atm(n)%ps, Atm(n)%parent_grid%ps, Atm(n)%neststruct%nest_domain, &
+               Atm(n)%neststruct%ind_h, Atm(n)%neststruct%wt_h, 0, 0, &
+               Atm(n)%npx, Atm(n)%npy,Atm(n)%bd, isg, ieg, jsg, jeg, proc_in=.true.)         
+       endif
     endif
     if ( Atm(n)%flagstruct%external_ic ) then
          if( is_master() ) write(*,*) 'Calling get_external_ic'
@@ -736,11 +745,11 @@ contains
 !!$       end do
 !!$    end do
 !!$#endif
-       call mpp_update_domains(Atm%u, Atm%v, Atm%domain, gridtype=DGRID_NE, complete=.true.)
-       call mpp_update_domains(Atm%w, Atm%domain) ! needs an update-domain for rayleigh damping
+       call mpp_update_domains(Atm%u, Atm%v, Atm%domain, gridtype=DGRID_NE)
+       call mpp_update_domains(Atm%w, Atm%domain, complete=.true.) ! needs an update-domain for rayleigh damping
       endif
 
-      call mpp_sync()
+      call mpp_sync_self()
 
   end subroutine setup_nested_boundary_halo
 
@@ -1498,6 +1507,9 @@ contains
      !----------
      ! Interior:
      !----------
+     utmp = 0.
+     vtmp = 0.
+
 
      do j=max(npt,js-1),min(npy-npt,je+1)
         do i=max(npt,isd),min(npx-npt,ied)

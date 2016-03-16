@@ -30,7 +30,7 @@ use    fms_io_mod,     only: fms_io_exit
 
 use mpp_mod,           only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
                              mpp_set_current_pelist, stdlog, mpp_error, NOTE, FATAL, WARNING
-use mpp_mod,           only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
+use mpp_mod,           only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sync
 
 use mpp_io_mod,        only: mpp_open, mpp_close, &
                              MPP_NATIVE, MPP_RDONLY, MPP_DELETE
@@ -62,7 +62,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    type (time_type) :: Time_atmos, Time_init, Time_end,  &
                        Time_step_atmos, Time_step_ocean, &
                        Time_restart, Time_step_restart
-   integer :: num_cpld_calls, num_atmos_calls, nc, na
+   integer :: num_cpld_calls, num_atmos_calls, nc, na, ret
 
 ! ----- coupled model initial date -----
 
@@ -103,6 +103,9 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call mpp_init()
  initClock = mpp_clock_id( 'Initialization' )
  call mpp_clock_begin (initClock) !nesting problem
+#ifdef AVEC_TIMERS
+ call avec_timer_init(mpp_pe(),ret)
+#endif
  
   
  call fms_init
@@ -118,32 +121,41 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call mpp_clock_begin(mainClock) !begin main loop
 
  do nc = 1, num_cpld_calls
+#ifdef AVEC_TIMERS
+    call mpp_sync()
+    call avec_timer_start(1)
+#endif
 
-  do na = 1, num_atmos_calls
+    Time_atmos = Time_atmos + Time_step_atmos
 
-       Time_atmos = Time_atmos + Time_step_atmos
+    call update_atmos_model_dynamics (Atm)
 
-       call update_atmos_model_dynamics (Atm)
-       if (memuse_verbose) call print_memuse_stats('after atmos dynamics')
+#ifdef AVEC_TIMERS
+    call avec_timer_start(2)
+#endif
+    call update_atmos_radiation_physics (Atm)
+#ifdef AVEC_TIMERS
+    call avec_timer_stop(2)
+#endif
 
-       call update_atmos_radiation_physics (Atm)
-       if (memuse_verbose) call print_memuse_stats('after radiation/physics')
+    call update_atmos_model_state (Atm)
+#ifdef AVEC_TIMERS
+    call avec_timer_stop(1)
+#endif
 
-       call update_atmos_model_state (Atm)
-       if (memuse_verbose) call print_memuse_stats('after update state')
-
-  enddo
+#ifndef AVEC_TIMERS
 !--- intermediate restart
-  if (intrm_rst) then
-    if ((nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
-      timestamp = date_to_string (Time_restart)
-      call atmos_model_restart(Atm, timestamp)
-      call coupler_res(timestamp)
-      Time_restart = Time_restart + Time_step_restart
+    if (intrm_rst) then
+      if ((nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
+        timestamp = date_to_string (Time_restart)
+        call atmos_model_restart(Atm, timestamp)
+        call coupler_res(timestamp)
+        Time_restart = Time_restart + Time_step_restart
+      endif
     endif
-  endif
 
-  call print_memuse_stats('after full step')
+    call print_memuse_stats('after full step')
+#endif
 
  enddo
 

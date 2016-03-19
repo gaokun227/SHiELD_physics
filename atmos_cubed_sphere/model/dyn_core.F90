@@ -570,14 +570,20 @@ contains
                    nord_w=0; damp_w = d2_divg
                    if ( flagstruct%do_vort_damp ) then
 ! damping on delp and vorticity:
-                        nord_v(k)=0; damp_vt(k) = 0.5*d2_divg
+                        nord_v(k)=0; 
+#ifndef HIWPP
+						damp_vt(k) = 0.5*d2_divg
+#endif
                    endif
                    d_con_k = 0.
               elseif ( k==2 .and. flagstruct%d2_bg_k2>0.01 ) then
                    nord_k=0; d2_divg = max(flagstruct%d2_bg, flagstruct%d2_bg_k2)
                    nord_w=0; damp_w = d2_divg
                    if ( flagstruct%do_vort_damp ) then
-                        nord_v(k)=0; damp_vt(k) = 0.5*d2_divg
+                        nord_v(k)=0; 
+#ifndef HIWPP
+						damp_vt(k) = 0.5*d2_divg
+#endif
                    endif
                    d_con_k = 0.
               elseif ( k==3 .and. flagstruct%d2_bg_k2>0.05 ) then

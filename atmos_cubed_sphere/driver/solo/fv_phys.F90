@@ -106,7 +106,8 @@ public :: fv_phys, fv_nudge
   real:: t_fac = 1.
   integer:: print_freq = 3  ! hours
 
-  integer :: id_vr_k, id_rain, id_dqdt, id_dTdt, id_dudt, id_dvdt
+  integer :: id_vr_k, id_rain, id_rain_k, id_dqdt, id_dTdt, id_dudt, id_dvdt
+  real, allocatable:: prec_total(:,:)
   real    :: missing_value = -1.e10
 
 namelist /sim_phys_nml/mixed_layer, gray_rad, strat_rad, do_lin_microphys,   &
@@ -180,7 +181,7 @@ contains
     real, dimension(is:ie,npz):: dp2, pm, rdelp, u2, v2, t2, q2, du2, dv2, dt2, dq2
     real:: lcp(is:ie), den(is:ie)
     real:: rain(is:ie,js:je)
-    real:: dq, dqsdt, delm, adj, rkv, sigl, tmp
+    real:: dq, dqsdt, delm, adj, rkv, sigl, tmp, prec
     real :: qdiag(1,1,1)
     logical moist_phys
     integer  isd, ied, jsd, jed
@@ -236,7 +237,7 @@ contains
      if ( fv_sg_adj > 0 ) then
          call fv_subgrid_z(isd, ied, jsd, jed, is, ie, js, je, npz, min(6,nq), pdt,  &
                            fv_sg_adj, nwat, delp, pe, peln, pkz, pt, q, ua, va,  &
-                           hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt )
+                           hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt, flagstruct%n_sponge )
          no_tendency = .false.
     endif
 
@@ -330,6 +331,13 @@ contains
             rain(:,:) = rain (:,:) / pdt * 86400.
             used = send_data(id_rain, rain, time)
        endif
+      if ( id_rain_k>0 ) then
+           prec_total(:,:) = prec_total(:,:) + rain(:,:)
+           used = send_data(id_rain_k, prec_total, time)
+           prec = g_sum(prec_total, is, ie, js, je, gridstruct%area(is:ie,js:je), 1)
+           if(master) write(*,*) 'HIWPP accumulated rain=', prec
+           call prt_maxmin('HIWPP: W', w, is, ie, js, je, ng,  npz, 1.)
+      endif
     endif
 
 
@@ -432,10 +440,21 @@ contains
 
     if ( .not. no_tendency ) then
                         call timing_on('UPDATE_PHYS')
+                        !Perform q_dt update in place
+
+    do n=1,nq
+    do k=1,npz
+    do j=js,je
+    do i=is,ie
+       q(i,j,k,n) = q(i,j,k,n) + pdt*q_dt(i,j,k,n)
+    enddo
+    enddo
+    enddo
+    enddo
     call fv_update_phys (pdt, is, ie, js, je, isd, ied, jsd, jed, ng, nq,   &
                          u, v, w, delp, pt, q, qdiag, ua, va, ps, pe, peln, pk, pkz,  &
                          ak, bk, phis, u_srf, v_srf, ts,  &
-                         delz, hydrostatic, u_dt, v_dt, t_dt, q_dt, &
+                         delz, hydrostatic, u_dt, v_dt, t_dt, &
                          moist_phys, Time, .false., gridstruct, &
                          gridstruct%agrid(:,:,1), gridstruct%agrid(:,:,2), &
                          npx, npy, npz, flagstruct, neststruct, bd, domain, ptop)
@@ -1425,9 +1444,15 @@ endif
 
     id_rain = register_diag_field (mod_name, 'rain', axes(1:2), time,        &
                 'rain_sim_phys', 'mm/day', missing_value=missing_value )
+    id_rain_k = register_diag_field (mod_name, 'rain_k', axes(1:2), time,        &
+                'accumuated rain_Kessler', 'mm/day', missing_value=missing_value )
     id_vr_k = register_diag_field (mod_name, 'vr_k', axes(1:3), time,        &
                 'Terminal fall V_Kessler', 'm/s', missing_value=missing_value )
 
+    if (id_rain_k > 0) then
+       allocate ( prec_total(is:ie,js:je) )
+       prec_total(:,:) = 0.
+    endif
 
     master = is_master()
     if ( master ) then

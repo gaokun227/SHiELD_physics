@@ -423,12 +423,8 @@ contains
       im = ie-is+1
 
       if ( present(k_bot) ) then
-         if (k_bot == 0) then
-            kbot = km ! if n_sponge = 0 apply to entire domain
-         else
-            if ( k_bot < 3 ) return
-            kbot = k_bot
-         endif
+           if ( k_bot < 3 ) return
+           kbot = k_bot
       else
            kbot = km
       endif

@@ -1,7 +1,6 @@
       module gwdc_mod
 
       USE MACHINE , ONLY : kind_phys
-      use mpp_mod, only: mpp_pe, mpp_root_pe
       implicit none
 	  private
 
@@ -192,10 +191,9 @@
      &,                     riminx=-1.0e+20,  riminm=-1.01e+20
      &,                     riminp=-0.99e+20, rismall=-0.9e+20
 
-      if (mpp_pe() == mpp_root_pe() .and. do_diag_print) then
+      if (lprnt) then
          print*, ' GFS CONVECTIVE GRAVITY WAVE DRAG PARAMETERS: '
          print*, ' TAUCTMAX = ', tauctmax, ', TAUMIN = ', taumin
-         do_diag_print = .false.
       endif
 
 !

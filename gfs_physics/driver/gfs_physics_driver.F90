@@ -431,7 +431,7 @@ module gfs_physics_driver_mod
     if (ozcalc) allocate ( O3dat(Atm_block%nblks) )
 !rab this openmp loop seems to have malloc/free issues which I will deal with later
 !rab!$OMP PARALLEL DO default(none) & 
-!rab!$OMP            schedule(static,1) &
+!rab!$OMP            schedule(dynamic,1) &
 !rab!$OMP              shared(Atm_block,ozcalc,O3dat,Tbd_data,Mdl_parms,xkzm_m,xkzm_h,xkzm_s, &
 !rab!$OMP                     evpco,psautco,prautco,wminco,pl_pres,Dyn_parms,kdt,jdate,solhr, &
 !rab!$OMP                     fhlwr,fhswr,lssav,ipt,lprnt,dt_phys,latgfs,clstp,nnp,fhour,     &
@@ -793,7 +793,7 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
-!$OMP          schedule (static,1) & 
+!$OMP          schedule (dynamic,1) & 
 !$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props,   &
 !$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends) &
 !$OMP          firstprivate (Mdl_parms)  &
@@ -833,7 +833,7 @@ module gfs_physics_driver_mod
     fhour = Dyn_parms(1)%fhour
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
-!$OMP          schedule (static,1) & 
+!$OMP          schedule (dynamic,1) & 
 !$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
 !$OMP                   Stateout, fdiag, fhzero, levs) &

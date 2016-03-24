@@ -2638,7 +2638,7 @@
          enddo
          enddo
 
-      else if ( abs(test_case)==30 .or.  abs(test_case)==31 .or. abs(test_case)==32 ) then
+      else if ( test_case==30 .or.  test_case==31 .or. test_case==32 ) then
 !------------------------------------
 ! Super-Cell; with or with rotation
 !------------------------------------

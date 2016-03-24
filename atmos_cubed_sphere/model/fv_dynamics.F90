@@ -26,6 +26,9 @@ implicit none
    real, allocatable ::  rf(:)
    integer :: kmax=1
    real :: agrav
+#ifdef HIWPP
+   real, allocatable:: u00(:,:,:), v00(:,:,:)
+#endif
 private
 public :: fv_dynamics
 
@@ -766,6 +769,23 @@ contains
     rcv = 1. / (cp - rg)
 
      if ( .not. RF_initialized ) then
+#ifdef HIWPP
+          allocate ( u00(is:ie,  js:je+1,npz) )
+          allocate ( v00(is:ie+1,js:je  ,npz) )
+!$OMP parallel do default(none) shared(is,ie,js,je,npz,u00,u,v00,v)
+          do k=1,npz
+             do j=js,je+1
+                do i=is,ie
+                   u00(i,j,k) = u(i,j,k)
+                enddo
+             enddo
+             do j=js,je
+                do i=is,ie+1
+                   v00(i,j,k) = v(i,j,k)
+                enddo
+             enddo
+          enddo
+#endif
 #ifdef SMALL_EARTH
           tau0 = tau
 #else
@@ -853,9 +873,29 @@ contains
                                         call timing_off('COMM_TOTAL')
 
 !$OMP parallel do default(none) shared(is,ie,js,je,kmax,pm,rf_cutoff,w,rf,u,v, &
+#ifdef HIWPP
+!$OMP                                  u00,v00, &
+#endif
 !$OMP                                  conserve,hydrostatic,pt,ua,va,u2f,cp,rg,ptop,rcv)
      do k=1,kmax
         if ( pm(k) < rf_cutoff ) then
+#ifdef HIWPP
+             do j=js,je
+                do i=is,ie
+                   w(i,j,k) = w(i,j,k)/(1.+rf(k))
+                enddo
+             enddo
+             do j=js,je+1
+                do i=is,ie
+                   u(i,j,k) = (u(i,j,k)+rf(k)*u00(i,j,k))/(1.+rf(k))
+                enddo
+             enddo
+             do j=js,je
+                do i=is,ie+1
+                   v(i,j,k) = (v(i,j,k)+rf(k)*v00(i,j,k))/(1.+rf(k))
+                enddo
+             enddo
+#else
 ! Add heat so as to conserve TE
           if ( conserve ) then
              if ( hydrostatic ) then
@@ -889,6 +929,7 @@ contains
                 enddo
              enddo
           endif
+#endif
         endif
      enddo
 

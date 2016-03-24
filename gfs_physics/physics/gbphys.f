@@ -537,6 +537,7 @@
       use cs_conv, only : cs_convr
 !---GFDL addition
       use gfs_fv3_needs, only : get_prs_fv3, get_phi_fv3
+      use gwdc_mod, only: gwdc
 
       implicit none
 !

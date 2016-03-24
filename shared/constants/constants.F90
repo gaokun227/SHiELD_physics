@@ -79,15 +79,15 @@ real, public, parameter :: con_csol   =2.1060e+3_R_GRID      ! spec heat H2O ice
 #ifdef SMALL_EARTH
 #ifdef HIWPP
 #ifdef SUPER_K
-       real, private, parameter :: small_fac = 1./120.
+       real, private, parameter :: small_fac = 1._R_GRID / 120._R_GRID
 #else
- real, private, parameter :: small_fac = 1./ 166.7
+ real, private, parameter :: small_fac = 1._R_GRID / 166.7_R_GRID
 #endif
 #else
- real, private, parameter :: small_fac = 1./ 10.
+ real, private, parameter :: small_fac = 1._R_GRID / 10._R_GRID
 #endif
 #else
- real, private, parameter :: small_fac = 1.
+ real, private, parameter :: small_fac = 1._R_GRID
 #endif
 
 real, public, parameter :: RADIUS = 6371e+3_R_GRID * small_fac

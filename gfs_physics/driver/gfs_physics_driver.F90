@@ -47,7 +47,6 @@ module gfs_physics_driver_mod
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
   use ozne_def,           only: pl_pres, ozplin
-  use gwdc_mod,           only: taumin, tauctmax
 !--- variables needed for calculating 'sncovr'
   use namelist_soilveg,   only: salp_data, snupx
 
@@ -254,8 +253,7 @@ module gfs_physics_driver_mod
 !--- namelist ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
-                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,          &
-                              taumin, tauctmax
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols
 !-----------------------------------------------------------------------
 
   CONTAINS

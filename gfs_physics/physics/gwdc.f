@@ -1,15 +1,3 @@
-      module gwdc_mod
-
-      USE MACHINE , ONLY : kind_phys
-      implicit none
-	  private
-
-      real, public :: taumin=1.0e-20, tauctmax=-20.
-      logical :: do_diag_print = .true.
-
-	  public gwdc
-
-      CONTAINS
       subroutine gwdc(im,ix,iy,km,lat,u1,v1,t1,q1,
      &                pmid1,pint1,dpmid1,qmax,ktop,kbot,kcnv,cldf,
 !    &                pmid1,pint1,dpmid1,qmax,cumchr1,ktop,kbot,kcnv,
@@ -24,6 +12,9 @@
 !        MODIFIED FOR IMPLEMENTATION INTO THE GFS/CFS BY
 !        AKE JOHANSSON  --- AUG 2005
 !***********************************************************************
+
+      USE MACHINE , ONLY : kind_phys
+      implicit none
 
 !---------------------------- Arguments --------------------------------
 !
@@ -183,18 +174,13 @@
       real(kind=kind_phys), parameter ::
      &                      c1=1.41,          c2=-0.38,     ricrit=0.25
      &,                     n2min=1.e-32,     zero=0.0,     one=1.0
-!     &,                     taumin=1.0e-20,   tauctmax=-20.
+     &,                     taumin=1.0e-20,   tauctmax=-20.
 !    &,                     taumin=1.0e-20,   tauctmax=-5.
      &,                     qmin=1.0e-10,     shmin=1.0e-20
      &,                     rimax=1.0e+20,    rimaxm=0.99e+20
      &,                     rimaxp=1.01e+20,  rilarge=0.9e+20
      &,                     riminx=-1.0e+20,  riminm=-1.01e+20
      &,                     riminp=-0.99e+20, rismall=-0.9e+20
-
-      if (lprnt) then
-         print*, ' GFS CONVECTIVE GRAVITY WAVE DRAG PARAMETERS: '
-         print*, ' TAUCTMAX = ', tauctmax, ', TAUMIN = ', taumin
-      endif
 
 !
       npt = 0
@@ -1165,5 +1151,3 @@
 
       return
       end
-
-      end module gwdc_mod

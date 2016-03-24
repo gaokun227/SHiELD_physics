@@ -86,12 +86,14 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    integer :: atmos_nthreads = 1
    logical :: memuse_verbose = .false.
    logical :: use_hyper_thread = .false.
+   logical :: debug_affinity = .false.
    integer :: ncores_per_node = 0
 
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                           months, days, hours, minutes, seconds,  &
                           dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, & 
-                          use_hyper_thread, ncores_per_node, restart_secs, restart_days
+                          use_hyper_thread, ncores_per_node, debug_affinity, &
+                          restart_secs, restart_days
 
 ! ----- local variables -----
    character(len=32) :: timestamp
@@ -279,8 +281,10 @@ contains
 !$         call set_cpu_affinity(base_cpu + omp_get_thread_num() + &
 !$                               ncores_per_node - atmos_nthreads/2) 
 !$      endif
-!rab!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!rab!$        call flush(6)
+!$      if (debug_affinity) then
+!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
+!$        call flush(6)
+!$      endif
 !$OMP END PARALLEL
 
     call set_calendar_type (calendar_type)

@@ -130,6 +130,8 @@ contains
        call mpp_update_domains(u, v, &
             domain, gridtype=DGRID_NE, complete=.true.)
        call timing_off('COMM_TOTAL')
+!$OMP parallel do default(none) shared(isd,jsd,ied,jed,is,ie,js,je,npx,npy,npz, &
+!$OMP       gridstruct,flagstruct,bd,u,v,ua,va,uc,vc,nested,divg)
        do k=1,npz
           call d2c_setup(u(isd,jsd,k),  v(isd,jsd,k),   &
                ua, va, &
@@ -150,6 +152,7 @@ contains
 
 #ifndef SW_DYNAMICS
     if (flagstruct%hydrostatic) then
+!$OMP parallel do default(none) shared(npz,is,ie,js,je,pkz,pkz_coarse)
        do k=1,npz
        do j=js,je
        do i=is,ie
@@ -338,6 +341,7 @@ contains
       ptBC    =>    pt_BC%west_t1
       pkzBC   =>   pkz_BC%west_t1
       sphumBC => sphum_BC%west_t1
+!$OMP parallel do default(none) shared(npz,jsd,jed,isd,ptBC,pkzBC,zvir,sphumBC)
       do k=1,npz
       do j=jsd,jed
       do i=isd,0
@@ -362,6 +366,7 @@ contains
          iend = ied
       end if
 
+!$OMP parallel do default(none) shared(npz,jsd,istart,iend,ptBC,pkzBC,zvir,sphumBC)
       do k=1,npz
       do j=jsd,0
       do i=istart,iend
@@ -377,6 +382,7 @@ contains
       ptBC    =>    pt_BC%east_t1
       pkzBC   =>   pkz_BC%east_t1
       sphumBC => sphum_BC%east_t1
+!$OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,ptBC,pkzBC,zvir,sphumBC)
       do k=1,npz
       do j=jsd,jed
       do i=npx,ied
@@ -402,6 +408,7 @@ contains
          iend = ied
       end if
 
+!$OMP parallel do default(none) shared(npz,npy,jed,npx,istart,iend,ptBC,pkzBC,zvir,sphumBC)
       do k=1,npz
       do j=npy,jed
       do i=istart,iend
@@ -626,6 +633,9 @@ contains
       delpBC  =>  delp_BC%west_t1
       delzBC  =>  delz_BC%west_t1
 
+!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=jsd,jed
       do i=isd,0
@@ -691,6 +701,9 @@ contains
          iend = ied
       end if
 
+!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=jsd,0
       do i=istart,iend
@@ -745,6 +758,9 @@ contains
 #endif
       delpBC  =>  delp_BC%east_t1
       delzBC  =>  delz_BC%east_t1
+!OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=jsd,jed
       do i=npx,ied
@@ -809,6 +825,9 @@ contains
          iend = ied
       end if
 
+!OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=npy,jed
       do i=istart,iend
@@ -1259,6 +1278,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
             !temperature on the coarse grid. Compute actual temperature
             !on the nested grid, then gather.
             allocate(t_nest(isd:ied,jsd:jed,1:npz))
+!$OMP parallel do default(none) shared(npz,js,je,is,ie,t_nest,pt,pkz,zvir,q,sphum)
             do k=1,npz
                do j=js,je
                   do i=is,ie
@@ -1340,6 +1360,8 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
       if (neststruct%parent_proc) then
 
          parent_grid%ps = parent_grid%ptop
+!This loop appears to cause problems with OMP
+!$NO-MP parallel do default(none) shared(npz,jsd_p,jed_p,isd_p,ied_p,parent_grid)
          do k=1,npz
             do j=jsd_p,jed_p
                do i=isd_p,ied_p
@@ -1355,6 +1377,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
       if (neststruct%child_proc) then
 
          ps = ptop
+!$OMP parallel do default(none) shared(npz,jsd,jed,isd,ied,ps,delp)
          do k=1,npz
             do j=jsd,jed
                do i=isd,ied
@@ -1392,6 +1415,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
          !idealized simulations with a background uniform theta) since near the top
          !boundary theta is exponential, which is hard to accurately interpolate with a spline
          if (.not. parent_grid%flagstruct%remap_t) then
+!$OMP parallel do default(none) shared(npz,jsc_p,jec_p,isc_p,iec_p,parent_grid,zvir,sphum)
             do k=1,npz
                do j=jsc_p,jec_p
                   do i=isc_p,iec_p
@@ -1407,6 +1431,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
               parent_grid%pt, parent_grid%q, npz, ps0, zvir, parent_grid%ptop, ncnst, &
               isc_p, iec_p, jsc_p, jec_p, isd_p, ied_p, jsd_p, jed_p, .false. ) !neststruct%nestupdate < 7)
          if (.not. parent_grid%flagstruct%remap_t) then
+!$OMP parallel do default(none) shared(npz,jsc_p,jec_p,isc_p,iec_p,parent_grid,zvir,sphum)
             do k=1,npz
                do j=jsc_p,jec_p
                   do i=isc_p,iec_p
@@ -1735,6 +1760,8 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
   real, dimension(is:ie,npz+1):: pe1, pn1
   integer i,j,k,iq
 
+!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps0,q,npz,ptop,do_q,t,ps,nq,qn1) &
+!$OMP          private(pe0,pn0,pe1,pn1,qp,tp)
   do 5000 j=js,je
 
      do k=1,kmd+1
@@ -1806,6 +1833,8 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 !------
 ! map u
 !------
+!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps,ps0,npz,u,ptop) &
+!$OMP          private(pe0,pe1,qt,qn1)
   do j=js,je+1
 !------
 ! Data
@@ -1845,8 +1874,9 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 !------
 ! map v
 !------
+!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps,ps0,npz,v,ptop) &
+!$OMP          private(pe0,pe1,qt,qn1)
    do j=js,je
-
 !------
 ! Data
 !------

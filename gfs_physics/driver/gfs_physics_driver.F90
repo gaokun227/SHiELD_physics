@@ -431,7 +431,7 @@ module gfs_physics_driver_mod
     if (ozcalc) allocate ( O3dat(Atm_block%nblks) )
 !rab this openmp loop seems to have malloc/free issues which I will deal with later
 !rab!$OMP PARALLEL DO default(none) & 
-!rab!$OMP            schedule(static,1) &
+!rab!$OMP            schedule(dynamic,1) &
 !rab!$OMP              shared(Atm_block,ozcalc,O3dat,Tbd_data,Mdl_parms,xkzm_m,xkzm_h,xkzm_s, &
 !rab!$OMP                     evpco,psautco,prautco,wminco,pl_pres,Dyn_parms,kdt,jdate,solhr, &
 !rab!$OMP                     fhlwr,fhswr,lssav,ipt,lprnt,dt_phys,latgfs,clstp,nnp,fhour,     &
@@ -514,87 +514,89 @@ module gfs_physics_driver_mod
 
       if (me==0) then
          print *, "in DRIVER AFTER setup"
-         print *, "ntcw : ", Mdl_parms%ntcw
-         print *, "ncld : ", Mdl_parms%ncld
-         print *, "ntoz : ", Mdl_parms%ntoz
-         print *, "NTRAC : ", Mdl_parms%NTRAC
-         print *, "levs : ", Mdl_parms%levs
-         print *, "me : ", Mdl_parms%me
-         print *, "lsoil : ", Mdl_parms%lsoil
-         print *, "lsm : ", Mdl_parms%lsm
-         print *, "nmtvr : ", Mdl_parms%nmtvr
-         print *, "nrcm : ", Mdl_parms%nrcm
-         print *, "levozp : ", Mdl_parms%levozp
-         print *, "lonr : ", Mdl_parms%lonr
-         print *, "latr : ", Mdl_parms%latr
-         print *, "jcap : ", Mdl_parms%jcap
-         print *, "num_p3d : ", Mdl_parms%num_p3d
-         print *, "num_p2d : ", Mdl_parms%num_p2d
-         print *, "npdf3d : ", Mdl_parms%npdf3d
-         print *, "pl_coeff : ", Mdl_parms%pl_coeff
-         print *, "ncw : ", Mdl_parms%ncw
-         print *, "crtrh : ", Mdl_parms%crtrh
-         print *, "cdmbgwd : ", Mdl_parms%cdmbgwd
-         print *, "ccwf : ", Mdl_parms%ccwf
-         print *, "dlqf : ", Mdl_parms%dlqf
-         print *, "ctei_rm : ", Mdl_parms%ctei_rm
-         print *, "cgwf : ", Mdl_parms%cgwf
-         print *, "prslrd0 : ", Mdl_parms%prslrd0
-         print *, "ras : ", Mdl_parms%ras
-         print *, "pre_rad : ", Mdl_parms%pre_rad
-         print *, "ldiag3d : ", Mdl_parms%ldiag3d
-         print *, "lgocart : ", Mdl_parms%lgocart
-         print *, "lssav_cpl : ", Mdl_parms%lssav_cpl
-         print *, "flipv : ", Mdl_parms%flipv
-         print *, "old_monin : ", Mdl_parms%old_monin
-         print *, "cnvgwd : ", Mdl_parms%cnvgwd
-         print *, "shal_cnv : ", Mdl_parms%shal_cnv
-         print *, "sashal : ", Mdl_parms%sashal
-         print *, "newsas : ", Mdl_parms%newsas
-         print *, "cal_pre : ", Mdl_parms%cal_pre
-         print *, "mom4ice : ", Mdl_parms%mom4ice
-         print *, "mstrat : ", Mdl_parms%mstrat
-         print *, "trans_trac : ", Mdl_parms%trans_trac
-         print *, "nst_fcst : ", Mdl_parms%nst_fcst
-         print *, "moist_adj : ", Mdl_parms%moist_adj
-         print *, "thermodyn_id : ", Mdl_parms%thermodyn_id
-         print *, "sfcpress_id : ", Mdl_parms%sfcpress_id
+         print *, "ntcw             : ", Mdl_parms%ntcw
+         print *, "ncld             : ", Mdl_parms%ncld
+         print *, "ntoz             : ", Mdl_parms%ntoz
+         print *, "NTRAC            : ", Mdl_parms%NTRAC
+         print *, "levs             : ", Mdl_parms%levs
+         print *, "me               : ", Mdl_parms%me
+         print *, "lsoil            : ", Mdl_parms%lsoil
+         print *, "lsm              : ", Mdl_parms%lsm
+         print *, "nmtvr            : ", Mdl_parms%nmtvr
+         print *, "nrcm             : ", Mdl_parms%nrcm
+         print *, "levozp           : ", Mdl_parms%levozp
+         print *, "lonr             : ", Mdl_parms%lonr
+         print *, "latr             : ", Mdl_parms%latr
+         print *, "jcap             : ", Mdl_parms%jcap
+         print *, "num_p3d          : ", Mdl_parms%num_p3d
+         print *, "num_p2d          : ", Mdl_parms%num_p2d
+         print *, "npdf3d           : ", Mdl_parms%npdf3d
+         print *, "pl_coeff         : ", Mdl_parms%pl_coeff
+         print *, "ncw              : ", Mdl_parms%ncw
+         print *, "crtrh            : ", Mdl_parms%crtrh
+         print *, "cdmbgwd          : ", Mdl_parms%cdmbgwd
+         print *, "ccwf             : ", Mdl_parms%ccwf
+         print *, "dlqf             : ", Mdl_parms%dlqf
+         print *, "ctei_rm          : ", Mdl_parms%ctei_rm
+         print *, "cgwf             : ", Mdl_parms%cgwf
+         print *, "prslrd0          : ", Mdl_parms%prslrd0
+         print *, "ras              : ", Mdl_parms%ras
+         print *, "pre_rad          : ", Mdl_parms%pre_rad
+         print *, "ldiag3d          : ", Mdl_parms%ldiag3d
+         print *, "lgocart          : ", Mdl_parms%lgocart
+         print *, "lssav_cpl        : ", Mdl_parms%lssav_cpl
+         print *, "flipv            : ", Mdl_parms%flipv
+         print *, "old_monin        : ", Mdl_parms%old_monin
+         print *, "cnvgwd           : ", Mdl_parms%cnvgwd
+         print *, "shal_cnv         : ", Mdl_parms%shal_cnv
+         print *, "sashal           : ", Mdl_parms%sashal
+         print *, "newsas           : ", Mdl_parms%newsas
+         print *, "cal_pre          : ", Mdl_parms%cal_pre
+         print *, "mom4ice          : ", Mdl_parms%mom4ice
+         print *, "mstrat           : ", Mdl_parms%mstrat
+         print *, "trans_trac       : ", Mdl_parms%trans_trac
+         print *, "nst_fcst         : ", Mdl_parms%nst_fcst
+         print *, "moist_adj        : ", Mdl_parms%moist_adj
+         print *, "thermodyn_id     : ", Mdl_parms%thermodyn_id
+         print *, "sfcpress_id      : ", Mdl_parms%sfcpress_id
          print *, "gen_coord_hybrid : ", Mdl_parms%gen_coord_hybrid
-         print *, "levr : ", Mdl_parms%levr
-         print *, "lsidea : ", Mdl_parms%lsidea
-         print *, "pdfcld : ", Mdl_parms%pdfcld
-         print *, "shcnvcw : ", Mdl_parms%shcnvcw
-         print *, "redrag : ", Mdl_parms%redrag
-         print *, "hybedmf : ", Mdl_parms%hybedmf
-         print *, "dspheat : ", Mdl_parms%dspheat
-         print *, "dxmax : ", dxmax
-         print *, "dxmin : ", dxmin
-         print *, "dxinv : ", dxinv
-         print *, "si : ", si
-         print *, "ictm : ", ictm
-         print *, "isol : ", isol
-         print *, "ico2 : ", ico2
-         print *, "iaer : ", iaer
-         print *, "ialb : ", ialb
-         print *, "iems : ", iems
-         print *, "iovr_sw : ", iovr_sw
-         print *, "iovr_lw : ", iovr_lw
-         print *, "isubc_sw : ", isubc_sw
-         print *, "isubc_lw : ", isubc_lw
-         print *, "sas_shal : ", sas_shal
-         print *, "crick_proof : ", crick_proof
-         print *, "ccnorm : ", ccnorm
-         print *, "norad_precip : ", norad_precip
-         print *, "idate : ", Mdl_parms%idate
-         print *, "iflip : ", iflip
-         print *, "cscnv : ", Mdl_parms%cscnv
-         print *, "nctp : ", Mdl_parms%nctp
-         print *, "ntke : ", Mdl_parms%ntke
-         print *, "do_shoc : ", Mdl_parms%do_shoc
-         print *, "shocaftcnv : ", Mdl_parms%shocaftcnv
-         print *, "ntot3d : ", Mdl_parms%ntot3d
-         print *, "ntot2d : ", Mdl_parms%ntot2d
-         print *, "shoc_cld : ", Mdl_parms%shoc_cld
+         print *, "levr             : ", Mdl_parms%levr
+         print *, "lsidea           : ", Mdl_parms%lsidea
+         print *, "pdfcld           : ", Mdl_parms%pdfcld
+         print *, "shcnvcw          : ", Mdl_parms%shcnvcw
+         print *, "redrag           : ", Mdl_parms%redrag
+         print *, "hybedmf          : ", Mdl_parms%hybedmf
+         print *, "dspheat          : ", Mdl_parms%dspheat
+         print *, "dxmax            : ", dxmax
+         print *, "dxmin            : ", dxmin
+         print *, "dxinv            : ", dxinv
+         print *, "si               : ", si
+         print *, "ictm             : ", ictm
+         print *, "isol             : ", isol
+         print *, "ico2             : ", ico2
+         print *, "iaer             : ", iaer
+         print *, "ialb             : ", ialb
+         print *, "iems             : ", iems
+         print *, "iovr_sw          : ", iovr_sw
+         print *, "iovr_lw          : ", iovr_lw
+         print *, "isubc_sw         : ", isubc_sw
+         print *, "isubc_lw         : ", isubc_lw
+         print *, "sas_shal         : ", sas_shal
+         print *, "crick_proof      : ", crick_proof
+         print *, "ccnorm           : ", ccnorm
+         print *, "norad_precip     : ", norad_precip
+         print *, "idate            : ", Mdl_parms%idate
+         print *, "iflip            : ", iflip
+         print *, "cscnv            : ", Mdl_parms%cscnv
+         print *, "nctp             : ", Mdl_parms%nctp
+         print *, "ntke             : ", Mdl_parms%ntke
+         print *, "do_shoc          : ", Mdl_parms%do_shoc
+         print *, "shocaftcnv       : ", Mdl_parms%shocaftcnv
+         print *, "ntot3d           : ", Mdl_parms%ntot3d
+         print *, "ntot2d           : ", Mdl_parms%ntot2d
+         print *, "shoc_cld         : ", Mdl_parms%shoc_cld
+         print *, "nocnv            : ", nocnv
+         print *, "ozcalc           : ", nocnv
        end if ! parameter output
 
   end subroutine phys_rad_driver_init
@@ -791,7 +793,7 @@ module gfs_physics_driver_mod
 
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
-!$OMP          schedule (static,1) & 
+!$OMP          schedule (dynamic,1) & 
 !$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props,   &
 !$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends) &
 !$OMP          firstprivate (Mdl_parms)  &
@@ -831,7 +833,7 @@ module gfs_physics_driver_mod
     fhour = Dyn_parms(1)%fhour
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
-!$OMP          schedule (static,1) & 
+!$OMP          schedule (dynamic,1) & 
 !$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
 !$OMP                   Stateout, fdiag, fhzero, levs) &

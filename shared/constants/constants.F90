@@ -75,10 +75,25 @@ real, public, parameter :: HLF = 3.3358e5_R_GRID
 real, public, parameter :: con_cliq   =4.1855e+3_R_GRID      ! spec heat H2O liq   (J/kg/K)
 real, public, parameter :: con_csol   =2.1060e+3_R_GRID      ! spec heat H2O ice   (J/kg/K)
 #else
-real, public, parameter :: RADIUS = 6371e+3_R_GRID
+
+#ifdef SMALL_EARTH
+#ifdef HIWPP
+#ifdef SUPER_K
+       real, private, parameter :: small_fac = 1._R_GRID / 120._R_GRID
+#else
+ real, private, parameter :: small_fac = 1._R_GRID / 166.7_R_GRID
+#endif
+#else
+ real, private, parameter :: small_fac = 1._R_GRID / 10._R_GRID
+#endif
+#else
+ real, private, parameter :: small_fac = 1._R_GRID
+#endif
+
+real, public, parameter :: RADIUS = 6371e+3_R_GRID * small_fac
 real(kind=8), public, parameter :: PI_8 = 3.141592653589793_R_GRID
 real, public, parameter ::         PI   = 3.141592653589793_R_GRID
-real, public, parameter :: OMEGA = 7.292e-5_R_GRID
+real, public, parameter :: OMEGA = 7.292e-5_R_GRID / small_fac
 real, public, parameter :: GRAV  = 9.8060226_R_GRID
 real, public, parameter :: RDGAS = 287.04_R_GRID 
 real, public, parameter :: RVGAS = 461.60_R_GRID 

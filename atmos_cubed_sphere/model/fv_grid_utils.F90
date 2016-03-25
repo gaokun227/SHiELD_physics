@@ -87,6 +87,7 @@
       real(kind=R_GRID), pointer, dimension(:,:,:) :: agrid, grid
       real(kind=R_GRID), pointer, dimension(:,:) :: area, area_c
       real(kind=R_GRID), pointer, dimension(:,:) :: sina, cosa, dx, dy, dxc, dyc, dxa, dya
+      real, pointer, dimension(:,:) :: del6_u, del6_v
       real, pointer, dimension(:,:) :: divg_u, divg_v
       real, pointer, dimension(:,:) :: cosa_u, cosa_v, cosa_s
       real, pointer, dimension(:,:) :: sina_u, sina_v
@@ -124,6 +125,9 @@
 
       divg_u => Atm%gridstruct%divg_u
       divg_v => Atm%gridstruct%divg_v
+
+      del6_u => Atm%gridstruct%del6_u
+      del6_v => Atm%gridstruct%del6_v
 
       cosa_u => Atm%gridstruct%cosa_u
       cosa_v => Atm%gridstruct%cosa_v
@@ -699,6 +703,17 @@
             0.5*(sin_sg(npx,j,1) + sin_sg(npx-1,j,3))
   enddo
 
+  do j=jsd,jed+1
+     do i=isd,ied
+        del6_u(i,j) = sina_v(i,j)*dx(i,j)/dyc(i,j)
+     enddo
+  enddo
+  do j=jsd,jed
+     do i=isd,ied+1
+        del6_v(i,j) = sina_u(i,j)*dy(i,j)/dxc(i,j)
+     enddo
+  enddo
+
 ! Initialize cubed_sphere to lat-lon transformation:
      call init_cubed_to_latlon( Atm%gridstruct, Atm%flagstruct%hydrostatic, agrid, grid_type, c2l_order, Atm%bd )
 
@@ -715,6 +730,8 @@
 ! A->B scalar:
      if (grid_type < 3 .and. .not. Atm%neststruct%nested) then
         call mpp_update_domains(divg_v, divg_u, Atm%domain, flags=SCALAR_PAIR,      &
+                                gridtype=CGRID_NE_PARAM, complete=.true.)
+        call mpp_update_domains(del6_v, del6_u, Atm%domain, flags=SCALAR_PAIR,      &
                                 gridtype=CGRID_NE_PARAM, complete=.true.)
         call edge_factors (Atm%gridstruct%edge_s, Atm%gridstruct%edge_n, Atm%gridstruct%edge_w, &
              Atm%gridstruct%edge_e, non_ortho, grid, agrid, npx, npy, Atm%bd)
@@ -779,6 +796,10 @@
       nullify(cosa)
       nullify(divg_u)
       nullify(divg_v)
+
+      nullify(del6_u)
+      nullify(del6_v)
+
       nullify(cosa_u)
       nullify(cosa_v)
       nullify(cosa_s)

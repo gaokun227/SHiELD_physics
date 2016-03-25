@@ -1156,16 +1156,26 @@ endif
    real damp2
    integer i,j, n, nt, i1, i2, j1, j2
 
-   real, pointer, dimension(:,:)   :: rarea, dx, dy, rdxc, rdyc
+   real, pointer, dimension(:,:)   :: rarea
+#ifdef USE_SG
+   real, pointer, dimension(:,:)   :: dx, dy, rdxc, rdyc
    real, pointer, dimension(:,:,:) :: sin_sg
+#else
+  real, pointer, dimension(:,:)   :: del6_u, del6_v
+#endif
 
 
    rarea    => gridstruct%rarea  
+#ifdef USE_SG
    dx       => gridstruct%dx     
    dy       => gridstruct%dy     
    rdxc     => gridstruct%rdxc   
    rdyc     => gridstruct%rdyc   
    sin_sg   => gridstruct%sin_sg 
+#else
+   del6_u   => gridstruct%del6_u
+   del6_v   => gridstruct%del6_v
+#endif
 
    i1 = is-1-nord;    i2 = ie+1+nord
    j1 = js-1-nord;    j2 = je+1+nord
@@ -1189,8 +1199,11 @@ endif
 
    do j=js-nord,je+nord
       do i=is-nord,ie+nord+1
-!        fx2(i,j) = dy(i,j)*sina_u(i,j)*(d2(i-1,j)-d2(i,j))*rdxc(i,j)
+#ifdef USE_SG
          fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i-1,j)-d2(i,j))*rdxc(i,j)
+#else
+         fx2(i,j) = del6_v(i,j)*(d2(i-1,j)-d2(i,j))
+#endif
       enddo
    enddo
 
@@ -1198,8 +1211,11 @@ endif
       gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
    do j=js-nord,je+nord+1
          do i=is-nord,ie+nord
-!           fy2(i,j) = dx(i,j)*sina_v(i,j)*(d2(i,j-1)-d2(i,j))*rdyc(i,j)
+#ifdef USE_SG
             fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j-1)-d2(i,j))*rdyc(i,j)
+#else
+            fy2(i,j) = del6_u(i,j)*(d2(i,j-1)-d2(i,j))
+#endif
          enddo
    enddo
 
@@ -1223,7 +1239,11 @@ endif
            gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
       do j=js-nt,je+nt
          do i=is-nt,ie+nt+1
+#ifdef USE_SG
             fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i,j)-d2(i-1,j))*rdxc(i,j)
+#else
+            fx2(i,j) = del6_v(i,j)*(d2(i,j)-d2(i-1,j))
+#endif
          enddo
       enddo
 
@@ -1231,8 +1251,11 @@ endif
            gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
       do j=js-nt,je+nt+1
             do i=is-nt,ie+nt
-               fy2(i,j) = dx(i,j)*(d2(i,j)-d2(i,j-1))*rdyc(i,j) &
-                         *0.5*(sin_sg(i,j-1,4) + sin_sg(i,j,2) )
+#ifdef USE_SG
+               fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j)-d2(i,j-1))*rdyc(i,j)
+#else
+               fy2(i,j) = del6_u(i,j)*(d2(i,j)-d2(i,j-1))
+#endif
             enddo
       enddo
    enddo

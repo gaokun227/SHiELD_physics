@@ -2050,8 +2050,7 @@ do 1000 j=jfirst,jlast
 
       !Local routine pointers
       real, pointer, dimension(:,:) :: rarea
-      real, pointer, dimension(:,:) :: sina_u, sina_v
-      real, pointer, dimension(:,:) :: rdxc, rdyc, dy
+      real, pointer, dimension(:,:) :: del6_u, del6_v
       logical, pointer :: sw_corner, se_corner, ne_corner, nw_corner
 
       is  = bd%is
@@ -2064,12 +2063,8 @@ do 1000 j=jfirst,jlast
       jed = bd%jed
 
       rarea => gridstruct%rarea
-      rdxc => gridstruct%rdxc
-      rdyc => gridstruct%rdyc
-!     dx => gridstruct%dx
-      dy => gridstruct%dy
-      sina_u => gridstruct%sina_u
-      sina_v => gridstruct%sina_v
+      del6_u => gridstruct%del6_u
+      del6_v => gridstruct%del6_v
       
       sw_corner => gridstruct%sw_corner
       nw_corner => gridstruct%nw_corner
@@ -2088,7 +2083,7 @@ do 1000 j=jfirst,jlast
 
 !$OMP parallel do default(none) shared(km,sw_corner,q,se_corner,is,ie,js,je,npx,npy, &
 !$OMP                                  nw_corner,ne_corner,nt,isd,jsd,gridstruct,bd, &
-!$OMP                                  dy,sina_u,rdxc,sina_v,rdyc,cd,rarea         ) &
+!$OMP                                  cd,rarea,del6_u,del6_v ) &
 !$OMP                          private(fx, fy)
          do k=1,km
 
@@ -2117,7 +2112,8 @@ do 1000 j=jfirst,jlast
                  sw_corner, se_corner, nw_corner, ne_corner )
             do j=js-nt,je+nt
                do i=is-nt,ie+1+nt
-                  fx(i,j) = dy(i,j)*sina_u(i,j)*(q(i-1,j,k)-q(i,j,k))*rdxc(i,j)
+!                 fx(i,j) = dy(i,j)*sina_u(i,j)*(q(i-1,j,k)-q(i,j,k))*rdxc(i,j)
+                  fx(i,j) = del6_v(i,j)*(q(i-1,j,k)-q(i,j,k))
                enddo
             enddo
 
@@ -2125,7 +2121,8 @@ do 1000 j=jfirst,jlast
                  sw_corner, se_corner, nw_corner, ne_corner)
             do j=js-nt,je+1+nt
                do i=is-nt,ie+nt
-                  fy(i,j) = gridstruct%dx(i,j)*sina_v(i,j)*(q(i,j-1,k)-q(i,j,k))*rdyc(i,j)
+!                 fy(i,j) = gridstruct%dx(i,j)*sina_v(i,j)*(q(i,j-1,k)-q(i,j,k))*rdyc(i,j)
+                  fy(i,j) = del6_u(i,j)*(q(i,j-1,k)-q(i,j,k))
                enddo
             enddo
 

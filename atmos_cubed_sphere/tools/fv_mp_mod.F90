@@ -326,6 +326,23 @@ contains
                npes_per_tile = npes_x*npes_y !/nregions !Set up for concurrency
                is_symmetry = .true.
                call mpp_define_layout( (/1,npx-1,1,npy-1/), npes_per_tile, layout )
+
+               if ( npes_x == 0 ) then 
+                  npes_x = layout(1)
+               endif
+               if ( npes_y == 0 ) then
+                  npes_y = layout(2)
+               endif
+
+               if ( npes_x==npes_y .and. (npx-1)==((npx-1)/npes_x)*npes_x )  Atm%gridstruct%square_domain = .true.
+
+               if ( (npx/npes_x < ng) .or. (npy/npes_y < ng) ) then
+                  write(*,310) npes_x, npes_y, npx/npes_x, npy/npes_y
+                 call mp_stop
+                 call exit(1)
+              endif
+           
+              layout = (/npes_x,npes_y/)
             case (3)   ! Lat-Lon "cyclic"
                type="Lat-Lon: cyclic"
                nregions = 4

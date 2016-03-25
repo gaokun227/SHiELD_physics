@@ -106,7 +106,8 @@ public :: fv_phys, fv_nudge
   real:: t_fac = 1.
   integer:: print_freq = 3  ! hours
 
-  integer :: id_vr_k, id_rain, id_dqdt, id_dTdt, id_dudt, id_dvdt
+  integer :: id_vr_k, id_rain, id_rain_k, id_dqdt, id_dTdt, id_dudt, id_dvdt
+  real, allocatable:: prec_total(:,:)
   real    :: missing_value = -1.e10
 
 namelist /sim_phys_nml/mixed_layer, gray_rad, strat_rad, do_lin_microphys,   &
@@ -180,7 +181,7 @@ contains
     real, dimension(is:ie,npz):: dp2, pm, rdelp, u2, v2, t2, q2, du2, dv2, dt2, dq2
     real:: lcp(is:ie), den(is:ie)
     real:: rain(is:ie,js:je)
-    real:: dq, dqsdt, delm, adj, rkv, sigl, tmp
+    real:: dq, dqsdt, delm, adj, rkv, sigl, tmp, prec
     real :: qdiag(1,1,1)
     logical moist_phys
     integer  isd, ied, jsd, jed
@@ -236,7 +237,7 @@ contains
      if ( fv_sg_adj > 0 ) then
          call fv_subgrid_z(isd, ied, jsd, jed, is, ie, js, je, npz, min(6,nq), pdt,  &
                            fv_sg_adj, nwat, delp, pe, peln, pkz, pt, q, ua, va,  &
-                           hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt )
+                           hydrostatic, w, delz, u_dt, v_dt, t_dt, q_dt, flagstruct%n_sponge )
          no_tendency = .false.
     endif
 
@@ -330,6 +331,13 @@ contains
             rain(:,:) = rain (:,:) / pdt * 86400.
             used = send_data(id_rain, rain, time)
        endif
+      if ( id_rain_k>0 ) then
+           prec_total(:,:) = prec_total(:,:) + rain(:,:)
+           used = send_data(id_rain_k, prec_total, time)
+           prec = g_sum(prec_total, is, ie, js, je, gridstruct%area(is:ie,js:je), 1)
+           if(master) write(*,*) 'HIWPP accumulated rain=', prec
+           call prt_maxmin('HIWPP: W', w, is, ie, js, je, ng,  npz, 1.)
+      endif
     endif
 
 
@@ -435,7 +443,7 @@ contains
     call fv_update_phys (pdt, is, ie, js, je, isd, ied, jsd, jed, ng, nq,   &
                          u, v, w, delp, pt, q, qdiag, ua, va, ps, pe, peln, pk, pkz,  &
                          ak, bk, phis, u_srf, v_srf, ts,  &
-                         delz, hydrostatic, u_dt, v_dt, t_dt, q_dt, &
+                         delz, hydrostatic, u_dt, v_dt, t_dt, &
                          moist_phys, Time, .false., gridstruct, &
                          gridstruct%agrid(:,:,1), gridstruct%agrid(:,:,2), &
                          npx, npy, npz, flagstruct, neststruct, bd, domain, ptop)
@@ -1425,9 +1433,15 @@ endif
 
     id_rain = register_diag_field (mod_name, 'rain', axes(1:2), time,        &
                 'rain_sim_phys', 'mm/day', missing_value=missing_value )
+    id_rain_k = register_diag_field (mod_name, 'rain_k', axes(1:2), time,        &
+                'accumuated rain_Kessler', 'mm/day', missing_value=missing_value )
     id_vr_k = register_diag_field (mod_name, 'vr_k', axes(1:3), time,        &
                 'Terminal fall V_Kessler', 'm/s', missing_value=missing_value )
 
+    if (id_rain_k > 0) then
+       allocate ( prec_total(is:ie,js:je) )
+       prec_total(:,:) = 0.
+    endif
 
     master = is_master()
     if ( master ) then
@@ -1529,6 +1543,8 @@ endif
  real, allocatable:: vr_k(:,:,:)
  real, dimension(km):: t1, q0, q1, q2, q3, zm, drym, dm, dz, fac1, fac2
  real, dimension(km):: vr, qa, qb, qc, m1, u1, v1, w1, dgz, cvn, cvm
+ real, dimension(km):: rho
+ real, dimension(km+1):: ze
  real:: sdt, qcon
  integer i,j,k,n
  logical used
@@ -1537,7 +1553,7 @@ endif
 
  sdt = dt/real(K_cycle)
 
-!$omp parallel do default(shared) private(fac1,fac2,qcon,dz,vr,dgz,cvm,cvn,m1,u1,v1,w1,q0,qa,qb,qc,t1,dm,q1,q2,q3,zm,drym)
+!$omp parallel do default(shared) private(ze,zm,rho,fac1,fac2,qcon,dz,vr,dgz,cvm,cvn,m1,u1,v1,w1,q0,qa,qb,qc,t1,dm,q1,q2,q3,drym)
  do j=js, je
 
     do i=is, ie
@@ -1607,7 +1623,22 @@ endif
        endif
          endif
       enddo
+#ifdef EXP_MP
+! Compute zm, & rho
+      ze(km+1) = 0.
+      do k=km, 1, -1
+         ze(k) = ze(k+1) + dz(k)
+      enddo
+
+      do k=1,km
+         ! Dry air density
+         rho(k) = drym(k)/(grav*dz(k))
+         zm(k)  = 0.5*(ze(k)+ze(k+1))
+      enddo
+      call KESSLER( t1, q1, q2, q3, vr, rho, sdt, zm, km )
+#else
       call kessler_imp( t1, q1, q2, q3, vr, drym, sdt, dz, km )
+#endif
 
 ! Retrive rain_flux from non-local changes in total water
        m1(1) = drym(1)*(q0(1)-(q1(1)+q2(1)+q3(1)))
@@ -1676,7 +1707,6 @@ endif
           q(i,j,k,  sphum) = q1(k) / dp(i,j,k)
           q(i,j,k,liq_wat) = q2(k) / dp(i,j,k)
           q(i,j,k,rainwat) = q3(k) / dp(i,j,k)
-! Update temperature
        enddo
   enddo   ! i-loop
  
@@ -1737,7 +1767,6 @@ endif
        vr(k) = max(vr_min, vr(k))
    enddo
 
-! *** Sedimentation term using implicit upstream differencing
    qr(1) = dz(1)*qr(1) / (dz(1)+dt*vr(1))
    do k=2, nz
       qr(k) = (dz(k)*qr(k)+qr(k-1)*r(k-1)*dt*vr(k-1)/r(k)) / (dz(k)+dt*vr(k))
@@ -1750,7 +1779,11 @@ endif
        qr(K) = qr(k) + QRPROD
       rqr(k) = r(k)*max(qr(k), qr_min)
       QVS =  qs_wat(T(k), rho(k), dqsdt)
+#ifdef HIWPP
+      hlvm = hlv / cv_air
+#else
       hlvm = (Lv0+dc_vap*T(k)) / (cv_air+qv(k)*cv_vap+(qc(k)+qr(k))*c_liq)
+#endif
       PROD = (qv(k)-QVS) / (1.+dqsdt*hlvm)
 ! Evaporation rate following K&W78 Eq3. 3.8-3.10
       ERN = min(dt*(((1.6+124.9*rqr(k)**.2046)   &
@@ -1767,6 +1800,77 @@ endif
    enddo
 
  end subroutine kessler_imp
+
+ SUBROUTINE KESSLER( T, QV, QC, QR, VELQR, R, dt, Z, NZ )
+! T  - TEMPERATURE (K)
+! QV - WATER VAPOR MIXING RATIO (GM/GM)
+! QC - CLOUD WATER MIXING RATIO (GM/GM)
+! QR - RAIN WATER MIXING RATIO (GM/GM)
+! R  - DRY AIR DENSITY (GM/M^3)
+! dt - TIME STEP (S)
+! Z - HEIGHTS OF THERMODYNAMIC LEVELS IN THE GRID COLUMN (M)
+! NZ - NUMBER OF THERMODYNAMIC LEVELS IN THE COLUMN
+! VARIABLES IN THE GRID COLUMN ARE ORDERED FROM THE SURFACE TO THE TOP.
+! k=1 is the top layer
+! Dry mixing ratios?
+! OUTPUT VARIABLES:
+   integer, intent(in):: nz
+   real, intent(in):: dt
+   REAL, intent(in)   :: R(NZ), Z(NZ)
+   REAL, intent(inout):: T(NZ), QV(NZ), QC(NZ), QR(NZ), VELQR(NZ)
+! Local:
+   real, parameter:: c_k = 1003.    ! heat capacity of the K scheme
+   real, parameter:: F2X = 17.27
+   real, parameter:: F5 = 237.3*F2X*2.5E6/1003.
+   real, parameter:: XK = .2875
+   real, parameter:: cvd = 717.56 
+   REAL RHALF(NZ), SED(NZ), pc(NZ)
+   REAL ERN, QRPROD, PROD, QVS, cvm
+   INTEGER K
+
+   DO K=1,NZ
+      RHALF(K) = SQRT(R(NZ)/R(K))
+      pc(K) = 3.8e2 / (R(k)*rdgas*T(k))
+! Liquid water terminal velocity (m/s) following K&W78 Eq. 2.15
+      VELQR(K) = 36.34*(QR(K)*R(K))**0.1364*RHALF(K)
+   END DO
+
+! Sedimentation term using upstream differencing
+!
+   SED(1) = -dt*QR(1)*VELQR(1)/(.5*(Z(1)-Z(2)))
+   DO K=2,NZ
+      SED(K) = dt*(R(K-1)*QR(K-1)*VELQR(K-1)         &
+              -R(K)*QR(K)*VELQR(K ))/(R(K)*(Z(K-1)-Z(K)))
+   END DO
+
+   DO K=1,NZ
+      cvm = (1.-qv(k)-qc(k))*cvd + qv(k)*cv_vap + qc(k)*c_liq
+! Autoconversion and accretion rates following K&W78 Eq. 2.13a,b
+! Threshold = 1.e-3
+      QRPROD = QC(K) - (QC(K)-dt*max(.001*(QC(K)-.001), 0.))    &
+             / (1.+dt*2.2*QR(K)**.875)
+      QC(K) = max(QC(K)-QRPROD,0.)
+      QR(K) = max(QR(K)+QRPROD+SED(K),0.)
+
+! Saturation vapor mixing ratio (gm/gm) following K&W78 Eq. 2.11
+      QVS = pc(K)*EXP(F2X*(T(K)-273.) /(T(K)- 36.))
+
+      PROD = (QV(K)-QVS)/(1.+QVS*F5/(T(K)-36.)**2)
+! Evaporation rate following K&W78 Eq3. 3.8-3.10
+      ERN = min(dt*(((1.6+124.9*(R(K)*QR(K))**.2046)   &
+          *(R(K)*QR(K))**.525)/(2.55E6*pc(K)             &
+          /(3.8 *QVS)+5.4E5))*(DIM(QVS,QV(K))            &
+          /(R(K)*QVS)),max(-PROD-QC(K),0.),QR(K))
+! Saturation adjustment following K&W78 Eq.2.14a,b
+!       T(k) = T(k) + (Lv0+dc_vap*T(k))*(max(PROD,-QC(k))-ERN) / cvm
+        T(K) = T(K) + 2.5E6*(max(PROD,-QC(K))-ERN) / cvd
+       QV(K) = max(QV(K)-max(PROD,-QC(K))+ERN,0.)
+       QC(K) = QC(K)+max(PROD,-QC(K))
+       QR(K) = QR(K)-ERN
+   END DO
+
+ END SUBROUTINE KESSLER
+
 
 
  real function g_sum(p, ifirst, ilast, jfirst, jlast, area, mode)

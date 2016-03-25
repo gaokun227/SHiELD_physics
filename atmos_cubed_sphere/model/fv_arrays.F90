@@ -119,6 +119,8 @@ module fv_arrays_mod
      real, allocatable :: l2c_u(:,:), l2c_v(:,:)
      ! divergence Damping:
      real, allocatable :: divg_u(:,:), divg_v(:,:)    !
+     ! del6 diffusion:
+     real, allocatable :: del6_u(:,:), del6_v(:,:)    !
      ! Cubed_2_latlon:
      real, allocatable :: a11(:,:)
      real, allocatable :: a12(:,:)
@@ -1018,6 +1020,9 @@ contains
     ! For diveregnce damping:
     allocate (  Atm%gridstruct%divg_u(isd_2d:ied_2d,  jsd_2d:jed_2d+1) )
     allocate (  Atm%gridstruct%divg_v(isd_2d:ied_2d+1,jsd_2d:jed_2d) )
+    ! For del6 diffusion:
+    allocate (  Atm%gridstruct%del6_u(isd_2d:ied_2d,  jsd_2d:jed_2d+1) )
+    allocate (  Atm%gridstruct%del6_v(isd_2d:ied_2d+1,jsd_2d:jed_2d) )
 
     allocate (  Atm%gridstruct%z11(is_2d-1:ie_2d+1,js_2d-1:je_2d+1) )
     allocate (  Atm%gridstruct%z12(is_2d-1:ie_2d+1,js_2d-1:je_2d+1) )
@@ -1248,6 +1253,7 @@ contains
     ! For diveregnce damping:
     deallocate (  Atm%gridstruct%divg_u )
     deallocate (  Atm%gridstruct%divg_v )
+    ! For del6 diffusion:
 
     deallocate (  Atm%gridstruct%z11 )
     deallocate (  Atm%gridstruct%z12 )

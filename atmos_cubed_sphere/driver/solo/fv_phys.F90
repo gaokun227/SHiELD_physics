@@ -1553,7 +1553,7 @@ endif
 
  sdt = dt/real(K_cycle)
 
-!$omp parallel do default(shared) private(ze,zm,rho,fac1,fac2,qcon,dz,vr,dgz,cvm,cvn,m1,u1,v1,w1,q0,qa,qb,qc,t1,dm,q1,q2,q3,zm,drym)
+!$omp parallel do default(shared) private(ze,zm,rho,fac1,fac2,qcon,dz,vr,dgz,cvm,cvn,m1,u1,v1,w1,q0,qa,qb,qc,t1,dm,q1,q2,q3,drym)
  do j=js, je
 
     do i=is, ie

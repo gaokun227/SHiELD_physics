@@ -1543,20 +1543,26 @@
    logical :: nested
 
   real, pointer, dimension(:,:) :: rarea
+#ifdef USE_SG
   real, pointer, dimension(:,:,:) :: sin_sg
-  real, pointer, dimension(:,:)   :: sina_u, sina_v
   real, pointer, dimension(:,:) ::  rdxc, rdyc, dx,dy
+#else
+  real, pointer, dimension(:,:)   :: del6_u, del6_v
+#endif
 
    integer :: is,  ie,  js,  je
 
    rarea    => gridstruct%rarea 
+#ifdef USE_SG
    sin_sg   => gridstruct%sin_sg
-   sina_u   => gridstruct%sina_u
-   sina_v   => gridstruct%sina_v
    rdxc     => gridstruct%rdxc  
    rdyc     => gridstruct%rdyc  
    dx       => gridstruct%dx    
    dy       => gridstruct%dy    
+#else
+   del6_u   => gridstruct%del6_u
+   del6_v   => gridstruct%del6_v
+#endif
    nested = gridstruct%nested
 
    is  = bd%is
@@ -1576,16 +1582,22 @@
    if( nord>0 ) call copy_corners(d2, npx, npy, 1, nested, bd, sw_corner, se_corner, nw_corner, ne_corner)
    do j=js-nord,je+nord
       do i=is-nord,ie+nord+1
-!        fx2(i,j) = dy(i,j)*sina_u(i,j)*(d2(i-1,j)-d2(i,j))*rdxc(i,j)
+#ifdef USE_SG
          fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i-1,j)-d2(i,j))*rdxc(i,j)
+#else
+         fx2(i,j) = del6_v(i,j)*(d2(i-1,j)-d2(i,j))
+#endif
       enddo
    enddo
 
    if( nord>0 ) call copy_corners(d2, npx, npy, 2, nested, bd, sw_corner, se_corner, nw_corner, ne_corner)
    do j=js-nord,je+nord+1
       do i=is-nord,ie+nord
-!        fy2(i,j) = dx(i,j)*sina_v(i,j)*(d2(i,j-1)-d2(i,j))*rdyc(i,j)
+#ifdef USE_SG
          fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j-1)-d2(i,j))*rdyc(i,j)
+#else
+         fy2(i,j) = del6_u(i,j)*(d2(i,j-1)-d2(i,j))
+#endif
       enddo
    enddo
 
@@ -1602,8 +1614,11 @@
 
       do j=js-nt,je+nt
          do i=is-nt,ie+nt+1
-!           fx2(i,j) = dy(i,j)*sina_u(i,j)*(d2(i,j)-d2(i-1,j))*rdxc(i,j)
+#ifdef USE_SG
             fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i,j)-d2(i-1,j))*rdxc(i,j)
+#else
+            fx2(i,j) = del6_v(i,j)*(d2(i,j)-d2(i-1,j))
+#endif
          enddo
       enddo
 
@@ -1612,8 +1627,11 @@
 
       do j=js-nt,je+nt+1
          do i=is-nt,ie+nt
-!           fy2(i,j) = dx(i,j)*sina_v(i,j)*(d2(i,j)-d2(i,j-1))*rdyc(i,j)
+#ifdef USE_SG
             fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j)-d2(i,j-1))*rdyc(i,j)
+#else
+            fy2(i,j) = del6_u(i,j)*(d2(i,j)-d2(i,j-1))
+#endif
          enddo
       enddo
    enddo

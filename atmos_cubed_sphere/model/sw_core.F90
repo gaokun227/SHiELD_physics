@@ -1547,7 +1547,7 @@
   real, pointer, dimension(:,:,:) :: sin_sg
   real, pointer, dimension(:,:) ::  rdxc, rdyc, dx,dy
 #else
-  real, pointer, dimension(:,:)   :: del6_u, del6_v
+! real, pointer, dimension(:,:)   :: del6_u, del6_v
 #endif
 
    integer :: is,  ie,  js,  je
@@ -1560,8 +1560,8 @@
    dx       => gridstruct%dx    
    dy       => gridstruct%dy    
 #else
-   del6_u   => gridstruct%del6_u
-   del6_v   => gridstruct%del6_v
+!  del6_u   => gridstruct%del6_u
+!  del6_v   => gridstruct%del6_v
 #endif
    nested = gridstruct%nested
 
@@ -1585,7 +1585,7 @@
 #ifdef USE_SG
          fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i-1,j)-d2(i,j))*rdxc(i,j)
 #else
-         fx2(i,j) = del6_v(i,j)*(d2(i-1,j)-d2(i,j))
+         fx2(i,j) = gridstruct%del6_v(i,j)*(d2(i-1,j)-d2(i,j))
 #endif
       enddo
    enddo
@@ -1596,7 +1596,7 @@
 #ifdef USE_SG
          fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j-1)-d2(i,j))*rdyc(i,j)
 #else
-         fy2(i,j) = del6_u(i,j)*(d2(i,j-1)-d2(i,j))
+         fy2(i,j) = gridstruct%del6_u(i,j)*(d2(i,j-1)-d2(i,j))
 #endif
       enddo
    enddo
@@ -1617,7 +1617,7 @@
 #ifdef USE_SG
             fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i,j)-d2(i-1,j))*rdxc(i,j)
 #else
-            fx2(i,j) = del6_v(i,j)*(d2(i,j)-d2(i-1,j))
+            fx2(i,j) = gridstruct%del6_v(i,j)*(d2(i,j)-d2(i-1,j))
 #endif
          enddo
       enddo
@@ -1630,7 +1630,7 @@
 #ifdef USE_SG
             fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j)-d2(i,j-1))*rdyc(i,j)
 #else
-            fy2(i,j) = del6_u(i,j)*(d2(i,j)-d2(i,j-1))
+            fy2(i,j) = gridstruct%del6_u(i,j)*(d2(i,j)-d2(i,j-1))
 #endif
          enddo
       enddo

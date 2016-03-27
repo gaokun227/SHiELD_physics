@@ -2046,8 +2046,6 @@ do 1000 j=jfirst,jlast
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
 
-      logical :: do_nullify = .false.
-
       !Local routine pointers
 !     real, pointer, dimension(:,:) :: rarea
 !     real, pointer, dimension(:,:) :: del6_u, del6_v

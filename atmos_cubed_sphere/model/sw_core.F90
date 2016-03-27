@@ -44,7 +44,6 @@
   real, parameter:: b4 =  0.45
   real, parameter:: b5 = -0.05
 
-  logical:: sw_corner, se_corner, ne_corner, nw_corner 
 
 !---- version number -----
   character(len=128) :: version = '$Id$'
@@ -75,6 +74,7 @@
       type(fv_flags_type), intent(IN), target :: flagstruct
 
 ! Local:
+      logical:: sw_corner, se_corner, ne_corner, nw_corner 
       real, dimension(bd%is-1:bd%ie+1,bd%js-1:bd%je+1):: vort, ke
       real, dimension(bd%is-1:bd%ie+2,bd%js-1:bd%je+1):: fx, fx1, fx2
       real, dimension(bd%is-1:bd%ie+1,bd%js-1:bd%je+2):: fy, fy1, fy2
@@ -87,13 +87,11 @@
       integer :: npx, npy
       logical :: nested
 
-      real, pointer, dimension(:,:)   :: rarea, rarea_c
       real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
       real, pointer, dimension(:,:)   :: cosa_u, cosa_v
       real, pointer, dimension(:,:)   :: sina_u, sina_v
 
-      real, pointer, dimension(:,:) :: fC
-      real, pointer, dimension(:,:) :: rdxc, rdyc, dx, dy, dxc, dyc
+      real, pointer, dimension(:,:) :: dx, dy, dxc, dyc
 
       is  = bd%is
       ie  = bd%ie
@@ -108,17 +106,12 @@
       npy = flagstruct%npy
       nested = gridstruct%nested
 
-      rarea   => gridstruct%rarea
-      rarea_c => gridstruct%rarea_c
       sin_sg  => gridstruct%sin_sg
       cos_sg  => gridstruct%cos_sg
       cosa_u  => gridstruct%cosa_u
       cosa_v  => gridstruct%cosa_v
       sina_u  => gridstruct%sina_u
       sina_v  => gridstruct%sina_v
-      fC      => gridstruct%fC
-      rdxc    => gridstruct%rdxc
-      rdyc    => gridstruct%rdyc
       dx      => gridstruct%dx
       dy      => gridstruct%dy
       dxc     => gridstruct%dxc
@@ -142,8 +135,6 @@
          endif
       endif
 
-!!! TO DO: remove 'test_up'
-!!!   check repro with siena
       do j=js-1,jep1
          do i=is-1,iep1+1
             if (ut(i,j) > 0.) then
@@ -235,12 +226,12 @@
            enddo
            do j=js-1,jep1
               do i=is-1,iep1    
-                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*rarea(i,j)
+                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
 #ifdef SW_DYNAMICS
                    ptc(i,j) = pt(i,j)
 #else
                    ptc(i,j) = (pt(i,j)*delp(i,j) +   &
-                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*rarea(i,j))/delpc(i,j)
+                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
 #endif
               enddo
            enddo
@@ -264,11 +255,11 @@
            enddo
            do j=js-1,je+1
               do i=is-1,ie+1    
-                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*rarea(i,j)
+                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
                    ptc(i,j) = (pt(i,j)*delp(i,j) +   &
-                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*rarea(i,j))/delpc(i,j)
+                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
                     wc(i,j) = (w(i,j)*delp(i,j) + (fx2(i,j)-fx2(i+1,j) +    &
-                               fy2(i,j)-fy2(i,j+1))*rarea(i,j))/delpc(i,j)
+                               fy2(i,j)-fy2(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
               enddo
            enddo
       endif
@@ -386,7 +377,7 @@
 !----------------------------
       do j=js,je+1
          do i=is,ie+1
-            vort(i,j) = fC(i,j) + rarea_c(i,j) * vort(i,j)
+            vort(i,j) = gridstruct%fC(i,j) + gridstruct%rarea_c(i,j) * vort(i,j)
          enddo
       enddo
 
@@ -464,12 +455,12 @@
 ! Update time-centered winds on the C-Grid
       do j=js,je
          do i=is,iep1
-            uc(i,j) = uc(i,j) + fy1(i,j)*fy(i,j) + rdxc(i,j)*(ke(i-1,j)-ke(i,j))
+            uc(i,j) = uc(i,j) + fy1(i,j)*fy(i,j) + gridstruct%rdxc(i,j)*(ke(i-1,j)-ke(i,j))
          enddo
       enddo
       do j=js,jep1
          do i=is,ie
-            vc(i,j) = vc(i,j) - fx1(i,j)*fx(i,j) + rdyc(i,j)*(ke(i,j-1)-ke(i,j))
+            vc(i,j) = vc(i,j) - fx1(i,j)*fx(i,j) + gridstruct%rdyc(i,j)*(ke(i,j-1)-ke(i,j))
          enddo
       enddo
 
@@ -519,6 +510,7 @@
       type(fv_grid_type), intent(IN), target :: gridstruct
       type(fv_flags_type), intent(IN), target :: flagstruct
 ! Local:
+      logical:: sw_corner, se_corner, ne_corner, nw_corner 
       real :: ut(bd%isd:bd%ied+1,bd%jsd:bd%jed)
       real :: vt(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
 !---
@@ -543,7 +535,7 @@
       real :: u_lon
       integer :: i,j, is2, ie1, js2, je1, n, nt, n2, iq
 
-      real, pointer, dimension(:,:) :: area, area_c, rarea, rarea_c
+      real, pointer, dimension(:,:) :: area, area_c, rarea
 
       real, pointer, dimension(:,:,:) :: sin_sg
       real, pointer, dimension(:,:)   :: cosa_u, cosa_v, cosa_s
@@ -557,7 +549,6 @@
       integer :: isd, ied, jsd, jed
       integer :: npx, npy
       logical :: nested
-      real    :: da_min, da_min_c
 
       is  = bd%is
       ie  = bd%ie
@@ -571,12 +562,9 @@
       npx      = flagstruct%npx
       npy      = flagstruct%npy
       nested   = gridstruct%nested
-      da_min   = gridstruct%da_min
-      da_min_c = gridstruct%da_min_c
 
       area      => gridstruct%area   
       rarea     => gridstruct%rarea  
-      rarea_c   => gridstruct%rarea_c
       sin_sg    => gridstruct%sin_sg 
       cosa_u    => gridstruct%cosa_u 
       cosa_v    => gridstruct%cosa_v 
@@ -599,6 +587,11 @@
       rdya      => gridstruct%rdya   
       rdx       => gridstruct%rdx    
       rdy       => gridstruct%rdy    
+
+      sw_corner = gridstruct%sw_corner
+      se_corner = gridstruct%se_corner
+      nw_corner = gridstruct%nw_corner
+      ne_corner = gridstruct%ne_corner
 
 #ifdef SW_DYNAMICS 
       if ( test_case == 1 ) then
@@ -927,7 +920,7 @@
         if ( .not. hydrostatic ) then
             if ( damp_w>1.E-5 ) then
                  dd8 = kgb*abs(dt)
-                 damp4 = (damp_w*da_min_c)**(nord_w+1)
+                 damp4 = (damp_w*gridstruct%da_min_c)**(nord_w+1)
                  call del6_vt_flux(nord_w, npx, npy, damp4, w, wk, fx2, fy2, gridstruct, bd)
                 do j=js,je
                    do i=is,ie
@@ -1083,8 +1076,8 @@
          enddo
       endif
 
-      call ytp_v(vb, u, v, ub, hord_mt, gridstruct%cosa, gridstruct%dy, gridstruct%rdy, &
-           bd, npx, npy, flagstruct%grid_type, nested)
+      call ytp_v(is,ie,js,je,isd,ied,jsd,jed, vb, u, v, ub, hord_mt, gridstruct%dy, gridstruct%rdy, &
+                 npx, npy, flagstruct%grid_type, nested)
 
       do j=js,je+1
          do i=is,ie+1
@@ -1140,8 +1133,8 @@
          enddo
       endif
 
-      call xtp_u(ub, u, v, vb, hord_mt, gridstruct%cosa, gridstruct%dx, gridstruct%rdx, &
-           bd, npx, npy, flagstruct%grid_type, nested)
+      call xtp_u(is,ie,js,je, isd,ied,jsd,jed, ub, u, v, vb, hord_mt, gridstruct%dx, gridstruct%rdx, &
+                 npx, npy, flagstruct%grid_type, nested)
 
       do j=js,je+1
          do i=is,ie+1
@@ -1315,8 +1308,8 @@
 
       do j=js,je+1
          do i=is,ie+1
-            delpc(i,j) = rarea_c(i,j)*delpc(i,j)
-                damp = da_min_c*max(d2_bg, min(0.20, dddmp*abs(delpc(i,j)*dt)))
+            delpc(i,j) = gridstruct%rarea_c(i,j)*delpc(i,j)
+                damp = gridstruct%da_min_c*max(d2_bg, min(0.20, dddmp*abs(delpc(i,j)*dt)))
                 vort(i,j) = damp*delpc(i,j)
                 ke(i,j) = ke(i,j) + vort(i,j)
          enddo
@@ -1370,7 +1363,7 @@
      if ( .not. gridstruct%stretched_grid ) then
         do j=js-nt,je+1+nt
            do i=is-nt,ie+1+nt
-              divg_d(i,j) = divg_d(i,j)*rarea_c(i,j)
+              divg_d(i,j) = divg_d(i,j)*gridstruct%rarea_c(i,j)
            enddo
         enddo
      endif
@@ -1396,14 +1389,14 @@
 
      if (gridstruct%stretched_grid ) then
 ! Stretched grid with variable damping ~ area
-         dd8 = da_min * d4_bg**n2
+         dd8 = gridstruct%da_min * d4_bg**n2
      else
-         dd8 = ( da_min_c*d4_bg )**n2
+         dd8 = ( gridstruct%da_min_c*d4_bg )**n2
      endif
 
      do j=js,je+1
         do i=is,ie+1
-           damp2 =  da_min_c*max(d2_bg, min(0.20, dddmp*vort(i,j)))  ! del-2
+           damp2 =  gridstruct%da_min_c*max(d2_bg, min(0.20, dddmp*vort(i,j)))  ! del-2
            vort(i,j) = damp2*delpc(i,j) + dd8*divg_d(i,j)
              ke(i,j) = ke(i,j) + vort(i,j)
         enddo
@@ -1463,7 +1456,7 @@
 !--------------------------------------------------------
 ! damping applied to relative vorticity (wk):
    if ( damp_v>1.E-5 ) then
-        damp4 = (damp_v*da_min_c)**(nord_v+1)
+        damp4 = (damp_v*gridstruct%da_min_c)**(nord_v+1)
         call del6_vt_flux(nord_v, npx, npy, damp4, wk, vort, ut, vt, gridstruct, bd)
    endif
 
@@ -1542,26 +1535,19 @@
 
    logical :: nested
 
-  real, pointer, dimension(:,:) :: rarea
 #ifdef USE_SG
   real, pointer, dimension(:,:,:) :: sin_sg
   real, pointer, dimension(:,:) ::  rdxc, rdyc, dx,dy
-#else
-  real, pointer, dimension(:,:)   :: del6_u, del6_v
 #endif
 
    integer :: is,  ie,  js,  je
 
-   rarea    => gridstruct%rarea 
 #ifdef USE_SG
    sin_sg   => gridstruct%sin_sg
    rdxc     => gridstruct%rdxc  
    rdyc     => gridstruct%rdyc  
    dx       => gridstruct%dx    
    dy       => gridstruct%dy    
-#else
-   del6_u   => gridstruct%del6_u
-   del6_v   => gridstruct%del6_v
 #endif
    nested = gridstruct%nested
 
@@ -1579,24 +1565,26 @@
       enddo
    enddo
 
-   if( nord>0 ) call copy_corners(d2, npx, npy, 1, nested, bd, sw_corner, se_corner, nw_corner, ne_corner)
+   if( nord>0 ) call copy_corners(d2, npx, npy, 1, nested, bd, gridstruct%sw_corner,    &
+                   gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
    do j=js-nord,je+nord
       do i=is-nord,ie+nord+1
 #ifdef USE_SG
          fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i-1,j)-d2(i,j))*rdxc(i,j)
 #else
-         fx2(i,j) = del6_v(i,j)*(d2(i-1,j)-d2(i,j))
+         fx2(i,j) = gridstruct%del6_v(i,j)*(d2(i-1,j)-d2(i,j))
 #endif
       enddo
    enddo
 
-   if( nord>0 ) call copy_corners(d2, npx, npy, 2, nested, bd, sw_corner, se_corner, nw_corner, ne_corner)
+   if( nord>0 ) call copy_corners(d2, npx, npy, 2, nested, bd, gridstruct%sw_corner,   &
+                   gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
    do j=js-nord,je+nord+1
       do i=is-nord,ie+nord
 #ifdef USE_SG
          fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j-1)-d2(i,j))*rdyc(i,j)
 #else
-         fy2(i,j) = del6_u(i,j)*(d2(i,j-1)-d2(i,j))
+         fy2(i,j) = gridstruct%del6_u(i,j)*(d2(i,j-1)-d2(i,j))
 #endif
       enddo
    enddo
@@ -1606,31 +1594,32 @@
       nt = nord-n
       do j=js-nt-1,je+nt+1
          do i=is-nt-1,ie+nt+1
-            d2(i,j) = (fx2(i,j)-fx2(i+1,j)+fy2(i,j)-fy2(i,j+1))*rarea(i,j)
+            d2(i,j) = (fx2(i,j)-fx2(i+1,j)+fy2(i,j)-fy2(i,j+1))*gridstruct%rarea(i,j)
          enddo
       enddo
 
-      call copy_corners(d2, npx, npy, 1, nested, bd, sw_corner, se_corner, nw_corner, ne_corner)
+      call copy_corners(d2, npx, npy, 1, nested, bd, gridstruct%sw_corner,    &
+         gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
 
       do j=js-nt,je+nt
          do i=is-nt,ie+nt+1
 #ifdef USE_SG
             fx2(i,j) = 0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))*dy(i,j)*(d2(i,j)-d2(i-1,j))*rdxc(i,j)
 #else
-            fx2(i,j) = del6_v(i,j)*(d2(i,j)-d2(i-1,j))
+            fx2(i,j) = gridstruct%del6_v(i,j)*(d2(i,j)-d2(i-1,j))
 #endif
          enddo
       enddo
 
       call copy_corners(d2, npx, npy, 2, nested, bd, &
-      sw_corner, se_corner, nw_corner, ne_corner)
+      gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
 
       do j=js-nt,je+nt+1
          do i=is-nt,ie+nt
 #ifdef USE_SG
             fy2(i,j) = 0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))*dx(i,j)*(d2(i,j)-d2(i,j-1))*rdyc(i,j)
 #else
-            fy2(i,j) = del6_u(i,j)*(d2(i,j)-d2(i,j-1))
+            fy2(i,j) = gridstruct%del6_u(i,j)*(d2(i,j)-d2(i,j-1))
 #endif
          enddo
       enddo
@@ -1654,12 +1643,8 @@
  integer i,j
  integer is2, ie1
 
-  real, pointer, dimension(:,:) :: rarea_c
-
-  real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
-  real, pointer, dimension(:,:)   :: cosa_u, cosa_v
-  real, pointer, dimension(:,:)   :: sina_u, sina_v
-  real, pointer, dimension(:,:) ::  dxc,dyc
+ real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
+ real, pointer, dimension(:,:) ::  dxc,dyc
 
       integer :: is,  ie,  js,  je
       integer :: npx, npy
@@ -1674,13 +1659,8 @@
       npy = flagstruct%npy
       nested = gridstruct%nested
 
-      rarea_c    => gridstruct%rarea_c
       sin_sg     => gridstruct%sin_sg 
       cos_sg     => gridstruct%cos_sg 
-      cosa_u     => gridstruct%cosa_u 
-      cosa_v     => gridstruct%cosa_v 
-      sina_u     => gridstruct%sina_u 
-      sina_v     => gridstruct%sina_v 
       dxc        => gridstruct%dxc    
       dyc        => gridstruct%dyc    
 
@@ -1703,50 +1683,10 @@
         enddo
         do j=js-1,je+2
            do i=is-1,ie+2
-              divg_d(i,j) = rarea_c(i,j)*(vf(i,j-1)-vf(i,j)+uf(i-1,j)-uf(i,j))
+              divg_d(i,j) = gridstruct%rarea_c(i,j)*(vf(i,j-1)-vf(i,j)+uf(i-1,j)-uf(i,j))
            enddo
         enddo
   else
-#ifdef USE_UPWIND
-    do j=js,je+1
-!!! TO DO: separate versions for nested and for cubed-sphere
-       if ( (j==1 .or. j==npy)  .and. .not. nested ) then
-            do i=is-1,ie+1
-               if ( va(i,j) + va(i,j-1) > 0. ) then 
-                   uf(i,j) = u(i,j)*dyc(i,j) * sin_sg(i,j-1,4)
-               else
-                   uf(i,j) = u(i,j)*dyc(i,j) * sin_sg(i,j,2)
-               end if
-            enddo
-       else
-            do i=is-1,ie+1
-               uf(i,j) = (u(i,j)-0.5*(va(i,j-1)+va(i,j))*cosa_v(i,j))   &
-                        *dyc(i,j)*sina_v(i,j)
-            enddo
-       endif
-    enddo
-
-    do j=js-1,je+1
-       do i=is2,ie1
-          vf(i,j) = (v(i,j) - 0.5*(ua(i-1,j)+ua(i,j))*cosa_u(i,j))  &
-                    *dxc(i,j)*sina_u(i,j)
-       enddo
-       if (  is == 1 .and. .not. nested) then
-          if (ua(1,j) + ua(0,j) > 0.) then
-             vf(1,j) = v(1,j)*dxc(1,j)*sin_sg(0,j,3)
-          else
-             vf(1,j) = v(1,j)*dxc(1,j)*sin_sg(1,j,1)
-          end if
-       end if
-       if ( (ie+1)==npx .and. .not. nested ) then
-          if (ua(npx-1,j) + ua(npx,j) > 0.) then
-             vf(npx,j) = v(npx,j)*dxc(npx,j)*sin_sg(npx-1,j,3)
-          else
-             vf(npx,j) = v(npx,j)*dxc(npx,j)*sin_sg(npx,j,1)
-          end if
-       end if
-    enddo
-#else
 !     9---4---8
 !     |       |
 !     1   5   3
@@ -1773,7 +1713,6 @@
        if (  is   ==  1 ) vf(1,  j) = v(1,  j)*dxc(1,  j)*0.5*(sin_sg(0,j,3)+sin_sg(1,j,1))
        if ( (ie+1)==npx ) vf(npx,j) = v(npx,j)*dxc(npx,j)*0.5*(sin_sg(npx-1,j,3)+sin_sg(npx,j,1))
     enddo
-#endif
 
     do j=js,je+1
        do i=is,ie+1
@@ -1782,14 +1721,14 @@
     enddo
 
 ! Remove the extra term at the corners:
-    if (sw_corner) divg_d(1,    1) = divg_d(1,    1) - vf(1,    0)
-    if (se_corner) divg_d(npx,  1) = divg_d(npx,  1) - vf(npx,  0)
-    if (ne_corner) divg_d(npx,npy) = divg_d(npx,npy) + vf(npx,npy)
-    if (nw_corner) divg_d(1,  npy) = divg_d(1,  npy) + vf(1,  npy)
+    if (gridstruct%sw_corner) divg_d(1,    1) = divg_d(1,    1) - vf(1,    0)
+    if (gridstruct%se_corner) divg_d(npx,  1) = divg_d(npx,  1) - vf(npx,  0)
+    if (gridstruct%ne_corner) divg_d(npx,npy) = divg_d(npx,npy) + vf(npx,npy)
+    if (gridstruct%nw_corner) divg_d(1,  npy) = divg_d(1,  npy) + vf(1,  npy)
 
     do j=js,je+1
        do i=is,ie+1
-          divg_d(i,j) = rarea_c(i,j)*divg_d(i,j)
+          divg_d(i,j) = gridstruct%rarea_c(i,j)*divg_d(i,j)
        enddo
     enddo
 
@@ -1999,35 +1938,30 @@ end subroutine divergence_corner_nest
  end subroutine smag_corner
 
 
- subroutine xtp_u(c, u, v, flux, iord, cosa, dx, rdx, bd, npx, npy, grid_type, nested)
+ subroutine xtp_u(is,ie,js,je,isd,ied,jsd,jed,c, u, v, flux, iord, dx, rdx, npx, npy, grid_type, nested)
 
- type(fv_grid_bounds_type), intent(IN) :: bd
- real, INTENT(IN)  ::   u(bd%isd:bd%ied,bd%jsd:bd%jed+1)
- real, INTENT(IN)  ::   v(bd%isd:bd%ied+1,bd%jsd:bd%jed)
- real, INTENT(IN)  ::   c(bd%is:bd%ie+1,bd%js:bd%je+1)
- real, INTENT(out):: flux(bd%is:bd%ie+1,bd%js:bd%je+1)
- real, INTENT(IN) ::   dx(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
- real, INTENT(IN) ::  rdx(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
- real, INTENT(IN) :: cosa(bd%isd:bd%ied+1,bd%jsd:bd%jed+1)
+ integer, intent(in):: is,ie,js,je, isd,ied,jsd,jed
+ real, INTENT(IN)::   u(isd:ied,jsd:jed+1)
+ real, INTENT(IN)::   v(isd:ied+1,jsd:jed)
+ real, INTENT(IN)::   c(is:ie+1,js:je+1)
+ real, INTENT(out):: flux(is:ie+1,js:je+1)
+ real, INTENT(IN) ::   dx(isd:ied,  jsd:jed+1)
+ real, INTENT(IN) ::  rdx(isd:ied,  jsd:jed+1)
  integer, INTENT(IN) :: iord, npx, npy, grid_type
  logical, INTENT(IN) :: nested
 ! Local
- logical extm(bd%is-2:bd%ie+2)
- real al(bd%is-1:bd%ie+2), dm(bd%is-2:bd%ie+2)
- real bl(bd%is-1:bd%ie+1)
- real br(bd%is-1:bd%ie+1)
- real dq(bd%is-3:bd%ie+2)
+ real fx_hi(is:ie+1)
+ logical extm(is-2:ie+2)
+ real al(is-1:ie+2), dm(is-2:ie+2)
+ real bl(is-1:ie+1)
+ real br(is-1:ie+1)
+ real dq(is-3:ie+2)
  real dl, dr, xt, pmp, lac, cfl
  real pmp_1, lac_1, pmp_2, lac_2
  real x0, x1, x0L, x0R
  integer i, j
  integer is3, ie3
-      integer :: is,  ie,  js,  je
-
-      is  = bd%is
-      ie  = bd%ie
-      js  = bd%js
-      je  = bd%je
+ integer is2, ie2
 
  if ( nested .or. grid_type>3 ) then
     is3 = is-1        ; ie3 = ie+1
@@ -2206,10 +2140,8 @@ end subroutine divergence_corner_nest
         enddo
      enddo
 
- case (6) !Now just plain ol' PPM
-
+ case (5)    ! Perfectly linear scheme
      do j=js,je+1
-!            is3 = max(3,is-1) ; ie3 = min(npx-3,ie+1)
         do i=is3,ie3+1
            al(i) = p1*(u(i-1,j)+u(i,j)) + p2*(u(i-2,j)+u(i+1,j))
         enddo
@@ -2218,25 +2150,24 @@ end subroutine divergence_corner_nest
            br(i) = al(i+1) - u(i,j)
         enddo
 
-      if (.not.nested .and. grid_type < 3) then
+      if ( (.not.nested) .and. grid_type < 3) then
         if ( is==1 ) then
+             xt = c3*u(1,j) + c2*u(2,j) + c1*u(3,j)
+             br(1) = xt - u(1,j)
+             bl(2) = xt - u(2,j)
+             br(2) = al(3) - u(2,j)
              if( j==1 .or. j==npy ) then
                  bl(0) = 0.   ! out
                  br(0) = 0.   ! edge
                  bl(1) = 0.   ! edge
                  br(1) = 0.   ! in
-                 bl(2) = c3*u(1,j) + c2*u(2,j) + c1*u(3,j) - u(2,j)
              else
                  bl(0) = c1*u(-2,j) + c2*u(-1,j) + c3*u(0,j) - u(0,j)
              xt = 0.5*( ((2.*dx(0,j)+dx(-1,j))*(u(0,j))-dx(0,j)*u(-1,j))/(dx(0,j)+dx(-1,j))  &
                 +       ((2.*dx(1,j)+dx( 2,j))*(u(1,j))-dx(1,j)*u( 2,j))/(dx(1,j)+dx( 2,j)) )
                  br(0) = xt - u(0,j)
                  bl(1) = xt - u(1,j)
-                 xt = c3*u(1,j) + c2*u(2,j) + c1*u(3,j)
-                 br(1) = xt - u(1,j)
-                 bl(2) = xt - u(2,j)
              endif
-             br(2) = al(3) - u(2,j)
         endif
         if ( (ie+1)==npx ) then
              bl(npx-2) = al(npx-2) - u(npx-2,j)
@@ -2257,7 +2188,71 @@ end subroutine divergence_corner_nest
              endif
         endif
       endif
-!vectorization and 2dx filter added by S-J
+!DEC$ VECTOR ALWAYS
+       do i=is,ie+1
+          if( c(i,j)>0. ) then
+              cfl = c(i,j)*rdx(i-1,j)
+              flux(i,j) = u(i-1,j) + (1.-cfl)*(br(i-1)-cfl*(bl(i-1)+br(i-1)))
+          else
+              cfl = c(i,j)*rdx(i,j)
+              flux(i,j) = u(i,j) + (1.+cfl)*(bl(i)+cfl*(bl(i)+br(i)))
+          endif
+       enddo
+     enddo
+
+ case (6)
+     do j=js,je+1
+        do i=is3,ie3+1
+           al(i) = p1*(u(i-1,j)+u(i,j)) + p2*(u(i-2,j)+u(i+1,j))
+        enddo
+        do i=is3,ie3
+           bl(i) = al(i  ) - u(i,j)
+           br(i) = al(i+1) - u(i,j)
+        enddo
+
+      if ( (.not.nested) .and. grid_type < 3) then
+        if ( is==1 ) then
+             xt = c3*u(1,j) + c2*u(2,j) + c1*u(3,j)
+             br(1) = xt - u(1,j)
+             bl(2) = xt - u(2,j)
+             br(2) = al(3) - u(2,j)
+             if( j==1 .or. j==npy ) then
+                 bl(0) = 0.   ! out
+                 br(0) = 0.   ! edge
+                 bl(1) = 0.   ! edge
+                 br(1) = 0.   ! in
+             else
+                 bl(0) = c1*u(-2,j) + c2*u(-1,j) + c3*u(0,j) - u(0,j)
+             xt = 0.5*( ((2.*dx(0,j)+dx(-1,j))*(u(0,j))-dx(0,j)*u(-1,j))/(dx(0,j)+dx(-1,j))  &
+                +       ((2.*dx(1,j)+dx( 2,j))*(u(1,j))-dx(1,j)*u( 2,j))/(dx(1,j)+dx( 2,j)) )
+                 br(0) = xt - u(0,j)
+                 bl(1) = xt - u(1,j)
+             endif
+!       call pert_ppm(1, u(2,j), bl(2), br(2), -1)
+        endif
+        if ( (ie+1)==npx ) then
+             bl(npx-2) = al(npx-2) - u(npx-2,j)
+             xt = c1*u(npx-3,j) + c2*u(npx-2,j) + c3*u(npx-1,j)
+             br(npx-2) = xt - u(npx-2,j)
+             bl(npx-1) = xt - u(npx-1,j)
+             if( j==1 .or. j==npy ) then
+                 bl(npx-1) = 0.  ! in
+                 br(npx-1) = 0.  ! edge
+                 bl(npx  ) = 0.  ! edge
+                 br(npx  ) = 0.  ! out
+             else
+             xt = 0.5*( ( (2.*dx(npx-1,j)+dx(npx-2,j))*u(npx-1,j)-dx(npx-1,j)*u(npx-2,j))/(dx(npx-1,j)+dx(npx-2,j)) &
+                +       ( (2.*dx(npx  ,j)+dx(npx+1,j))*u(npx  ,j)-dx(npx  ,j)*u(npx+1,j))/(dx(npx  ,j)+dx(npx+1,j)) )
+                 br(npx-1) = xt - u(npx-1,j)
+                 bl(npx  ) = xt - u(npx  ,j)
+                 br(npx) = c3*u(npx,j) + c2*u(npx+1,j) + c1*u(npx+2,j) - u(npx,j)
+             endif
+!       call pert_ppm(1, u(npx-2,j), bl(npx-2), br(npx-2), -1)
+        endif
+      endif
+
+#ifdef V7_4
+!DEC$ VECTOR ALWAYS
        do i=is-1, ie+1
           if ( bl(i)*br(i) < 0. ) then
                extm(i) = .false.
@@ -2265,7 +2260,6 @@ end subroutine divergence_corner_nest
                extm(i) = .true.
           endif
        enddo
-
 !DEC$ VECTOR ALWAYS
        do i=is,ie+1
           if( c(i,j)>0. ) then
@@ -2279,12 +2273,41 @@ end subroutine divergence_corner_nest
           endif
           if ( extm(i-1).and.extm(i) ) flux(i,j) = xt
        enddo
+#else
+! Reverse definition of extm:
+!DEC$ VECTOR ALWAYS
+       do i=is-1, ie+1
+          if ( bl(i)*br(i) < 0. ) then
+               extm(i) = .true.
+          else
+               extm(i) = .false.
+          endif
+       enddo
+!DEC$ VECTOR ALWAYS
+       do i=is,ie+1
+          if( c(i,j)>0. ) then
+              cfl = c(i,j)*rdx(i-1,j)
+              fx_hi(i) = (1.-cfl)*(br(i-1)-cfl*(bl(i-1)+br(i-1)))
+              flux(i,j) = u(i-1,j)
+          else
+              cfl = c(i,j)*rdx(i,j)
+              fx_hi(i) = (1.+cfl)*(bl(i  )+cfl*(bl(i  )+br(i  )))
+              flux(i,j) = u(i,j)
+          endif
+       enddo
+!DEC$ VECTOR ALWAYS
+       do i=is,ie+1
+          if ( extm(i-1) .or. extm(i) ) then
+               flux(i,j) = flux(i,j) + fx_hi(i)
+          endif
+       enddo
+#endif
      enddo
 
  case default
- ! iord = 8, 9, 10
+ ! iord = 8, 9, 10, 11
 
-     do j=js,je+1
+   do j=js,je+1
         do i=is-2,ie+2
            xt = 0.25*(u(i+1,j) - u(i-1,j))
            dm(i) = sign(min(abs(xt), max(u(i-1,j), u(i,j), u(i+1,j)) - u(i,j),  &
@@ -2294,20 +2317,20 @@ end subroutine divergence_corner_nest
            dq(i) = u(i+1,j) - u(i,j)
         enddo
 
-        if (grid_type < 3) then
+      if (grid_type < 3) then
 
-           do i=is3,ie3+1
-              al(i) = 0.5*(u(i-1,j)+u(i,j)) + r3*(dm(i-1) - dm(i))
-           enddo
+          do i=is3,ie3+1
+             al(i) = 0.5*(u(i-1,j)+u(i,j)) + r3*(dm(i-1) - dm(i))
+          enddo
 
 ! Perturbation form:
-           if( iord==8 ) then
+         if( iord==8 ) then
              do i=is3,ie3
                 xt = 2.*dm(i)
                 bl(i) = -sign(min(abs(xt), abs(al(i  )-u(i,j))), xt)
                 br(i) =  sign(min(abs(xt), abs(al(i+1)-u(i,j))), xt)
              enddo
-           elseif( iord==9 ) then
+         elseif( iord==9 ) then
              do i=is3,ie3
               pmp_1 = -2.*dq(i)
               lac_1 = pmp_1 + 1.5*dq(i+1)
@@ -2336,13 +2359,13 @@ end subroutine divergence_corner_nest
                    br(i) = min(max(0., pmp_2, lac_2), max(br(i), min(0., pmp_2, lac_2)))
               endif
              enddo
-           else
-! un-limited:
+         else
+! un-limited: 11
              do i=is3,ie3
                 bl(i) = al(i  ) - u(i,j)
                 br(i) = al(i+1) - u(i,j)
              enddo
-           endif
+         endif
 
 !--------------
 ! fix the edges
@@ -2360,13 +2383,6 @@ end subroutine divergence_corner_nest
                  br(1) = 0.   ! in
               else
                  bl(0) = s14*dm(-1) - s11*dq(-1)
-!---------------------------------------------------------------
-#ifdef ONE_SIDE
-                 xt = t14*u(0,j) + t12*u(-1,j) + t15*u(-2,j)
-                 br(0) = 2.*xt - u(0,j)
-                 xt = t14*u(1,j) + t12*u(2,j) + t15*u(3,j)
-                 bl(1) = 2.*xt - u(1,j)
-#else
                  x0L = 0.5*((2.*dx(0,j)+dx(-1,j))*(u(0,j))   &
                       - dx(0,j)*(u(-1,j)))/(dx(0,j)+dx(-1,j))
                  x0R = 0.5*((2.*dx(1,j)+dx(2,j))*(u(1,j))   &
@@ -2374,11 +2390,9 @@ end subroutine divergence_corner_nest
                  xt = x0L + x0R
                  br(0) = xt - u(0,j)
                  bl(1) = xt - u(1,j)
-#endif
-!---------------------------------------------------------------
-                 endif
-                 call pert_ppm(1, u(2,j), bl(2), br(2), -1)
               endif
+              call pert_ppm(1, u(2,j), bl(2), br(2), -1)
+           endif
 
            if ( (ie+1)==npx  .and. .not. nested) then
               bl(npx-2) = al(npx-2) - u(npx-2,j)
@@ -2392,12 +2406,6 @@ end subroutine divergence_corner_nest
                  br(npx  ) = 0.   ! out
               else
                  br(npx) = s11*dq(npx) - s14*dm(npx+1)
-#ifdef ONE_SIDE
-                 xt = t14*u(npx-1,j) + t12*u(npx-2,j) + t15*u(npx-3,j)
-                 br(npx-1) = 2.*xt - u(npx-1,j)
-                 xt = t14*u(npx,j) + t12*u(npx+1,j) + t15*u(npx+2,j)
-                 bl(npx  ) = 2.*xt - u(npx  ,j)
-#else
                  x0L = 0.5*( (2.*dx(npx-1,j)+dx(npx-2,j))*(u(npx-1,j))  &
                       - dx(npx-1,j)*(u(npx-2,j)))/(dx(npx-1,j)+dx(npx-2,j))
                  x0R = 0.5*( (2.*dx(npx,j)+dx(npx+1,j))*(u(npx,j))  &
@@ -2405,12 +2413,12 @@ end subroutine divergence_corner_nest
                  xt = x0L + x0R
                  br(npx-1) = xt - u(npx-1,j)
                  bl(npx  ) = xt - u(npx  ,j)
-#endif
-                 endif
-                 call pert_ppm(1, u(npx-2,j), bl(npx-2), br(npx-2), -1)
               endif
-          else
-          
+              call pert_ppm(1, u(npx-2,j), bl(npx-2), br(npx-2), -1)
+           endif
+
+      else
+! Other grids:
               do i=is-1,ie+2
                  al(i) = 0.5*(u(i-1,j)+u(i,j)) + r3*(dm(i-1) - dm(i))
               enddo
@@ -2423,17 +2431,17 @@ end subroutine divergence_corner_nest
                  lac = pmp - 1.5*dq(i-2)
                  br(i) = min(max(0., pmp, lac), max(al(i+1)-u(i,j), min(0.,pmp, lac)))
               enddo
-          endif
+        endif
        
-          do i=is,ie+1
-             if( c(i,j)>0. ) then
-                cfl = c(i,j)*rdx(i-1,j)
-                flux(i,j) = u(i-1,j) + (1.-cfl)*(br(i-1)-cfl*(bl(i-1)+br(i-1)))
-             else
-                cfl = c(i,j)*rdx(i,j)
-                flux(i,j) = u(i,  j) + (1.+cfl)*(bl(i  )+cfl*(bl(i  )+br(i  )))
-             endif
-          enddo
+        do i=is,ie+1
+           if( c(i,j)>0. ) then
+               cfl = c(i,j)*rdx(i-1,j)
+               flux(i,j) = u(i-1,j) + (1.-cfl)*(br(i-1)-cfl*(bl(i-1)+br(i-1)))
+           else
+               cfl = c(i,j)*rdx(i,j)
+               flux(i,j) = u(i,  j) + (1.+cfl)*(bl(i  )+cfl*(bl(i  )+br(i  )))
+           endif
+        enddo
      enddo
 
  end select
@@ -2441,36 +2449,29 @@ end subroutine divergence_corner_nest
  end subroutine xtp_u
 
 
- subroutine ytp_v(c, u, v, flux, jord, cosa, dy, rdy, bd, npx, npy, grid_type, nested)
- type(fv_grid_bounds_type), intent(IN) :: bd
+ subroutine ytp_v(is,ie,js,je,isd,ied,jsd,jed, c, u, v, flux, jord, dy, rdy, npx, npy, grid_type, nested)
+ integer, intent(in):: is,ie,js,je, isd,ied,jsd,jed
  integer, intent(IN):: jord
- real, INTENT(IN)  ::   u(bd%isd:bd%ied,bd%jsd:bd%jed+1)
- real, INTENT(IN)  ::   v(bd%isd:bd%ied+1,bd%jsd:bd%jed)
- real, INTENT(IN) ::    c(bd%is:bd%ie+1,bd%js:bd%je+1)   !  Courant   N (like FLUX)
- real, INTENT(OUT):: flux(bd%is:bd%ie+1,bd%js:bd%je+1)
- real, INTENT(IN) ::   dy(bd%isd:bd%ied+1,bd%jsd:bd%jed)
- real, INTENT(IN) ::  rdy(bd%isd:bd%ied+1,bd%jsd:bd%jed)
- real, INTENT(IN) :: cosa(bd%isd:bd%ied+1,bd%jsd:bd%jed+1)
+ real, INTENT(IN)  ::   u(isd:ied,jsd:jed+1)
+ real, INTENT(IN)  ::   v(isd:ied+1,jsd:jed)
+ real, INTENT(IN) ::    c(is:ie+1,js:je+1)   !  Courant   N (like FLUX)
+ real, INTENT(OUT):: flux(is:ie+1,js:je+1)
+ real, INTENT(IN) ::   dy(isd:ied+1,jsd:jed)
+ real, INTENT(IN) ::  rdy(isd:ied+1,jsd:jed)
  integer, INTENT(IN) :: npx, npy, grid_type
  logical, INTENT(IN) :: nested
 ! Local:
- logical extm(bd%is:bd%ie+1,bd%js-2:bd%je+2)
- real dm(bd%is:bd%ie+1,bd%js-2:bd%je+2)
- real al(bd%is:bd%ie+1,bd%js-1:bd%je+2)
- real bl(bd%is:bd%ie+1,bd%js-1:bd%je+1)
- real br(bd%is:bd%ie+1,bd%js-1:bd%je+1)
- real dq(bd%is:bd%ie+1,bd%js-3:bd%je+2)
+ real fx_hi(is:ie+1,js:je+1)
+ logical extm(is:ie+1,js-2:je+2)
+ real dm(is:ie+1,js-2:je+2)
+ real al(is:ie+1,js-1:je+2)
+ real bl(is:ie+1,js-1:je+1)
+ real br(is:ie+1,js-1:je+1)
+ real dq(is:ie+1,js-3:je+2)
  real xt, dl, dr, pmp, lac, cfl
  real pmp_1, lac_1, pmp_2, lac_2
  real x0, x1, x0R, x0L
- integer i, j, js3, je3
-
- integer :: is,  ie,  js,  je
-
-      is  = bd%is
-      ie  = bd%ie
-      js  = bd%js
-      je  = bd%je
+ integer i, j, is1, ie1, js3, je3
 
  if ( nested .or. grid_type>3 ) then
     js3 = js-1;        je3 = je+1
@@ -2677,8 +2678,7 @@ end subroutine divergence_corner_nest
       enddo
    enddo
 
- case (6)
-
+ case (5)    ! Perfectly linear scheme
    do j=js3,je3+1
       do i=is,ie+1
          al(i,j) = p1*(v(i,j-1)+v(i,j)) + p2*(v(i,j-2)+v(i,j+1))
@@ -2690,8 +2690,7 @@ end subroutine divergence_corner_nest
           br(i,j) = al(i,j+1) - v(i,j)
       enddo
    enddo
-
-   if ( .not.nested .and. grid_type < 3) then
+   if ( (.not.nested) .and. grid_type < 3) then
      if( js==1 ) then
        do i=is,ie+1
           bl(i,0) = c1*v(i,-2) + c2*v(i,-1) + c3*v(i,0) - v(i,0)
@@ -2744,7 +2743,91 @@ end subroutine divergence_corner_nest
      endif
    endif
 
-!vectorization and 2dx filter added by S-J
+!DEC$ VECTOR ALWAYS
+   do j=js,je+1
+      do i=is,ie+1
+         if(c(i,j)>0.) then
+            cfl = c(i,j)*rdy(i,j-1)
+            flux(i,j) = v(i,j-1) + (1.-cfl)*(br(i,j-1)-cfl*(bl(i,j-1)+br(i,j-1)))
+         else
+            cfl = c(i,j)*rdy(i,j)
+            flux(i,j) = v(i,j) + (1.+cfl)*(bl(i,j)+cfl*(bl(i,j)+br(i,j)))
+         endif
+      enddo
+   enddo
+
+ case (6)
+
+   do j=js3,je3+1
+      do i=is,ie+1
+         al(i,j) = p1*(v(i,j-1)+v(i,j)) + p2*(v(i,j-2)+v(i,j+1))
+      enddo
+   enddo
+   do j=js3,je3
+      do i=is,ie+1
+          bl(i,j) = al(i,j  ) - v(i,j)
+          br(i,j) = al(i,j+1) - v(i,j)
+      enddo
+   enddo
+
+   if ( (.not.nested) .and. grid_type < 3) then
+     if( js==1 ) then
+       do i=is,ie+1
+          bl(i,0) = c1*v(i,-2) + c2*v(i,-1) + c3*v(i,0) - v(i,0)
+          xt = 0.5*( ((2.*dy(i,0)+dy(i,-1))*v(i,0)-dy(i,0)*v(i,-1))/(dy(i,0)+dy(i,-1)) &
+             +       ((2.*dy(i,1)+dy(i, 2))*v(i,1)-dy(i,1)*v(i, 2))/(dy(i,1)+dy(i, 2)) )
+          br(i,0) = xt - v(i,0)
+          bl(i,1) = xt - v(i,1)
+          xt = c3*v(i,1) + c2*v(i,2) + c1*v(i,3)
+          br(i,1) = xt - v(i,1)
+          bl(i,2) = xt - v(i,2)
+          br(i,2) = al(i,3) - v(i,2)
+       enddo
+       if ( is==1 ) then
+            bl(1,0) = 0.  ! out
+            br(1,0) = 0.  ! edge
+            bl(1,1) = 0.  ! edge
+            br(1,1) = 0.  ! in
+       endif
+       if ( (ie+1)==npx ) then
+            bl(npx,0) = 0.   ! out
+            br(npx,0) = 0.   ! edge
+            bl(npx,1) = 0.   ! edge
+            br(npx,1) = 0.   ! in
+       endif
+!      j=2
+!      call pert_ppm(ie-is+2, v(is,j), bl(is,j), br(is,j), -1)
+   endif
+   if( (je+1)==npy ) then
+       do i=is,ie+1
+          bl(i,npy-2) = al(i,npy-2) - v(i,npy-2)
+          xt = c1*v(i,npy-3) + c2*v(i,npy-2) + c3*v(i,npy-1)
+          br(i,npy-2) = xt - v(i,npy-2)
+          bl(i,npy-1) = xt - v(i,npy-1)
+          xt = 0.5*( ((2.*dy(i,npy-1)+dy(i,npy-2))*v(i,npy-1)-dy(i,npy-1)*v(i,npy-2))/(dy(i,npy-1)+dy(i,npy-2)) &
+             +       ((2.*dy(i,npy  )+dy(i,npy+1))*v(i,npy  )-dy(i,npy  )*v(i,npy+1))/(dy(i,npy  )+dy(i,npy+1)) )
+          br(i,npy-1) = xt - v(i,npy-1)
+          bl(i,npy  ) = xt - v(i,npy)
+          br(i,npy) = c3*v(i,npy)+ c2*v(i,npy+1) + c1*v(i,npy+2) - v(i,npy)
+       enddo
+       if ( is==1 ) then
+            bl(1,npy-1) = 0.  ! in
+            br(1,npy-1) = 0.  ! edge
+            bl(1,npy  ) = 0.  ! edge
+            br(1,npy  ) = 0.  ! out
+       endif
+       if ( (ie+1)==npx ) then
+            bl(npx,npy-1) = 0.  ! in
+            br(npx,npy-1) = 0.  ! edge
+            bl(npx,npy  ) = 0.  ! edge
+            br(npx,npy  ) = 0.  ! out
+       endif
+!      j=npy-2
+!      call pert_ppm(ie-is+2, v(is,j), bl(is,j), br(is,j), -1)
+     endif
+   endif
+
+#ifdef V7_4
    do j=js-1,je+1
       do i=is,ie+1
          if( bl(i,j)*br(i,j) < 0. ) then
@@ -2754,7 +2837,6 @@ end subroutine divergence_corner_nest
          endif
       enddo
    enddo
-
 !DEC$ VECTOR ALWAYS
    do j=js,je+1
       do i=is,ie+1
@@ -2770,6 +2852,41 @@ end subroutine divergence_corner_nest
          if ( extm(i,j-1).and.extm(i,j) ) flux(i,j) = xt
       enddo
    enddo
+#else
+! Reverse the definition of extm (vs the above)
+!DEC$ VECTOR ALWAYS
+   do j=js-1,je+1
+      do i=is,ie+1
+         if( bl(i,j)*br(i,j) < 0. ) then
+             extm(i,j) = .true.
+         else
+             extm(i,j) = .false.
+         endif
+      enddo
+   enddo
+!DEC$ VECTOR ALWAYS
+   do j=js,je+1
+      do i=is,ie+1
+         if(c(i,j)>0.) then
+            cfl = c(i,j)*rdy(i,j-1)
+            fx_hi(i,j) = (1.-cfl)*(br(i,j-1)-cfl*(bl(i,j-1)+br(i,j-1)))
+            flux(i,j) = v(i,j-1)
+         else
+            cfl = c(i,j)*rdy(i,j)
+            fx_hi(i,j) = (1.+cfl)*(bl(i,j  )+cfl*(bl(i,j  )+br(i,j  )))
+            flux(i,j) = v(i,j)
+         endif
+      enddo
+   enddo
+!DEC$ VECTOR ALWAYS
+   do j=js,je+1
+      do i=is,ie+1
+         if ( extm(i,j-1) .or. extm(i,j) ) then
+            flux(i,j) = flux(i,j) + fx_hi(i,j)
+         endif
+      enddo
+   enddo
+#endif
 
 
  case default
@@ -3141,22 +3258,22 @@ end subroutine ytp_v
 ! Fix the edges
 !--------------
 ! Xdir:
-     if( sw_corner ) then
+     if( gridstruct%sw_corner ) then
          do i=-2,0
             utmp(i,0) = -vtmp(0,1-i)
          enddo
      endif
-     if( se_corner ) then
+     if( gridstruct%se_corner ) then
          do i=0,2
             utmp(npx+i,0) = vtmp(npx,i+1)
          enddo
      endif
-     if( ne_corner ) then
+     if( gridstruct%ne_corner ) then
          do i=0,2
             utmp(npx+i,npy) = -vtmp(npx,je-i)
          enddo
      endif
-     if( nw_corner ) then
+     if( gridstruct%nw_corner ) then
          do i=-2,0
             utmp(i,npy) = vtmp(0,je+i)
          enddo
@@ -3182,19 +3299,19 @@ end subroutine ytp_v
      if (grid_type < 3) then
 #ifndef TEST_NEW
 ! Xdir:
-     if( sw_corner ) then
+     if( gridstruct%sw_corner ) then
          ua(-1,0) = -va(0,2)
          ua( 0,0) = -va(0,1) 
      endif
-     if( se_corner ) then
+     if( gridstruct%se_corner ) then
          ua(npx,  0) = va(npx,1)
          ua(npx+1,0) = va(npx,2) 
      endif
-     if( ne_corner ) then
+     if( gridstruct%ne_corner ) then
          ua(npx,  npy) = -va(npx,npy-1)
          ua(npx+1,npy) = -va(npx,npy-2) 
      endif
-     if( nw_corner ) then
+     if( gridstruct%nw_corner ) then
          ua(-1,npy) = va(0,npy-2)
          ua( 0,npy) = va(0,npy-1) 
      endif
@@ -3258,40 +3375,40 @@ end subroutine ytp_v
 !------
 ! Ydir:
 !------
-     if( sw_corner ) then
+     if( gridstruct%sw_corner ) then
          do j=-2,0
             vtmp(0,j) = -utmp(1-j,0)
          enddo
      endif
-     if( nw_corner ) then
+     if( gridstruct%nw_corner ) then
          do j=0,2
             vtmp(0,npy+j) = utmp(j+1,npy)
          enddo
      endif
-     if( se_corner ) then
+     if( gridstruct%se_corner ) then
          do j=-2,0
             vtmp(npx,j) = utmp(ie+j,0)
          enddo
      endif
-     if( ne_corner ) then
+     if( gridstruct%ne_corner ) then
          do j=0,2
             vtmp(npx,npy+j) = -utmp(ie-j,npy)
          enddo
      endif
 #ifndef TEST_NEW
-     if( sw_corner ) then
+     if( gridstruct%sw_corner ) then
          va(0,-1) = -ua(2,0)
          va(0, 0) = -ua(1,0)
      endif
-     if( se_corner ) then
+     if( gridstruct%se_corner ) then
          va(npx, 0) = ua(npx-1,0)
          va(npx,-1) = ua(npx-2,0)
      endif
-     if( ne_corner ) then
+     if( gridstruct%ne_corner ) then
          va(npx,npy  ) = -ua(npx-1,npy)
          va(npx,npy+1) = -ua(npx-2,npy)
      endif
-     if( nw_corner ) then
+     if( gridstruct%nw_corner ) then
          va(0,npy)   = ua(1,npy)
          va(0,npy+1) = ua(2,npy)
      endif

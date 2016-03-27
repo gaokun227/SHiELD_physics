@@ -2046,12 +2046,10 @@ do 1000 j=jfirst,jlast
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
 
-      logical :: do_nullify = .false.
-
       !Local routine pointers
-      real, pointer, dimension(:,:) :: rarea
-      real, pointer, dimension(:,:) :: del6_u, del6_v
-      logical, pointer :: sw_corner, se_corner, ne_corner, nw_corner
+!     real, pointer, dimension(:,:) :: rarea
+!     real, pointer, dimension(:,:) :: del6_u, del6_v
+!     logical, pointer :: sw_corner, se_corner, ne_corner, nw_corner
 
       is  = bd%is
       ie  = bd%ie
@@ -2062,14 +2060,14 @@ do 1000 j=jfirst,jlast
       jsd = bd%jsd
       jed = bd%jed
 
-      rarea => gridstruct%rarea
-      del6_u => gridstruct%del6_u
-      del6_v => gridstruct%del6_v
+!     rarea => gridstruct%rarea
+!     del6_u => gridstruct%del6_u
+!     del6_v => gridstruct%del6_v
       
-      sw_corner => gridstruct%sw_corner
-      nw_corner => gridstruct%nw_corner
-      se_corner => gridstruct%se_corner
-      ne_corner => gridstruct%ne_corner
+!     sw_corner => gridstruct%sw_corner
+!     nw_corner => gridstruct%nw_corner
+!     se_corner => gridstruct%se_corner
+!     ne_corner => gridstruct%ne_corner
 
       ntimes = min(3, nmax)
 
@@ -2081,54 +2079,60 @@ do 1000 j=jfirst,jlast
       do n=1,ntimes
          nt = ntimes - n
 
-!$OMP parallel do default(none) shared(km,sw_corner,q,se_corner,is,ie,js,je,npx,npy, &
-!$OMP                                  nw_corner,ne_corner,nt,isd,jsd,gridstruct,bd, &
-!$OMP                                  cd,rarea,del6_u,del6_v ) &
+!$OMP parallel do default(none) shared(km,q,is,ie,js,je,npx,npy, &
+!$OMP                                  nt,isd,jsd,gridstruct,bd, &
+!$OMP                                  cd) &
 !$OMP                          private(fx, fy)
          do k=1,km
 
-            if ( sw_corner ) then
+            if ( gridstruct%sw_corner ) then
                q(1,1,k) = (q(1,1,k)+q(0,1,k)+q(1,0,k)) * r3
                q(0,1,k) =  q(1,1,k)
                q(1,0,k) =  q(1,1,k)
             endif
-            if ( se_corner ) then
+            if ( gridstruct%se_corner ) then
                q(ie, 1,k) = (q(ie,1,k)+q(npx,1,k)+q(ie,0,k)) * r3
                q(npx,1,k) =  q(ie,1,k)
                q(ie, 0,k) =  q(ie,1,k)
             endif
-            if ( ne_corner ) then
+            if ( gridstruct%ne_corner ) then
                q(ie, je,k) = (q(ie,je,k)+q(npx,je,k)+q(ie,npy,k)) * r3
                q(npx,je,k) =  q(ie,je,k)
                q(ie,npy,k) =  q(ie,je,k)
             endif
-            if ( nw_corner ) then
+            if ( gridstruct%nw_corner ) then
                q(1, je,k) = (q(1,je,k)+q(0,je,k)+q(1,npy,k)) * r3
                q(0, je,k) =  q(1,je,k)
                q(1,npy,k) =  q(1,je,k)
             endif
 
             if(nt>0) call copy_corners(q(isd,jsd,k), npx, npy, 1, gridstruct%nested, bd, &
-                 sw_corner, se_corner, nw_corner, ne_corner )
+                 gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner )
             do j=js-nt,je+nt
                do i=is-nt,ie+1+nt
-!                 fx(i,j) = dy(i,j)*sina_u(i,j)*(q(i-1,j,k)-q(i,j,k))*rdxc(i,j)
-                  fx(i,j) = del6_v(i,j)*(q(i-1,j,k)-q(i,j,k))
+#ifdef USE_SG
+                  fx(i,j) = gridstruct%dy(i,j)*gridstruct%sina_u(i,j)*(q(i-1,j,k)-q(i,j,k))*gridstruct%rdxc(i,j)
+#else
+                  fx(i,j) = gridstruct%del6_v(i,j)*(q(i-1,j,k)-q(i,j,k))
+#endif
                enddo
             enddo
 
             if(nt>0) call copy_corners(q(isd,jsd,k), npx, npy, 2, gridstruct%nested, bd, &
-                 sw_corner, se_corner, nw_corner, ne_corner)
+                 gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
             do j=js-nt,je+1+nt
                do i=is-nt,ie+nt
-!                 fy(i,j) = gridstruct%dx(i,j)*sina_v(i,j)*(q(i,j-1,k)-q(i,j,k))*rdyc(i,j)
-                  fy(i,j) = del6_u(i,j)*(q(i,j-1,k)-q(i,j,k))
+#ifdef USE_SG
+                  fy(i,j) = gridstruct%dx(i,j)*gridstruct%sina_v(i,j)*(q(i,j-1,k)-q(i,j,k))*gridstruct%rdyc(i,j)
+#else
+                  fy(i,j) = gridstruct%del6_u(i,j)*(q(i,j-1,k)-q(i,j,k))
+#endif
                enddo
             enddo
 
             do j=js-nt,je+nt
                do i=is-nt,ie+nt
-                  q(i,j,k) = q(i,j,k) + cd*rarea(i,j)*(fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))
+                  q(i,j,k) = q(i,j,k) + cd*gridstruct%rarea(i,j)*(fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))
                enddo
             enddo
          enddo

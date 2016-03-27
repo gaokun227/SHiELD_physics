@@ -48,7 +48,7 @@ module tp_core_mod
   real, parameter:: p1 =  7./12.     ! 0.58333333
   real, parameter:: p2 = -1./12.
 !   q(i+0.5) = p1*(q(i-1)+q(i)) + p2*(q(i-2)+q(i+1))
-  integer:: is, ie, js, je, isd, ied, jsd, jed
+! integer:: is, ie, js, je, isd, ied, jsd, jed
 
 !---- version number -----
    character(len=128) :: version = '$Id$'
@@ -94,8 +94,7 @@ contains
    real   damp
    integer i, j
 
-   real, pointer, dimension(:,:) :: area, rarea
-
+   integer:: is, ie, js, je, isd, ied, jsd, jed
 
    is  = bd%is
    ie  = bd%ie
@@ -105,9 +104,6 @@ contains
    ied = bd%ied
    jsd = bd%jsd
    jed = bd%jed
-   !! Initalize pointers
-   area    => gridstruct%area  
-   rarea   => gridstruct%rarea 
 
    if ( hord == -10 ) then
         ord_in = -8
@@ -120,7 +116,7 @@ contains
                                 gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
 
    if ( ord_in < 0 ) then
-      call yppm(fy2, q, cry, ord_in, isd,ied, js,je, npx,npy, bd, gridstruct%dya, gridstruct%nested, gridstruct%grid_type)
+      call yppm(fy2, q, cry, ord_in, isd,ied,isd,ied, js,je,jsd,jed, npx,npy, gridstruct%dya, gridstruct%nested, gridstruct%grid_type)
    else
       call  ytp(fy2, q, cry, ord_in, isd,ied, js,je, npx,npy, bd, gridstruct%dya, gridstruct%nested, gridstruct%grid_type)
    endif
@@ -132,12 +128,12 @@ contains
    enddo
    do j=js,je
       do i=isd,ied
-         q_i(i,j) = (q(i,j)*area(i,j) + fyy(i,j)-fyy(i,j+1))/ra_y(i,j)
+         q_i(i,j) = (q(i,j)*gridstruct%area(i,j) + fyy(i,j)-fyy(i,j+1))/ra_y(i,j)
       enddo
    enddo
 
   if( ord_ou < 0 ) then
-      call xppm(fx, q_i, crx(is,js), ord_ou, is, ie, js, je, npx,npy, bd, gridstruct%dxa, gridstruct%nested, gridstruct%grid_type)
+      call xppm(fx, q_i, crx(is,js), ord_ou, is,ie,isd,ied, js,je,jsd,jed, npx,npy, gridstruct%dxa, gridstruct%nested, gridstruct%grid_type)
   else
       call  xtp(fx, q_i, crx(is,js), ord_ou, is, ie, js, je, npx,npy, bd, gridstruct%dxa, gridstruct%nested, gridstruct%grid_type)
   endif
@@ -146,7 +142,7 @@ contains
                                gridstruct%sw_corner, gridstruct%se_corner, gridstruct%nw_corner, gridstruct%ne_corner)
 
   if( ord_in < 0 ) then
-      call xppm(fx2, q, crx, ord_in, is, ie, jsd,jed, npx,npy, bd, gridstruct%dxa, gridstruct%nested, gridstruct%grid_type)
+      call xppm(fx2, q, crx, ord_in, is,ie,isd,ied, jsd,jed,jsd,jed, npx,npy, gridstruct%dxa, gridstruct%nested, gridstruct%grid_type)
   else
       call  xtp(fx2, q, crx, ord_in, is, ie, jsd,jed, npx,npy, bd, gridstruct%dxa, gridstruct%nested, gridstruct%grid_type)
   endif
@@ -156,12 +152,12 @@ contains
         fx1(i) =  xfx(i,j) * fx2(i,j)
      enddo
      do i=is,ie
-        q_j(i,j) = (q(i,j)*area(i,j) + fx1(i)-fx1(i+1))/ra_x(i,j)
+        q_j(i,j) = (q(i,j)*gridstruct%area(i,j) + fx1(i)-fx1(i+1))/ra_x(i,j)
      enddo
   enddo
 
   if ( ord_ou < 0 ) then
-      call yppm(fy, q_j, cry, ord_ou, is,ie, js,je, npx, npy, bd, gridstruct%dya, gridstruct%nested, gridstruct%grid_type)
+      call yppm(fy, q_j, cry, ord_ou, is,ie,isd,ied, js,je,jsd,jed, npx, npy, gridstruct%dya, gridstruct%nested, gridstruct%grid_type)
   else
       call   ytp(fy, q_j, cry, ord_ou, is,ie, js,je, npx, npy, bd, gridstruct%dya, gridstruct%nested, gridstruct%grid_type)
   endif
@@ -187,7 +183,7 @@ contains
       if ( present(nord) .and. present(damp_c) .and. present(mass) ) then
         if ( damp_c > 1.e-4 ) then
            damp = (damp_c * gridstruct%da_min)**(nord+1)
-           call deln_flux( nord, npx, npy, damp, q, fx, fy, gridstruct, bd, mass )
+           call deln_flux(nord, is,ie,js,je, npx, npy, damp, q, fx, fy, gridstruct, bd, mass )
         endif
       endif
    else
@@ -207,7 +203,7 @@ contains
       if ( present(nord) .and. present(damp_c) ) then
            if ( damp_c > 1.E-4 ) then
                 damp = (damp_c * gridstruct%da_min)**(nord+1)
-                call deln_flux( nord, npx, npy, damp, q, fx, fy, gridstruct, bd)
+                call deln_flux(nord, is,ie,js,je, npx, npy, damp, q, fx, fy, gridstruct, bd)
            endif
       endif
    endif
@@ -311,6 +307,12 @@ contains
    real   x0L, x0R, x1
    integer i, j
 
+   integer:: is, ie, js, je
+
+   is  = bd%is
+   ie  = bd%ie
+   js  = bd%js
+   je  = bd%je
 
    if (iord==1) then
 
@@ -405,6 +407,10 @@ contains
  real   x0L, x0R, x1, xt
  integer i, j
 
+   integer:: js, je
+
+   js  = bd%js
+   je  = bd%je
 
    if(jord==1) then
 
@@ -484,29 +490,28 @@ contains
 
  end subroutine ytp
 
- subroutine xppm(flux, q, c, iord, ifirst, ilast, jfirst, jlast, npx, npy, bd, dxa, nested, grid_type)
- type(fv_grid_bounds_type), intent(IN) :: bd
- integer, INTENT(IN) :: ifirst, ilast               !  X-Dir strip
- integer, INTENT(IN) :: jfirst, jlast               !  Y-Dir strip
+ subroutine xppm(flux, q, c, iord, is,ie,isd,ied, jfirst,jlast,jsd,jed, npx, npy, dxa, nested, grid_type)
+ integer, INTENT(IN) :: is, ie, isd, ied, jsd, jed
+ integer, INTENT(IN) :: jfirst, jlast  ! compute domain
  integer, INTENT(IN) :: iord
  integer, INTENT(IN) :: npx, npy
- real   , INTENT(IN) :: q(ifirst-ng:ilast+ng,jfirst:jlast)
- real   , INTENT(IN) :: c(ifirst   :ilast+1 ,jfirst:jlast) ! Courant   N (like FLUX)
- real   , intent(IN) :: dxa(bd%isd:bd%ied,bd%jsd:bd%jed)
+ real   , INTENT(IN) :: q(isd:ied,jfirst:jlast)
+ real   , INTENT(IN) :: c(is:ie+1,jfirst:jlast) ! Courant   N (like FLUX)
+ real   , intent(IN) :: dxa(isd:ied,jsd:jed)
  logical, intent(IN) :: nested
  integer, intent(IN) :: grid_type
 ! !OUTPUT PARAMETERS:
- real  , INTENT(OUT) :: flux(ifirst:ilast+1,jfirst:jlast) !  Flux
+ real  , INTENT(OUT) :: flux(is:ie+1,jfirst:jlast) !  Flux
 ! Local
- real, dimension(ifirst-ng:ilast+ng):: q1
- real, dimension(ifirst-1:ilast+1):: bl, br
- real  al(ifirst-1:ilast+2)
- real  dm(ifirst-2:ilast+2)
- real  dq(ifirst-3:ilast+2)
- logical extm(ifirst-2:ilast+2)
+ real, dimension(isd:ied):: q1
+ real, dimension(is-1:ie+1):: bl, br
+ real  al(is-1:ie+2)
+ real  dm(is-2:ie+2)
+ real  dq(is-3:ie+2)
+ real fx_hi(is:ie+1)    ! High-order Flux
+ logical, dimension(is-2:ie+2):: extm, smth
  integer i, j, ie3, is1, ie1
  real xt, pmp_1, lac_1, pmp_2, lac_2
-
 
  if ( .not. nested .and. grid_type<3 ) then
     is1 = max(3,is-1);  ie3 = min(npx-2,ie+2)
@@ -518,7 +523,7 @@ contains
 
  do 666 j=jfirst,jlast
 
-    do i=ifirst-ng, ilast+ng
+    do i=isd, ied
        q1(i) = q(i,j)
     enddo
 
@@ -532,7 +537,7 @@ contains
    do i=is1, ie3
       al(i) = p1*(q1(i-1)+q1(i)) + p2*(q1(i-2)+q1(i+1))
    enddo
-   if ( .not. nested .and. grid_type<3 ) then
+   if ( .not.nested .and. grid_type<3 ) then
      if ( is==1 ) then
        al(0) = c1*q1(-2) + c2*q1(-1) + c3*q1(0)
        al(1) = 0.5*(((2.*dxa(0,j)+dxa(-1,j))*q1(0)-dxa(0,j)*q1(-1))/(dxa(-1,j)+dxa(0,j)) &
@@ -559,7 +564,7 @@ contains
 
    if ( iord==-4 ) then
 !DEC$ VECTOR ALWAYS
-      do i=ifirst,ilast+1
+      do i=is,ie+1
 ! The following vectorized code is surprisingly slower (SJL testing on Theia)
 !!!      iu = i - ceiling(c(i,j))      ! iu = i-1  if C>0
 !!!      xt = q1(iu)
@@ -575,28 +580,19 @@ contains
    else
 ! iord = -5, -6, -7
    if ( iord==-5 ) then
+#ifdef V7_4
 !DEC$ VECTOR ALWAYS
-      do i=ifirst-1,ilast+1
+      do i=is-1,ie+1
          bl(i) = al(i)   - q1(i)
          br(i) = al(i+1) - q1(i)
-          if ( bl(i)*br(i) < 0. ) then
-               extm(i) = .false.
-          else
-               extm(i) = .true.
-          endif
+         if ( bl(i)*br(i) < 0. ) then
+              extm(i) = .false.
+         else
+              extm(i) = .true.
+         endif
       enddo
-!DEC$ VECTOR ALWAYS
-       do i=ifirst,ilast+1
-!--- Slower on Theia --------------------------------
-!!!       iu = i - ceiling(c(i,j))
-!!!       xt = q1(iu)
-!!!       if ( extm(i-1) .and. extm(i) ) then
-!!!            flux(i,j) = xt
-!!!       else
-!!!            r1 = abs(c(i,j))
-!!!            flux(i,j) = xt + (1.-r1)*(al(i)-xt-r1*(bl(iu)+br(iu)))
-!!!       endif
-! The following is faster (Theia) - because the branching statement is simpler?
+!!!DEC$ VECTOR ALWAYS
+      do i=is,ie+1
           if ( c(i,j) > 0. ) then
                xt = q1(i-1)
                flux(i,j) = xt + (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
@@ -605,14 +601,43 @@ contains
                flux(i,j) = xt + (1.+c(i,j))*(bl(i)+c(i,j)*(bl(i)+br(i)))
           endif
           if ( extm(i-1) .and. extm(i) ) flux(i,j) = xt
+      enddo
+#else
+! The alternative code is slower. But it produces the correct answer with Intel-16
+!DEC$ VECTOR ALWAYS
+      do i=is-1,ie+1
+         bl(i) = al(i)   - q1(i)
+         br(i) = al(i+1) - q1(i)
+         if ( bl(i)*br(i) < 0. ) then
+              smth(i) = .true.
+         else
+              smth(i) = .false.
+         endif
+      enddo
+!DEC$ VECTOR ALWAYS
+       do i=is,ie+1
+          if ( c(i,j) > 0. ) then
+               flux(i,j) = q1(i-1)
+               fx_hi(i) = (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
+          else
+               flux(i,j) = q1(i)
+               fx_hi(i) = (1.+c(i,j))*(bl(i)+c(i,j)*(bl(i)+br(i)))
+          endif
        enddo
+!DEC$ VECTOR ALWAYS
+       do i=is,ie+1
+          if ( smth(i-1) .or. smth(i) ) then
+               flux(i,j) = flux(i,j) + fx_hi(i)
+          endif
+       enddo
+#endif
        goto 666
      else
 ! iord = -6, -7
-       do i=ifirst-3,ilast+2
+       do i=is-3,ie+2
           dq(i) = q1(i+1) - q1(i)
        enddo
-       do i=ifirst-2, ilast+2
+       do i=is-2, ie+2
           if ( dq(i-1)*dq(i) > 0. ) then
                extm(i) = .false.
           else
@@ -620,7 +645,7 @@ contains
           endif
        enddo
 !DEC$ VECTOR ALWAYS
-       do i=ifirst-1,ilast+1
+       do i=is-1,ie+1
           if ( extm(i-1).and.extm(i).and.extm(i+1) ) then
                bl(i) = 0.
                br(i) = 0.
@@ -630,7 +655,7 @@ contains
           endif
        enddo
 ! Additional positive definite constraint:
-       if(iord==-7) call pert_ppm(ilast-ifirst+3, q1(ifirst-1), bl(ifirst-1), br(ifirst-1), 0)
+       if(iord==-7) call pert_ppm(ie-is+3, q1(is-1), bl(is-1), br(is-1), 0)
    endif
  endif
 
@@ -720,7 +745,7 @@ contains
 
   endif
 
-  do i=ifirst,ilast+1
+  do i=is,ie+1
      if( c(i,j)>0. ) then
          flux(i,j) = q1(i-1) + (1.-c(i,j))*(br(i-1)-c(i,j)*(bl(i-1)+br(i-1)))
      else
@@ -733,24 +758,24 @@ contains
  end subroutine xppm
 
 
- subroutine yppm(flux, q, c, jord, ifirst, ilast, jfirst, jlast, npx, npy, bd, dya, nested, grid_type)
- type(fv_grid_bounds_type), intent(IN) :: bd
- integer, INTENT(IN) :: ifirst, ilast               !  X-Dir strip
- integer, INTENT(IN) :: jfirst, jlast               !  Y-Dir strip
+ subroutine yppm(flux, q, c, jord, ifirst,ilast, isd,ied, js,je,jsd,jed, npx, npy, dya, nested, grid_type)
+ integer, INTENT(IN) :: ifirst,ilast    ! Compute domain
+ integer, INTENT(IN) :: isd,ied, js,je,jsd,jed
  integer, INTENT(IN) :: jord
  integer, INTENT(IN) :: npx, npy
- real   , INTENT(IN) :: q(ifirst:ilast,jfirst-ng:jlast+ng)
- real   , intent(in) :: c(bd%isd:bd%ied,bd%js:bd%je+1 )  ! Courant number
- real   , INTENT(OUT):: flux(ifirst:ilast,jfirst:jlast+1)   !  Flux
- real   , intent(IN) :: dya(bd%isd:bd%ied,bd%jsd:bd%jed)
+ real   , INTENT(IN) :: q(ifirst:ilast,jsd:jed)
+ real   , intent(in) :: c(isd:ied,js:je+1 )  ! Courant number
+ real   , INTENT(OUT):: flux(ifirst:ilast,js:je+1)   !  Flux
+ real   , intent(IN) :: dya(isd:ied,jsd:jed)
  logical, intent(IN) :: nested
  integer, intent(IN) :: grid_type
 ! Local:
- real:: dm(ifirst:ilast,jfirst-2:jlast+2)
- real:: al(ifirst:ilast,jfirst-1:jlast+2)
- real, dimension(ifirst:ilast,jfirst-1:jlast+1):: bl, br
- real dq(ifirst:ilast,jfirst-3:jlast+2)
- logical extm(ifirst:ilast,jfirst-2:jlast+2)
+ real:: fx_hi(ifirst:ilast,js:je+1)   ! high order Flux
+ real:: dm(ifirst:ilast,js-2:je+2)
+ real:: al(ifirst:ilast,js-1:je+2)
+ real, dimension(ifirst:ilast,js-1:je+1):: bl, br
+ real dq(ifirst:ilast,js-3:je+2)
+ logical, dimension(ifirst:ilast,js-2:je+2):: extm, smth
  real xt, pmp_1, lac_1, pmp_2, lac_2, r1
  integer i, j, js1, je3, je1
 
@@ -810,7 +835,7 @@ if ( abs(jord) < 8 ) then
    endif
 
    if ( jord==-4 ) then
-      do j=jfirst,jlast+1
+      do j=js,je+1
 !DEC$ VECTOR ALWAYS
          do i=ifirst,ilast
 ! The following is slower (Theia) ---------
@@ -828,8 +853,8 @@ if ( abs(jord) < 8 ) then
       return
    else
    if ( jord==-5 ) then
-
-      do j=jfirst-1,jlast+1
+#ifdef V7_4
+      do j=js-1,je+1
 !DEC$ VECTOR ALWAYS
          do i=ifirst,ilast
             if ( (al(i,j)-q(i,j))*(al(i,j+1)-q(i,j)) < 0. ) then
@@ -839,20 +864,9 @@ if ( abs(jord) < 8 ) then
             endif
          enddo
       enddo
-
-       do j=jfirst,jlast+1
-!DEC$ VECTOR ALWAYS
+       do j=js,je+1
+!!!!DEC$ VECTOR ALWAYS
           do i=ifirst,ilast
-!--- Slower on Theia --------------------------------
-!!!          ju = j - ceiling(c(i,j))
-!!!          xt = q(i,ju)
-!!!          if ( extm(i,j-1) .and. extm(i,j) ) then
-!!!             flux(i,j) = xt
-!!!          else
-!!!                    r1 = abs(c(i,j))
-!!!             flux(i,j) = xt + (1.-r1)*(al(i,j)-xt-r1*(al(i,ju)+al(i,ju+1)-(xt+xt)))
-!!!          endif
-!--- Slower on Theia --------------------------------
              if ( c(i,j) > 0. ) then
                   xt = q(i,j-1)
                   flux(i,j) = xt + (1.-c(i,j))*(al(i,j)-xt-c(i,j)*(al(i,j-1)+al(i,j)-(xt+xt)))
@@ -863,15 +877,54 @@ if ( abs(jord) < 8 ) then
              if ( extm(i,j-1) .and. extm(i,j) ) flux(i,j) = xt
           enddo
        enddo
+#else
+! The alternative code is slower. But it produces the correct answer with Intel-16
+      do j=js-1,je+1
+         do i=ifirst,ilast
+            bl(i,j) = al(i,j  ) - q(i,j)
+            br(i,j) = al(i,j+1) - q(i,j)
+         enddo
+      enddo
+      do j=js-1,je+1
+!DEC$ VECTOR ALWAYS
+         do i=ifirst,ilast
+            if ( bl(i,j)*br(i,j) < 0. ) then
+                 smth(i,j) = .true.
+            else
+                 smth(i,j) = .false.
+            endif
+         enddo
+      enddo
+      do j=js,je+1
+!DEC$ VECTOR ALWAYS
+         do i=ifirst,ilast
+            if ( c(i,j) > 0. ) then
+                 flux(i,j) = q(i,j-1)
+                 fx_hi(i,j) = (1.-c(i,j))*(br(i,j-1)-c(i,j)*(bl(i,j-1)+br(i,j-1)))
+            else
+                 flux(i,j) = q(i,j)
+                 fx_hi(i,j) = (1.+c(i,j))*(bl(i,j  )+c(i,j)*(bl(i,j)+br(i,j)))
+            endif
+          enddo
+      enddo
+      do j=js,je+1
+!DEC$ VECTOR ALWAYS
+         do i=ifirst,ilast
+            if ( smth(i,j-1) .or. smth(i,j) ) then
+                 flux(i,j) = flux(i,j) + fx_hi(i,j)
+            endif
+         enddo
+      enddo
+#endif
        return
    else
 
-      do j=jfirst-3,jlast+2
+      do j=js-3,je+2
          do i=ifirst,ilast
             dq(i,j) = q(i,j+1) - q(i,j)
          enddo
       enddo
-      do j=jfirst-2,jlast+2
+      do j=js-2,je+2
          do i=ifirst,ilast
             if ( dq(i,j-1)*dq(i,j) > 0. ) then
                  extm(i,j) = .false.
@@ -880,7 +933,7 @@ if ( abs(jord) < 8 ) then
             endif
          enddo
       enddo
-      do j=jfirst-1,jlast+1
+      do j=js-1,je+1
 !DEC$ VECTOR ALWAYS
          do i=ifirst,ilast
             if ( extm(i,j-1) .and. extm(i,j) .and. extm(i,j+1) ) then
@@ -895,7 +948,7 @@ if ( abs(jord) < 8 ) then
 
 ! Additional positive definite constraint:
      if (jord==-7) then
-        do j=jfirst-1,jlast+1
+        do j=js-1,je+1
            call pert_ppm(ilast-ifirst+1, q(ifirst,j), bl(ifirst,j), br(ifirst,j), 0)
         enddo
      endif
@@ -1007,7 +1060,7 @@ else
 
 endif
 
-  do j=jfirst,jlast+1
+  do j=js,je+1
      do i=ifirst,ilast
         if( c(i,j)>0. ) then
            flux(i,j) = q(i,j-1) + (1.-c(i,j))*(br(i,j-1)-c(i,j)*(bl(i,j-1)+br(i,j-1)))
@@ -1133,7 +1186,7 @@ endif
  end subroutine pert_ppm
 
 
- subroutine deln_flux( nord, npx, npy, damp, q, fx, fy, gridstruct, bd, mass )
+ subroutine deln_flux(nord,is,ie,js,je, npx, npy, damp, q, fx, fy, gridstruct, bd, mass )
 ! Del-n damping for the cell-mean values (A grid)
 !------------------
 ! nord = 0:   del-2
@@ -1143,7 +1196,7 @@ endif
 !------------------
    type(fv_grid_bounds_type), intent(IN) :: bd
    integer, intent(in):: nord            ! del-n
-   integer, intent(in):: npx, npy
+   integer, intent(in):: is,ie,js,je, npx, npy
    real, intent(in):: damp
    real, intent(in):: q(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng)  ! q ghosted on input
    type(fv_grid_type), intent(IN), target :: gridstruct
@@ -1156,25 +1209,14 @@ endif
    real damp2
    integer i,j, n, nt, i1, i2, j1, j2
 
-   real, pointer, dimension(:,:)   :: rarea
 #ifdef USE_SG
    real, pointer, dimension(:,:)   :: dx, dy, rdxc, rdyc
    real, pointer, dimension(:,:,:) :: sin_sg
-#else
-! real, pointer, dimension(:,:)   :: del6_u, del6_v
-#endif
-
-
-   rarea    => gridstruct%rarea  
-#ifdef USE_SG
    dx       => gridstruct%dx     
    dy       => gridstruct%dy     
    rdxc     => gridstruct%rdxc   
    rdyc     => gridstruct%rdyc   
    sin_sg   => gridstruct%sin_sg 
-#else
-!  del6_u   => gridstruct%del6_u
-!  del6_v   => gridstruct%del6_v
 #endif
 
    i1 = is-1-nord;    i2 = ie+1+nord
@@ -1231,7 +1273,7 @@ endif
 
       do j=js-nt-1,je+nt+1
          do i=is-nt-1,ie+nt+1
-            d2(i,j) = (fx2(i,j)-fx2(i+1,j)+fy2(i,j)-fy2(i,j+1))*rarea(i,j)
+            d2(i,j) = (fx2(i,j)-fx2(i+1,j)+fy2(i,j)-fy2(i,j+1))*gridstruct%rarea(i,j)
          enddo
       enddo
 

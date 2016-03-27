@@ -684,7 +684,7 @@
   do j=jsd,jed+1
      if ((j==1 .OR. j==npy) .and. .not. Atm%neststruct%nested) then
         do i=isd,ied
-           divg_u(i,j) = dyc(i,j)/dx(i,j)*0.5*(sin_sg(i,j,2)+sin_sg(i,j-1,4))
+           divg_u(i,j) = 0.5*(sin_sg(i,j,2)+sin_sg(i,j-1,4))*dyc(i,j)/dx(i,j)
            del6_u(i,j) = 0.5*(sin_sg(i,j,2)+sin_sg(i,j-1,4))*dx(i,j)/dyc(i,j)
         enddo
      else
@@ -700,11 +700,11 @@
         del6_v(i,j) = sina_u(i,j)*dy(i,j)/dxc(i,j)
      enddo
      if (is == 1 .and. .not. Atm%neststruct%nested) then
-         divg_v(is,j) = dxc(is,j)/dy(is,j)* 0.5*(sin_sg(1,j,1)+sin_sg(0,j,3))
+         divg_v(is,j) = 0.5*(sin_sg(1,j,1)+sin_sg(0,j,3))*dxc(is,j)/dy(is,j)
          del6_v(is,j) = 0.5*(sin_sg(1,j,1)+sin_sg(0,j,3))*dy(is,j)/dxc(is,j)
      endif
      if (ie+1 == npx .and. .not. Atm%neststruct%nested) then
-         divg_v(ie+1,j) = dxc(ie+1,j)/dy(ie+1,j)*0.5*(sin_sg(npx,j,1)+sin_sg(npx-1,j,3))
+         divg_v(ie+1,j) = 0.5*(sin_sg(npx,j,1)+sin_sg(npx-1,j,3))*dxc(ie+1,j)/dy(ie+1,j)
          del6_v(ie+1,j) = 0.5*(sin_sg(npx,j,1)+sin_sg(npx-1,j,3))*dy(ie+1,j)/dxc(ie+1,j)
      endif
   enddo

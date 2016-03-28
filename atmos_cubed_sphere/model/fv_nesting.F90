@@ -1361,9 +1361,9 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 
          parent_grid%ps = parent_grid%ptop
 !This loop appears to cause problems with OMP
-!$NO-MP parallel do default(none) shared(npz,jsd_p,jed_p,isd_p,ied_p,parent_grid)
-         do k=1,npz
-            do j=jsd_p,jed_p
+!$OMP parallel do default(none) shared(npz,jsd_p,jed_p,isd_p,ied_p,parent_grid)
+         do j=jsd_p,jed_p
+            do k=1,npz
                do i=isd_p,ied_p
                   parent_grid%ps(i,j) = parent_grid%ps(i,j) + &
                        parent_grid%delp(i,j,k)
@@ -1378,8 +1378,8 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 
          ps = ptop
 !$OMP parallel do default(none) shared(npz,jsd,jed,isd,ied,ps,delp)
-         do k=1,npz
-            do j=jsd,jed
+         do j=jsd,jed
+            do k=1,npz
                do i=isd,ied
                   ps(i,j) = ps(i,j) + delp(i,j,k)
                end do
@@ -1760,8 +1760,8 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
   real, dimension(is:ie,npz+1):: pe1, pn1
   integer i,j,k,iq
 
-!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps0,q,npz,ptop,do_q,t,ps,nq,qn1) &
-!$OMP          private(pe0,pn0,pe1,pn1,qp,tp)
+!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps0,q,npz,ptop,do_q,t,ps,nq) &
+!$OMP          private(pe0,pn0,pe1,pn1,qp,tp,qn1)
   do 5000 j=js,je
 
      do k=1,kmd+1

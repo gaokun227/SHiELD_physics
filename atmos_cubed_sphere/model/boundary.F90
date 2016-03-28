@@ -1431,7 +1431,7 @@ contains
    !To do this more securely, instead of using is/etc we could use the fine-grid indices defined above
    if (is == 1  ) then
 
-!$OMP parallel do default(none) shared(npz,isd,ied,jsd,jed,jstag,ind,var_west,wt,buf_west) private(ic,jc)
+!$NO-MP parallel do default(none) shared(npz,isd,ied,jsd,jed,jstag,ind,var_west,wt,buf_west) private(ic,jc)
       do k=1,npz
       do j=jsd,jed+jstag
          do i=isd,0
@@ -1451,7 +1451,7 @@ contains
       end do
 
       if (pd) then
-!$OMP parallel do default(none) shared(npz,jsd,jed,jstag,isd,var_west,nest_BC)
+!$NO-MP parallel do default(none) shared(npz,jsd,jed,jstag,isd,var_west,nest_BC)
          do k=1,npz
          do j=jsd,jed+jstag
          do i=isd,0
@@ -1478,7 +1478,7 @@ contains
          iend = ied
       end if
 
-!$OMP parallel do default(none) shared(npz,istart,iend,jsd,jed,istag,ind,var_south,wt,buf_south) private(ic,jc)
+!$NO-MP parallel do default(none) shared(npz,istart,iend,jsd,jed,istag,ind,var_south,wt,buf_south) private(ic,jc)
       do k=1,npz
       do j=jsd,0
          do i=istart,iend+istag
@@ -1498,7 +1498,7 @@ contains
       end do
 
       if (pd) then
-!$OMP parallel do default(none) shared(npz,jsd,jed,istart,iend,istag,var_south,nest_BC)
+!$NO-MP parallel do default(none) shared(npz,jsd,jed,istart,iend,istag,var_south,nest_BC)
          do k=1,npz
          do j=jsd,0
          do i=istart,iend+istag
@@ -1515,7 +1515,7 @@ contains
 
    if (ie == npx-1 ) then
 
-!$OMP parallel do default(none) shared(npx,npz,isd,ied,jsd,jed,istag,jstag,ind,var_east,wt,buf_east) private(ic,jc)
+!$NO-MP parallel do default(none) shared(npx,npz,isd,ied,jsd,jed,istag,jstag,ind,var_east,wt,buf_east) private(ic,jc)
       do k=1,npz
       do j=jsd,jed+jstag
          do i=npx+istag,ied+istag
@@ -1535,7 +1535,7 @@ contains
       end do
 
       if (pd) then
-!$OMP parallel do default(none) shared(npx,npz,jsd,jed,istag,jstag,ied,var_east,nest_BC)
+!$NO-MP parallel do default(none) shared(npx,npz,jsd,jed,istag,jstag,ied,var_east,nest_BC)
          do k=1,npz
          do j=jsd,jed+jstag
          do i=npx+istag,ied+istag
@@ -1563,7 +1563,7 @@ contains
          iend = ied
       end if
 
-!$OMP parallel do default(none) shared(npy,npz,istart,iend,jsd,jed,istag,jstag,ind,var_north,wt,buf_north) private(ic,jc)
+!$NO-MP parallel do default(none) shared(npy,npz,istart,iend,jsd,jed,istag,jstag,ind,var_north,wt,buf_north) private(ic,jc)
       do k=1,npz
       do j=npy+jstag,jed+jstag
          do i=istart,iend+istag
@@ -1583,7 +1583,7 @@ contains
       end do
 
       if (pd) then
-!$OMP parallel do default(none) shared(npy,npz,jsd,jed,istart,iend,istag,jstag,ied,var_north,nest_BC)
+!$NO-MP parallel do default(none) shared(npy,npz,jsd,jed,istart,iend,istag,jstag,ied,var_north,nest_BC)
          do k=1,npz
          do j=npy+jstag,jed+jstag
          do i=istart,iend+istag
@@ -1811,7 +1811,7 @@ contains
       select case (nestupdate)
       case (1,2,6,7,8)
          
-!$OMP parallel do default(none) shared(npz,js_n,je_n,is_n,ie_n,var_nest_send,var_nest,area)
+!$NO-MP parallel do default(none) shared(npz,js_n,je_n,is_n,ie_n,var_nest_send,var_nest,area)
          do k=1,npz
          do j=js_n,je_n
          do i=is_n,ie_n
@@ -1829,7 +1829,7 @@ contains
       select case (nestupdate) 
       case (1,6,7,8)
 
-!$OMP parallel do default(none) shared(npz,js_n,je_n,is_n,ie_n,var_nest_send,var_nest,dx)
+!$NO-MP parallel do default(none) shared(npz,js_n,je_n,is_n,ie_n,var_nest_send,var_nest,dx)
          do k=1,npz
          do j=js_n,je_n+1
          do i=is_n,ie_n
@@ -1852,7 +1852,7 @@ contains
 
       case (1,6,7,8)   !averaging update; in-line average for face-averaged values instead of areal average
 
-!$OMP parallel do default(none) shared(npz,js_n,je_n,is_n,ie_n,var_nest_send,var_nest,dy)
+!$NO-MP parallel do default(none) shared(npz,js_n,je_n,is_n,ie_n,var_nest_send,var_nest,dy)
          do k=1,npz
          do j=js_n,je_n
          do i=is_n,ie_n+1
@@ -1889,8 +1889,8 @@ contains
       select case (nestupdate) 
       case (1,2,6,7,8) ! 1 = Conserving update on all variables; 2 = conserving update for cell-centered values; 6 = conserving remap-update
 
-!$OMP parallel do default(none) shared(npz,jsu,jeu,isu,ieu,ind_update,nest_dat,parent_grid,var_coarse,r) &
-!$OMP          private(in,jn,val,jnj,ini)
+!$NO-MP parallel do default(none) shared(npz,jsu,jeu,isu,ieu,ind_update,nest_dat,parent_grid,var_coarse,r) &
+!$NO-MP          private(in,jn,val)
          do k=1,npz
          do j=jsu,jeu
          do i=isu,ieu
@@ -1935,8 +1935,8 @@ contains
       select case (nestupdate) 
       case (1,6,7,8)
 
-!$OMP parallel do default(none) shared(npz,jsu,jeu,isu,ieu,ind_update,nest_dat,parent_grid,var_coarse,r) &
-!$OMP          private(in,jn,val,jnj,ini)
+!$NO-MP parallel do default(none) shared(npz,jsu,jeu,isu,ieu,ind_update,nest_dat,parent_grid,var_coarse,r) &
+!$NO-MP          private(in,jn,val)
          do k=1,npz
          do j=jsu,jeu+1
          do i=isu,ieu
@@ -1973,8 +1973,8 @@ contains
       select case (nestupdate) 
       case (1,6,7,8)   !averaging update; in-line average for face-averaged values instead of areal average
 
-!$OMP parallel do default(none) shared(npz,jsu,jeu,isu,ieu,ind_update,nest_dat,parent_grid,var_coarse,r) &
-!$OMP          private(in,jn,val,jnj,ini)
+!$NO-MP parallel do default(none) shared(npz,jsu,jeu,isu,ieu,ind_update,nest_dat,parent_grid,var_coarse,r) &
+!$NO-MP          private(in,jn,val)
          do k=1,npz
          do j=jsu,jeu
          do i=isu,ieu+1

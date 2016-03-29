@@ -5,7 +5,7 @@
  use mpp_mod,         only: FATAL, mpp_error, WARNING
  use external_sst_mod, only: i_sst, j_sst, sst_ncep, sst_anom
  use mpp_domains_mod, only: mpp_update_domains, DGRID_NE, mpp_global_sum
- use mpp_domains_mod, only: BITWISE_EXACT_SUM, domain2d
+ use mpp_domains_mod, only: BITWISE_EXACT_SUM, domain2d, BITWISE_EFP_SUM
  use mpp_parameter_mod, only: AGRID_PARAM=>AGRID, CGRID_NE_PARAM=>CGRID_NE
  use mpp_parameter_mod, only: CORNER, SCALAR_PAIR
 
@@ -2873,9 +2873,10 @@
       real gsum
       logical, SAVE :: g_sum_initialized = .false.
       real(kind=R_GRID), SAVE :: global_area
-         
+      real :: tmp(ifirst:ilast,jfirst:jlast) 
+        
       if ( .not. g_sum_initialized ) then
-         global_area = mpp_global_sum(domain, area, flags=BITWISE_EXACT_SUM)
+         global_area = mpp_global_sum(domain, area, flags=BITWISE_EFP_SUM)
          if ( is_master() ) write(*,*) 'Global Area=',global_area
          g_sum_initialized = .true.
       end if
@@ -2886,7 +2887,7 @@
       if ( present(reproduce) ) then
          if (reproduce) then
             gsum = mpp_global_sum(domain, p(:,:)*area(ifirst:ilast,jfirst:jlast), &
-                                  flags=BITWISE_EXACT_SUM)
+                                  flags=BITWISE_EFP_SUM)
          else
             gsum = mpp_global_sum(domain, p(:,:)*area(ifirst:ilast,jfirst:jlast))
          endif

@@ -34,7 +34,7 @@ module fv_nwp_nudge_mod
 
  character(len=128) :: version = ''
  character(len=128) :: tagname = ''
- logical :: do_adiabatic_init
+ logical :: do_adiabatic_init = .false.
 
  public fv_nwp_nudge, fv_nwp_nudge_init, fv_nwp_nudge_end, breed_slp_inline, T_is_Tv
  public do_adiabatic_init

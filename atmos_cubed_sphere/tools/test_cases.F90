@@ -7092,8 +7092,8 @@ end subroutine terminator_tracers
    real, intent(OUT), dimension(is-1:ie+1,npz+1,js-1:je+1) :: pe
    real, intent(OUT), dimension(is:ie,js:je,npz) :: pkz
    real, intent(OUT), dimension(isd:ied,jsd:jed) :: phis,ps
-   real, intent(IN), dimension(isd:ied,jsd:jed,2) :: agrid
-   real, intent(IN), dimension(isd:ied+1,jsd:jed+1,2) :: grid
+   real(kind=R_GRID), intent(IN), dimension(isd:ied,jsd:jed,2) :: agrid
+   real(kind=R_GRID), intent(IN), dimension(isd:ied+1,jsd:jed+1,2) :: grid
    real, intent(OUT), dimension(isd:ied,jsd:jed,npz+1) :: gz
    logical, intent(IN) :: hydrostatic,do_pert
 
@@ -7106,9 +7106,9 @@ end subroutine terminator_tracers
    real, parameter :: T0 = 0.5*(Te + Tp) !!WRONG in document
    real, parameter :: up = 1.
    real, parameter :: zp = 1.5e4
-   real, parameter :: lamp = pi/9.
-   real, parameter :: phip = 2.*lamp
-   real, parameter :: ppcenter(2) = (/ lamp, phip /)
+   real(kind=R_GRID), parameter :: lamp = pi/9.
+   real(kind=R_GRID), parameter :: phip = 2.*lamp
+   real(kind=R_GRID), parameter :: ppcenter(2) = (/ lamp, phip /)
    real, parameter :: Rp = radius/10.
    real, parameter :: lapse = 5.e-3
    real, parameter :: dT = 4.8e5
@@ -7124,10 +7124,12 @@ end subroutine terminator_tracers
 
    integer :: i,j,k,iter, sphum, cl, cl2
    real :: p,z,ziter,piter,titer,uu,vv,pl,pt_u,pt_v
-   real, dimension(2) :: pa
-   real, dimension(3) :: e1,e2,ex,ey
-   real, dimension(is:ie,js:je+1) :: gz_u,p_u,peln_u,ps_u,lat_u,lon_u, u1,u2
-   real, dimension(is:ie+1,js:je) :: gz_v,p_v,peln_v,ps_v,lat_v,lon_v, v1,v2
+   real(kind=R_GRID), dimension(2) :: pa
+   real(kind=R_GRID), dimension(3) :: e1,e2,ex,ey
+   real, dimension(is:ie,js:je+1) :: gz_u,p_u,peln_u,ps_u,u1,u2
+   real(kind=R_GRID), dimension(is:ie,js:je+1) :: lat_u,lon_u
+   real, dimension(is:ie+1,js:je) :: gz_v,p_v,peln_v,ps_v,v1,v2
+   real(kind=R_GRID), dimension(is:ie+1,js:je) :: lat_v,lon_v
 
    !Compute ps, phis, delp, aux pressure variables, Temperature, winds
    ! (with or without perturbation), moisture, Terminator tracer, w, delz
@@ -7357,7 +7359,8 @@ end subroutine terminator_tracers
    
    real function DCMIP16_BC_temperature(z, lat)
 
-     real, intent(IN) :: z, lat
+     real, intent(IN) :: z
+     real(kind=R_GRID), intent(IN) :: lat
      real :: IT, T1, T2, Tr, zsc
 
      IT = exp(KK * log(cos(lat))) - KK/(KK+2.)*exp((KK+2.)*log(cos(lat)))
@@ -7373,7 +7376,8 @@ end subroutine terminator_tracers
 
    real function DCMIP16_BC_pressure(z,lat)
 
-     real, intent(IN) :: z, lat
+     real, intent(IN) :: z
+     real(kind=R_GRID), intent(IN) :: lat
      real :: IT, Ti1, Ti2, Tir
 
      IT = exp(KK * log(cos(lat))) - KK/(KK+2.)*exp((KK+2.)*log(cos(lat)))
@@ -7388,7 +7392,8 @@ end subroutine terminator_tracers
 
    real function DCMIP16_BC_uwind(z,T,lat)
 
-     real, intent(IN) :: z, T, lat
+     real, intent(IN) :: z, T
+     real(kind=R_GRID), intent(IN) :: lat
      real :: Tir, Ti2, UU, ur
 
      Tir = z*exp(-(z*grav/(b*Rdgas*T0))*(z*grav/(b*Rdgas*T0)) )
@@ -7403,8 +7408,10 @@ end subroutine terminator_tracers
 
    real function DCMIP16_BC_uwind_pert(z,lat,lon)
 
-     real, intent(IN) :: z, lat, lon
-     real :: ZZ, zrat, dst, pphere(2)
+     real, intent(IN) :: z
+     real(kind=R_GRID), intent(IN) :: lat, lon
+     real :: ZZ, zrat
+     real(kind=R_GRID) :: dst, pphere(2)
 
      zrat = z/zp
      ZZ = max(1. - 3.*zrat*zrat + 2.*zrat*zrat*zrat, 0.)
@@ -7418,7 +7425,8 @@ end subroutine terminator_tracers
 
    real function DCMIP16_BC_sphum(p,ps,lat, lon)
 
-     real, intent(IN) :: p, ps, lat, lon
+     real, intent(IN) :: p, ps
+     real(kind=R_GRID), intent(IN) :: lat, lon
      real :: eta
 
      eta = p/ps

@@ -20,7 +20,7 @@
       use mpp_parameter_mod, only: AGRID_PARAM=>AGRID,CGRID_NE_PARAM=>CGRID_NE, &
                                    SCALAR_PAIR
       use fv_sg_mod,         only: qsmith
-     use fv_diagnostics_mod, only: prt_maxmin, ppme, eqv_pot
+      use fv_diagnostics_mod, only: prt_maxmin, ppme, eqv_pot
 !!! DEBUG CODE
      use mpp_mod, only: mpp_pe, mpp_chksum, stdout
 !!! END DEBUG CODE
@@ -47,6 +47,7 @@
 !                   11 = Use this for cold starting the climate model with USGS terrain
 !                   12 = Jablonowski & Williamson Baroclinic test case (Steady State)
 !                   13 = Jablonowski & Williamson Baroclinic test case Perturbation
+!                  -13 = DCMIP 2016 J&W BC Wave, with perturbation
 !                   14 = Use this for cold starting the Aqua-planet model
 !                   15 = Small Earth density current
 !                   16 = 3D hydrostatic non-rotating Gravity waves
@@ -1920,6 +1921,13 @@
       write(stdout(), *) 'PI:', pi
       write(stdout(), *) 'PHIS:', mpp_chksum(phis(is:ie,js:je))
 
+      else if ( (test_case==-12) .or. (test_case==-13) ) then
+
+         call DCMIP16_BC(delp,pt,u,v,q,w,delz, &
+              is,ie,js,je,isd,ied,jsd,jed,npz,ncnst,ak,bk,ptop, &
+              pk,peln,pe,pkz,gz,phis,ps,grid,agrid,hydrostatic, test_case == -13)
+
+         write(stdout(), *) 'PHIS:', mpp_chksum(phis(is:ie,js:je))
 
       else if ( test_case==15 .or. test_case==19 ) then
 !------------------------------------
@@ -3785,6 +3793,55 @@
   endif
 
   end subroutine checker_tracers
+
+  subroutine terminator_tracers(i0, i1, j0, j1, ifirst, ilast, jfirst, jlast,  &
+       km, qCl, qCl2, lon, lat)
+!--------------------------------------------------------------------
+! This routine implements the terminator test, NCAR's latest attempt
+! to break Lin-Rood advection. (SPOILER: It didn't succeed.)
+! Coded by Lucas Harris for DCMIP 2016, March 2016
+!--------------------------------------------------------------------
+  integer, intent(in):: km          ! vertical dimension
+  integer, intent(in):: i0, i1      ! compute domain dimension in E-W
+  integer, intent(in):: j0, j1      ! compute domain dimension in N-S
+  integer, intent(in):: ifirst, ilast, jfirst, jlast ! tracer array dimensions
+  real(kind=R_GRID), intent(in), dimension(i0:i1,j0:j1):: lon, lat
+  real, intent(out):: qCl(ifirst:ilast,jfirst:jlast,km), qCl2(ifirst:ilast,jfirst:jlast,km)
+! Local var:
+  real:: qt(i0:i1,j0:j1)
+  real:: qtmp, ftmp, D, k1, r, ll, sinthc, costhc
+  integer:: i,j,k,iq
+
+  !NOTE: If you change the reaction rates, then you will have to change it both
+  ! here and in fv_phys
+  real, parameter :: qcly = 4.e-6
+  real, parameter :: lc   = 5.*pi/3.
+  real, parameter :: thc  = pi/9.
+  real, parameter :: k2 = 1.
+
+  sinthc = sin(thc)
+  costhc = cos(thc)
+
+  do j=j0,j1
+     do i=i0,i1
+        k1 = max(0., sin(lat(i,j))*sinthc + cos(lat(i,j))*costhc, cos(lon(i,j) - lc))
+        r = k1/k2 * 0.25
+        D = sqrt(r*r + 2*r*qcly)
+        qCl(i,j,1) = D - r
+        qCl2(i,j,1) = 0.5*(qcly - qCl(i,j,1))
+     enddo
+  enddo
+
+  do k=2,km
+  do j=j0,j1
+     do i=i0,i1
+        qCl(i,j,k)  = qCl(i,j,1)
+        qCl2(i,j,k) = qCl2(i,j,1)
+     enddo
+  enddo
+  enddo
+
+end subroutine terminator_tracers
 
   subroutine rankine_vortex(ubar, r0, p1, u, v, grid )
 !----------------------------
@@ -7018,6 +7075,362 @@
 
  end subroutine SuperCell_Sounding
 
+ subroutine DCMIP16_BC(delp,pt,u,v,q,w,delz,&
+      is,ie,js,je,isd,ied,jsd,jed,npz,nq,ak,bk,ptop, &
+      pk,peln,pe,pkz,gz,phis,ps,grid,agrid, &
+      hydrostatic, do_pert)
+
+   integer, intent(IN) :: is,ie,js,je,isd,ied,jsd,jed,npz,nq
+   real, intent(IN) :: ptop
+   real, intent(IN), dimension(npz+1) :: ak, bk
+   real, intent(INOUT), dimension(isd:ied,jsd:jed,npz,nq) :: q
+   real, intent(OUT), dimension(isd:ied,jsd:jed,npz) :: delp, pt, w, delz
+   real, intent(OUT), dimension(isd:ied,jsd:jed+1,npz) :: u
+   real, intent(OUT), dimension(isd:ied+1,jsd:jed,npz) :: v
+   real, intent(OUT), dimension(is:ie,js:je,npz+1) :: pk
+   real, intent(OUT), dimension(is:ie,npz+1,js:je) :: peln
+   real, intent(OUT), dimension(is-1:ie+1,npz+1,js-1:je+1) :: pe
+   real, intent(OUT), dimension(is:ie,js:je,npz) :: pkz
+   real, intent(OUT), dimension(isd:ied,jsd:jed) :: phis,ps
+   real, intent(IN), dimension(isd:ied,jsd:jed,2) :: agrid
+   real, intent(IN), dimension(isd:ied+1,jsd:jed+1,2) :: grid
+   real, intent(OUT), dimension(isd:ied,jsd:jed,npz+1) :: gz
+   logical, intent(IN) :: hydrostatic,do_pert
+
+   real, parameter :: p0 = 1.e5
+   real, parameter :: u0 = 35.
+   real, parameter :: b = 2.
+   real, parameter :: KK = 3.
+   real, parameter :: Te = 310.
+   real, parameter :: Tp = 240.
+   real, parameter :: T0 = 0.5*(Te + Tp) !!WRONG in document
+   real, parameter :: up = 1.
+   real, parameter :: zp = 1.5e4
+   real, parameter :: lamp = pi/9.
+   real, parameter :: phip = 2.*lamp
+   real, parameter :: ppcenter(2) = (/ lamp, phip /)
+   real, parameter :: Rp = radius/10.
+   real, parameter :: lapse = 5.e-3
+   real, parameter :: dT = 4.8e5
+   real, parameter :: phiW = 2.*pi/9.
+   real, parameter :: pW = 34000.
+   real, parameter :: q0 = .018
+   real, parameter :: qt = 1.e-12
+   real, parameter :: ptrop = 1.e4
+
+   real, parameter :: zconv = 1.e-6
+   real, parameter :: rdgrav = rdgas/grav
+   real, parameter :: rrdgrav = grav/rdgas
+
+   integer :: i,j,k,iter, sphum, cl, cl2
+   real :: p,z,ziter,piter,titer,uu,vv,pl,pt_u,pt_v
+   real, dimension(2) :: pa
+   real, dimension(3) :: e1,e2,ex,ey
+   real, dimension(is:ie,js:je+1) :: gz_u,p_u,peln_u,ps_u,lat_u,lon_u, u1,u2
+   real, dimension(is:ie+1,js:je) :: gz_v,p_v,peln_v,ps_v,lat_v,lon_v, v1,v2
+
+   !Compute ps, phis, delp, aux pressure variables, Temperature, winds
+   ! (with or without perturbation), moisture, Terminator tracer, w, delz
+
+   !Compute p, z, T on both the staggered and unstaggered grids. Then compute the zonal
+   !  and meridional winds on both grids, and rotate as needed
+
+   !PS
+   do j=js,je
+   do i=is,ie
+      ps(i,j) = p0
+   enddo
+   enddo
+
+   !delp 
+   do k=1,npz
+   do j=js,je
+   do i=is,ie
+      delp(i,j,k) = ak(k+1)-ak(k) + ps(i,j)*(bk(k+1)-bk(k))
+   enddo
+   enddo
+   enddo
+
+   !Pressure variables
+   do j=js,je
+   do i=is,ie
+      pe(i,1,j)   = ptop
+   enddo
+   do i=is,ie
+      peln(i,1,j) = log(ptop)
+      pk(i,j,1) = ptop**kappa
+   enddo
+   do k=2,npz+1
+   do i=is,ie
+      pe(i,k,j)   = ak(k) + ps  (i,j)*bk(k)
+   enddo
+   do i=is,ie
+      pk(i,j,k) = exp(kappa*log(pe(i,k,j)))
+      peln(i,k,j) = log(pe(i,k,j))
+   enddo
+   enddo
+   enddo
+
+   do k=1,npz
+   do j=js,je
+   do i=is,ie
+      pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+   enddo
+   enddo
+   enddo
+
+   !Height: Use Newton's method
+   !Cell centered
+   do j=js,je
+   do i=is,ie
+      phis(i,j) = 0.
+      gz(i,j,npz+1) = 0.
+   enddo
+   enddo
+   do k=npz,1,-1
+   do j=js,je
+   do i=is,ie
+      p = pe(i,k,j)
+      z = gz(i,j,k+1)
+      do iter=1,30
+         ziter = z
+         piter = DCMIP16_BC_pressure(ziter,agrid(i,j,2))
+         titer = DCMIP16_BC_temperature(ziter,agrid(i,j,2))
+         z = ziter + (piter - p)*rdgrav*titer/piter
+         !!! DEBUG CODE
+         if (is_master() .and. i == is .and. j == js) then
+            write(*,'(A,I,2x,I, 4(2x,F10.3), 2x, F7.3)') ' NEWTON: ' , k, iter, piter, p, ziter, z, titer
+         endif
+         !!! END DEBUG CODE
+         if (abs(z - ziter) < zconv) exit
+      enddo      
+      gz(i,j,k) = z
+   enddo
+   enddo
+   enddo
+
+   !Temperature: Compute from hydro balance
+   do k=1,npz
+   do j=js,je
+   do i=is,ie
+      pt(i,j,k) = rrdgrav * ( gz(i,j,k) - gz(i,j,k+1) ) / ( peln(i,k+1,j) - peln(i,k,j))
+   enddo
+   enddo
+   enddo
+
+   !Compute height and temperature for u and v points also, to be able to compute the local winds
+   !Use temporary 2d arrays for this purpose
+   do j=js,je+1
+   do i=is,ie
+      gz_u(i,j) = 0.
+      p_u(i,j) = p0
+      peln_u(i,j) = log(p0)
+      ps_u(i,j) = p0
+      call mid_pt_sphere(grid(i,j,:),grid(i+1,j,:),pa)
+      lat_u(i,j) = pa(2)
+      lon_u(i,j) = pa(1)
+      call get_unit_vect2(grid(i,j,:),grid(i+1,j,:),e1)
+      call get_latlon_vector(e1,ex,ey)
+      u1(i,j) = inner_prod(e1,ex) !u components
+      u2(i,j) = inner_prod(e1,ey)
+   enddo
+   enddo
+   do k=npz,1,-1
+   do j=js,je+1
+   do i=is,ie
+      !Pressure (Top of interface)
+      p = ak(k) + ps_u(i,j)*bk(k)
+      pl = log(p)
+      !Height (top of interface); use newton's method
+      z = gz_u(i,j) !first guess, height of lower level
+      do iter=1,30
+         ziter = z
+         piter = DCMIP16_BC_pressure(ziter,lat_u(i,j))
+         titer = DCMIP16_BC_temperature(ziter,lat_u(i,j))
+         z = ziter + (piter - p)*rdgrav*titer/piter
+         if (abs(z - ziter) < zconv) exit
+      enddo
+      !Temperature, compute from hydro balance
+      pt_u = rrdgrav * ( z - gz_u(i,j) ) / (peln_u(i,j) - pl)
+      !Now compute winds
+      !vv = 0
+      uu = DCMIP16_BC_uwind(z,pt_u,lat_u(i,j))
+      if (do_pert) then
+         uu = uu + DCMIP16_BC_uwind_pert(z,lat_u(i,j),lon_u(i,j))
+      endif
+      u(i,j,k) = u1(i,j)*uu ! + u2(i,j)*vv
+
+      gz_u(i,j) = z
+      p_u(i,j) = p
+      peln_u(i,j) = pl
+   enddo
+   enddo
+   enddo
+
+   do j=js,je
+   do i=is,ie+1
+      gz_v(i,j) = 0.
+      p_v(i,j) = p0
+      peln_v(i,j) = log(p0)
+      ps_v(i,j) = p0
+      call mid_pt_sphere(grid(i,j,:),grid(i,j+1,:),pa)
+      lat_v(i,j) = pa(2)
+      lon_v(i,j) = pa(1)
+      call get_unit_vect2(grid(i,j,:),grid(i,j+1,:),e2)
+      call get_latlon_vector(e2,ex,ey)
+      v1(i,j) = inner_prod(e2,ex) !v components
+      v2(i,j) = inner_prod(e2,ey)
+   enddo
+   enddo
+   do k=npz,1,-1
+   do j=js,je
+   do i=is,ie+1
+      !Pressure (Top of interface)
+      p = ak(k) + ps_v(i,j)*bk(k)
+      pl = log(p)
+      !Height (top of interface); use newton's method
+      z = gz_v(i,j) !first guess, height of lower level
+      do iter=1,30
+         ziter = z
+         piter = DCMIP16_BC_pressure(ziter,lat_v(i,j))
+         titer = DCMIP16_BC_temperature(ziter,lat_v(i,j))
+         z = ziter + (piter - p)*rdgrav*titer/piter
+         if (abs(z - ziter) < zconv) exit
+      enddo
+      !Temperature, compute from hydro balance
+      pt_v = rrdgrav * ( z - gz_v(i,j) ) / (peln_v(i,j) - pl)
+      !Now compute winds
+      !vv = 0
+      uu = DCMIP16_BC_uwind(z,pt_v,lat_v(i,j))
+      if (do_pert) then
+         uu = uu + DCMIP16_BC_uwind_pert(z,lat_v(i,j),lon_v(i,j))
+      endif
+      v(i,j,k) = v1(i,j)*uu ! + v2(i,j)*vv
+      gz_v(i,j) = z
+      p_v(i,j) = p
+      peln_v(i,j) = pl
+   enddo
+   enddo
+   enddo
+
+   !Compute moisture and other tracer fields, as desired
+   sphum = get_tracer_index (MODEL_ATMOS, 'sphum')
+   do k=1,npz
+   do j=js,je
+   do i=is,ie
+      p = delp(i,j,k)/(peln(i,k+1,j) - peln(i,k,j))
+      q(i,j,k,sphum) = DCMIP16_BC_sphum(p,ps(i,j),agrid(i,j,2),agrid(i,j,1))
+   enddo
+   enddo
+   enddo
+
+   cl = get_tracer_index(MODEL_ATMOS, 'cl')
+   cl2 = get_tracer_index(MODEL_ATMOS, 'cl2')
+   if (cl > 0 .and. cl2 > 0) then
+      call terminator_tracers(is,ie,js,je,isd,ied,jsd,jed,npz, &
+           q(isd,jsd,1,cl),q(is,js,1,cl2),agrid(is,js,1),agrid(is,js,2))
+   endif
+
+   !Theta_d is set up elsewhere
+
+   !Advected Ertel PV (approximation??)
+   !Probably need a better way to compute this
+!!$   pvu = get_tracer_index(MODEL_ATMOS, 'pvu')
+!!$   if (pvu > 0) then
+!!$      call pv_entropy(is,ie,js,je,ng,npz,q(isd,jsd,1,pvu), f0, pt, pkz, delp, grav)
+!!$   endif
+
+   !Compute nonhydrostatic variables, if needed
+   if (.not. hydrostatic) then
+      do k=1,npz
+      do j=js,je
+      do i=is,ie
+         w(i,j,k) = 0.
+         delz(i,j,k) = gz(i,j,k) - gz(i,j,k+1)
+      enddo
+      enddo
+      enddo
+   endif
+
+ contains
+
+   
+   real function DCMIP16_BC_temperature(z, lat)
+
+     real, intent(IN) :: z, lat
+     real :: IT, T1, T2, Tr, zsc
+
+     IT = exp(KK * log(cos(lat))) - KK/(KK+2.)*exp((KK+2.)*log(cos(lat)))
+     zsc = z*grav/(b*Rdgas*T0)
+     Tr = ( 1. - 2.*zsc**2.) * exp(-zsc**2. )
+
+     T1 = (1./T0)*exp(lapse*z/T0) + (T0 - Tp)/(T0*Tp) * Tr
+     T2 = 0.5* ( KK + 2.) * (Te - Tp)/(Te*Tp) * Tr
+
+     DCMIP16_BC_temperature = 1./(T1 - T2*IT)
+
+   end function DCMIP16_BC_temperature
+
+   real function DCMIP16_BC_pressure(z,lat)
+
+     real, intent(IN) :: z, lat
+     real :: IT, Ti1, Ti2, Tir
+
+     IT = exp(KK * log(cos(lat))) - KK/(KK+2.)*exp((KK+2.)*log(cos(lat)))
+     Tir = z*exp(-(z*grav/(b*Rdgas*T0))*(z*grav/(b*Rdgas*T0)) )
+
+     Ti1 = 1./lapse* (exp(lapse*z/T0) - 1.) + Tir*(T0-Tp)/(T0*Tp)
+     Ti2 = 0.5*(KK+2.)*(Te-Tp)/(Te*Tp) * Tir
+
+     DCMIP16_BC_pressure = p0*exp(-grav/Rdgas * ( Ti1 - Ti2*IT))
+
+   end function DCMIP16_BC_pressure
+
+   real function DCMIP16_BC_uwind(z,T,lat)
+
+     real, intent(IN) :: z, T, lat
+     real :: Tir, Ti2, UU, ur
+
+     Tir = z*exp(-(z*grav/(b*Rdgas*T0))*(z*grav/(b*Rdgas*T0)) )
+     Ti2 = 0.5*(KK+2.)*(Te-Tp)/(Te*Tp) * Tir
+
+     UU = grav*KK/radius * Ti2 * ( cos(lat)**(int(KK)-1) - cos(lat)**(int(KK)+1) ) * T
+     ur = - omega * radius * cos(lat) + sqrt( (omega*radius*cos(lat))**2 + radius*cos(lat)*UU)
+
+     DCMIP16_BC_uwind = ur
+
+   end function DCMIP16_BC_uwind
+
+   real function DCMIP16_BC_uwind_pert(z,lat,lon)
+
+     real, intent(IN) :: z, lat, lon
+     real :: ZZ, zrat, dst, pphere(2)
+
+     zrat = z/zp
+     ZZ = max(1. - 3.*zrat*zrat + 2.*zrat*zrat*zrat, 0.)
+
+     pphere = (/ lon, lat /)
+     dst = great_circle_dist(pphere, ppcenter, radius)
+     
+     DCMIP16_BC_uwind_pert = max(0., up*ZZ*exp(-(dst/Rp)**2) )
+
+   end function DCMIP16_BC_uwind_pert
+
+   real function DCMIP16_BC_sphum(p,ps,lat, lon)
+
+     real, intent(IN) :: p, ps, lat, lon
+     real :: eta
+
+     eta = p/ps
+
+     DCMIP16_BC_sphum = qt
+     if (p > ptrop) then
+        DCMIP16_BC_sphum = q0 * exp(-(lat/phiW)**4) * exp(-( (eta-1.)*p0/pw)**2)
+     endif
+
+   end function DCMIP16_BC_sphum
+
+ end subroutine DCMIP16_BC
 
       subroutine init_latlon(u,v,pt,delp,q,phis, ps,pe,peln,pk,pkz,  uc,vc, ua,va, ak, bk,  &
                              gridstruct, npx, npy, npz, ng, ncnst, ndims, nregions, dry_mass,    &

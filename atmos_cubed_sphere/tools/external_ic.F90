@@ -2059,14 +2059,14 @@ contains
         wk(i,j) = Atm%phis(i,j)/grav - zh(i,j,km+1)
      enddo
   enddo
-  call pmaxmn('ZS_diff (m)', wk, is, ie, js, je, 1, 1., Atm%gridstruct%area, Atm%domain)
+  call pmaxmn('ZS_diff (m)', wk, is, ie, js, je, 1, 1., Atm%gridstruct%area_64, Atm%domain)
 
   do j=js,je
      do i=is,ie
         wk(i,j) = Atm%ps(i,j) - psc(i,j)
      enddo
   enddo
-  call pmaxmn('PS_diff (mb)', wk, is, ie, js, je, 1, 0.01, Atm%gridstruct%area, Atm%domain)
+  call pmaxmn('PS_diff (mb)', wk, is, ie, js, je, 1, 0.01, Atm%gridstruct%area_64, Atm%domain)
 
   if (is_master()) write(*,*) 'done remap_scalar_nggps'
 
@@ -2928,14 +2928,12 @@ subroutine pmaxmn(qname, q, is, ie, js, je, km, fac, area, domain)
       integer, intent(in):: km
       real, intent(in)::    q(is:ie, js:je, km)
       real, intent(in)::    fac
-      real, intent(IN)::    area(is-3:ie+3, js-3:je+3)
+      real(kind=R_GRID), intent(IN)::  area(is-3:ie+3, js-3:je+3)
       type(domain2d), intent(INOUT) :: domain
-!
-      real(kind=R_Grid) ::    area_l(is-3:ie+3, js-3:je+3)
+!---local variables
       real qmin, qmax, gmean
       integer i,j,k
 
-      area_l = area
       qmin = q(is,js,1)
       qmax = qmin
       gmean = 0.
@@ -2955,7 +2953,7 @@ subroutine pmaxmn(qname, q, is, ie, js, je, km, fac, area, domain)
       call mp_reduce_min(qmin)
       call mp_reduce_max(qmax)
 
-      gmean = g_sum(domain, q(is,js,km), is, ie, js, je, 3, area_l, 1)
+      gmean = g_sum(domain, q(is,js,km), is, ie, js, je, 3, area, 1, reproduce=.true.)
       if(is_master()) write(6,*) qname, qmax*fac, qmin*fac, gmean*fac
 
  end subroutine pmaxmn

@@ -153,11 +153,11 @@ contains
 !$OMP parallel do default(none) shared(is,ie,js,je,km,pe,ptop,kord_tm,remap_t,hydrostatic, &
 !$OMP                                  pt,pk,rg,peln,q,nwat,liq_wat,rainwat,ice_wat,snowwat,    &
 !$OMP                                  graupel,q_con,sphum,cappa,r_vir,rcp,k1k,kapag,delp, &
-!$OMP                                  delz,akap,pkz,te,rsin2,u,v,cosa_s,hybrid_z,ztop,ps, &
+!$OMP                                  delz,akap,pkz,te,rsin2,u,v,cosa_s,hybrid_z,ps, &
 !$OMP                                  ze0,ak,bk,nq,isd,ied,jsd,jed,kord_tr,fill,te_map,   &
 !$OMP                                  hs,w,ws,kord_wz,do_omega,omga,rrg,kord_mt,ua)    &
 !$OMP                          private(qv,gz,cvm,dz1,z_rat,kp,k_next,bkh,deng,dp2,   &
-!$OMP                                  pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2,ze1,ze2)
+!$OMP                                  pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2,ze1,ze2,ztop)
   do 1000 j=js,je+1
 
      do k=1,km+1
@@ -636,7 +636,6 @@ if ( hybrid_z ) then
 endif
 ! u-wind
 
-
 !$OMP parallel default(none) shared(is,ie,js,je,km,ptop,u,v,pe,ua,isd,ied,jsd,jed,kord_mt, &
 !$OMP                               hybrid_z,te_2d,te,delp,remap_t,hydrostatic,hs,rg,pt,peln, &
 !$OMP                               cp,rsin2,cosa_s,delz,nwat,rainwat,liq_wat,ice_wat,snowwat,     &
@@ -856,14 +855,14 @@ endif
       enddo
 
 !$OMP single
-         tpe = consv*g_sum(domain, te_2d, is, ie, js, je, ng, gridstruct%area_64, 0)
+         tpe = consv*g_sum(domain, te_2d, is, ie, js, je, ng, gridstruct%area_64, 0, reproduce=.true.)
       E_Flux = tpe / (grav*pdt*4.*pi*radius**2)    ! unit: W/m**2
                                                    ! Note pdt is "phys" time step
 
       if ( hydrostatic ) then
-           dtmp = tpe / (cp*g_sum(domain, zsum0,  is, ie, js, je, ng, gridstruct%area_64, 0))
+           dtmp = tpe / (cp*g_sum(domain, zsum0,  is, ie, js, je, ng, gridstruct%area_64, 0, reproduce=.true.))
       else
-           dtmp = tpe / (cv_air*g_sum(domain, zsum1,  is, ie, js, je, ng, gridstruct%area_64, 0))
+           dtmp = tpe / (cv_air*g_sum(domain, zsum1,  is, ie, js, je, ng, gridstruct%area_64, 0, reproduce=.true.))
       endif
 !-------------------------------------------------------------------------------
 ! One may use this quick fix to ensure reproducibility at the expense of a lower
@@ -894,10 +893,10 @@ endif
       E_Flux = consv
       if ( hydrostatic ) then
            dtmp = E_flux*(grav*pdt*4.*pi*radius**2) /    &
-                 (cp*g_sum(domain, zsum0,  is, ie, js, je, ng, gridstruct%area_64, 0))
+                 (cp*g_sum(domain, zsum0,  is, ie, js, je, ng, gridstruct%area_64, 0, reproduce=.true.))
       else
            dtmp = E_flux*(grav*pdt*4.*pi*radius**2) /    &
-                 (cv_air*g_sum(domain, zsum1,  is, ie, js, je, ng, gridstruct%area_64, 0))
+                 (cv_air*g_sum(domain, zsum1,  is, ie, js, je, ng, gridstruct%area_64, 0, reproduce=.true.))
       endif
       if ( reproduce_sum ) dtmp = real(dtmp, 4) ! convert to 4-byte real
 !$OMP end single

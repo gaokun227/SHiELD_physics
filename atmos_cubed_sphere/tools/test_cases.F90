@@ -3808,9 +3808,8 @@
   real(kind=R_GRID), intent(in), dimension(i0:i1,j0:j1):: lon, lat
   real, intent(out):: qCl(ifirst:ilast,jfirst:jlast,km), qCl2(ifirst:ilast,jfirst:jlast,km)
 ! Local var:
-  real:: qt(i0:i1,j0:j1)
-  real:: qtmp, ftmp, D, k1, r, ll, sinthc, costhc
-  integer:: i,j,k,iq
+  real:: D, k1, r, ll, sinthc, costhc
+  integer:: i,j,k
 
   !NOTE: If you change the reaction rates, then you will have to change it both
   ! here and in fv_phys
@@ -3824,7 +3823,7 @@
 
   do j=j0,j1
      do i=i0,i1
-        k1 = max(0., sin(lat(i,j))*sinthc + cos(lat(i,j))*costhc, cos(lon(i,j) - lc))
+        k1 = max(0., sin(lat(i,j))*sinthc + cos(lat(i,j))*costhc*cos(lon(i,j) - lc))
         r = k1/k2 * 0.25
         D = sqrt(r*r + 2*r*qcly)
         qCl(i,j,1) = D - r
@@ -7232,7 +7231,7 @@ end subroutine terminator_tracers
       lat_u(i,j) = pa(2)
       lon_u(i,j) = pa(1)
       call get_unit_vect2(grid(i,j,:),grid(i+1,j,:),e1)
-      call get_latlon_vector(e1,ex,ey)
+      call get_latlon_vector(pa,ex,ey)
       u1(i,j) = inner_prod(e1,ex) !u components
       u2(i,j) = inner_prod(e1,ey)
    enddo
@@ -7279,7 +7278,7 @@ end subroutine terminator_tracers
       lat_v(i,j) = pa(2)
       lon_v(i,j) = pa(1)
       call get_unit_vect2(grid(i,j,:),grid(i,j+1,:),e2)
-      call get_latlon_vector(e2,ex,ey)
+      call get_latlon_vector(pa,ex,ey)
       v1(i,j) = inner_prod(e2,ex) !v components
       v2(i,j) = inner_prod(e2,ey)
    enddo

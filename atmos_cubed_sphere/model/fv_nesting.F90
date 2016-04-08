@@ -131,7 +131,8 @@ contains
             domain, gridtype=DGRID_NE, complete=.true.)
        call timing_off('COMM_TOTAL')
 !$OMP parallel do default(none) shared(isd,jsd,ied,jed,is,ie,js,je,npx,npy,npz, &
-!$OMP       gridstruct,flagstruct,bd,u,v,ua,va,uc,vc,nested,divg)
+!$OMP       gridstruct,flagstruct,bd,u,v,uc,vc,nested,divg) &
+!$OMP       private(ua,va)
        do k=1,npz
           call d2c_setup(u(isd,jsd,k),  v(isd,jsd,k),   &
                ua, va, &

@@ -596,7 +596,7 @@ module gfs_physics_driver_mod
          print *, "ntot2d           : ", Mdl_parms%ntot2d
          print *, "shoc_cld         : ", Mdl_parms%shoc_cld
          print *, "nocnv            : ", nocnv
-         print *, "ozcalc           : ", nocnv
+         print *, "ozcalc           : ", ozcalc
        end if ! parameter output
 
   end subroutine phys_rad_driver_init

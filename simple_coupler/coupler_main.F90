@@ -163,6 +163,9 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
 !-----------------------------------------------------------------------
 
+#ifdef AVEC_TIMERS
+ call avec_timers_output
+#endif
  call mpp_set_current_pelist()
  call mpp_clock_end(mainClock)
  call mpp_clock_begin(termClock)

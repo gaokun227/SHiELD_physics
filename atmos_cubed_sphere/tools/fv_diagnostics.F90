@@ -667,6 +667,8 @@ contains
                            '700-mb u-wind', 'm/s', missing_value=missing_value )
        idiag%id_v700 = register_diag_field ( trim(field), 'v700', axes(1:2), Time,       &
                            '700-mb v-wind', 'm/s', missing_value=missing_value )
+       idiag%id_w700 = register_diag_field ( trim(field), 'w700', axes(1:2), Time,       &
+                           '700-mb w-wind', 'm/s', missing_value=missing_value )
 !--------------------------
 ! 850-mb winds:
 !--------------------------
@@ -694,6 +696,14 @@ contains
                            '1000-mb u-wind', 'm/s', missing_value=missing_value )
        idiag%id_v1000 = register_diag_field ( trim(field), 'v1000', axes(1:2), Time,       &
                            '1000-mb v-wind', 'm/s', missing_value=missing_value )
+! TC test winds at 100 m
+       idiag%id_u100m = register_diag_field ( trim(field), 'u100m', axes(1:2), Time,       &
+                        '100-m u-wind', '1/s', missing_value=missing_value )
+       idiag%id_v100m = register_diag_field ( trim(field), 'v100m', axes(1:2), Time,       &
+                        '100-m v-wind', '1/s', missing_value=missing_value )
+       if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
+       idiag%id_w100m = register_diag_field ( trim(field), 'w100m', axes(1:2), Time,       &
+                        '100-m w-wind', '1/s', missing_value=missing_value )
 !--------------------------
 ! temperature:
 !--------------------------
@@ -2043,6 +2053,11 @@ contains
                                       500.e2, Atm(n)%peln, Atm(n)%w(isc:iec,jsc:jec,:), a2)
             used=send_data(idiag%id_w500, a2, Time)
        endif
+       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w700>0 ) then
+            call interpolate_vertical(isc, iec, jsc, jec, npz,   &
+                                      700.e2, Atm(n)%peln, Atm(n)%w(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_w700, a2, Time)
+       endif
        if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w850>0 .or. idiag%id_x850>0) then
             call interpolate_vertical(isc, iec, jsc, jec, npz,   &
                                       850.e2, Atm(n)%peln, Atm(n)%w(isc:iec,jsc:jec,:), a2)
@@ -2054,7 +2069,8 @@ contains
                  deallocate ( x850 )
             endif
        endif
-       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. idiag%id_w5km>0 ) then
+
+       if ( idiag%id_u100m>0 .or. idiag%id_v100m>0 .or. idiag%id_w100m>0 .or. idiag%id_w5km>0 ) then
           if (.not.allocated(wz)) allocate ( wz(isc:iec,jsc:jec,npz+1) )
 !$OMP parallel do default(none) shared(isc,iec,jsc,jec,wz,npz,Atm,n)
             do j=jsc,jec
@@ -2067,11 +2083,31 @@ contains
                   enddo
                enddo
             enddo
+            if( prt_minmax )   &
+            call prt_maxmin('ZTOP', wz(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, 1, 1.E-3)
+       endif
+
+       if ( idiag%id_w5km>0 ) then
             call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
             used=send_data(idiag%id_w5km, a2, Time)
             if(prt_minmax) call prt_maxmin('W5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
-           deallocate (wz)
        endif
+       if ( idiag%id_w100m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_w100m, a2, Time)
+            if(prt_minmax) call prt_maxmin('w100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_u100m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%ua(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_u100m, a2, Time)
+            if(prt_minmax) call prt_maxmin('u100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_v100m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%va(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_v100m, a2, Time)
+            if(prt_minmax) call prt_maxmin('v100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if( allocated(wz) ) deallocate (wz)
 
        if ( .not.Atm(n)%flagstruct%hydrostatic .and. idiag%id_w>0  ) then
           used=send_data(idiag%id_w, Atm(n)%w(isc:iec,jsc:jec,:), Time)

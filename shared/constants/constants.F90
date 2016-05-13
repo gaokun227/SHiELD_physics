@@ -77,6 +77,9 @@ real, public, parameter :: con_csol   =2.1060e+3_R_GRID      ! spec heat H2O ice
 #else
 
 #ifdef SMALL_EARTH
+#ifdef DCMIP
+       real, private, paramter :: small_fac =  1._R_GRID / 120._R_GRID #only needed for supercell test
+#else
 #ifdef HIWPP
 #ifdef SUPER_K
        real, private, parameter :: small_fac = 1._R_GRID / 120._R_GRID
@@ -85,6 +88,7 @@ real, public, parameter :: con_csol   =2.1060e+3_R_GRID      ! spec heat H2O ice
 #endif
 #else
  real, private, parameter :: small_fac = 1._R_GRID / 10._R_GRID
+#endif
 #endif
 #else
  real, private, parameter :: small_fac = 1._R_GRID

@@ -542,9 +542,14 @@ contains
        hord_v = flagstruct%hord_vt
        hord_p = flagstruct%hord_dp
        nord_k = flagstruct%nord
+       if ( k==npz ) then
           kgb = flagstruct%ke_bg
+       else
+          kgb = 0.
+       endif
        nord_v(k) = min(2, flagstruct%nord)
-       d2_divg = min(0.20, flagstruct%d2_bg*(1.-3.*tanh(0.1*log(pfull(k)/pfull(npz)))))
+!      d2_divg = min(0.20, flagstruct%d2_bg*(1.-3.*tanh(0.1*log(pfull(k)/pfull(npz)))))
+       d2_divg = min(0.20, flagstruct%d2_bg)
 
        if ( flagstruct%do_vort_damp ) then
             damp_vt(k) = flagstruct%vtdm4     ! for delp, delz, and vorticity
@@ -572,7 +577,7 @@ contains
 ! damping on delp and vorticity:
                         nord_v(k)=0; 
 #ifndef HIWPP
-						damp_vt(k) = 0.5*d2_divg
+                        damp_vt(k) = 0.5*d2_divg
 #endif
                    endif
                    d_con_k = 0.
@@ -582,7 +587,7 @@ contains
                    if ( flagstruct%do_vort_damp ) then
                         nord_v(k)=0; 
 #ifndef HIWPP
-						damp_vt(k) = 0.5*d2_divg
+                        damp_vt(k) = 0.5*d2_divg
 #endif
                    endif
                    d_con_k = 0.

@@ -31,7 +31,7 @@ module fv_arrays_mod
            id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt
 
 ! Selected p-level fields from 3D variables:
- integer :: id_vort200, id_vort500, id_w500
+ integer :: id_vort200, id_vort500, id_w500, id_w700
  integer :: id_vort850, id_w850, id_x850, id_srh, id_theta_e,  &
             id_w200, id_s200, id_sl12, id_sl13, id_w5km
 ! IPCC diag
@@ -48,6 +48,7 @@ module fv_arrays_mod
  integer :: id_rh1000_cmip, id_rh850_cmip, id_rh700_cmip, id_rh500_cmip, &
             id_rh300_cmip, id_rh250_cmip, id_rh100_cmip, id_rh50_cmip, id_rh10_cmip
  integer :: id_hght
+ integer :: id_u100m, id_v100m, id_w100m
 
      ! For initial conditions:
      integer ic_ps, ic_ua, ic_va, ic_ppt

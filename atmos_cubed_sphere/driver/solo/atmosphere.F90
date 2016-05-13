@@ -139,6 +139,10 @@ contains
         iec = Atm(n)%bd%iec
         jsc = Atm(n)%bd%jsc
         jec = Atm(n)%bd%jec
+        isd = Atm(n)%bd%isd
+        ied = Atm(n)%bd%ied
+        jsd = Atm(n)%bd%jsd
+        jed = Atm(n)%bd%jed
 
 
         if ( grids_on_this_pe(n)) then

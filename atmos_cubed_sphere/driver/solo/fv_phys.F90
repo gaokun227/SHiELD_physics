@@ -10,7 +10,7 @@ use fv_sg_mod,             only: fv_subgrid_z
 use fv_update_phys_mod,    only: fv_update_phys
 use fv_timing_mod,         only: timing_on, timing_off
 use monin_obukhov_mod,     only: mon_obkv
-use tracer_manager_mod,    only: get_tracer_index
+use tracer_manager_mod,    only: get_tracer_index, adjust_mass
 use field_manager_mod,     only: MODEL_ATMOS
 use fms_mod,               only: error_mesg, FATAL, file_exist, open_namelist_file,  &
                                  check_nml_error, mpp_pe, mpp_root_pe, close_file, &
@@ -177,7 +177,7 @@ contains
     real, parameter:: sigb = 0.7
     logical:: no_tendency = .true.
     integer, parameter:: nmax = 2
-    real, allocatable:: u_dt(:,:,:), v_dt(:,:,:), t_dt(:,:,:), q_dt(:,:,:,:)
+    real, allocatable:: u_dt(:,:,:), v_dt(:,:,:), t_dt(:,:,:), q_dt(:,:,:,:), ps_dt(:,:)
     real, dimension(is:ie,npz):: dp2, pm, rdelp, u2, v2, t2, q2, du2, dv2, dt2, dq2
     real:: lcp(is:ie), den(is:ie)
     real:: rain(is:ie,js:je)
@@ -185,7 +185,7 @@ contains
     real :: qdiag(1,1,1)
     logical moist_phys
     integer  isd, ied, jsd, jed
-    integer  i, j, k, n, int
+    integer  i, j, k, m, n, int
     integer  theta_d
     logical used
 
@@ -281,7 +281,8 @@ contains
                     q(i,j,k,sphum) = (q(i,j,k,sphum) - dq) / delm
                     delp(i,j,k) = delp(i,j,k)*delm
 !                   q(i,j,k,theta_d) = q(i,j,k,theta_d)/delp(i,j,k)
-                    rain(i,j) = rain(i,j) + dq*delp(i,j,k)/(pdt*grav)   ! mm/sec
+                   rain(i,j) = rain(i,j) + dq*delp(i,j,k)/(pdt*grav)   ! mm/sec
+!                    rain(i,j) = rain(i,j) + dq*delp(i,j,k)/pdt   ! mm !not sure which is correct
                 endif
              enddo
           enddo
@@ -447,6 +448,88 @@ contains
                          moist_phys, Time, .false., gridstruct, &
                          gridstruct%agrid(:,:,1), gridstruct%agrid(:,:,2), &
                          npx, npy, npz, flagstruct, neststruct, bd, domain, ptop)
+
+!----------------
+! Update tracers:
+!----------------
+    do m=1,nq
+       do j=js,je
+          do i=is,ie
+             q(i,j,k,m) = q(i,j,k,m) + pdt*q_dt(i,j,k,m)
+          enddo
+       enddo
+    enddo
+
+
+!--------------------------------------------------------
+! Adjust total air mass due to changes in water substance
+!--------------------------------------------------------
+    allocate(ps_dt(is:ie,js:je))
+      if ( nwat==6 ) then
+! micro-physics with 6 water substances
+        do j=js,je
+           do i=is,ie
+              ps_dt(i,j)  = 1. + pdt * ( q_dt(i,j,k,sphum  ) +    &
+                                        q_dt(i,j,k,liq_wat) +    &
+                                        q_dt(i,j,k,rainwat) +    &
+                                        q_dt(i,j,k,ice_wat) +    &
+                                        q_dt(i,j,k,snowwat) +    &
+                                        q_dt(i,j,k,graupel) )
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
+      elseif ( nwat==4 ) then
+! micro-physics with fake ice
+        do j=js,je
+           do i=is,ie
+              ps_dt(i,j)  = 1. + pdt * ( q_dt(i,j,k,sphum  ) +    &
+                                        q_dt(i,j,k,liq_wat) +    &
+                                        q_dt(i,j,k,rainwat) )
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
+      elseif( nwat==3 ) then
+! GFDL AM2/3 phys (cloud water + cloud ice)
+        do j=js,je
+           do i=is,ie
+               ps_dt(i,j) = 1. + pdt*(q_dt(i,j,k,sphum  ) +    &
+                                     q_dt(i,j,k,liq_wat) +    &
+                                     q_dt(i,j,k,ice_wat) )
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
+      elseif( nwat==2 ) then
+! NGGPS-GFS: the total condensate is "liq_wat"
+        do j=js,je
+           do i=is,ie
+               ps_dt(i,j) = 1. + pdt*(q_dt(i,j,k,sphum) + q_dt(i,j,k,liq_wat))
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
+      elseif ( nwat>0 ) then
+        do j=js,je
+           do i=is,ie
+              ps_dt(i,j)  = 1. + pdt*sum(q_dt(i,j,k,1:nwat))
+              delp(i,j,k) = delp(i,j,k) * ps_dt(i,j)
+           enddo
+        enddo
+      endif      
+   
+
+!-----------------------------------------
+! Adjust mass mixing ratio of all tracers 
+!-----------------------------------------
+      if ( nwat /=0 ) then
+        do m=1,flagstruct%ncnst
+!-- check to query field_table to determine if tracer needs mass adjustment
+          if( m /= cld_amt .and. adjust_mass(MODEL_ATMOS,m)) then 
+              q(is:ie,js:je,k,m) = q(is:ie,js:je,k,m) / ps_dt(is:ie,js:je)
+          endif
+        enddo
+      endif
+
+      deallocate(ps_dt)
+
                         call timing_off('UPDATE_PHYS')
     endif
     deallocate ( u_dt )

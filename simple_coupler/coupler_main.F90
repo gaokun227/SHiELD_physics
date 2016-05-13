@@ -106,6 +106,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  initClock = mpp_clock_id( 'Initialization' )
  call mpp_clock_begin (initClock) !nesting problem
 #ifdef AVEC_TIMERS
+ call mpp_sync()
  call avec_timer_init(mpp_pe(),ret)
 #endif
  

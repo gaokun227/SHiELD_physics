@@ -723,6 +723,7 @@ module gfs_physics_driver_mod
     if (nscyc >  0) then
       do nb = 1, Atm_block%nblks
         if (mod(Dyn_parms(nb)%kdt,nscyc) == 1) THEN
+          ngptc = size(Atm_block%ix(nb)%ix,1)*size(Atm_block%ix(nb)%ix,2)
           call gcycle(Mdl_parms%me, ngptc, Mdl_parms%lsoil, Mdl_parms%idate,      &
                       phour, fhcyc, Dyn_parms(nb)%xlon ,Dyn_parms(nb)%xlat,       &
                       Sfc_props(nb), Cld_props(nb), Tbd_data(nb), ialb, &

@@ -242,7 +242,7 @@ module gfs_physics_driver_mod
 
     logical :: debug = .false.
 
-    real(kind=kind_phys), dimension(240) :: fdiag
+    real(kind=kind_phys), dimension(480) :: fdiag
     real(kind=kind_phys) :: fhzero = 6.
 
 ! surface data cycling parameters

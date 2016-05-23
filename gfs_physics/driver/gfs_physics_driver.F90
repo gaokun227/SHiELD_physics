@@ -721,15 +721,12 @@ module gfs_physics_driver_mod
 
 !--- repopulate specific time-varying sfc properties for AMIP runs
     if (nscyc >  0) then
-      do nb = 1, Atm_block%nblks
-        if (mod(Dyn_parms(nb)%kdt,nscyc) == 1) THEN
-          ngptc = size(Atm_block%ix(nb)%ix,1)*size(Atm_block%ix(nb)%ix,2)
-          call gcycle(Mdl_parms%me, ngptc, Mdl_parms%lsoil, Mdl_parms%idate,      &
-                      phour, fhcyc, Dyn_parms(nb)%xlon ,Dyn_parms(nb)%xlat,       &
-                      Sfc_props(nb), Cld_props(nb), Tbd_data(nb), ialb, &
-                      use_ufo, nst_anl)
-        endif
-      enddo
+      if (mod(Dyn_parms(1)%kdt,nscyc) == 1) THEN
+        ngptc = (Atm_block%iec-Atm_block%isc+1)*(Atm_block%jec-Atm_block%jsc+1)
+        call gcycle(Mdl_parms%me, ngptc, Atm_block%nblks, Mdl_parms%lsoil, &
+                    Mdl_parms%idate, phour, fhcyc, Dyn_parms, Sfc_props,   &
+                    Cld_props, Tbd_data, ialb, use_ufo, nst_anl)
+      endif
     endif
 
 
@@ -808,6 +805,7 @@ module gfs_physics_driver_mod
                             Mdl_parms, Dyn_parms(nb))
       enddo
     endif
+    if (mpp_pe() == mpp_root_pe()) Mdl_parms%me = mpp_pe()
 
     if (debug) then
       if (Mdl_parms%me == 0 ) write(6,*) '  after radiation '
@@ -852,6 +850,8 @@ module gfs_physics_driver_mod
                            Gfs_diags(nb), Intr_flds(nb), Cld_props(nb), &
                            Rad_tends(nb), Mdl_parms, Tbd_data(nb), &
                            Dyn_parms(nb))
+
+      if (mpp_pe() == mpp_root_pe()) Mdl_parms%me = mpp_pe()
 
 !--- check the diagnostics output trigger
       if (ANY(fdiag == fhour)) then

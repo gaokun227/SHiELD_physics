@@ -177,6 +177,7 @@ contains
                do k=1,km
 #ifdef MOIST_CAPPA
                if ( nwat==2 ) then
+!DIR$ SIMD
                   do i=is,ie
                             qv(i) = max(0., q(i,j,k,sphum)) 
                      q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
@@ -187,6 +188,7 @@ contains
                else
                   call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
                                 ice_wat, snowwat, graupel, q, gz, cvm)
+!DIR$ SIMD
                   do i=is,ie
                      q_con(i,j,k) = gz(i)
                      cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*q(i,j,k,sphum)) )
@@ -467,6 +469,7 @@ contains
          do k=1,km
 #ifdef MOIST_CAPPA
          if ( nwat==2 ) then
+!DIR$ SIMD
             do i=is,ie
                       qv(i) = max(0., q(i,j,k,sphum)) 
                q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
@@ -477,6 +480,7 @@ contains
          else
             call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
                           ice_wat, snowwat, graupel, q, gz, cvm)
+!DIR$ SIMD
          do i=is,ie
             q_con(i,j,k) = gz(i)
             cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*q(i,j,k,sphum)) )

@@ -1,21 +1,23 @@
-      SUBROUTINE GCYCLE(ME,len,lsoil,IDATE,FHOUR,FHCYC,XLON,XLAT, &
+      SUBROUTINE GCYCLE(ME,len,nblks,lsoil,IDATE,FHOUR,FHCYC,Dyn_parms, &
      &                  Sfc_props,Cld_props,Tbd_data,ialb,use_ufo,nst_anl)
 !
 !RAB      USE MACHINE
       USE PHYSCONS, PI => con_PI
-      use nuopc_physics, only: sfc_properties, cloud_properties, tbd_ddt
+      use nuopc_physics, only: dynamic_parameters, sfc_properties, &
+                               cloud_properties, tbd_ddt
       use fms_io_mod,    only: open_namelist_file, close_file
       implicit none
 !
-      TYPE(sfc_properties),   intent(inout) :: Sfc_props
-      TYPE(cloud_properties), intent(inout) :: Cld_props
-      TYPE(Tbd_ddt),          intent(inout) :: Tbd_data
+      TYPE(dynamic_parameters), intent(in)    :: Dyn_parms(nblks)
+      TYPE(sfc_properties),     intent(inout) :: Sfc_props(nblks)
+      TYPE(cloud_properties),   intent(inout) :: Cld_props(nblks)
+      TYPE(Tbd_ddt),            intent(inout) :: Tbd_data(nblks)
 !
-      INTEGER, intent(in) :: len, lsoil, IALB
+      INTEGER, intent(in) :: len, nblks, lsoil, IALB
       INTEGER, intent(in) :: ME, IDATE(4)
       logical, intent(in) :: use_ufo, nst_anl
       real(kind=kind_phys), intent(in) :: fhour, fhcyc
-      real(kind=kind_phys), intent(in) :: XLON(len), XLAT(len)
+!      real(kind=kind_phys), intent(in) :: XLON(len), XLAT(len)
 
       integer :: nlunit
 !
@@ -57,47 +59,50 @@
 !
       pifac = 180.0 / pi
 
-      DO il = 1,len
+      il=0
+      DO i = 1,nblks
+        DO l = 1,size(Dyn_parms(i)%xlat,1)
+          il=il+1
 !     print *,' calling gcycle for ilat',ilat,' me=',me,' nlats='
 !    *,nlats,' lonsinpe=',lonsinpe(:,ilat)
 !     if (ilat .eq. nlats) stop
 !
-          RLA(il)      = XLAT(il) * pifac
-          RLO(il)      = XLON(il) * pifac
-          OROG(il)     = Sfc_props%ORO(il)
-          OROG_UF(il)  = Sfc_props%ORO_UF(il)
-          TSFFCS(il)   = Sfc_props%TSFC(il)
-          SNOFCS(il)   = Sfc_props%WEASD(il)
-          ZORFCS(il)   = Sfc_props%ZORL(il)
-          ALBFCS(il,1) = Sfc_props%ALVSF(il)
-          ALBFCS(il,2) = Sfc_props%ALVWF(il)
-          ALBFCS(il,3) = Sfc_props%ALNSF(il)
-          ALBFCS(il,4) = Sfc_props%ALNWF(il)
-          TG3FCS(il)   = Sfc_props%TG3(il)
-          CNPFCS(il)   = Sfc_props%CANOPY(il)
-          SMCFCS(il,:) = Tbd_data%SMC(il,:)
-          STCFCS(il,:) = Tbd_data%STC(il,:)
-          SLIFCS(il)   = Sfc_props%SLMSK(il)
-          F10MFCS(il)  = Sfc_props%F10M(il)
-          VEGFCS(il)   = Sfc_props%VFRAC(il)
-          VETFCS(il)   = Sfc_props%VTYPE(il)
-          SOTFCS(il)   = Sfc_props%STYPE(il)
-          ALFFCS(il,1) = Sfc_props%FACSF(il)
-          ALFFCS(il,2) = Sfc_props%FACWF(il)
-          CVFCS(il)    = Cld_props%CV(il)
-          CVBFCS(il)   = Cld_props%CVB(il)
-          CVTFCS(il)   = Cld_props%CVT(il)
+          RLA(il)      = Dyn_parms(i)%xlat(l) * pifac
+          RLO(il)      = Dyn_parms(i)%xlon(l) * pifac
+          OROG(il)     = Sfc_props(i)%ORO(l)
+          OROG_UF(il)  = Sfc_props(i)%ORO_UF(l)
+          TSFFCS(il)   = Sfc_props(i)%TSFC(l)
+          SNOFCS(il)   = Sfc_props(i)%WEASD(l)
+          ZORFCS(il)   = Sfc_props(i)%ZORL(l)
+          ALBFCS(il,1) = Sfc_props(i)%ALVSF(l)
+          ALBFCS(il,2) = Sfc_props(i)%ALVWF(l)
+          ALBFCS(il,3) = Sfc_props(i)%ALNSF(l)
+          ALBFCS(il,4) = Sfc_props(i)%ALNWF(l)
+          TG3FCS(il)   = Sfc_props(i)%TG3(l)
+          CNPFCS(il)   = Sfc_props(i)%CANOPY(l)
+          SMCFCS(il,:) = Tbd_data(i)%SMC(l,:)
+          STCFCS(il,:) = Tbd_data(i)%STC(l,:)
+          SLIFCS(il)   = Sfc_props(i)%SLMSK(l)
+          F10MFCS(il)  = Sfc_props(i)%F10M(l)
+          VEGFCS(il)   = Sfc_props(i)%VFRAC(l)
+          VETFCS(il)   = Sfc_props(i)%VTYPE(l)
+          SOTFCS(il)   = Sfc_props(i)%STYPE(l)
+          ALFFCS(il,1) = Sfc_props(i)%FACSF(l)
+          ALFFCS(il,2) = Sfc_props(i)%FACWF(l)
+          CVFCS(il)    = Cld_props(i)%CV(l)
+          CVBFCS(il)   = Cld_props(i)%CVB(l)
+          CVTFCS(il)   = Cld_props(i)%CVT(l)
 !CluX add swdfcs, sihfcs, sicfcs
-          SWDFCS(il)   = Sfc_props%SNOWD(il)
-          SIHFCS(il)   = Sfc_props%HICE(il)
-          SICFCS(il)   = Sfc_props%FICE(il)
-          SITFCS(il)   = Sfc_props%TISFC(il)
+          SWDFCS(il)   = Sfc_props(i)%SNOWD(l)
+          SIHFCS(il)   = Sfc_props(i)%HICE(l)
+          SICFCS(il)   = Sfc_props(i)%FICE(l)
+          SITFCS(il)   = Sfc_props(i)%TISFC(l)
 !CluX add slcfcs, vmnfcs, vmxfcs, slpfcs, absfcs
-          SLCFCS(il,:) = Tbd_data%SLC(il,:)
-          VMNFCS(il)   = Sfc_props%SHDMIN(il)
-          VMXFCS(il)   = Sfc_props%SHDMAX(il)
-          SLPFCS(il)   = Sfc_props%SLOPE(il)
-          ABSFCS(il)   = Sfc_props%SNOALB(il)
+          SLCFCS(il,:) = Tbd_data(i)%SLC(l,:)
+          VMNFCS(il)   = Sfc_props(i)%SHDMIN(l)
+          VMXFCS(il)   = Sfc_props(i)%SHDMAX(l)
+          SLPFCS(il)   = Sfc_props(i)%SLOPE(l)
+          ABSFCS(il)   = Sfc_props(i)%SNOALB(l)
 
 !
           IF (SLIFCS(il) .LT. 0.1 .OR. SLIFCS(il) .GT. 1.5) THEN
@@ -112,9 +117,10 @@
             AISFCS(il) = 0.
           ENDIF
 
-!     if (me .eq. 0)
+!     if (me .eq. 0) & 
 !    &   print *,' len=',il,' rla=',rla(il),' rlo=',rlo(il)
-      ENDDO       !-----END len LOOP-------------------------------
+        ENDDO       
+      ENDDO       !-----END nblks LOOP-------------------------------
 !
 ! check
 !     print *,' total points = ',il
@@ -177,38 +183,42 @@
         enddo
       enddo
 !
-      DO il=1,len
-          Sfc_props%TSFC(il)   = TSFFCS(il)
-          Sfc_props%WEASD(il)  = SNOFCS(il)
-          Sfc_props%ZORL(il)   = ZORFCS(il)
-          Sfc_props%ALVSF(il)  = ALBFCS(il,1)
-          Sfc_props%ALVWF(il)  = ALBFCS(il,2)
-          Sfc_props%ALNSF(il)  = ALBFCS(il,3)
-          Sfc_props%ALNWF(il)  = ALBFCS(il,4)
-          Sfc_props%TG3(il)    = TG3FCS(il)
-          Sfc_props%CANOPY(il) = CNPFCS(il)
-          Tbd_data%SMC(il,:)   = SMCFCS(il,:)
-          Tbd_data%STC(il,:)   = STCFCS(il,:)
-          Sfc_props%SLMSK(il)  = SLIFCS(il)
-          Sfc_props%F10M(il)   = F10MFCS(il)
-          Sfc_props%VFRAC(il)  = VEGFCS(il)
-          Sfc_props%VTYPE(il)  = VETFCS(il)
-          Sfc_props%STYPE(il)  = SOTFCS(il)
-          Sfc_props%FACSF(il)  = ALFFCS(il,1)
-          Sfc_props%FACWF(il)  = ALFFCS(il,2)
-          Cld_props%CV(il)     = CVFCS(il)
-          Cld_props%CVB(il)    = CVBFCS(il)
-          Cld_props%CVT(il)    = CVTFCS(il)
-          Sfc_props%SNOWD(il)  = SWDFCS(il)
-          Sfc_props%HICE(il)   = SIHFCS(il)
-          Sfc_props%FICE(il)   = SICFCS(il)
-          Sfc_props%TISFC(il)  = SITFCS(il)
-          Tbd_data%SLC(il,:)   = SLCFCS(il,:)
-          Sfc_props%SHDMIN(il) = VMNFCS(il)
-          Sfc_props%SHDMAX(il) = VMXFCS(il)
-          Sfc_props%SLOPE(il)  = SLPFCS(il)
-          Sfc_props%SNOALB(il) = ABSFCS(il)
-      ENDDO       !-----END len LOOP-------------------------------
+      il=0
+      DO i = 1,nblks
+        DO l = 1,size(Dyn_parms(i)%xlat,1)
+          il=il+1
+          Sfc_props(i)%TSFC(l)   = TSFFCS(il)
+          Sfc_props(i)%WEASD(l)  = SNOFCS(il)
+          Sfc_props(i)%ZORL(l)   = ZORFCS(il)
+          Sfc_props(i)%ALVSF(l)  = ALBFCS(il,1)
+          Sfc_props(i)%ALVWF(l)  = ALBFCS(il,2)
+          Sfc_props(i)%ALNSF(l)  = ALBFCS(il,3)
+          Sfc_props(i)%ALNWF(l)  = ALBFCS(il,4)
+          Sfc_props(i)%TG3(l)    = TG3FCS(il)
+          Sfc_props(i)%CANOPY(l) = CNPFCS(il)
+          Tbd_data(i)%SMC(l,:)   = SMCFCS(il,:)
+          Tbd_data(i)%STC(l,:)   = STCFCS(il,:)
+          Sfc_props(i)%SLMSK(l)  = SLIFCS(il)
+          Sfc_props(i)%F10M(l)   = F10MFCS(il)
+          Sfc_props(i)%VFRAC(l)  = VEGFCS(il)
+          Sfc_props(i)%VTYPE(l)  = VETFCS(il)
+          Sfc_props(i)%STYPE(l)  = SOTFCS(il)
+          Sfc_props(i)%FACSF(l)  = ALFFCS(il,1)
+          Sfc_props(i)%FACWF(l)  = ALFFCS(il,2)
+          Cld_props(i)%CV(l)     = CVFCS(il)
+          Cld_props(i)%CVB(l)    = CVBFCS(il)
+          Cld_props(i)%CVT(l)    = CVTFCS(il)
+          Sfc_props(i)%SNOWD(l)  = SWDFCS(il)
+          Sfc_props(i)%HICE(l)   = SIHFCS(il)
+          Sfc_props(i)%FICE(l)   = SICFCS(il)
+          Sfc_props(i)%TISFC(l)  = SITFCS(il)
+          Tbd_data(i)%SLC(l,:)   = SLCFCS(il,:)
+          Sfc_props(i)%SHDMIN(l) = VMNFCS(il)
+          Sfc_props(i)%SHDMAX(l) = VMXFCS(il)
+          Sfc_props(i)%SLOPE(l)  = SLPFCS(il)
+          Sfc_props(i)%SNOALB(l) = ABSFCS(il)
+        ENDDO       
+      ENDDO       !-----END nblks LOOP-------------------------------
 !
 !     if (me .eq. 0) print*,'executed gcycle during hour=',fhour
       

@@ -177,7 +177,6 @@ contains
                do k=1,km
 #ifdef MOIST_CAPPA
                if ( nwat==2 ) then
-!DIR$ SIMD
                   do i=is,ie
                             qv(i) = max(0., q(i,j,k,sphum)) 
                      q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
@@ -188,7 +187,6 @@ contains
                else
                   call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
                                 ice_wat, snowwat, graupel, q, gz, cvm)
-!DIR$ SIMD
                   do i=is,ie
                      q_con(i,j,k) = gz(i)
                      cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*q(i,j,k,sphum)) )
@@ -469,7 +467,6 @@ contains
          do k=1,km
 #ifdef MOIST_CAPPA
          if ( nwat==2 ) then
-!DIR$ SIMD
             do i=is,ie
                       qv(i) = max(0., q(i,j,k,sphum)) 
                q_con(i,j,k) = max(0., q(i,j,k,liq_wat))
@@ -480,7 +477,6 @@ contains
          else
             call moist_cv(is,ie,isd,ied,jsd,jed, km, j, k, nwat, sphum, liq_wat, rainwat,    &
                           ice_wat, snowwat, graupel, q, gz, cvm)
-!DIR$ SIMD
          do i=is,ie
             q_con(i,j,k) = gz(i)
             cappa(i,j,k) = rdgas / ( rdgas + cvm(i)/(1.+r_vir*q(i,j,k,sphum)) )
@@ -3151,34 +3147,27 @@ endif        ! end last_step check
 !------------------------------------
 ! Lowest layer: constant distribution
 !------------------------------------
+#ifdef NGGPS_SUBMITTED
       do i=i1,i2
          a4(2,i,km) = q1(i,km)
          a4(3,i,km) = q1(i,km)
          a4(4,i,km) = 0.
       enddo
+#endif
 
       do 5555 i=i1,i2
          k0 = 1
       do 555 k=1,kn
 
-#ifdef OLD_TOP_EDGE
-         if(pe2(i,k+1) .le. pe1(i,1)) then
-! Entire grid above old ptop
-            q2(i,k) = a4(2,i,1)
-         elseif(pe2(i,k) .ge. pe1(i,km+1)) then
-! Entire grid below old ps
-            q2(i,k) = a4(3,i,km)
-         elseif(pe2(i,k  ) .lt. pe1(i,1) .and.   &
-                pe2(i,k+1) .gt. pe1(i,1))  then
-! Part of the grid above ptop
-            q2(i,k) = a4(1,i,1)
-#else
          if(pe2(i,k) .le. pe1(i,1)) then
 ! above old ptop
             q2(i,k) = q1(i,1)
          elseif(pe2(i,k) .ge. pe1(i,km+1)) then
 ! Entire grid below old ps
-            q2(i,k) = a4(3,i,km)
+#ifdef NGGPS_SUBMITTED
+            q2(i,k) = a4(3,i,km)   ! this is not good.
+#else
+            q2(i,k) = q1(i,km)
 #endif
          else
 
@@ -3230,7 +3219,11 @@ endif        ! end last_step check
         delp = pe2(i,k+1) - pe1(i,km+1)
         if(delp > 0.) then
 ! Extended below old ps
-           qsum = qsum + delp * a4(3,i,km)
+#ifdef NGGPS_SUBMITTED
+           qsum = qsum + delp * a4(3,i,km)    ! not good.
+#else
+           qsum = qsum + delp * q1(i,km)
+#endif
           dpsum = dpsum + delp
         endif
 123     q2(i,k) = qsum / dpsum

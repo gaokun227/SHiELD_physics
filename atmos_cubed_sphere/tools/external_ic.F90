@@ -506,13 +506,13 @@ contains
 !       TSEA       -  surface skin temperature (k)
 !                     maps to 'ts'
 !--- variables read in from 'gfs_data.nc'
-!       ZH  -  height at edges (m)
+!       ZH  -  GFS grid height at edges (m)
 !       PS  -  surface pressure (Pa)
-!       U_W -  D-grid west  prognostic zonal wind (m/s)
-!       V_W -  D-grid west  prognostic meridional wind (m/s)
-!       U_S -  D-grid south prognostic zonal wind (m/s)
-!       V_S -  D-grid south prognostic meridional wind (m/s)
-!       W   -  prognostic 'omega' (Pa/s)
+!       U_W -  D-grid west  face tangential wind component (m/s)
+!       V_W -  D-grid west  face normal wind component (m/s)
+!       U_S -  D-grid south face tangential wind component (m/s)
+!       V_S -  D-grid south face normal wind component (m/s)
+!       W   -  vertical velocity 'omega' (Pa/s)
 !       Q   -  prognostic tracer fields (Specific Humidity, 
 !                                        O3 mixing ratio,
 !                                        Cloud mixing ratio)
@@ -824,23 +824,22 @@ contains
           ! land-frac
           id_res = register_restart_field (SFC_restart, fn_oro_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
         endif
-
      
         ! surface pressure (Pa)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'ps', ps, domain=Atm(n)%domain)
 
-        ! D-grid west  prognostic horizonal wind (m/s)
+        ! D-grid west  face tangential wind component (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_w', u_w, domain=Atm(n)%domain,position=EAST)
-        ! D-grid west  prognostic meridional wind (m/s)
+        ! D-grid west  face normal wind component (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_w', v_w, domain=Atm(n)%domain,position=EAST)
-        ! D-grid south prognostic horizonal wind (m/s)
+        ! D-grid south face tangential wind component (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_s', u_s, domain=Atm(n)%domain,position=NORTH)
-        ! D-grid south prognostic meridional wind (m/s)
+        ! D-grid south face normal wind component (m/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_s', v_s, domain=Atm(n)%domain,position=NORTH)
 
-        ! prognostic vertical velocity 'omga' (Pa/s)
+        ! vertical velocity 'omega' (Pa/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
-        ! Height at edges (including surface height)
+        ! GFS grid height at edges (including surface height)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'ZH', zh, domain=Atm(n)%domain)
 
         ! prognostic tracers
@@ -871,7 +870,7 @@ contains
         call free_restart_type(SFC_restart)
         call free_restart_type(GFS_restart)
 
-        ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
+        ! multiply NCEP ICs terrain 'phis' by gravity to be true geopotential
         Atm(n)%phis = Atm(n)%phis*grav
         
         ! set the pressure levels and ptop to be used

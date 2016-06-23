@@ -506,26 +506,18 @@ contains
 !       TSEA       -  surface skin temperature (k)
 !                     maps to 'ts'
 !--- variables read in from 'gfs_data.nc'
-!       ZS  -  surface height (m)
-!              maps to 'ze0' for hybrid_z non-hydrostatic(?)
-!              maps to phis = zs*grav for case where we use
+!       ZH  -  height at edges (m)
 !       PS  -  surface pressure (Pa)
-!       DP  -  prognostic delta-p (Pa)
-!              maps to 'delp'
-!       P   -  prognostic pressure (Pa)
-!              do I map this at all?
-!       T   -  prognostic temperature (k)
-!       U   -  prognostic zonal wind (m/s)
-!              maps to 'ua'
-!       V   -  prognostic meridional wind (m/s)
-!              maps to 'va'
+!       U_W -  D-grid west  prognostic zonal wind (m/s)
+!       V_W -  D-grid west  prognostic meridional wind (m/s)
+!       U_S -  D-grid south prognostic zonal wind (m/s)
+!       V_S -  D-grid south prognostic meridional wind (m/s)
 !       W   -  prognostic 'omega' (Pa/s)
 !       Q   -  prognostic tracer fields (Specific Humidity, 
 !                                        O3 mixing ratio,
 !                                        Cloud mixing ratio)
 !--- Namelist variables 
 !       filtered_terrain  -  use orography maker filtered terrain mapping
-!       ncep_terrain      -  use NCEP ICs interpolated terrain 
 !       ncep_plevels      -  use NCEP pressure levels (implies no vertical remapping)
 
 
@@ -533,9 +525,8 @@ contains
       type(domain2d),      intent(inout) :: fv_domain
 ! local:
       real, dimension(:), allocatable:: ak, bk
-      real, dimension(:,:), allocatable:: wk2, zs, ps
-      real, dimension(:,:,:), allocatable:: dp, t, ua, va, omga
-      real, dimension(:,:,:), allocatable:: ud, vd, u_s, v_s, u_w, v_w
+      real, dimension(:,:), allocatable:: wk2, ps
+      real, dimension(:,:,:), allocatable:: ud, vd, u_w, v_w, u_s, v_s, omga
       real, dimension(:,:,:), allocatable:: zh(:,:,:)  ! 3D height at 65 edges
       real, dimension(:,:,:,:), allocatable:: q
       real, dimension(:,:), allocatable :: phis_coarse ! lmh
@@ -553,7 +544,6 @@ contains
       character(len=64) :: fn_oro_ics = 'oro_data.nc'
       logical :: remap
       logical :: filtered_terrain = .true.
-      logical :: ncep_terrain = .false.
       logical :: ncep_plevels = .false.
       logical :: gfs_dwinds = .true.
       integer :: levp = 64
@@ -563,7 +553,7 @@ contains
       real(kind=R_GRID), dimension(3):: e1, e2, ex, ey
       integer:: i,j,k,nts
       integer:: liq_wat
-      namelist /external_ic_nml/ filtered_terrain, ncep_terrain, ncep_plevels, levp, gfs_dwinds, &
+      namelist /external_ic_nml/ filtered_terrain, ncep_plevels, levp, gfs_dwinds, &
                                  checker_tr, nt_checker
 #ifdef GFSL64
    real, dimension(65):: ak_sj, bk_sj
@@ -724,11 +714,7 @@ contains
 
       remap = .true.
       if (ncep_plevels) then
-        if (ncep_terrain) then
-          call mpp_error(NOTE,'External_IC::get_nggps_ic -  use NCEP-defined terrain and pressure &
-                              &levels (no vertical remapping)')
-          remap = .false.
-        else if (filtered_terrain) then
+        if (filtered_terrain) then
           call mpp_error(NOTE,'External_IC::get_nggps_ic -  use externally-generated, filtered terrain &
                               &and NCEP pressure levels (vertical remapping)')
         else if (.not. filtered_terrain) then
@@ -736,11 +722,7 @@ contains
                               &and NCEP pressure levels (vertical remapping)')
         endif
       else  ! (.not.ncep_plevels)
-        if (ncep_terrain) then
-          call mpp_error(NOTE,'External_IC::get_nggps_ic -  use NCEP-defined terrain and FV3 pressure &
-                              &levels (vertical remapping)')
-          remap = .false.
-        else if (filtered_terrain) then
+        if (filtered_terrain) then
           call mpp_error(NOTE,'External_IC::get_nggps_ic -  use externally-generated, filtered terrain &
                               &and FV3 pressure levels (vertical remapping)')
         else if (.not. filtered_terrain) then
@@ -804,34 +786,26 @@ contains
       endif
       call mpp_error(NOTE,'==> External_ic::get_nggps_ic: using tiled data file '//trim(fn_gfs_ics)//' for NGGPS IC')
 
-      allocate (zs(is:ie,js:je))
       allocate (zh(is:ie,js:je,levp+1))   ! SJL
       allocate (ps(is:ie,js:je))
-      allocate (dp(is:ie,js:je,levp))
-      allocate (t   (is:ie,js:je,levp))
-      allocate (ua  (is:ie,js:je,levp))
-      allocate (va  (is:ie,js:je,levp))
       allocate (omga(is:ie,js:je,levp))
       allocate (q (is:ie,js:je,levp,ntracers))
-
-      if ( gfs_dwinds ) then
-          allocate ( u_w(is:ie+1, js:je, 1:levp) )
-          allocate ( v_w(is:ie+1, js:je, 1:levp) )
-          allocate ( u_s(is:ie, js:je+1, 1:levp) )
-          allocate ( v_s(is:ie, js:je+1, 1:levp) )
-      endif
+      allocate ( u_w(is:ie+1, js:je, 1:levp) )
+      allocate ( v_w(is:ie+1, js:je, 1:levp) )
+      allocate ( u_s(is:ie, js:je+1, 1:levp) )
+      allocate ( v_s(is:ie, js:je+1, 1:levp) )
 
       do n = 1,size(Atm(:))
 
-         !!! If a nested grid, save the filled coarse-grid topography for blending
-         if (Atm(n)%neststruct%nested) then
-            allocate(phis_coarse(isd:ied,jsd:jed))
-            do j=jsd,jed
+        !!! If a nested grid, save the filled coarse-grid topography for blending
+        if (Atm(n)%neststruct%nested) then
+          allocate(phis_coarse(isd:ied,jsd:jed))
+          do j=jsd,jed
             do i=isd,ied
-               phis_coarse(i,j) = Atm(n)%phis(i,j)
+              phis_coarse(i,j) = Atm(n)%phis(i,j)
             enddo
-            enddo
-         endif
+          enddo
+        endif
 
 !--- read in surface temperature (k) and land-frac
         ! surface skin temperature
@@ -851,34 +825,18 @@ contains
           id_res = register_restart_field (SFC_restart, fn_oro_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
         endif
 
-        ! NCEP IC surface height -- (needs to be transformed ino phis = zs*grav)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'zs', zs, domain=Atm(n)%domain)
      
         ! surface pressure (Pa)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'ps', ps, domain=Atm(n)%domain)
 
-        ! prognostic delta-p (Pa)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'dp', dp, domain=Atm(n)%domain)
-
-        ! prognostic temperature (k)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 't', t, domain=Atm(n)%domain)
-
-        ! prognostic horizonal wind (m/s)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u', ua, domain=Atm(n)%domain)
-
-        ! prognostic meridional wind (m/s)
-        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v', va, domain=Atm(n)%domain)
-
-        if ( gfs_dwinds ) then
-          ! prognostic horizonal wind (m/s)
-          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_s', u_s, domain=Atm(n)%domain,position=NORTH)
-          ! prognostic meridional wind (m/s)
-          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_s', v_s, domain=Atm(n)%domain,position=NORTH)
-          ! prognostic horizonal wind (m/s)
-          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_w', u_w, domain=Atm(n)%domain,position=EAST)
-          ! prognostic meridional wind (m/s)
-          id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_w', v_w, domain=Atm(n)%domain,position=EAST)
-        endif
+        ! D-grid west  prognostic horizonal wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_w', u_w, domain=Atm(n)%domain,position=EAST)
+        ! D-grid west  prognostic meridional wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_w', v_w, domain=Atm(n)%domain,position=EAST)
+        ! D-grid south prognostic horizonal wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'u_s', u_s, domain=Atm(n)%domain,position=NORTH)
+        ! D-grid south prognostic meridional wind (m/s)
+        id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'v_s', v_s, domain=Atm(n)%domain,position=NORTH)
 
         ! prognostic vertical velocity 'omga' (Pa/s)
         id_res = register_restart_field (GFS_restart, fn_gfs_ics, 'w', omga, domain=Atm(n)%domain)
@@ -914,151 +872,114 @@ contains
         call free_restart_type(GFS_restart)
 
         ! multiply NCEP ICs 'zs' and terrain 'phis' by gravity to be true geopotential
-        zs = zs*grav
         Atm(n)%phis = Atm(n)%phis*grav
         
-        if (ncep_terrain .and. ncep_plevels) then
-          ! no vertical remapping necessary, store data into Atm(:)
-          ! carve off top layer of atmosphere
+        ! set the pressure levels and ptop to be used
+        if (ncep_plevels) then
           itoa = levp - npz + 1
-          Atm(n)%ptop =ak(itoa)
+          Atm(n)%ptop = ak(itoa)
           Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
-          Atm(n)%ps  (is:ie,js:je) = ps(is:ie,js:je)
-          Atm(n)%phis(is:ie,js:je) = zs(is:ie,js:je)
-          Atm(n)%delp(is:ie,js:je,1:npz) = dp  (is:ie,js:je,itoa:levp)
-          Atm(n)%ua  (is:ie,js:je,1:npz) = ua  (is:ie,js:je,itoa:levp)
-          Atm(n)%va  (is:ie,js:je,1:npz) = va  (is:ie,js:je,itoa:levp)
-          Atm(n)%omga(is:ie,js:je,1:npz) = omga(is:ie,js:je,itoa:levp)
-          Atm(n)%q   (is:ie,js:je,1:npz,1:ntracers) = q(is:ie,js:je,itoa:levp,1:ntracers)
- 
-! SJL: 20151104
-!         Atm(n)%pt  (is:ie,js:je,1:npz) = t   (is:ie,js:je,itoa:levp)
-!--- Retrieve pt hydrostatically from delta_zh, and if non-hydro, compute w and delz
-          call get_pt_wdz( Atm(n), npz, zh )
-
-          ! map the A-grid winds onto the D-grid winds
-          call cubed_a2d (Atm(n)%npx, Atm(n)%npy, npz, Atm(n)%ua, Atm(n)%va, Atm(n)%u, Atm(n)%v, &
-                          Atm(n)%gridstruct, Atm(n)%domain, Atm(n)%bd )
         else
-          ! set the pressure levels and ptop to be used
-          if (ncep_plevels) then
-            itoa = levp - npz + 1
-            Atm(n)%ptop = ak(itoa)
-            Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
-            Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
-          else
-            Atm(n)%ak(:) = ak_sj(:)
-            Atm(n)%bk(:) = bk_sj(:)
-            Atm(n)%ptop = Atm(n)%ak(1)
-          endif
-          ! call vertical remapping algorithms
-          if(is_master())  write(*,*) 'GFS ak(1)=', ak(1), ' ak(2)=', ak(2)
-          ak(1) = max(1.e-9, ak(1))
-
-          call remap_scalar_nggps(Atm(n), levp, npz, ntracers, ak, bk, ps, q, omga, zh)
-
-          if ( gfs_dwinds ) then
-             allocate ( ud(is:ie,  js:je+1, 1:levp) )
-             allocate ( vd(is:ie+1,js:je,   1:levp) )
-             do k=1,levp
-                do j=js,je+1
-                   do i=is,ie
-                      p1(:) = Atm(1)%gridstruct%grid(i,  j,1:2)
-                      p2(:) = Atm(1)%gridstruct%grid(i+1,j,1:2)
-                      call  mid_pt_sphere(p1, p2, p3)
-                      call get_unit_vect2(p1, p2, e1)
-                      call get_latlon_vector(p3, ex, ey)
-                      ud(i,j,k) = u_s(i,j,k)*inner_prod(e1,ex) + v_s(i,j,k)*inner_prod(e1,ey)
-                   enddo
-                enddo
-                do j=js,je
-                   do i=is,ie+1
-                      p1(:) = Atm(1)%gridstruct%grid(i,j  ,1:2)
-                      p2(:) = Atm(1)%gridstruct%grid(i,j+1,1:2)
-                      call  mid_pt_sphere(p1, p2, p3)
-                      call get_unit_vect2(p1, p2, e2)
-                      call get_latlon_vector(p3, ex, ey)
-                      vd(i,j,k) = u_w(i,j,k)*inner_prod(e2,ex) + v_w(i,j,k)*inner_prod(e2,ey)
-                   enddo
-                enddo
-             enddo
-             deallocate ( u_w )
-             deallocate ( v_w )
-             deallocate ( u_s )
-             deallocate ( v_s )
-
-             call remap_dwinds(levp, npz, ak, bk, ps, ud, vd, Atm(n))
-             deallocate ( ud )
-             deallocate ( vd )
-          else
-             call remap_winds (is, js, levp, npz, ak(:), bk(:), ps, ua(:,:,:), va(:,:,:), Atm(n))
-          endif
-
+          Atm(n)%ak(:) = ak_sj(:)
+          Atm(n)%bk(:) = bk_sj(:)
+          Atm(n)%ptop = Atm(n)%ak(1)
         endif
-        
+        ! call vertical remapping algorithms
+        if(is_master())  write(*,*) 'GFS ak(1)=', ak(1), ' ak(2)=', ak(2)
+        ak(1) = max(1.e-9, ak(1))
+
+        call remap_scalar_nggps(Atm(n), levp, npz, ntracers, ak, bk, ps, q, omga, zh)
+
+        allocate ( ud(is:ie,  js:je+1, 1:levp) )
+        allocate ( vd(is:ie+1,js:je,   1:levp) )
+        do k=1,levp
+          do j=js,je+1
+            do i=is,ie
+              p1(:) = Atm(1)%gridstruct%grid(i,  j,1:2)
+              p2(:) = Atm(1)%gridstruct%grid(i+1,j,1:2)
+              call  mid_pt_sphere(p1, p2, p3)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              ud(i,j,k) = u_s(i,j,k)*inner_prod(e1,ex) + v_s(i,j,k)*inner_prod(e1,ey)
+            enddo
+          enddo
+          do j=js,je
+            do i=is,ie+1
+              p1(:) = Atm(1)%gridstruct%grid(i,j  ,1:2)
+              p2(:) = Atm(1)%gridstruct%grid(i,j+1,1:2)
+              call  mid_pt_sphere(p1, p2, p3)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              vd(i,j,k) = u_w(i,j,k)*inner_prod(e2,ex) + v_w(i,j,k)*inner_prod(e2,ey)
+            enddo
+          enddo
+        enddo
+        deallocate ( u_w )
+        deallocate ( v_w )
+        deallocate ( u_s )
+        deallocate ( v_s )
+             
+        call remap_dwinds(levp, npz, ak, bk, ps, ud, vd, Atm(n))
+        deallocate ( ud )
+        deallocate ( vd )
+   
         !!! Perform terrain smoothing, if desired
         if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
+          if (Atm(n)%neststruct%nested) then
+            if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
+            npx = Atm(n)%npx
+            npy = Atm(n)%npy
+            do j=jsd,jed
+              do i=isd,ied
+                wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
+                Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
+              enddo
+            enddo
+          endif
 
-           if (Atm(n)%neststruct%nested) then
-             if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
-             npx = Atm(n)%npx
-             npy = Atm(n)%npy
-             do j=jsd,jed
-                do i=isd,ied
-                   wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
-                   Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
-                  
-                enddo
-             enddo
-           endif
-
-           if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
-              call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
+          if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
+            call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
                    Atm(n)%gridstruct%area_64, Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
                    Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
                    Atm(n)%flagstruct%n_zs_filter, cnst_0p20*Atm(n)%gridstruct%da_min, &
                    .false., oro_g, Atm(n)%neststruct%nested, Atm(n)%domain, Atm(n)%bd)
-              if ( is_master() ) write(*,*) 'Warning !!! del-2 terrain filter has been applied ', &
+            if ( is_master() ) write(*,*) 'Warning !!! del-2 terrain filter has been applied ', &
                    Atm(n)%flagstruct%n_zs_filter, ' times'
-           else if( Atm(n)%flagstruct%nord_zs_filter == 4 ) then
-              call del4_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, Atm(n)%gridstruct%area_64, &
+          else if( Atm(n)%flagstruct%nord_zs_filter == 4 ) then
+            call del4_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, Atm(n)%gridstruct%area_64, &
                    Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy,   &
                    Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
                    Atm(n)%flagstruct%n_zs_filter, .false., oro_g, Atm(n)%neststruct%nested, &
                    Atm(n)%domain, Atm(n)%bd)
-              if ( is_master() ) write(*,*) 'Warning !!! del-4 terrain filter has been applied ', &
+            if ( is_master() ) write(*,*) 'Warning !!! del-4 terrain filter has been applied ', &
                    Atm(n)%flagstruct%n_zs_filter, ' times'
-           endif
+          endif
 
         endif
 
         if (Atm(n)%neststruct%nested) then
-           npx = Atm(n)%npx
-           npy = Atm(n)%npy
-           do j=jsd,jed
-              do i=isd,ied
-                 wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
-                 Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
-                 
-              enddo
-           enddo
-
-           deallocate(phis_coarse)
+          npx = Atm(n)%npx
+          npy = Atm(n)%npy
+          do j=jsd,jed
+            do i=isd,ied
+              wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
+              Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
+            enddo
+          enddo
+          deallocate(phis_coarse)
         endif
 
         call mpp_update_domains( Atm(n)%phis, Atm(n)%domain, complete=.true. )
-!!!     if ( .not. Atm(1)%flagstruct%hydrostatic ) then
-           liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+        liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
 !--- Add cloud condensate from GFS to total MASS
-           do k=1,npz
-              do j=js,je
-                 do i=is,ie
-                    Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
-                 enddo
-              enddo
-           enddo
-!!!     endif
+        do k=1,npz
+          do j=js,je
+            do i=is,ie
+              Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
+            enddo
+          enddo
+        enddo
 
 !--- reset the tracers beyond condensate to a checkerboard pattern 
         if (checker_tr) then
@@ -1074,12 +995,7 @@ contains
 
       deallocate (ak)
       deallocate (bk)
-      deallocate (zs)
       deallocate (ps)
-      deallocate (dp)
-      deallocate (t )
-      deallocate (ua)
-      deallocate (va)
       deallocate (q )
 
   end subroutine get_nggps_ic

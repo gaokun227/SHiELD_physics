@@ -131,7 +131,7 @@ contains
       integer :: i,j,k, n, iq, n_map, nq, nwat, k_split
       integer :: sphum, liq_wat = -999, ice_wat = -999      ! GFDL physics
       integer :: rainwat = -999, snowwat = -999, graupel = -999, cld_amt = -999
-      logical used, last_step, consv_am, do_omega
+      logical used, last_step, do_omega
       integer, parameter :: max_packs=12
       type(group_halo_update_type), save :: i_pack(max_packs)
       integer :: is,  ie,  js,  je
@@ -150,7 +150,6 @@ contains
 !     cv_air =  cp_air - rdgas
       agrav = 1. / grav
         dt2 = 0.5*bdt
-      consv_am = flagstruct%consv_am
       k_split = flagstruct%k_split
       nwat = flagstruct%nwat
       nq = nq_tot - flagstruct%dnats
@@ -303,7 +302,7 @@ contains
            endif
       endif
 
-      if( (consv_am.or.idiag%id_amdt>0) .and. (.not.do_adiabatic_init) ) then
+      if( (flagstruct%consv_am.or.idiag%id_amdt>0) .and. (.not.do_adiabatic_init) ) then
           call compute_aam(npz, is, ie, js, je, isd, ied, jsd, jed, gridstruct, bd,   &
                            ptop, ua, va, u, v, delp, teq, ps2, m_fac)
       endif
@@ -606,7 +605,7 @@ contains
      endif
   endif
 
-  if( consv_am .or. idiag%id_amdt>0 .or. idiag%id_aam>0 .and. (.not.do_adiabatic_init)  ) then
+  if( (flagstruct%consv_am.or.idiag%id_amdt>0.or.idiag%id_aam>0) .and. (.not.do_adiabatic_init)  ) then
       call compute_aam(npz, is, ie, js, je, isd, ied, jsd, jed, gridstruct, bd,   &
                        ptop, ua, va, u, v, delp, te_2d, ps, m_fac)
       if( idiag%id_aam>0 ) then
@@ -618,7 +617,7 @@ contains
       endif
   endif
 
-  if( consv_am .or. idiag%id_amdt>0 .and. (.not.do_adiabatic_init)  ) then
+  if( (flagstruct%consv_am.or.idiag%id_amdt>0) .and. (.not.do_adiabatic_init)  ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,te_2d,teq,dt2,ps2,ps,idiag) 
       do j=js,je
          do i=is,ie
@@ -629,16 +628,14 @@ contains
       enddo
       if( idiag%id_amdt>0 ) used = send_data(idiag%id_amdt, te_2d/bdt, fv_time)
 
-      if ( consv_am .or. prt_minmax ) then
-         amdt = g_sum( domain, te_2d, is, ie, js, je, ng, gridstruct%area_64, 0) 
-         u0 = -radius*amdt/g_sum( domain, m_fac, is, ie, js, je, ng, gridstruct%area_64, 0)
-         u0 = real(u0, 4)    ! truncate to enforce reproducibility
+      if ( flagstruct%consv_am .or. prt_minmax ) then
+         amdt = g_sum( domain, te_2d, is, ie, js, je, ng, gridstruct%area_64, 0, reproduce=.true.) 
+         u0 = -radius*amdt/g_sum( domain, m_fac, is, ie, js, je, ng, gridstruct%area_64, 0,reproduce=.true.)
          if(is_master() .and. prt_minmax)         &
-!        write(6,*) 'Dynamic AM tendency =', amdt/(bdt*1.e18), 'del-u (per yr)=', u0*365.*86400./bdt
-         write(6,*) 'Dynamic Angular Momentum tendency (Hadleys)=', amdt/(bdt*1.e18)
+         write(6,*) 'Dynamic AM tendency (Hadleys)=', amdt/(bdt*1.e18), 'del-u (per day)=', u0*86400./bdt
       endif
 
-      if( consv_am ) then
+    if( flagstruct%consv_am ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,m_fac,u0,gridstruct)
       do j=js,je
          do i=is,ie
@@ -648,6 +645,7 @@ contains
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,hydrostatic,pt,m_fac,ua,cp_air, &
 !$OMP                                  rcv,u,u0,gridstruct,v )
       do k=1,npz
+#ifdef ADD_HEAT_AAM
       if ( hydrostatic ) then
          do j=js,je
          do i=is,ie
@@ -661,6 +659,7 @@ contains
          enddo
          enddo
       endif
+#endif
       do j=js,je+1
          do i=is,ie
             u(i,j,k) = u(i,j,k) + u0*gridstruct%l2c_u(i,j)
@@ -672,7 +671,7 @@ contains
          enddo
       enddo
       enddo
-      endif   !  consv_am
+    endif   !  consv_am
   endif
 
 911  call cubed_to_latlon(u, v, ua, va, gridstruct, &
@@ -1096,7 +1095,7 @@ contains
     real, dimension(is:ie):: r1, r2, dm
     integer i, j, k
 
-  call c2l_ord2(u, v, ua, va, gridstruct, npz, gridstruct%grid_type, bd, gridstruct%nested)
+    call c2l_ord2(u, v, ua, va, gridstruct, npz, gridstruct%grid_type, bd, gridstruct%nested)
     
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,gridstruct,aam,m_fac,ps,ptop,delp,agrav,ua) &
 !$OMP                          private(r1, r2, dm)

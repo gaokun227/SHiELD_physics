@@ -1,12 +1,18 @@
 module gfs_physics_driver_mod
 
 !-----------------------------------------------------------------------
-!    physics_driver_mod accesses the model's physics modules and
-!    obtains tendencies and boundary fluxes due to the physical
-!    processes that drive atmospheric time tendencies and supply 
-!    boundary forcing to the surface models.
+!    gfs_physics_driver_mod defines the GFS physics routines used by
+!    the GFDL FMS system to obtain tendencies and boundary fluxes due 
+!    to the physical parameterizations and processes that drive 
+!    atmospheric time tendencies for use by other components, namely
+!    the atmospheric dynamical core.
+!
+!    NOTE: This module currently supports only the operational GFS
+!          parameterizations as of September 2015.  Further development
+!          is needed to support the full suite of physical 
+!          parameterizations present in the GFS physics package.
 !-----------------------------------------------------------------------
-
+!
 !--- FMS/GFDL modules ---
   use block_control_mod,  only: block_control_type
   use diag_manager_mod,   only: register_diag_field, send_data, &
@@ -28,17 +34,18 @@ module gfs_physics_driver_mod
   use tracer_manager_mod, only: get_number_tracers
 
   use machine,            only: kind_phys
+!
 !--- NUOPC GFS Physics module routines ---
   use nuopc_physics,      only: nuopc_phys_init, nuopc_phys_run, &
                                 nuopc_rad_run, nuopc_rad_update
-
-
+!
 !--- NUOPC GFS Physics module datatypes ---
   use nuopc_physics,      only: state_fields_in, state_fields_out,      &
                                 model_parameters, dynamic_parameters,  &
                                 sfc_properties, cloud_properties,       &
                                 radiation_tendencies, interface_fields, &
                                 diagnostics, tbd_ddt
+!
 !--- GFS Physics share module ---
   use physcons,           only: pi => con_pi
   use physcons,           only: max_lon, max_lat
@@ -47,25 +54,25 @@ module gfs_physics_driver_mod
   use physparam,          only: ipsd0
   use mersenne_twister,   only: random_setseed, random_index, random_stat
   use ozne_def,           only: pl_pres, ozplin
+!
 !--- variables needed for calculating 'sncovr'
   use namelist_soilveg,   only: salp_data, snupx
-
-
+!
 !-----------------------------------------------------------------------
   implicit none
   private
-
+!
 !--- public interfaces ---
   public  phys_rad_driver_init, phys_rad_setup_step, radiation_driver, &
           physics_driver, phys_rad_driver_restart, phys_rad_driver_end
-
+!
+!--- public debug interfaces ---
   public skin_temp
-
+!
 !--- public NUOPC GFS datatypes and data typing ---
   public  state_fields_in, state_fields_out, kind_phys
-
-   
-!--- data needed for prognostic ozone interpolation
+!
+!--- data type definition needed for prognostic ozone interpolation
   type ozone_data
     private
     integer,              dimension(:), allocatable :: j1
@@ -73,11 +80,13 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), dimension(:), allocatable :: ddy
     real(kind=kind_phys), dimension(:), allocatable :: gaul
   end type ozone_data
-
+!
   type(ozone_data), dimension(:), allocatable :: O3dat
-
-
-!--- module private data ---
+!
+!-----------------------------------------------------------------------
+!--- MODULE PRIVATE DATA ---
+!-----------------------------------------------------------------------
+!
 !--- NUOPC data types
   type(model_parameters) :: Mdl_parms
   type(tbd_ddt),              dimension(:), allocatable :: Tbd_data
@@ -87,26 +96,27 @@ module gfs_physics_driver_mod
   type(cloud_properties),     dimension(:), allocatable :: Cld_props
   type(radiation_tendencies), dimension(:), allocatable :: Rad_tends
   type(interface_fields),     dimension(:), allocatable :: Intr_flds
-
-!--- netcdf restart
+!
+!--- GFDL FMS netcdf restart data types
   type(restart_file_type) :: Oro_restart
   type(restart_file_type) :: Sfc_restart
-
-!--- Restart containers
+!
+!--- GFDL FMS restart containers
   character(len=32),    allocatable,         dimension(:)       :: oro_name2, sfc_name2, sfc_name3
   real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: oro_var2, sfc_var2
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3
   real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: phy_f2d
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: phy_f3d
-
-!--- diagnostic field ids and var-names
+!
+!--- data type definition for use as a subtype within gfdl_diag_type
   type diag_data_type
     integer :: is
     integer :: js
     real(kind=kind_phys), dimension(:,:),   pointer :: var2 => NULL()
     real(kind=kind_phys), dimension(:,:),   pointer :: var21 => NULL()
   end type diag_data_type
-
+!
+!--- data type definition for use with GFDL FMS diagnostic manager
   type gfdl_diag_type
     private
     integer :: id
@@ -118,23 +128,23 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: cnvfac
     type(diag_data_type), dimension(:), allocatable  :: data
    end type gfdl_diag_type
-
+!
    integer :: tot_diag_idx = 0 
    integer, parameter :: DIAG_SIZE = 250
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag
    real(kind=kind_phys), parameter :: missing_value = 1.d30     ! netcdf missing value
-
+!
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
   integer :: lat_cs, lon_cs
-
-!--- NAMELIST/CONFIGURATION parameters
+!
+!--- GFS physics NAMELIST/CONFIGURATION parameters
 !--- convenience variables
     integer :: lonr, latr
     integer :: nsswr, nslwr   ! trigger aid for radiation
     integer :: nscyc          ! trigger aid for surface cycle
-
-!--- gfs initialization variables
+!
+!--- GFS initialization variables
     integer :: ipt = 1 
     integer :: latgfs = 1
     real(kind=kind_phys) :: xkzm_m = 1.0     ! SJL note: backbround momentum diffusion
@@ -150,8 +160,9 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: fhlwr = 3600.
     logical :: lprnt = .false.   ! control flag for diagnostic print out (rad)
     logical :: lssav = .true.    ! logical flag for store 3-d cloud field
-
-!--- namelist parameters ---
+!
+!--- GFS standard namelist parameters
+!--- for full functionality, would need to be included in the namelist definition
     integer :: NFXR     = 39
     integer :: ncld     = 1
     integer :: ntcw     = 2
@@ -160,22 +171,22 @@ module gfs_physics_driver_mod
     logical :: nocnv    = .false.
     integer :: levs     = 63
     integer :: levr     = 63
-    integer :: ncols    = 3538944 ! total number of 13km physics columns
-    integer :: me           ! set by call to mpp_pe
+    integer :: ncols    = 3538944         ! total number of 13km physics columns
+    integer :: me                         ! set by call to mpp_pe
     integer :: lsoil    = 4
-    integer :: lsm      = 1      ! NOAH LSM
+    integer :: lsm      = 1               ! NOAH LSM
     integer :: nmtvr    = 14
-    integer :: nrcm     = 2    ! when using ras, will be computed
-    integer :: levozp   = 80  ! read from global_o3prdlos.f77
-    integer :: jcap     = 1    ! should not matter it is used by spherical 
-    integer :: num_p3d  = 4  ! Ferrier:3  Zhao:4 
-    integer :: num_p2d  = 3  ! Ferrier:1  Zhao:3
-    integer :: npdf3d   = 0   ! Zhao & pdfcld=.T.:3  -  else:0
+    integer :: nrcm     = 2               ! when using ras, will be computed
+    integer :: levozp   = 80              ! read from global_o3prdlos.f77
+    integer :: jcap     = 1               ! should not matter it is used by spherical 
+    integer :: num_p3d  = 4               ! Ferrier:3  Zhao:4 
+    integer :: num_p2d  = 3               ! Ferrier:1  Zhao:3
+    integer :: npdf3d   = 0               ! Zhao & pdfcld=.T.:3  -  else:0
     integer :: pl_coeff = 4
     integer :: ncw(2)   = (/20,120/)
     real (kind=kind_phys) :: flgmin(2) = (/0.180,0.220/)
     real (kind=kind_phys) :: crtrh(3) = (/0.90,0.90,0.90/)
-    real (kind=kind_phys) :: cdmbgwd(2) = (/2.0,0.25/)  ! RAB adjust for sens
+    real (kind=kind_phys) :: cdmbgwd(2) = (/2.0,0.25/)  ! GWD - adjust for sens
     real (kind=kind_phys) :: ccwf(2) = (/1.0,1.0/)
     real (kind=kind_phys) :: dlqf(2) = (/0.0,0.0/)
     real (kind=kind_phys) :: ctei_rm(2) = (/10.0,10.0/)
@@ -198,9 +209,9 @@ module gfs_physics_driver_mod
     logical :: mstrat       = .false.
     logical :: trans_trac   = .true.
     integer :: nst_fcst     = 0
-    logical :: moist_adj    = .false.  ! Must be true to turn on moist convective
-    integer :: thermodyn_id = 1     ! idvm/10
-    integer :: sfcpress_id  = 2     ! idvm-(idvm/10)*10
+    logical :: moist_adj    = .false.     ! must be true to turn on moist convective
+    integer :: thermodyn_id = 1           ! idvm/10
+    integer :: sfcpress_id  = 2           ! idvm-(idvm/10)*10
     logical :: gen_coord_hybrid = .false. ! in scrpt, could be T or F
     logical :: lsidea       = .false.  
     logical :: pdfcld       = .false.
@@ -216,7 +227,8 @@ module gfs_physics_driver_mod
     integer :: ntot3d     = 4
     integer :: ntot2d     = 3
     logical :: shoc_cld   = .false.
-! Radiation option control parameters
+!
+!--- Radiation option control parameters
     integer :: ictm     = 1 
     integer :: isol     = 2
     integer :: ico2     = 2 
@@ -229,28 +241,32 @@ module gfs_physics_driver_mod
     integer :: isubc_lw = 2
     logical :: crick_proof  = .false.
     logical :: ccnorm       = .false.
-    logical :: norad_precip = .false.  ! This is effective only for Ferrier/Moorthi
-
-! rad_save
-    integer :: iflip = 1         ! surface to toa
-
-! interface props
+    logical :: norad_precip = .false.     ! This is effective only for Ferrier/Moorthi
+!
+!--- rad_save
+    integer :: iflip = 1                  ! surface to toa
+!
+!--- interface props
     logical :: SW0 = .false.
     logical :: SWB = .false.
     logical :: LW0 = .false.
     logical :: LWB = .false.
-
+!
+!--- standard debug flag 
     logical :: debug = .false.
-
+!
+!--- controls for GFS diagnostic output
     real(kind=kind_phys), dimension(480) :: fdiag
     real(kind=kind_phys) :: fhzero = 6.
-
-! surface data cycling parameters
+!
+!--- control for surface data cycling
     real(kind=kind_phys) :: fhcyc = 0.
+!
+!---
     logical :: use_ufo = .true.
     logical :: nst_anl = .false.
-
-!--- namelist ---
+!
+!--- namelist definition ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols
@@ -264,12 +280,14 @@ module gfs_physics_driver_mod
 !
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-!---------------------------------------------------------------------
+!-------------------------------------------------------------------------      
 !--- phys_rad_driver_init ---
+!-------------------------------------------------------------------------      
 !    constructor for gfs_physics_driver_mod
-!---------------------------------------------------------------------
+!-------------------------------------------------------------------------      
   subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz, axes, area,  &
                                    dt_phys, Atm_block, State_in, State_out, fv_domain)
+!--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time, Time_init
     type (block_control_type), intent(in) :: Atm_block
     !--  set "one"-based arrays to domain-based
@@ -313,34 +331,34 @@ module gfs_physics_driver_mod
               0.109375,      9.375000E-002, 7.812500E-002, &
               6.250000E-002, 4.687500E-002, 3.125000E-002, &
               1.562500E-002  / 
-
-!--- if routine has already been executed, return ---
+!
+!--- if routine has already been executed, return
     if (module_is_initialized) return
-
-!--- verify that the modules used by this module that are called ---
-!--- later in this subroutine have already been initialized ---
+!
+!--- verify that the GFDL FMS  modules used by this module which
+!--- are called later in this subroutine have already been initialized
     call fms_init
-
+!
+!--- set up various time/date related control variables
     call get_time(Time - Time_init, sec)
     fhour = real(sec)/3600.
     kdt = fhour/dt_phys
     nnp = kdt
-
     jdate = 0 
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
                          jdate(5), jdate(6), jdate(7))
-
     call get_date (Time_init, idate(4), idate(2), idate(3), idate(1), id1, id2)
-
+!
 !--- set the local variable for "lat" & "lon" per tile
     lat_cs = glat
     lon_cs = glon
-!--- set the GFS variable for "lat" & "lon" for the whole system
+!--- set the GFS variable for "lat" & "lon" for the global system
     latr = 2*lat_cs
     lonr = 4*lon_cs
+!
 !--- initialize fdiags to zero
     fdiag = 0.
-
+!
 !--- read namelist  ---
 #ifdef INTERNAL_FILE_NML
     read (input_nml_file, nml=gfs_physics_nml, iostat=io)
@@ -355,56 +373,58 @@ module gfs_physics_driver_mod
  10   call close_file (unit)
     endif
 #endif
-
+!
 !--- check fdiag to see if it is an interval or a list
     if (nint(fdiag(2)) == 0) then
       do i = 2, size(fdiag,1)
         fdiag(i) = fdiag(i-1) + fdiag(1) 
       enddo
     endif
-
+!
 !--- check to see if prognostic ozone calculation active
     if (ozcalc) then
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is being calculated'
     else
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'OZONE is NOT being calculated'
     endif
-
-!--- check to see if prognostic ozone calculation active
+!
+!--- check to see if deep convection parameterization active
     if (nocnv) then
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'DEEP CONVECTION is NOT being parameterized'
     else
       if (mpp_pe() == mpp_root_pe() ) write(6,*) 'DEEP CONVECTION is being parameterized'
     endif
-
+!
 !--- write version number and namelist to log file ---
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
     logunit = stdlog()
     if (mpp_pe() == mpp_root_pe() ) write(logunit, nml=gfs_physics_nml)
-
-!--- set some configurational parameters that are derived from others
+!
+!--- set some configurational switches/parameters that are derived from inputs
     nsswr = nint(fhswr/dt_phys)
     nslwr = nint(fhlwr/dt_phys)
     nscyc = nint(fhcyc*3600./dt_phys)
     sas_shal = (sashal .and. (.not. ras))
-
+!
 !--- read in ozone datasets for prognostic ozone interpolation
 !--- sets values for levozp, pl_coeff, pl_pres(=>Tbd_data%poz), ozplin
     call read_o3data (levozp, pl_coeff)
-
-!--- define the model dimensions on the local processor ---
+!
+!--- get atmospheric tracer information
     call get_number_tracers (MODEL_ATMOS, num_tracers=ntrac, num_prog=ntp)
-
-!--- initialize physics ---
+!
+!--- find an open unit number for use by the nuopc physics initialization
     unit = open_namelist_file ()
-
+!
+!--- define MPI-rank number
     me = mpp_pe()
-!---these have been replaced by the original NCEP/EMC definitions
-!rab    dxmaxin = log(indxmax)
-!rab    dxminin = log(indxmin)
+!
+!--- grid related values have been defined consistent with original NCEP/EMC definitions
     dxmin = log(1.0_kind_phys/(min_lon*min_lat))
     dxmax = log(1.0_kind_phys/(max_lon*max_lat))
     dxinv = 1.0_kind_phys/(dxmax-dxmin)
+!
+!--- initialize the physics/radiation using the nuopc interface
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
                           lonr, latr, jcap, num_p3d, num_p2d, npdf3d, pl_coeff, ncw, crtrh, cdmbgwd,  &
                           ccwf, dlqf, ctei_rm, cgwf, prslrd0, ras, pre_rad, ldiag3d, lgocart,  &
@@ -418,9 +438,11 @@ module gfs_physics_driver_mod
                           si, ictm, isol, ico2, iaer, ialb, iems,                    &
                           iovr_sw,iovr_lw,isubc_sw,isubc_lw,shoc_cld,   &
                           sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,dt_phys,unit)
+!
+!--- return file unit to the general pool
     call close_file (unit)
-
-!--- allocate and call the different storage items needed by GFS physics/radiation ---
+!
+!--- allocate the block storage containers needed by GFS physics/radiation
     allocate (  Tbd_data(Atm_block%nblks) )
     allocate ( Dyn_parms(Atm_block%nblks) )
     allocate ( Gfs_diags(Atm_block%nblks) )
@@ -429,22 +451,15 @@ module gfs_physics_driver_mod
     allocate ( Rad_tends(Atm_block%nblks) )
     allocate ( Intr_flds(Atm_block%nblks) )
     if (ozcalc) allocate ( O3dat(Atm_block%nblks) )
-!rab this openmp loop seems to have malloc/free issues which I will deal with later
-!rab!$OMP PARALLEL DO default(none) & 
-!rab!$OMP            schedule(dynamic,1) &
-!rab!$OMP              shared(Atm_block,ozcalc,O3dat,Tbd_data,Mdl_parms,xkzm_m,xkzm_h,xkzm_s, &
-!rab!$OMP                     evpco,psautco,prautco,wminco,pl_pres,Dyn_parms,kdt,jdate,solhr, &
-!rab!$OMP                     fhlwr,fhswr,lssav,ipt,lprnt,dt_phys,latgfs,clstp,nnp,fhour,     &
-!rab!$OMP                     Gfs_diags,NFXR,Sfc_props,Cld_props,sup,Rad_tends,Intr_flds,SW0, & 
-!rab!$OMP                     SWB,LW0,LWB,State_out,State_in,area,lat,lon) &
-!rab!$OMP             private(nb,ibs,ibe,jbs,jbe,ngptc,ix,j,i)
+!
+!--- allocate/initialize the various nuopc physics containers per block (including ozone container)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
       jbs = Atm_block%jbs(nb)
       jbe = Atm_block%jbe(nb)
       ngptc = (ibe - ibs + 1) * (jbe - jbs + 1) 
-
+!
 !--- allocate elements of O3dat for prognostic ozone
       if (ozcalc) Then
         allocate ( O3dat(nb)%j1  (ngptc) )
@@ -474,18 +489,13 @@ module gfs_physics_driver_mod
       call State_in(nb)%setrad   (ngptc, Mdl_parms)
 
       !  populate static values that are grid dependent
-      ix = 0 
       do j=jbs,jbe
        do i=ibs,ibe
-        ix = ix + 1
+        ix = Atm_block%ix(nb)%ix(i,j)
+!--- define various grid parameters
         Dyn_parms(nb)%area(ix) = area(i,j)
-!--- SJL -----------------------------------------------
-!!!     Dyn_parms(nb)%dx(ix)   = 0.5*(dx(i,j)+dx(i,j+1))
-!!!     Dyn_parms(nb)%dy(ix)   = 0.5*(dy(i,j)+dy(i+1,j))
-! The above may create directional bias
         Dyn_parms(nb)%dx(ix)   = sqrt(area(i,j))
         Dyn_parms(nb)%dy(ix)   = Dyn_parms(nb)%dx(ix)
-!----------
         Dyn_parms(nb)%xlat(ix) = lat(i,j)
         Dyn_parms(nb)%xlon(ix) = lon(i,j)
         Dyn_parms(nb)%sinlat(ix) = sin(lat(i,j))
@@ -495,23 +505,24 @@ module gfs_physics_driver_mod
        enddo
       enddo
     enddo
-
+!
 !--- set up interpolation indices and weights for prognostic ozone interpolation
     if (ozcalc) then
       do nb = 1, Atm_block%nblks
         call setindxoz (ngptc, ngptc, O3dat(nb)%gaul, O3dat(nb)%j1, O3dat(nb)%j2, O3dat(nb)%ddy)
       enddo
     endif
-
-!--- read in surface data from chgres ---
+!
+!--- read in surface data from chgres 
     call surface_props_input (Atm_block, fv_domain)
-
-!--- initialize diagnostics ---
+!
+!--- initialize register diagnostics with GFDL FMS diagnostic manager
     call gfs_diag_register(Time, Atm_block, axes, NFXR)
-
+!
 !--- mark the module as initialized ---
       module_is_initialized = .true.
-
+!
+!--- output various GFS physics parameters
       if (me==0) then
          print *, "in DRIVER AFTER setup"
          print *, "ntcw             : ", Mdl_parms%ntcw
@@ -600,17 +611,26 @@ module gfs_physics_driver_mod
        end if ! parameter output
 
   end subroutine phys_rad_driver_init
-!-----------------------------------------------------------------------
-
+!-------------------------------------------------------------------------      
 
 
 !-------------------------------------------------------------------------      
 !--- phys_rad_setup_step ---
 !-------------------------------------------------------------------------      
+!    routine called prior to radiation and physics steps to handle the
+!    the gloopr/gloopb logic not encapsulated in the GFS NUOPC interface
+!      1) sets up various time/date variables
+!      2) sets up various triggers
+!      3) defines random seed indices for radiation (in a reproducible way)
+!      4) populate Dyn_parms container with random seed indices
+!      5) interpolates coefficients for prognostic ozone calculation
+!      6) performs surface data cycling via the GFS gcycle routine
+!-------------------------------------------------------------------------      
   subroutine phys_rad_setup_step (Time_init, Time_prev, Time, Atm_block)
+!--- subroutine interface variable definitions
     type(time_type),            intent(in) :: Time_init, Time_prev, Time
     type (block_control_type),  intent(in) :: Atm_block
-!   local variables
+!--- local variables
     integer,              parameter :: ipsdlim = 1.0e8      ! upper limit for random seeds
     real(kind=kind_phys), parameter :: cons_24 = 24.0_kind_phys
     integer :: i, j, k, nb, ix
@@ -621,8 +641,8 @@ module gfs_physics_driver_mod
     type (random_stat) :: stat
     real(kind=kind_phys) :: phour, fhour
     real(kind=kind_phys) :: work1, work2
-
-!--- set the date
+!
+!--- update various date/time variables
     call get_date (Time_prev, fms_date(1), fms_date(2), fms_date(3),  &
                          fms_date(5), fms_date(6), fms_date(7))
 
@@ -639,7 +659,7 @@ module gfs_physics_driver_mod
       print *,' phour ', phour
       print *,' solhr ', mod(phour+Mdl_parms%idate(1),cons_24)
     endif
-
+!
 !--- set up random seed index for the whole tile in a reproducible way
     if (lsswr .or. lslwr) then
       if (isubc_lw==2 .or. isubc_sw==2) then
@@ -687,7 +707,7 @@ module gfs_physics_driver_mod
         Dyn_parms(nb)%clstp = 0100                           !accumulate
       endif
 ! **************  Ken Campana Stuff  ********************************
-
+!
 !--- set the random seeds for each column
       if (lsswr .or. lslwr) then
         ix = 0 
@@ -710,7 +730,7 @@ module gfs_physics_driver_mod
           enddo
         enddo
       endif
-
+!
 !--- interpolate coefficients for prognostic ozone calculation
       if (ozcalc) then
         call ozinterpol(Mdl_parms%me, ngptc, ngptc, Mdl_parms%idate, fhour, &
@@ -718,8 +738,8 @@ module gfs_physics_driver_mod
                         O3dat(nb)%ddy)
       endif
     enddo
-
-!--- repopulate specific time-varying sfc properties for AMIP runs
+!
+!--- repopulate specific time-varying sfc properties for AMIP/forecast runs
     if (nscyc >  0) then
       if (mod(Dyn_parms(1)%kdt,nscyc) == 1) THEN
         ngptc = (Atm_block%iec-Atm_block%isc+1)*(Atm_block%jec-Atm_block%jsc+1)
@@ -728,8 +748,8 @@ module gfs_physics_driver_mod
                     Cld_props, Tbd_data, ialb, use_ufo, nst_anl)
       endif
     endif
-
-
+!
+!--- debug statements
     if (debug) then
       if (mpp_pe() == mpp_root_pe()) then
         write(6,100) 'timestep ',Dyn_parms(1)%kdt,  ', fhour ',fhour, &
@@ -741,10 +761,19 @@ module gfs_physics_driver_mod
  100 format (a,i5.5,a,f10.4,a,L1,a,L1)
 
   end subroutine phys_rad_setup_step
+!-------------------------------------------------------------------------      
 
+
+!-------------------------------------------------------------------------      
+!--- skin temp ---
+!-------------------------------------------------------------------------      
+!    debug routine to output various skin temperature properties
+!-------------------------------------------------------------------------      
   subroutine skin_temp(tmin, tmax, timax, timin, nblks)
+!--- subroutine interface variable definitions
     real(kind=kind_phys), intent(inout) :: tmin, tmax, timin, timax
     integer, intent(in) :: nblks
+!--- local variables
     integer :: nb
     real(kind=kind_phys) :: tminl, tmaxl, timinl, timaxl
 
@@ -772,14 +801,20 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- radiation_driver ---
 !-------------------------------------------------------------------------      
+!    calls nuopc_rad_update
+!    calls nuopc_rad_run
+!-------------------------------------------------------------------------      
   subroutine radiation_driver (Atm_block, Statein)
+!--- subroutine interface variable definitions
     type (block_control_type),               intent(in) :: Atm_block
     type(state_fields_in),     dimension(:), intent(in) :: Statein
-!   local variables
+!--- local variables
     integer :: nb
 
+!
+!--- test to determine if a radiation step
     if (Dyn_parms(1)%lsswr .or. Dyn_parms(1)%lslwr) then
-
+!
 !--- call the nuopc radiation routine for time-varying data ---
       do nb = 1, Atm_block%nblks
         if ((Mdl_parms%me == 0) .and. (nb /= 1)) then
@@ -788,7 +823,7 @@ module gfs_physics_driver_mod
         call nuopc_rad_update (Mdl_parms, Dyn_parms(nb))
       enddo
       if (mpp_pe() == mpp_root_pe()) Mdl_parms%me = mpp_pe()
-
+!
 !--- call the nuopc radiation loop---
 !$OMP parallel do default (none) &
 !$OMP          schedule (dynamic,1) & 
@@ -806,7 +841,8 @@ module gfs_physics_driver_mod
       enddo
     endif
     if (mpp_pe() == mpp_root_pe()) Mdl_parms%me = mpp_pe()
-
+!
+!--- debut statements
     if (debug) then
       if (Mdl_parms%me == 0 ) write(6,*) '  after radiation '
       call checksum (Atm_block, Statein)
@@ -819,17 +855,21 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- physics_driver ---
 !-------------------------------------------------------------------------      
+!    calls nuopc_phys_run
+!-------------------------------------------------------------------------      
   subroutine physics_driver (Time_diag, Time_init, Atm_block, Statein, Stateout)
+!--- subroutine interface variable definitions
     type(time_type),                         intent(in)    :: Time_diag, Time_init
     type (block_control_type),               intent(in)    :: Atm_block
     type(state_fields_in),     dimension(:), intent(in)    :: Statein
     type(state_fields_out),    dimension(:), intent(inout) :: Stateout
-!   local variables
+!--- local variables
     integer :: nb, nx, ny
     real(kind=kind_phys) :: fhour
     integer :: yr, mo, dy, hr, min, sc
 
     fhour = Dyn_parms(1)%fhour
+!
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
 !$OMP          schedule (dynamic,1) & 
@@ -852,7 +892,7 @@ module gfs_physics_driver_mod
                            Dyn_parms(nb))
 
       if (mpp_pe() == mpp_root_pe()) Mdl_parms%me = mpp_pe()
-
+!
 !--- check the diagnostics output trigger
       if (ANY(fdiag == fhour)) then
         if (mpp_pe() == mpp_root_pe().and.nb==1) write(6,*) 'DIAG STEP', fhour
@@ -863,13 +903,13 @@ module gfs_physics_driver_mod
                               Mdl_parms%ntcw, Mdl_parms%ntoz, Dyn_parms(nb)%dtp)
       endif
     enddo
-
+!
 !----- Indicate to diag_manager to write diagnostics to file (if needed)
 !----- This is needed for a threaded run.
     if (ANY(fdiag == fhour)) then
       call diag_send_complete_extra(Time_diag)
     endif
-
+!
 !--- reset the time averaged quantities to zero (actually all quantities)
     if (mod(fhour,fhzero) == 0) then
 !$OMP parallel do default (none) &
@@ -880,7 +920,8 @@ module gfs_physics_driver_mod
         call Gfs_diags(nb)%setphys ()
       enddo
     endif
-
+!
+!--- debug statements
     if (debug) then
       if (Mdl_parms%me == 0 ) write(6,*) '  after physics '
       call checksum (Atm_block, Statein)
@@ -892,7 +933,10 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- phys_rad_driver_restart---
 !-------------------------------------------------------------------------      
+!    calls surface_props_output with a timestamp for intermediate restarts
+!-------------------------------------------------------------------------      
   subroutine phys_rad_driver_restart (Atm_block, fv_domain, timestamp)
+!--- subroutine interface variable definitions
     type (block_control_type),   intent(in) :: Atm_block
     type (domain2d),             intent(in) :: fv_domain
     character(len=32), optional, intent(in) :: timestamp
@@ -906,12 +950,16 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- phys_rad_driver_end---
 !-------------------------------------------------------------------------      
+!    calls surface_props_output w/o a timestamp for end-of-run restarts
+!-------------------------------------------------------------------------      
   subroutine phys_rad_driver_end (Atm_block, fv_domain)
+!--- subroutine interface variable definitions
     type (block_control_type),   intent(in) :: Atm_block
     type (domain2d),             intent(in) :: fv_domain
 
     call surface_props_output (Atm_block, fv_domain)
   end subroutine phys_rad_driver_end
+!-------------------------------------------------------------------------      
 
 
 
@@ -924,7 +972,18 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- surface_props_input ---
 !-------------------------------------------------------------------------      
+!    creates and populates a data type which is then used to "register"
+!    restart variables with the GFDL FMS restart subsystem.
+!    calls a GFDL FMS routine to restore the data from a restart file.
+!    calculates sncovr if it is not present in the restart file.
+!
+!    calls:  register_restart_field, restart_state, free_restart
+!   
+!    opens:  oro_data.tile?.nc, sfc_data.tile?.nc
+!   
+!-------------------------------------------------------------------------      
   subroutine surface_props_input (Atm_block, fv_domain, GSM)
+!--- subroutine interface variable definitions
     type (block_control_type), intent(in) :: Atm_block
     type (domain2d),           intent(in) :: fv_domain
     logical, intent(in), optional :: GSM
@@ -954,7 +1013,7 @@ module gfs_physics_driver_mod
     npz = Atm_block%npz
     nx = (iec - isc + 1)
     ny = (jec - jsc + 1)
-
+!
 !--- OROGRAPHY FILE
     if (.not. allocated(oro_name2)) then
 !--- allocate the various containers needed for orography data
@@ -979,7 +1038,7 @@ module gfs_physics_driver_mod
       oro_name2(15) = 'elvmax'     ! hprime2(ix,14)
       oro_name2(16) = 'orog_filt'  ! oro
       oro_name2(17) = 'orog_raw'   ! oro_uf
-
+!
 !--- register the 2D fields
       do num = 1,nvar_o2
         var2_p => oro_var2(:,:,num)
@@ -987,10 +1046,11 @@ module gfs_physics_driver_mod
       enddo
       nullify(var2_p)
     endif
-
-!--- read and free the restarts/data
+!
+!--- read the orography restart/data
     call restore_state(Oro_restart)
-
+!
+!--- copy data into GFS NUOPC containers
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -1026,11 +1086,11 @@ module gfs_physics_driver_mod
         enddo
       enddo
     enddo
-
+!
 !--- deallocate containers and free restart container
     deallocate(oro_name2, oro_var2)
     call free_restart_type(Oro_restart)
-
+!
 !--- SURFACE FILE
     if (.not. allocated(sfc_name2)) then
 !--- allocate the various containers needed for restarts
@@ -1040,7 +1100,7 @@ module gfs_physics_driver_mod
       allocate(sfc_var3(nx,ny,Mdl_parms%lsoil,nvar_s3))
       sfc_var2 = -9999._kind_phys
       sfc_var3 = -9999._kind_phys
-
+!
 !--- names of the 2D variables to save
       sfc_name2(1)  = 'slmsk'
       sfc_name2(2)  = 'tsea'    !tsfc
@@ -1074,7 +1134,7 @@ module gfs_physics_driver_mod
       sfc_name2(30) = 'slope'
       sfc_name2(31) = 'snoalb'
       sfc_name2(32) = 'sncovr'
-
+!
 !--- register the 2D fields
       do num = 1,nvar_s2
         var2_p => sfc_var2(:,:,num)
@@ -1085,12 +1145,12 @@ module gfs_physics_driver_mod
         endif
       enddo
       nullify(var2_p)
-
+!
 !--- names of the 2D variables to save
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
       sfc_name3(3) = 'slc'
-
+!
 !--- register the 3D fields
       do num = 1,nvar_s3
         var3_p => sfc_var3(:,:,:,num)
@@ -1098,7 +1158,8 @@ module gfs_physics_driver_mod
       enddo
       nullify(var3_p)
     endif
-
+!
+!--- register the phy_f*d variables
     if (.not. allocated(phy_f2d)) then
       allocate(phy_f2d(nx,ny,Mdl_parms%num_p2d))
       allocate(phy_f3d(nx,ny,npz,Mdl_parms%num_p3d+Mdl_parms%npdf3d))
@@ -1112,10 +1173,11 @@ module gfs_physics_driver_mod
       enddo
       nullify(var3_p)
     endif
-
-!--- read and free the restarts/data
+!
+!--- read the surface restart/data
     call restore_state(Sfc_restart)
-   
+!
+!--- place the data into the block GFS containers
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -1193,6 +1255,7 @@ module gfs_physics_driver_mod
           Sfc_props(nb)%sncovr(ix) = sfc_var2(i,j,32)
         enddo
       enddo
+!
 !--- 3D variables
       do lsoil = 1,Mdl_parms%lsoil
         do jj=jbs,jbe
@@ -1209,7 +1272,7 @@ module gfs_physics_driver_mod
           enddo
         enddo
       enddo
-
+!
 !--- phy_f*d variables
       do num = 1,size(phy_f2d,3)
         do jj=jbs,jbe
@@ -1234,7 +1297,7 @@ module gfs_physics_driver_mod
         enddo
       enddo
     enddo
-
+!
 !--- if sncovr does not exist in the restart, need to create it
     if (nint(sfc_var2(1,1,32)) == -9999) then
       if (Mdl_parms%me == 0 ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr') 
@@ -1263,17 +1326,28 @@ module gfs_physics_driver_mod
       enddo
     endif
 
-
   end subroutine surface_props_input
+!-------------------------------------------------------------------------      
 
 
 !-------------------------------------------------------------------------      
 !--- gfs_diag_register ---
+!-------------------------------------------------------------------------      
+!    creates and populates a data type which is then used to "register"
+!    GFS physics diagnostic variables with the GFDL FMS diagnostic manager.
+!    includes short & long names, units, conversion factors, etc.
+!    there is no copying of data, but instead a clever use of pointers.
+!    calls a GFDL FMS routine to register diagnositcs and compare against
+!    the diag_table to determine what variables are to be output.
+!
+!    calls:  register_diag_field
+!-------------------------------------------------------------------------      
 !    Current sizes
 !    13+NFXR - radiation
 !    76+pl_coeff - physics
 !-------------------------------------------------------------------------      
   subroutine gfs_diag_register(Time, Atm_block, axes, NFXR)
+!--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
     type (block_control_type), intent(in) :: Atm_block
     integer, dimension(4),     intent(in) :: axes
@@ -2945,8 +3019,14 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !--- gfs_diag_output ---
 !-------------------------------------------------------------------------      
+!    routine to transfer the diagnostic data to the GFDL FMS diagnostic 
+!    manager for eventual output to the history files.
+!
+!    calls:  send_data
+!-------------------------------------------------------------------------      
   subroutine gfs_diag_output(Time, Gfs_diags, Statein, Stateout, Atm_block, &
                              nb, nx, ny, levs, ntcw, ntoz, dt)
+!--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
     type(diagnostics),         intent(in) :: Gfs_diags
     type(state_fields_in),     intent(in) :: Statein
@@ -3099,7 +3179,18 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 
 
+!-------------------------------------------------------------------------      
+!--- surface_props_output ---
+!-------------------------------------------------------------------------      
+!    routine to write out GFS physics restarts via the GFDL FMS restart
+!    subsystem.
+!    takes an optional argument to append timestamps for intermediate 
+!    restarts.
+!
+!    calls:  register_restart_field, save_restart
+!-------------------------------------------------------------------------      
   subroutine surface_props_output (Atm_block, fv_domain, timestamp)
+!--- subroutine interface variable definitions
     type (block_control_type),   intent(in) :: Atm_block
     type (domain2d),             intent(in) :: fv_domain
     character(len=32), optional, intent(in) :: timestamp
@@ -3164,19 +3255,19 @@ module gfs_physics_driver_mod
       sfc_name2(30) = 'slope'
       sfc_name2(31) = 'snoalb'
       sfc_name2(32) = 'sncovr'
-
+!
 !--- register the 2D fields
       do num = 1,nvar2
         var2_p => sfc_var2(:,:,num)
         id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
       enddo
       nullify(var2_p)
-
+!
 !--- names of the 2D variables to save
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
       sfc_name3(3) = 'slc'
-
+!
 !--- register the 3D fields
       do num = 1,nvar3
         var3_p => sfc_var3(:,:,:,num)
@@ -3273,6 +3364,7 @@ module gfs_physics_driver_mod
           sfc_var2(i,j,32) = Sfc_props(nb)%sncovr(ix)
         enddo
       enddo
+!
 !--- 3D variables
       do lsoil = 1,Mdl_parms%lsoil
         do jj=jbs,jbe
@@ -3289,7 +3381,7 @@ module gfs_physics_driver_mod
           enddo
         enddo
       enddo
-
+!
 !--- phy_f*d variables
       do num = 1,size(phy_f2d,3)
         do jj=jbs,jbe
@@ -3318,10 +3410,22 @@ module gfs_physics_driver_mod
     call save_restart(Sfc_restart, timestamp)
 
   end subroutine surface_props_output
+!-------------------------------------------------------------------------      
 
+
+!-------------------------------------------------------------------------      
+!--- checksum ---
+!-------------------------------------------------------------------------      
+!    routine to checksum GFS physics variables for across MPI-ranks for
+!    debugging purposes.
+!
+!    calls:  mpp_chksum
+!-------------------------------------------------------------------------      
   subroutine checksum(Atm_block, Statein)
+!--- subroutine interface variable definitions
    type (block_control_type),   intent(in) :: Atm_block
    type(state_fields_in), dimension(:), intent(in),optional :: Statein
+!--- local variables
    integer :: outunit, j, i, ix, jbs, jbe, ibs, ibe, nb
    real :: temp2d(Atm_block%isc:Atm_block%iec,Atm_block%jsc:Atm_block%jec,83)
    real :: temp3d(Atm_block%isc:Atm_block%iec,Atm_block%jsc:Atm_block%jec,Atm_block%npz,23)
@@ -3473,5 +3577,6 @@ module gfs_physics_driver_mod
    enddo
 100 format("CHECKSUM::",A32," = ",Z20)
    end subroutine checksum
+!-------------------------------------------------------------------------      
 
 end module gfs_physics_driver_mod

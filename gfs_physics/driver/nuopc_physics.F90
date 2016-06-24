@@ -919,8 +919,8 @@
          endif
 
 ! NEW
-         allocate (this%fscav(IX))
-         allocate (this%fswtr(IX))
+         allocate (this%fscav(Model%ntrac-Model%ncld+2))
+         allocate (this%fswtr(Model%ntrac-Model%ncld+2))
          allocate (this%phy_fctd(IX,Model%nctp))
          this%fscav    = clear_val
          this%fswtr    = clear_val
@@ -1250,6 +1250,10 @@
            class is (diagnostics)
 
              if (this%first_rad) then
+               if (.NOT.present(IX) .or. .NOT.present(NFXR)) then
+                 write(6,*) "first call to diagnostics_setrad requires optional arguments IX and NFXR"
+                 stop
+               endif
                this%NFXR = NFXR
                allocate(this%fluxr  (IX,NFXR))
                allocate(this%topfsw (IX))

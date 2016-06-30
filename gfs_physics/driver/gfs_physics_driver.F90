@@ -3081,7 +3081,8 @@ module gfs_physics_driver_mod
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time,    &
                               is_in=Diag(idx)%data(nb)%is, &
-                              js_in=Diag(idx)%data(nb)%js) 
+                              js_in=Diag(idx)%data(nb)%js, &
+                              ks_in=1) 
              endif
            enddo
            !--- dq3dt variables
@@ -3091,7 +3092,8 @@ module gfs_physics_driver_mod
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dq3dt(1:ngptc,levs:1-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time,    &
                               is_in=Diag(idx)%data(nb)%is, &
-                              js_in=Diag(idx)%data(nb)%js) 
+                              js_in=Diag(idx)%data(nb)%js, &
+                              ks_in=1) 
              endif
            enddo
            !--- du3dt and dv3dt variables
@@ -3101,20 +3103,23 @@ module gfs_physics_driver_mod
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%du3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time,    &
                               is_in=Diag(idx)%data(nb)%is, &
-                              js_in=Diag(idx)%data(nb)%js) 
+                              js_in=Diag(idx)%data(nb)%js, &
+                              ks_in=1) 
              endif
              if (trim(Diag(idx)%name) == 'dv3dt_'//trim(xtra)) then
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dv3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time,    &
                               is_in=Diag(idx)%data(nb)%is, &
-                              js_in=Diag(idx)%data(nb)%js) 
+                              js_in=Diag(idx)%data(nb)%js, &
+                              ks_in=1) 
              endif
            enddo
            if (trim(Diag(idx)%name) == 'dqdt_v') then
              var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diags%dqdt_v(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                              ks_in=1) 
            endif
            !--- temperature tendency
            if (trim(Diag(idx)%name) == 'dtemp_dt') then
@@ -3123,7 +3128,8 @@ module gfs_physics_driver_mod
                                         - var3(1:nx,1:ny,1:levs))/dt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                            ks_in=1) 
            endif
            !--- horizontal wind component tendency
            if (trim(Diag(idx)%name) == 'du_dt') then
@@ -3132,7 +3138,8 @@ module gfs_physics_driver_mod
                                         - var3(1:nx,1:ny,1:levs))/dt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                            ks_in=1) 
            endif
            !--- meridional wind component tendency
            if (trim(Diag(idx)%name) == 'dv_dt') then
@@ -3141,7 +3148,8 @@ module gfs_physics_driver_mod
                                         - var3(1:nx,1:ny,1:levs))/dt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                            ks_in=1) 
            endif
            !--- specific humidity tendency
            if (trim(Diag(idx)%name) == 'dsphum_dt') then
@@ -3150,7 +3158,8 @@ module gfs_physics_driver_mod
                                         - var3(1:nx,1:ny,1:levs))/dt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                            ks_in=1) 
            endif
            !--- cloud water mixing ration tendency
            if (trim(Diag(idx)%name) == 'dclwmr_dt') then
@@ -3159,7 +3168,8 @@ module gfs_physics_driver_mod
                                         - var3(1:nx,1:ny,1:levs))/dt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                            ks_in=1) 
            endif
            !--- ozone mixing ration tendency
            if (trim(Diag(idx)%name) == 'do3mr_dt') then
@@ -3168,7 +3178,8 @@ module gfs_physics_driver_mod
                                         - var3(1:nx,1:ny,1:levs))/dt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
-                            js_in=Diag(idx)%data(nb)%js) 
+                            js_in=Diag(idx)%data(nb)%js, &
+                            ks_in=1) 
            endif
          endif
        endif

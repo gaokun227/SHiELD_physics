@@ -717,6 +717,10 @@ contains
 
          xt = 0.5*(((2.*dxa(0,j)+dxa(-1,j))*q1(0)-dxa(0,j)*q1(-1))/(dxa(-1,j)+dxa(0,j)) &
             +      ((2.*dxa(1,j)+dxa( 2,j))*q1(1)-dxa(1,j)*q1( 2))/(dxa(1, j)+dxa(2,j)))
+!        if ( iord==-8 .or. iord==-10 ) then
+            xt = max(xt, min(q1(-1),q1(0),q1(1),q1(2)))
+            xt = min(xt, max(q1(-1),q1(0),q1(1),q1(2)))
+!        endif
          br(0) = xt - q1(0)
          bl(1) = xt - q1(1)
          xt = s15*q1(1) + s11*q1(2) - s14*dm(2)
@@ -735,6 +739,10 @@ contains
 
          xt = 0.5*(((2.*dxa(npx-1,j)+dxa(npx-2,j))*q1(npx-1)-dxa(npx-1,j)*q1(npx-2))/(dxa(npx-2,j)+dxa(npx-1,j)) &
             +      ((2.*dxa(npx,  j)+dxa(npx+1,j))*q1(npx  )-dxa(npx,  j)*q1(npx+1))/(dxa(npx,  j)+dxa(npx+1,j)))
+!        if ( iord==-8 .or. iord==-10 ) then
+            xt = max(xt, min(q1(npx-2),q1(npx-1),q1(npx),q1(npx+1)))
+            xt = min(xt, max(q1(npx-2),q1(npx-1),q1(npx),q1(npx+1)))
+!        endif
          br(npx-1) = xt - q1(npx-1)
          bl(npx  ) = xt - q1(npx  )
 
@@ -1028,6 +1036,10 @@ else
 
          xt = 0.5*(((2.*dya(i,0)+dya(i,-1))*q(i,0)-dya(i,0)*q(i,-1))/(dya(i,-1)+dya(i,0))   &
             +      ((2.*dya(i,1)+dya(i,2))*q(i,1)-dya(i,1)*q(i,2))/(dya(i,1)+dya(i,2)))
+!        if ( jord==-8 .or. jord==-10 ) then
+            xt = max(xt, min(q(i,-1),q(i,0),q(i,1),q(i,2)))
+            xt = min(xt, max(q(i,-1),q(i,0),q(i,1),q(i,2)))
+!        endif
          br(i,0) = xt - q(i,0)
          bl(i,1) = xt - q(i,1)
 
@@ -1049,6 +1061,10 @@ else
 
          xt = 0.5*(((2.*dya(i,npy-1)+dya(i,npy-2))*q(i,npy-1)-dya(i,npy-1)*q(i,npy-2))/(dya(i,npy-2)+dya(i,npy-1))  &
             +      ((2.*dya(i,npy)+dya(i,npy+1))*q(i,npy)-dya(i,npy)*q(i,npy+1))/(dya(i,npy)+dya(i,npy+1)))
+!        if ( jord==-8 .or. jord==-10 ) then
+            xt = max(xt, min(q(i,npy-2),q(i,npy-1),q(i,npy),q(i,npy+1)))
+            xt = min(xt, max(q(i,npy-2),q(i,npy-1),q(i,npy),q(i,npy+1)))
+!        endif
          br(i,npy-1) = xt - q(i,npy-1)
          bl(i,npy  ) = xt - q(i,npy)
 

@@ -28,12 +28,13 @@ module fv_arrays_mod
            id_ppt, id_ts, id_tb, id_pmask, id_pmaskv2,            &
            id_delp, id_delz, id_zratio, id_ws, id_iw, id_lw,      &
            id_pfhy, id_pfnh,                                      &
-           id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt
+           id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt, &
+           id_acly, id_acl, id_acl2
 
 ! Selected p-level fields from 3D variables:
  integer :: id_vort200, id_vort500, id_w500, id_w700
  integer :: id_vort850, id_w850, id_x850, id_srh, id_theta_e,  &
-            id_w200, id_s200, id_sl12, id_sl13, id_w5km
+            id_w200, id_s200, id_sl12, id_sl13, id_w5km, id_rain5km, id_w2500m
 ! IPCC diag
  integer :: id_u10,  id_v10,  id_t10,  id_q10,  id_rh10,  id_omg10,  id_h10,  &
             id_u50,  id_v50,  id_t50,  id_q50,  id_rh50,  id_omg50,  id_h50,  &

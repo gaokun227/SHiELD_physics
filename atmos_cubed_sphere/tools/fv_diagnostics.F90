@@ -19,7 +19,7 @@ module fv_diagnostics_mod
 
  use tracer_manager_mod, only: get_tracer_names, get_number_tracers, get_tracer_index
  use field_manager_mod,  only: MODEL_ATMOS
- use mpp_mod,            only: mpp_error, FATAL, stdlog, mpp_pe, mpp_root_pe
+ use mpp_mod,            only: mpp_error, FATAL, stdlog, mpp_pe, mpp_root_pe, mpp_sum, mpp_max
  use sat_vapor_pres_mod, only: compute_qs, lookup_es
 
  use fv_arrays_mod, only: max_step 
@@ -53,9 +53,10 @@ module fv_diagnostics_mod
  character(len=128)   :: tname
  character(len=256)   :: tlongname, tunits
  real :: sphum_ll_fix = 0.
+ real :: qcly0 ! initial value for terminator test
 
  public :: fv_diag_init, fv_time, fv_diag, prt_mxm, prt_maxmin, range_check!, id_divg, id_te
- public :: prt_mass, prt_minmax, ppme, fv_diag_init_gn, z_sum, sphum_ll_fix, eqv_pot
+ public :: prt_mass, prt_minmax, ppme, fv_diag_init_gn, z_sum, sphum_ll_fix, eqv_pot, qcly0
 
 !---- version number -----
  character(len=128) :: version = '$Id$'
@@ -579,6 +580,14 @@ contains
                                         'Skin temperature', 'K' )
        idiag%id_tb = register_diag_field ( trim(field), 'tb', axes(1:2), Time,  &
                                         'lowest layer temperature', 'K' )
+#ifdef HIWPP
+       idiag%id_acl = register_diag_field ( trim(field), 'acl', axes(1:2), Time,        &
+            'Column-averaged Cl mixing ratio', 'kg/kg', missing_value=missing_value )
+       idiag%id_acl2 = register_diag_field ( trim(field), 'acl2', axes(1:2), Time,        &
+            'Column-averaged Cl2 mixing ratio', 'kg/kg', missing_value=missing_value )
+       idiag%id_acly = register_diag_field ( trim(field), 'acly', axes(1:2), Time,        &
+            'Column-averaged total chlorine mixing ratio', 'kg/kg', missing_value=missing_value )
+#endif
 
 !--------------------------
 ! 850-mb vorticity
@@ -679,9 +688,18 @@ contains
        if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
           idiag%id_w850 = register_diag_field ( trim(field), 'w850', axes(1:2), Time,       &
                            '850-mb w-wind', 'm/s', missing_value=missing_value )
-       if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
+!--------------------------
+! 5km:
+!--------------------------
+       idiag%id_rain5km = register_diag_field ( trim(field), 'rain5km', axes(1:2), Time,       &
+                           '5-km liquid water', 'kg/kg', missing_value=missing_value )
+       if( .not. Atm(n)%flagstruct%hydrostatic ) then
           idiag%id_w5km = register_diag_field ( trim(field), 'w5km', axes(1:2), Time,       &
                            '5-km w-wind', '1/s', missing_value=missing_value )
+          idiag%id_w2500m = register_diag_field ( trim(field), 'w2500m', axes(1:2), Time,       &
+                           '2.5-km w-wind', '1/s', missing_value=missing_value )
+       endif
+
 ! helicity
        idiag%id_x850 = register_diag_field ( trim(field), 'x850', axes(1:2), Time,       &
                            '850-mb vertical comp. of helicity', 'm/s**2', missing_value=missing_value )
@@ -872,6 +890,15 @@ contains
 
 !    end do
 
+
+#ifdef TEST_TRACER
+        call prt_mass(npz, Atm(n)%ncnst, isc, iec, jsc, jec, Atm(n)%ng, max(1,Atm(n)%flagstruct%nwat),    &
+                      Atm(n)%ps, Atm(n)%delp, Atm(n)%q, Atm(n)%gridstruct%area_64, Atm(n)%domain)
+#else
+        call prt_mass(npz, Atm(n)%ncnst, isc, iec, jsc, jec, Atm(n)%ng, Atm(n)%flagstruct%nwat,    &
+                      Atm(n)%ps, Atm(n)%delp, Atm(n)%q, Atm(n)%gridstruct%area_64, Atm(n)%domain)
+#endif
+
     call nullify_domain()  ! Nullify  set_domain info
 
     module_is_initialized=.true.
@@ -977,7 +1004,8 @@ contains
     real, parameter:: ws_1 = 20.
     real, parameter:: vort_c0= 2.2e-5 
     logical, allocatable :: storm(:,:), cat_crt(:,:)
-    real :: tmp2, pvsum
+    real :: tmp2, pvsum, e2, einf, qm, mm
+    integer :: Cl, Cl2
 
     !!! CLEANUP: does it really make sense to have this routine loop over Atm% anymore? We assume n=1 below anyway
 
@@ -1072,6 +1100,27 @@ contains
         call prt_mxm('ZS', idiag%zsurf,     isc, iec, jsc, jec, 0,   1, 1.0, Atm(n)%gridstruct%area_64, Atm(n)%domain)
         call prt_maxmin('PS', Atm(n)%ps, isc, iec, jsc, jec, ngc, 1, 0.01)
 
+#ifdef HIWPP
+        allocate(var2(isc:iec,jsc:jec))
+        !hemispheric max/min pressure
+        do j=jsc,jec
+        do i=isc,iec
+           slat = rad2deg*Atm(n)%gridstruct%agrid(i,j,2)
+           if (slat >= 0.) then
+              a2(i,j) = Atm(n)%ps(i,j)
+              var2(i,j) = 101300.
+           else
+              a2(i,j) = 101300.
+              var2(i,j) = Atm(n)%ps(i,j)
+           endif
+        enddo
+        enddo
+        call prt_maxmin('NH PS', a2, isc, iec, jsc, jec, 0, 1, 0.01)
+        call prt_maxmin('SH PS', var2, isc, iec, jsc, jec, 0, 1, 0.01)
+
+        deallocate(var2)
+#endif
+
 #ifdef TEST_TRACER
         call prt_mass(npz, nq, isc, iec, jsc, jec, ngc, max(1,Atm(n)%flagstruct%nwat),    &
                       Atm(n)%ps, Atm(n)%delp, Atm(n)%q, Atm(n)%gridstruct%area_64, Atm(n)%domain)
@@ -1081,18 +1130,20 @@ contains
 #endif
 
 #ifndef SW_DYNAMICS
-             idiag%steps = idiag%steps + 1
+        if (Atm(n)%flagstruct%consv_te > 1.e-5) then
+           idiag%steps = idiag%steps + 1
            idiag%efx_sum = idiag%efx_sum + E_Flux
-        if ( idiag%steps <= max_step ) idiag%efx(idiag%steps) = E_Flux
-        if (master)  then
-            write(*,*) 'ENG Deficit (W/m**2)', trim(gn), '=', E_Flux
-        endif
+           if ( idiag%steps <= max_step ) idiag%efx(idiag%steps) = E_Flux
+           if (master)  then
+              write(*,*) 'ENG Deficit (W/m**2)', trim(gn), '=', E_Flux
+           endif
 
            idiag%efx_sum_nest = idiag%efx_sum_nest + E_Flux_nest
-        if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
-        if (master .and. abs(E_Flux_nest) > 0.)  then
-            write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
-            if (sphum_ll_fix /= 0.) write(*,*) 'sphum fixer on lowest level, minus 1: ', trim(gn), '=', sphum_ll_fix
+           if ( idiag%steps <= max_step ) idiag%efx_nest(idiag%steps) = E_Flux_nest
+           if (master .and. abs(E_Flux_nest) > 0.)  then
+              write(*,*) 'ENG Deficit from two-way update (W/m**2)', trim(gn), '=', E_Flux_nest
+              if (sphum_ll_fix /= 0.) write(*,*) 'sphum fixer on lowest level, minus 1: ', trim(gn), '=', sphum_ll_fix
+           endif
         endif
         if ( .not. Atm(n)%flagstruct%hydrostatic )   &
           call nh_total_energy(isc, iec, jsc, jec, isd, ied, jsd, jed, npz,  &
@@ -1630,6 +1681,101 @@ contains
           enddo
           used = send_data(idiag%id_tq, a2*ginv, Time)
        endif
+#ifdef HIWPP
+       Cl  = get_tracer_index (MODEL_ATMOS, 'Cl')
+       Cl2 = get_tracer_index (MODEL_ATMOS, 'Cl2')
+       if (Cl > 0 .and. Cl2 > 0) then
+        allocate(var2(isc:iec,jsc:jec))
+          var2 = 0.
+          do k=1,npz
+          do j=jsc,jec
+          do i=isc,iec
+             var2(i,j) = var2(i,j) + Atm(n)%delp(i,j,k)
+          enddo
+          enddo
+          enddo
+
+          if ( idiag%id_acl > 0 ) then
+             a2 = 0.
+             einf = 0.
+             qm = 0.
+             do k=1,npz
+                do j=jsc,jec
+                   do i=isc,iec
+                      a2(i,j) = a2(i,j) + Atm(n)%q(i,j,k,Cl)*Atm(n)%delp(i,j,k) ! moist mass
+                   enddo
+                enddo
+             enddo
+             !Convert to mean mixing ratio
+             do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = a2(i,j) / var2(i,j)
+             enddo
+             enddo
+             used = send_data(idiag%id_acl, a2, Time)
+          endif
+          if ( idiag%id_acl2 > 0 ) then
+             a2 = 0.
+             einf = 0.
+             qm = 0.
+             do k=1,npz
+                do j=jsc,jec
+                   do i=isc,iec
+                      a2(i,j) = a2(i,j) + Atm(n)%q(i,j,k,Cl2)*Atm(n)%delp(i,j,k) ! moist mass
+                   enddo
+                enddo
+             enddo
+             !Convert to mean mixing ratio
+             do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = a2(i,j) / var2(i,j)
+             enddo
+             enddo
+             used = send_data(idiag%id_acl2, a2, Time)
+          endif
+          if ( idiag%id_acly > 0 ) then
+             a2 = 0.
+             einf = 0.
+             qm = 0.
+             do k=1,npz
+                do j=jsc,jec
+                   do i=isc,iec
+                      mm = (Atm(n)%q(i,j,k,Cl)+2.*Atm(n)%q(i,j,k,Cl2))*Atm(n)%delp(i,j,k) ! moist mass
+                      a2(i,j) = a2(i,j) + mm
+                      qm = qm + mm*Atm(n)%gridstruct%area_64(i,j)
+                   enddo
+                enddo
+             enddo
+             !Convert to mean mixing ratio
+             do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = a2(i,j) / var2(i,j)
+             enddo
+             enddo
+             used = send_data(idiag%id_acly, a2, Time)
+             do j=jsc,jec
+                do i=isc,iec
+                   e2 = e2 + ((a2(i,j) - qcly0)**2)*Atm(n)%gridstruct%area_64(i,j)
+                   einf = max(einf, abs(a2(i,j) - qcly0))
+                enddo
+             enddo
+             if (prt_minmax .and. .not. Atm(n)%neststruct%nested) then
+                call mp_reduce_sum(qm)
+                call mp_reduce_max(einf)
+                call mp_reduce_sum(e2)
+                if (master) then
+                   write(*,*) ' TERMINATOR TEST: '
+                   write(*,*) '      chlorine mass: ', qm/(4.*pi*RADIUS*RADIUS)
+                   write(*,*) '             L2 err: ', sqrt(e2)/sqrt(4.*pi*RADIUS*RADIUS)/qcly0
+                   write(*,*) '            max err: ', einf/qcly0
+                endif
+             endif
+          endif
+
+          deallocate(var2)
+
+       endif
+#endif
        if ( idiag%id_iw>0 ) then
           a2 = 0.
           do k=1,npz
@@ -2070,7 +2216,7 @@ contains
             endif
        endif
 
-       if ( idiag%id_u100m>0 .or. idiag%id_v100m>0 .or. idiag%id_w100m>0 .or. idiag%id_w5km>0 ) then
+       if ( idiag%id_u100m>0 .or. idiag%id_v100m>0 .or. idiag%id_w100m>0 .or. idiag%id_w5km>0 .or. idiag%id_w2500m>0 ) then
           if (.not.allocated(wz)) allocate ( wz(isc:iec,jsc:jec,npz+1) )
 !$OMP parallel do default(none) shared(isc,iec,jsc,jec,wz,npz,Atm,n)
             do j=jsc,jec
@@ -2087,10 +2233,21 @@ contains
             call prt_maxmin('ZTOP', wz(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, 1, 1.E-3)
        endif
 
+       if ( idiag%id_rain5km>0 ) then
+            rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+            call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%q(isc:iec,jsc:jec,:,rainwat), a2)
+            used=send_data(idiag%id_rain5km, a2, Time)
+            if(prt_minmax) call prt_maxmin('rain5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
        if ( idiag%id_w5km>0 ) then
             call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
             used=send_data(idiag%id_w5km, a2, Time)
             if(prt_minmax) call prt_maxmin('W5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_w2500m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 2.5e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_w2500m, a2, Time)
+            if(prt_minmax) call prt_maxmin('W2500m', a2, isc, iec, jsc, jec, 0, 1, 1.)
        endif
        if ( idiag%id_w100m>0 ) then
             call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
@@ -2489,6 +2646,15 @@ contains
  real psmo, totw, psdry
  integer k, n, kstrat
 
+!Needed when calling prt_mass in fv_restart?
+    sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
+    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+    ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+
+    rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+    snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+    graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+
  if ( nwat==0 ) then
       psmo = g_sum(domain, ps(is:ie,js:je), is, ie, js, je, n_g, area, 1) 
       if( master ) write(*,*) 'Total surface pressure (mb)', trim(gn), ' = ',  0.01*psmo
@@ -2505,7 +2671,8 @@ contains
  if (nwat==4 .or. nwat==6)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
 
- if (nwat==4 .or. nwat==6)  &
+!nwat == 4 => KESSLER, ice is probably garbage...
+ if (nwat==6 .or. nwat == 3)  &
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat))
 
  if (nwat==6) then
@@ -2550,13 +2717,17 @@ contains
      write(*,*) 'Total surface pressure (mb)', trim(gn), ' = ',  0.01*psmo
      write(*,*) 'mean dry surface pressure', trim(gn), ' = ',    0.01*psdry
      write(*,*) 'Total Water Vapor (kg/m**2)', trim(gn), ' =',  qtot(sphum)*ginv
-     if ( nwat==6 ) then
+     if ( nwat> 2 ) then
           write(*,*) '--- Micro Phys water substances (kg/m**2) ---'
           write(*,*) 'Total cloud water', trim(gn), '=', qtot(liq_wat)*ginv
-          write(*,*) 'Total rain  water', trim(gn), '=', qtot(rainwat)*ginv
-          write(*,*) 'Total cloud ice  ', trim(gn), '=', qtot(ice_wat)*ginv
-          write(*,*) 'Total snow       ', trim(gn), '=', qtot(snowwat)*ginv
-          write(*,*) 'Total graupel    ', trim(gn), '=', qtot(graupel)*ginv
+          if (nwat == 4 .or. nwat == 6) then
+             write(*,*) 'Total rain  water', trim(gn), '=', qtot(rainwat)*ginv
+          endif
+          if (nwat == 6) then
+             write(*,*) 'Total cloud ice  ', trim(gn), '=', qtot(ice_wat)*ginv
+             write(*,*) 'Total snow       ', trim(gn), '=', qtot(snowwat)*ginv
+             write(*,*) 'Total graupel    ', trim(gn), '=', qtot(graupel)*ginv
+          endif
           write(*,*) '---------------------------------------------'
      elseif ( nwat==2 ) then
           write(*,*) 'GFS condensate (kg/m^2)', trim(gn), '=', qtot(liq_wat)*ginv

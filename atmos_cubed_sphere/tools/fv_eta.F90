@@ -82,7 +82,31 @@ module fv_eta_mod
 
 #ifdef HIWPP
 #ifdef SUPER_K
+        case (20)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (24)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (30)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
         case (40)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (50)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (60)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (80)
         ptop = 56.e2
         pint = ptop
         stretch_fac = 1.03

@@ -550,6 +550,10 @@ contains
         call get_tracer_names(MODEL_ATMOS, iq, tracer_name)
         write(unit,*) 'fv_restart '//trim(tracer_name)//' = ', mpp_chksum(Atm(n)%q(isc:iec,jsc:jec,:,iq))
       enddo
+
+      call prt_mass(npz,nq,isc,iec,jsc,jec,Atm(n)%ng, Atm(n)%flagstruct%nwat, &
+           Atm(n)%ps, Atm(n)%delp, Atm(n)%q, Atm(n)%gridstruct%area_64, Atm(n)%domain)
+
 !---------------
 ! Check Min/Max:
 !---------------
@@ -1391,6 +1395,11 @@ contains
       if ( .not. Atm(n)%flagstruct%hydrostatic )    &
       call prt_maxmin('W ', Atm(n)%w , isc, iec, jsc, jec, Atm(n)%ng, npz, 1.)
       call prt_maxmin('T ', Atm(n)%pt, isc, iec, jsc, jec, Atm(n)%ng, npz, 1.)
+      do iq=1, ntprog
+          call get_tracer_names ( MODEL_ATMOS, i, tname )
+          call pmaxmn_g(trim(tname), Atm(n)%q(isd:ied,jsd:jed,1:npz,i:i), isc, iec, jsc, jec, npz, &
+                        1., Atm(n)%gridstruct%area_64, Atm(n)%domain)
+      enddo
 ! Write4 energy correction term
 #endif
 

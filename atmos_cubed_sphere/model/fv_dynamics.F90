@@ -879,11 +879,13 @@ contains
      do k=1,kmax
         if ( pm(k) < rf_cutoff ) then
 #ifdef HIWPP
-             do j=js,je
-                do i=is,ie
-                   w(i,j,k) = w(i,j,k)/(1.+rf(k))
-                enddo
-             enddo
+           if (.not. hydrostatic) then
+              do j=js,je
+                 do i=is,ie
+                    w(i,j,k) = w(i,j,k)/(1.+rf(k))
+                 enddo
+              enddo
+           endif
              do j=js,je+1
                 do i=is,ie
                    u(i,j,k) = (u(i,j,k)+rf(k)*u00(i,j,k))/(1.+rf(k))

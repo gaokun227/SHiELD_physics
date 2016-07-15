@@ -45,17 +45,17 @@ use mpp_io_mod,       only: mpp_close
 !------------------
 ! FV specific codes:
 !------------------
-use fv_arrays_mod, only: fv_atmos_type
-use fv_control_mod,only: fv_init, fv_end, ngrids
-use fv_phys_mod,   only: fv_phys, fv_nudge, fv_phys_init
+use fv_arrays_mod,      only: fv_atmos_type
+use fv_control_mod,     only: fv_init, fv_end, ngrids
+use fv_phys_mod,        only: fv_phys, fv_nudge, fv_phys_init
 use fv_diagnostics_mod, only: fv_diag_init, fv_diag, fv_time, eqv_pot
-use fv_timing_mod,   only: timing_on, timing_off
-use fv_restart_mod, only: fv_restart
-use fv_dynamics_mod, only: fv_dynamics
-use fv_nesting_mod, only: twoway_nesting
+use fv_timing_mod,      only: timing_on, timing_off
+use fv_restart_mod,     only: fv_restart
+use fv_dynamics_mod,    only: fv_dynamics
+use fv_nesting_mod,     only: twoway_nesting
 use lin_cld_microphys_mod, only: lin_cld_microphys_init, lin_cld_microphys_end
 use fv_nwp_nudge_mod,   only: fv_nwp_nudge_init, fv_nwp_nudge_end, do_adiabatic_init
-use fv_mp_mod, only: switch_current_Atm
+use fv_mp_mod,          only: switch_current_Atm
 use field_manager_mod,  only: MODEL_ATMOS
 use tracer_manager_mod, only: get_tracer_index
 !-----------------------------------------------------------------------
@@ -412,7 +412,7 @@ contains
 
     time_total = days*SECONDS_PER_DAY + seconds
     
-    do psc=1,p_split
+    do psc=1,abs(p_split)
 
     do n=1,ngrids
 
@@ -426,7 +426,7 @@ contains
 
        if ( Atm(n)%flagstruct%nudge_ic )     &
             call  fv_nudge(Atm(n)%npz, Atm(n)%bd%isc, Atm(n)%bd%iec, Atm(n)%bd%jsc, Atm(n)%bd%jec, Atm(n)%ng, &
-            Atm(n)%u, Atm(n)%v, Atm(n)%w, Atm(n)%delz, Atm(n)%delp, Atm(n)%pt, dt_atmos/real(p_split), Atm(n)%flagstruct%hydrostatic )
+            Atm(n)%u, Atm(n)%v, Atm(n)%w, Atm(n)%delz, Atm(n)%delp, Atm(n)%pt, dt_atmos/real(abs(p_split)), Atm(n)%flagstruct%hydrostatic )
 
        !---- call fv dynamics -----
 !      if ( Atm(n)%flagstruct%adiabatic .or. Atm(n)%flagstruct%do_Held_Suarez ) then
@@ -438,7 +438,7 @@ contains
 
                                               call timing_on('fv_dynamics')
        call fv_dynamics(Atm(n)%npx, Atm(n)%npy, Atm(n)%npz, Atm(n)%ncnst, Atm(n)%ng,   & 
-            dt_atmos/real(p_split), Atm(n)%flagstruct%consv_te, Atm(n)%flagstruct%fill, &
+            dt_atmos/real(abs(p_split)), Atm(n)%flagstruct%consv_te, Atm(n)%flagstruct%fill, &
             Atm(n)%flagstruct%reproduce_sum, kappa,   &
             cp_air, zvir, Atm(n)%ptop, Atm(n)%ks, Atm(n)%ncnst, &
             Atm(n)%flagstruct%n_split, Atm(n)%flagstruct%q_split, &
@@ -452,7 +452,7 @@ contains
                                               call timing_off('fv_dynamics')
     end do
 
-    if (ngrids > 1 .and. psc < p_split) then
+    if (ngrids > 1 .and. (psc < p_split .or. p_split < 0)) then
        call timing_on('TWOWAY_UPDATE')
        call twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
        call timing_off('TWOWAY_UPDATE')
@@ -488,7 +488,7 @@ contains
        call nullify_domain()
     end do
 
-    if (ngrids > 1) then
+    if (ngrids > 1 .and. p_split > 0) then
        call timing_on('TWOWAY_UPDATE')
        call twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
        call timing_off('TWOWAY_UPDATE')
@@ -501,6 +501,13 @@ contains
 
        if (.not. grids_on_this_pe(n)) then
           cycle
+       endif
+
+	!For correct diagnostics (may need to be changed for moist Held-Suarez)
+      if ( Atm(n)%flagstruct%adiabatic .or. Atm(n)%flagstruct%do_Held_Suarez ) then
+          zvir = 0.         ! no virtual effect
+       else
+          zvir = rvgas/rdgas - 1.
        endif
 
        call nullify_domain()

@@ -634,7 +634,7 @@ contains
       delpBC  =>  delp_BC%west_t1
       delzBC  =>  delz_BC%west_t1
 
-!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC,rainwatBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
 !$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -702,7 +702,7 @@ contains
          iend = ied
       end if
 
-!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC,liq_watBC,rainwatBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
 !$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -759,7 +759,7 @@ contains
 #endif
       delpBC  =>  delp_BC%east_t1
       delzBC  =>  delz_BC%east_t1
-!OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC,liq_watBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
 !OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -826,7 +826,7 @@ contains
          iend = ied
       end if
 
-!OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir,sphumBC,liq_watBC,qconBC,cappaBC, &
+!OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir,sphumBC,liq_watBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
 !OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz

@@ -1193,7 +1193,11 @@ contains
                            -220., 220., bad_range)
 #ifndef SW_DYNAMICS
          call range_check('TA', Atm(n)%pt, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
+#ifdef HIWPP
+                           130., 350., bad_range)
+#else
                            150., 350., bad_range)
+#endif
 #endif
 
     endif
@@ -1765,7 +1769,7 @@ contains
                 call mp_reduce_sum(e2)
                 if (master) then
                    write(*,*) ' TERMINATOR TEST: '
-                   write(*,*) '      chlorine mass: ', qm/(4.*pi*RADIUS*RADIUS)
+                   write(*,*) '      chlorine mass: ', real(qm)/(4.*pi*RADIUS*RADIUS)
                    write(*,*) '             L2 err: ', sqrt(e2)/sqrt(4.*pi*RADIUS*RADIUS)/qcly0
                    write(*,*) '            max err: ', einf/qcly0
                 endif
@@ -1778,32 +1782,58 @@ contains
 #endif
        if ( idiag%id_iw>0 ) then
           a2 = 0.
-          do k=1,npz
-          do j=jsc,jec
+          if (ice_wat > 0) then
+             do k=1,npz
+             do j=jsc,jec
              do i=isc,iec
-                a2(i,j) = a2(i,j) + Atm(n)%delp(i,j,k) * (     &
-                                    Atm(n)%q(i,j,k,ice_wat) +  &
-                                    Atm(n)%q(i,j,k,snowwat) +  &
-                                    Atm(n)%q(i,j,k,graupel) )
+                a2(i,j) = a2(i,j) + Atm(n)%delp(i,j,k) *       &
+                                    Atm(n)%q(i,j,k,ice_wat)
              enddo
-          enddo
-          enddo
+             enddo
+             enddo
+          endif
+          if (snowwat > 0) then
+             do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = a2(i,j) + Atm(n)%delp(i,j,k) *      &
+                                    Atm(n)%q(i,j,k,snowwat)
+             enddo
+             enddo
+             enddo
+          endif
+          if (graupel > 0) then
+             do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = a2(i,j) + Atm(n)%delp(i,j,k) *      &
+                                    Atm(n)%q(i,j,k,graupel)
+             enddo
+             enddo
+             enddo
+          endif
           used = send_data(idiag%id_iw, a2*ginv, Time)
        endif
        if ( idiag%id_lw>0 ) then
           a2 = 0.
-          do k=1,npz
-          do j=jsc,jec
+          if (liq_wat > 0) then
+             do k=1,npz
+             do j=jsc,jec
              do i=isc,iec
-#ifdef GFS_PHYS
                 a2(i,j) = a2(i,j) + Atm(n)%q(i,j,k,liq_wat)*Atm(n)%delp(i,j,k)
-#else
-                a2(i,j) = a2(i,j) + (Atm(n)%q(i,j,k,liq_wat)+Atm(n)%q(i,j,k,rainwat)) *    &
-                                     Atm(n)%delp(i,j,k)
-#endif
              enddo
-          enddo
-          enddo
+             enddo
+             enddo
+          endif
+          if (rainwat > 0) then
+             do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                a2(i,j) = a2(i,j) + Atm(n)%q(i,j,k,rainwat)*Atm(n)%delp(i,j,k)
+             enddo
+             enddo
+             enddo
+          endif
           used = send_data(idiag%id_lw, a2*ginv, Time)
        endif
 ! Condensates:
@@ -1811,15 +1841,31 @@ contains
 !$OMP parallel do default(shared)
           do k=1,npz
           do j=jsc,jec
+          do i=isc,iec
+             wk(i,j,k) = 0.
+          enddo
+          enddo
+          enddo
+          if (liq_wat > 0) then
+!$OMP parallel do default(shared)
+             do k=1,npz
+             do j=jsc,jec
              do i=isc,iec
-#ifdef GFS_PHYS
-                wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat)
-#else
-                wk(i,j,k) = Atm(n)%q(i,j,k,liq_wat) + Atm(n)%q(i,j,k,ice_wat)
-#endif
+                wk(i,j,k) = wk(i,j,k) + Atm(n)%q(i,j,k,liq_wat)*Atm(n)%delp(i,j,k)
              enddo
-          enddo
-          enddo
+             enddo
+             enddo
+          endif
+          if (ice_wat > 0) then
+!$OMP parallel do default(shared)
+             do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                wk(i,j,k) = wk(i,j,k) + Atm(n)%q(i,j,k,ice_wat)*Atm(n)%delp(i,j,k)
+             enddo
+             enddo
+             enddo
+          endif
           if ( idiag%id_qn>0 ) used = send_data(idiag%id_qn, wk, Time)
           if ( idiag%id_qn200>0 ) then
             call interpolate_vertical(isc, iec, jsc, jec, npz, 200.e2, Atm(n)%peln, wk, a2)
@@ -1839,12 +1885,41 @@ contains
 !$OMP parallel do default(shared)
           do k=1,npz
           do j=jsc,jec
+          do i=isc,iec
+             wk(i,j,k) = 0.
+          enddo
+          enddo
+          enddo
+          if (rainwat > 0) then
+!$OMP parallel do default(shared)
+             do k=1,npz
+             do j=jsc,jec
              do i=isc,iec
-                wk(i,j,k) = Atm(n)%q(i,j,k,snowwat) + Atm(n)%q(i,j,k,rainwat) +   &
-                            Atm(n)%q(i,j,k,graupel)
+                wk(i,j,k) = wk(i,j,k) + Atm(n)%q(i,j,k,rainwat)*Atm(n)%delp(i,j,k)
              enddo
-          enddo
-          enddo
+             enddo
+             enddo
+          endif
+          if (snowwat > 0) then
+!$OMP parallel do default(shared)
+             do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                wk(i,j,k) = wk(i,j,k) + Atm(n)%q(i,j,k,snowwat)*Atm(n)%delp(i,j,k)
+             enddo
+             enddo
+             enddo
+          endif
+          if (graupel > 0) then
+!$OMP parallel do default(shared)
+             do k=1,npz
+             do j=jsc,jec
+             do i=isc,iec
+                wk(i,j,k) = wk(i,j,k) + Atm(n)%q(i,j,k,graupel)*Atm(n)%delp(i,j,k)
+             enddo
+             enddo
+             enddo
+          endif
           used = send_data(idiag%id_qp, wk, Time)
        endif
 
@@ -2665,20 +2740,21 @@ contains
  psq(:,:,:) = 0.
  call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,sphum  ), psq(is,js,sphum  )) 
 
- if (nwat > 1)  &
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat))
+ if (liq_wat > 0)  &
+      call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,liq_wat), psq(is,js,liq_wat))
 
- if (nwat==4 .or. nwat==6)  &
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
+ if (rainwat > 0)  &
+      call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
 
 !nwat == 4 => KESSLER, ice is probably garbage...
- if (nwat==6 .or. nwat == 3)  &
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat))
+ if (ice_wat > 0)  &
+      call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,ice_wat), psq(is,js,ice_wat))
 
- if (nwat==6) then
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,snowwat), psq(is,js,snowwat))
- call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,graupel), psq(is,js,graupel))
- endif
+ if (snowwat > 0) &
+      call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,snowwat), psq(is,js,snowwat))
+ if (graupel > 0) &
+      call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,graupel), psq(is,js,graupel))
+
 
 ! Mean water vapor in the "stratosphere" (75 mb and above):
  if ( idiag%phalf(2)< 75. ) then
@@ -2692,14 +2768,12 @@ contains
       / p_sum(is, ie, js, je, kstrat, n_g, delp, area, domain)
  if(master) write(*,*) 'Mean specific humidity (mg/kg) above 75 mb', trim(gn), '=', psmo
  endif
-
-
-
- if ( nwat==6 ) then
-     call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
-     call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,snowwat), psq(is,js,snowwat))
-     call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,graupel), psq(is,js,graupel))
- endif
+!!$
+!!$ if ( nwat==6 ) then
+!!$     call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,rainwat), psq(is,js,rainwat))
+!!$     call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,snowwat), psq(is,js,snowwat))
+!!$     call z_sum(is, ie, js, je, km, n_g, delp, q(is-n_g,js-n_g,1,graupel), psq(is,js,graupel))
+!!$ endif
 
 !-------------------
 ! Check global means
@@ -2720,14 +2794,14 @@ contains
      if ( nwat> 2 ) then
           write(*,*) '--- Micro Phys water substances (kg/m**2) ---'
           write(*,*) 'Total cloud water', trim(gn), '=', qtot(liq_wat)*ginv
-          if (nwat == 4 .or. nwat == 6) then
-             write(*,*) 'Total rain  water', trim(gn), '=', qtot(rainwat)*ginv
-          endif
-          if (nwat == 6) then
-             write(*,*) 'Total cloud ice  ', trim(gn), '=', qtot(ice_wat)*ginv
-             write(*,*) 'Total snow       ', trim(gn), '=', qtot(snowwat)*ginv
-             write(*,*) 'Total graupel    ', trim(gn), '=', qtot(graupel)*ginv
-          endif
+          if (rainwat > 0) &
+               write(*,*) 'Total rain  water', trim(gn), '=', qtot(rainwat)*ginv
+          if (ice_wat > 0) &
+               write(*,*) 'Total cloud ice  ', trim(gn), '=', qtot(ice_wat)*ginv
+          if (snowwat > 0) &
+               write(*,*) 'Total snow       ', trim(gn), '=', qtot(snowwat)*ginv
+          if (graupel > 0) &
+               write(*,*) 'Total graupel    ', trim(gn), '=', qtot(graupel)*ginv
           write(*,*) '---------------------------------------------'
      elseif ( nwat==2 ) then
           write(*,*) 'GFS condensate (kg/m^2)', trim(gn), '=', qtot(liq_wat)*ginv

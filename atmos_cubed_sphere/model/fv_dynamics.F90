@@ -714,7 +714,11 @@ contains
                          -220., 260., bad_range)
 #ifndef SW_DYNAMICS
        call range_check('TA_dyn', pt, is, ie, js, je, ng, npz, gridstruct%agrid,   &
+#ifdef HIWPP
+                         130., 335., bad_range)
+#else
                          160., 335., bad_range)
+#endif
        if ( .not. hydrostatic ) &
        call range_check('W_dyn', w, is, ie, js, je, ng, npz, gridstruct%agrid,   &
                          -50., 100., bad_range)

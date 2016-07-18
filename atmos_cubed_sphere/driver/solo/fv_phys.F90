@@ -113,7 +113,7 @@ public :: fv_phys, fv_nudge
   integer:: seconds, days
   logical :: print_diag
 
-  integer :: id_vr_k, id_rain, id_rain_k, id_dqdt, id_dTdt, id_dudt, id_dvdt
+  integer :: id_vr_k, id_rain, id_rain_k, id_dqdt, id_dTdt, id_dudt, id_dvdt, id_pblh
   real, allocatable:: prec_total(:,:)
   real    :: missing_value = -1.e10
 
@@ -897,7 +897,8 @@ endif
 ! enddo
 
   call pbl_diff(hydrostatic, pdt, is, ie, js, je, ng, km, nq, u3, v3, t3,      &
-                w, q3, delp, p3, pe, sst, mu, dz, u_dt, v_dt, t_dt, q_dt, gridstruct%area, print_diag )
+                w, q3, delp, p3, pe, sst, mu, dz, u_dt, v_dt, t_dt, q_dt, &
+                gridstruct%area, print_diag, Time )
  endif
 
 
@@ -1021,7 +1022,8 @@ endif
 
 
  subroutine pbl_diff(hydrostatic, dt, is, ie, js, je, ng, km, nq, ua, va, &
-                     ta, w, q, delp, pm,  pe, ts, mu, dz, udt, vdt, tdt, qdt, area, print_diag )
+                     ta, w, q, delp, pm,  pe, ts, mu, dz, udt, vdt, tdt, qdt, &
+                     area, print_diag, Time )
  logical, intent(in):: hydrostatic
  integer, intent(in):: is, ie, js, je, ng, km, nq
  real, intent(in):: dt
@@ -1033,6 +1035,7 @@ endif
  real, intent(inout), dimension(is:ie,js:je,km,nq):: q, qdt
  logical, intent(in):: print_diag
  real, intent(in) :: area(is-ng:ie+ng,js-ng:je+ng)
+ type(time_type), intent(in) :: Time
 ! Local:
  real, dimension(is:ie,js:je):: pblh
  real, dimension(is:ie,km+1):: gh
@@ -1043,6 +1046,7 @@ endif
  real, parameter:: ustar2 = 1.E-4
  integer:: n, i, j, k
  real:: cv, rcv, rdt, tmp, tvm, tv_surf, surf_h, rin
+ logical:: used
 
  cv = cp_air - rdgas
  rcv = 1./cv
@@ -1216,6 +1220,8 @@ endif
      call prt_maxmin('PBLH(km)', pblh, is, ie, js, je, 0,  1, 0.001)
 !    call prt_maxmin('K_ABL (m^2/s)', mu, is, ie, js, je, 0,  1, 1.)
  endif
+
+ if (id_pblh > 0) used=send_data(id_pblh, pblh, time)
 
  end subroutine pbl_diff
 
@@ -1521,6 +1527,10 @@ endif
                 'accumuated rain_Kessler', 'mm/day', missing_value=missing_value )
     id_vr_k = register_diag_field (mod_name, 'vr_k', axes(1:3), time,        &
                 'Terminal fall V_Kessler', 'm/s', missing_value=missing_value )
+    if (do_abl) then
+       id_pblh = register_diag_field(mod_name, 'pblh', axes(1:2), time, &
+            'PBL Height', 'm', missing_value=missing_value)
+    endif
 
     if (id_rain_k > 0) then
        allocate ( prec_total(is:ie,js:je) )

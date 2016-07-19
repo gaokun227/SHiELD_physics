@@ -56,7 +56,11 @@ public :: fv_phys, fv_nudge
 ! For consistency, cv_vap derived FMS constants:
   real, parameter:: cv_vap = cp_vap - rvgas  ! 1384.5
   real, parameter:: cv_air = cp_air - rdgas
+#ifdef SIM_NGGPS
+  real, parameter:: dc_vap = 0.
+#else
   real, parameter:: dc_vap = cp_vap - c_liq     ! = -2344.    isobaric heating/cooling
+#endif
   real, parameter:: Lv0 =  hlv - dc_vap*tice
 !            L = hlv + (Cp_vapor-C_liq)*(T-T_ice)
 
@@ -1509,6 +1513,8 @@ endif
  integer :: unit, ierr, io, i, j
  real:: total_area
 
+    master = is_master()
+
 !   ----- read and write namelist -----
     if ( file_exist('input.nml')) then
          unit = open_namelist_file ('input.nml')
@@ -1521,12 +1527,27 @@ endif
        call mpp_error(FATAL, "Need nwat == 6 to run Lin Microphysics.")
     endif
 
-    id_rain = register_diag_field (mod_name, 'rain', axes(1:2), time,        &
-                'rain_sim_phys', 'mm/day', missing_value=missing_value )
-    id_rain_k = register_diag_field (mod_name, 'rain_k', axes(1:2), time,        &
-                'accumuated rain_Kessler', 'mm/day', missing_value=missing_value )
-    id_vr_k = register_diag_field (mod_name, 'vr_k', axes(1:3), time,        &
-                'Terminal fall V_Kessler', 'm/s', missing_value=missing_value )
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  A NOTE REGARDING FV_PHYS DIAGNOSTIC FIELDS  !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Please note that these fields are registered !
+! as part of the 'sim_phys' module, **NOT**    !
+! as part of the 'dynamics' module. If you     !
+! add these fields to your diag_table be SURE  !
+! to use 'sim_phys' as your module (first      !
+! column) name!!                               !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    if (do_ls_cond .or. do_K_warm_rain .or. ( do_reed_phys .and. do_reed_cond) ) then
+       id_rain = register_diag_field (mod_name, 'rain', axes(1:2), time,        &
+            'rain_sim_phys', 'mm/day', missing_value=missing_value )
+       id_rain_k = register_diag_field (mod_name, 'rain_k', axes(1:2), time,        &
+            'accumuated rain_Kessler', 'mm/day', missing_value=missing_value )
+    endif
+    if (do_K_warm_rain) then
+       id_vr_k = register_diag_field (mod_name, 'vr_k', axes(1:3), time,        &
+            'Terminal fall V_Kessler', 'm/s', missing_value=missing_value )
+    endif
     if (do_abl) then
        id_pblh = register_diag_field(mod_name, 'pblh', axes(1:2), time, &
             'PBL Height', 'm', missing_value=missing_value)

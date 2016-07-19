@@ -3619,8 +3619,12 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
 ! local
     real, parameter:: tice = 273.16
     real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+#ifdef SIM_NGGPS
+    real, parameter:: dc_vap = 0.
+#else
     real, parameter:: dc_vap = cp_vapor - c_liq     ! = -2344.    isobaric heating/cooling
-    real(kind=R_GRID), dimension(is:ie):: pd, rq, den, rh
+#endif
+    real(kind=R_GRID), dimension(is:ie):: pd, rq, den
     real(kind=R_GRID) :: rdg, pk0, wfac
     integer :: i,j,k
 
@@ -3634,7 +3638,7 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
     endif
 
 !$OMP parallel do default(none) shared(wfac,moist,pk0,pkz,rdg,is,ie,js,je,npz,pt,q,delp,peln,delz,theta_e,hydrostatic)  &
-!$OMP  private(pd, rq, den, rh)
+!$OMP  private(pd, rq, den)
     do k = 1,npz
        do j = js,je
 
@@ -3670,7 +3674,8 @@ subroutine eqv_pot(theta_e, pt, delp, delz, peln, pkz, q, is, ie, js, je, ng, np
              enddo
           else
              do i=is,ie
-                theta_e(i,j,k) = exp(kappa*log(pt(i,j,k)*(1.e5/pd(i))))
+!               theta_e(i,j,k) = pt(i,j,k)*(1.e5/pd(i))**kappa
+                theta_e(i,j,k) = pt(i,j,k)*exp( kappa*log(1.e5/pd(i)) )
              enddo
           endif
         endif

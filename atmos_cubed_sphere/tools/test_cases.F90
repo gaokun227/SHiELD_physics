@@ -56,9 +56,9 @@
 !                   19 = As in 15 but without rotation
 !                   20 = 3D non-hydrostatic lee vortices; non-rotating (small planet)
 !                   21 = 3D non-hydrostatic lee vortices; rotating     (small planet)
-!                   30 = Super-Cell storm, straight wind, centered at equator, no rotation
-!                   31 = Super-Cell storm, straight wind, centered at OKC, with rotation
-!                   32 = Super-Cell storm, at SW corner, without rotation
+!                   30 = Super-Cell storm, curved hodograph, centered at OKC, no rotation
+!                   31 = Super-Cell storm, curved hodograph, centered at OKC, with rotation
+!                   32 = Super-Cell storm, straight hodograph, centered at OKC, no rotation
 !                   33 = HIWPP Schar mountain waves, Ridge mountain (M1)
 !                   34 = HIWPP Schar mountain waves, Circular mountain (M2)
 !                   35 = HIWPP Schar mountain waves, Circular mountain with shear (M3)
@@ -1597,9 +1597,9 @@
               
 #else
 
+         q(:,:,:,:) = 0.
+
 #ifdef HIWPP
-         call checker_tracers(is,ie, js,je, isd,ied, jsd,jed,  &
-                              ncnst, npz, q, agrid(is:ie,js:je,1), agrid(is:ie,js:je,2), 9., 9.)
 
    cl = get_tracer_index(MODEL_ATMOS, 'cl')
    cl2 = get_tracer_index(MODEL_ATMOS, 'cl2')
@@ -1609,8 +1609,6 @@
       call mpp_update_domains(q,domain)
    endif
 
-#else
-         q(:,:,:,:) = 3.e-6
 #endif
 #endif
     ! Initialize surface Pressure
@@ -1906,9 +1904,7 @@
             enddo
          enddo
 
-
-         if (.not. adiabatic) then
-           if ( .not.hydrostatic ) then
+         if ( .not.hydrostatic ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,pt,delz,peln,w)
             do k=1,npz
             do j=js,je
@@ -1918,8 +1914,9 @@
             enddo
             enddo
             enddo
-           endif
+         endif
             !Assume pt is virtual temperature at this point; then convert to regular temperature
+         if (.not. adiabatic) then
             zvir = rvgas/rdgas - 1.
 !$OMP parallel do default(none) shared(sphum,is,ie,js,je,npz,pt,zvir,q)
             do k=1,npz
@@ -2664,11 +2661,11 @@
          enddo
          enddo
 
-      else if ( test_case==30 .or.  test_case==31 .or. test_case==32 ) then
+      else if ( abs(test_case)==30 .or.  abs(test_case)==31 ) then
 !------------------------------------
 ! Super-Cell; with or with rotation
 !------------------------------------
-        if ( test_case==30 .or. test_case==32 ) then
+        if ( abs(test_case)==30) then
            f0(:,:) = 0.
            fC(:,:) = 0.
         endif
@@ -2707,23 +2704,8 @@
         w(:,:,:) = 0.
         q(:,:,:,:) = 0.
 
-        if ( test_case==32 ) then
-! SW corner:
-          if (tile == 6 .and. is == 1 .and. js == 1) then
-             pp0(1:2) = grid(1,1,1:2)
-             write(*,'(A, 2F8.2)') 'PLUME AT GRID CORNER: ', pp0(1:2)*180./pi
-          else
-             pp0(1:2) = 0.             
-          endif
-          call mpp_sum(pp0(1))
-          call mpp_sum(pp0(2))
-
-        else
-!       pp0(1) = 262.4/180.*pi   ! OKC            
-!       pp0(2) =  35.4/180.*pi   
-             pp0(1) = 262.0/180.*pi   ! OKC            
-             pp0(2) =  35.0/180.*pi   
-        endif
+        pp0(1) = 262.0/180.*pi   ! OKC            
+        pp0(2) =  35.0/180.*pi   
 
         do k=1,npz
            do j=js,je
@@ -2740,8 +2722,7 @@
            ze1(k) = ze1(k+1) - delz(is,js,k)
         enddo
 
-! Quarter-circle hodograph (Harris approximation)
-        us0 = 30
+        us0 = 30.
         if (is_master()) then
            if (test_case > 0) then
               write(6,*) 'Toy supercell winds, piecewise approximation'
@@ -2752,6 +2733,8 @@
         do k=1,npz
 
            zm = 0.5*(ze1(k)+ze1(k+1))
+           ! Quarter-circle hodograph (Harris approximation)
+
            if (test_case > 0) then
               ! SRH = 40
               if ( zm .le. 2.e3 ) then
@@ -2783,10 +2766,11 @@
 !!$              ubar = utmp - 10.
 !!$              vbar = vtmp - 4.
            endif
+
            if( is_master() ) then
               write(6,*) k, utmp, vtmp
            endif
-
+              
            do j=js,je
               do i=is,ie+1
                  p1(:) = grid(i  ,j ,1:2)
@@ -2816,9 +2800,6 @@
      call p_var(npz, is, ie, js, je, ptop, ptop_min, delp, delz, pt, ps,   &
                 pe, peln, pk, pkz, kappa, q, ng, ncnst, area, dry_mass, .false., .false., &
                 .true., hydrostatic, nwat, domain)
-!!$        call p_var(npz, is, ie, js, je, ptop, ptop_min, delp, delz, pt, ps,   &
-!!$                   pe, peln, pk, pkz, kappa, q, ng, ncnst, area, dry_mass, .false., .false., &
-!!$                   .true., hydrostatic, nwat, domain)
 
 ! *** Add Initial perturbation ***
         pturb = 2.
@@ -2838,6 +2819,10 @@
               enddo
            endif
         enddo
+
+     elseif (test_case == 32) then
+
+        call mpp_error(FATAL, ' test_case 32 not yet implemented')
 
       else if ( test_case==33 .or. test_case==34 .or. test_case==35 ) then
 !------------------------------------
@@ -3189,7 +3174,11 @@
       if ( test_case == 37 ) then
         pp0(1) = pi
         pp0(2) = 0.
-        pturb = 3.     ! potential temperature
+        if (adiabatic) then
+           pturb = 10.
+        else
+           pturb = 3.     ! potential temperature
+        endif
         r0 = 10.e3     ! radius
         zc = 1.5e3     ! center of bubble from surface
         do k=1, npz
@@ -3654,6 +3643,10 @@
               ak, bk, ptop, pk, peln, pe, pkz, gz, phis, &
               ps, grid, agrid, hydrostatic, nwat, adiabatic)
 
+      else
+
+         call mpp_error(FATAL, " test_case not defined" )
+
       endif !test_case
 
       call mpp_update_domains( phis, domain )
@@ -3840,10 +3833,8 @@
   subroutine terminator_tracers(i0, i1, j0, j1, ifirst, ilast, jfirst, jlast,  &
        km, q, delp, ncnst, lon, lat)
 !--------------------------------------------------------------------
-! This routine implements the terminator test, NCAR's latest attempt
-! to break Lin-Rood advection. (SPOILER: It didn't succeed.)
+! This routine implements the terminator test.
 ! Coded by Lucas Harris for DCMIP 2016, May 2016
-! NOTE: Implementation assumes DRY mixing ratio!!!
 !--------------------------------------------------------------------
   integer, intent(in):: km          ! vertical dimension
   integer, intent(in):: i0, i1      ! compute domain dimension in E-W

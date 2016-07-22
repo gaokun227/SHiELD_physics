@@ -568,8 +568,10 @@ contains
       call prt_maxmin('V ', Atm(n)%v(isc:iec,jsc:jec,1:npz), isc, iec, jsc, jec, 0, npz, 1.)
 
       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh ) then
+         call mpp_error(NOTE, "  Initializing w to 0")
          Atm(n)%w = 0.
          if ( .not.Atm(n)%flagstruct%hybrid_z ) then
+            call mpp_error(NOTE, "  Initializing delz from hydrostatic state")
              do k=1,npz
                 do j=jsc,jec
                    do i=isc,iec

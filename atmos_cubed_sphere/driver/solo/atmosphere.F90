@@ -254,7 +254,8 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-                t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))
+!               t0(i,j,k) = Atm(n)%pt(i,j,k)*(1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))
+                t0(i,j,k) = Atm(n)%pt(i,j,k)
                dp0(i,j,k) = Atm(n)%delp(i,j,k)
              enddo
           enddo
@@ -304,7 +305,6 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+esl*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -317,7 +317,8 @@ contains
        do k=1,npz
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k))
              enddo
           enddo
        enddo
@@ -365,7 +366,6 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k) + wt*t0(i,j,k)/(1.+esl*Atm(n)%q(i,j,k,1)))
                 Atm(n)%delp(i,j,k) = xt*(Atm(n)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
@@ -379,7 +379,8 @@ contains
        do k=1,npz
           do j=jsc,jec
              do i=isc,iec
-                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+!               Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k)/((1.+esl*Atm(n)%q(i,j,k,1))*(Atm(n)%peln(i,k+1,j)-Atm(n)%peln(i,k,j))))
+                Atm(n)%pt(i,j,k) = xt*(Atm(n)%pt(i,j,k)+wt*t0(i,j,k))
              enddo
           enddo
        enddo

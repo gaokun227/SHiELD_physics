@@ -51,7 +51,7 @@ public :: fv_phys, fv_nudge
 
   real, parameter:: e0 = 610.71  ! saturation vapor pressure at T0
   real, parameter:: tice = 273.16
-  real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+  real, parameter:: c_liq = 4.1855e+3    ! GFS
   real, parameter:: cp_vap = cp_vapor   ! 1846.
 ! For consistency, cv_vap derived FMS constants:
   real, parameter:: cv_vap = cp_vap - rvgas  ! 1384.5
@@ -131,7 +131,7 @@ namelist /sim_phys_nml/mixed_layer, gray_rad, strat_rad, do_lin_microphys,   &
                        do_K_warm_rain, do_K_momentum, do_sedi_w, do_sim_phys,&
                        do_sedi_t, do_reed_phys, do_reed_cond, reed_cond_only,&
                        reed_alt_mxg, reed_test, do_LS_cond, do_surf_drag,    &
-                       tau_drag, do_terminator, term_fill_negative
+                       tau_drag, do_terminator
 
 contains
 
@@ -282,35 +282,57 @@ contains
                 do i=is, ie
                    pm(i,k) = delp(i,j,k)/(peln(i,k+1,j)-peln(i,k,j))
                    den(i) = pm(i,k)/(rdgas*pt(i,j,k)*(1.+zvir*q(i,j,k,sphum)))
-                   lcp(i) = (Lv0+dc_vap*pt(i,j,k))/((1.-q(i,j,k,sphum))*cp_air+q(i,j,k,sphum)*cp_vap)
+! MOIST_NGGPS
+!                  lcp(i) = (Lv0+dc_vap*pt(i,j,k))/cp_air
+                   lcp(i) = (Lv0+dc_vap*pt(i,j,k))/((1.-q(i,j,k,sphum)-q(i,j,k,liq_wat))*cp_air +   &
+                            q(i,j,k,sphum)*cp_vap + q(i,j,k,liq_wat)*c_liq)
                 enddo
              else
                 do i=is, ie
                    den(i) = -delp(i,j,k)/(grav*delz(i,j,k))
-!                  pm(i,k) = den(i)*rdgas*pt(i,j,k)*(1.+zvir*q(i,j,k,sphum))
-                   lcp(i) = (Lv0+dc_vap*pt(i,j,k))/((1.-q(i,j,k,sphum))*cv_air+q(i,j,k,sphum)*cv_vap)
+! MOIST_NGGPS
+!                  lcp(i) = (Lv0+dc_vap*pt(i,j,k))/cv_air
+                   lcp(i) = (Lv0+dc_vap*pt(i,j,k))/((1.-q(i,j,k,sphum)-q(i,j,k,liq_wat))*cv_air +   &
+                            q(i,j,k,sphum)*cv_vap + q(i,j,k,liq_wat)*c_liq)
                 enddo
              endif
              do i=is,ie
                 dq = q(i,j,k,sphum) - qs_wat(pt(i,j,k),den(i),dqsdt)
                 dq = adj*dq/(1.+lcp(i)*dqsdt)
                 if ( dq > 0. ) then ! remove super-saturation over water
-                    delm = 1. - dq
-                    t_dt(i,j,k) = t_dt(i,j,k) + dq*lcp(i)/pdt
-                    q_dt(i,j,k,sphum) = q_dt(i,j,k,sphum) - dq/pdt
-                   rain(i,j) = rain(i,j) + dq*delp(i,j,k)/(pdt*grav)   ! mm/sec
+                    pt(i,j,k) = pt(i,j,k) + dq*lcp(i)
+                    q(i,j,k,  sphum) = q(i,j,k,  sphum) - dq
+! the following line Detrains to liquid water
+                    q(i,j,k,liq_wat) = q(i,j,k,liq_wat) + dq
+                    rain(i,j) = rain(i,j) + dq*delp(i,j,k)/(pdt*grav)   ! mm/sec
                 endif
              enddo
           enddo
           enddo   ! n-loop
 
+          do k=2,npz+1                                                                             
+             do i=is,ie
+                pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
+              peln(i,k,j) = log( pe(i,k,j) )
+                pk(i,j,k) = exp( kappa*peln(i,k,j) )
+            enddo
+         enddo
+         do i=is,ie
+            ps(i,j) = pe(i,npz+1,j)
+         enddo
+         if ( hydrostatic ) then
+            do k=1,npz
+               do i=is,ie
+                  pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+               enddo
+            enddo
+         endif
        enddo   ! j-loop
 
        if (id_rain > 0) then
           rain(:,:) = rain (:,:) / pdt * 86400.
           used=send_data(id_rain, rain, time)
        endif
-       no_tendency = .false.
     endif
 
     if ( do_K_warm_rain ) then

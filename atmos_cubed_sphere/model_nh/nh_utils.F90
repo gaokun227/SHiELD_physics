@@ -1631,9 +1631,7 @@ CONTAINS
 
       integer :: i,j,k
       real :: gama !'gamma'
-      real :: ptk, rgrav, rkap
-      real :: peln1
-      real :: kapag
+      real :: ptk, rgrav, rkap, peln1, rdg
 
       real, dimension(bd%isd:bd%ied, npz+1, bd%jsd:bd%jed ) :: pe, peln
 #ifdef USE_COND
@@ -1672,7 +1670,7 @@ CONTAINS
       ptk = ptop ** kappa
       rkap = 1./kappa
       peln1 = log(ptop)
-      kapag = - kappa * rgrav
+      rdg = - rdgas * rgrav
 
       !NOTE: Compiler does NOT like this sort of nested-grid BC code. Is it trying to do some ugly optimization?
 
@@ -1715,7 +1713,7 @@ CONTAINS
                do i=ifirst,0
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
@@ -1831,7 +1829,7 @@ CONTAINS
                do i=npx,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
@@ -1943,7 +1941,7 @@ CONTAINS
                do i=ifirst,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
@@ -2061,7 +2059,7 @@ CONTAINS
                do i=ifirst,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                   pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif

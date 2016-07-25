@@ -16,7 +16,7 @@ use fms_mod,               only: error_mesg, FATAL, file_exist, open_namelist_fi
                                  check_nml_error, mpp_pe, mpp_root_pe, close_file, &
                                  write_version_number, stdlog, mpp_error
 use fv_mp_mod,             only: is_master, mp_reduce_max
-use fv_diagnostics_mod,    only: prt_maxmin
+use fv_diagnostics_mod,    only: prt_maxmin, gn
 
 use fv_arrays_mod,          only: fv_grid_type, fv_flags_type, fv_nest_type, fv_grid_bounds_type
 use mpp_domains_mod,       only: domain2d
@@ -343,7 +343,7 @@ contains
 
        if ( K_cycle .eq. 0 ) then
             K_cycle = max(1, nint(pdt/30.))   ! 30 sec base time step
-            if( master ) write(*,*) 'Kessler warm-rain-phys cycles =', K_cycle
+            if( master ) write(*,*) 'Kessler warm-rain-phys cycles', trim(gn), ' =', K_cycle
        endif
        if (do_terminator) then
           Cl  = get_tracer_index (MODEL_ATMOS, 'Cl')
@@ -390,7 +390,7 @@ contains
            used = send_data(id_rain_k, prec_total, time)
            if (print_diag) then
               prec = g_sum(prec_total, is, ie, js, je, gridstruct%area(is:ie,js:je), 1)
-              if(master) write(*,*) ' Accumulated rain (m) =', prec
+              if(master) write(*,*) ' Accumulated rain (m)', trim(gn), ' =', prec
            endif
            !call prt_maxmin(' W', w, is, ie, js, je, ng,  npz, 1.)
       endif
@@ -398,7 +398,7 @@ contains
          rain(:,:) = rain (:,:) / pdt * 86400. ! kg/dA => mm over timestep,  convert to mm/d
          used = send_data(id_rain, rain, time)
          if (print_diag) call prt_maxmin(' Kessler rain rate (mm/day): ', rain,  &
-              is,ie,js,je,ng,1,1.)
+              is,ie,js,je,0,1,1.)
       endif
     endif
 
@@ -476,14 +476,14 @@ contains
           used = send_data(id_rain_k, prec_total, time)
           if (print_diag) then
              prec = g_sum(prec_total, is, ie, js, je, gridstruct%area(is:ie,js:je), 1)
-             if(master) write(*,*) ' Accumulated rain (m) =', prec
+             if(master) write(*,*) ' Accumulated rain (m)', trim(gn), ' =', prec
           endif
           !call prt_maxmin(' W', w, is, ie, js, je, ng,  npz, 1.)
        endif
        if (do_reed_cond .and. id_rain > 0) then
             used = send_data(id_rain, rain, time)          
             if (print_diag) call prt_maxmin(' Reed rain rate (mm/d): ', rain,  &
-                    is,ie,js,je,ng,1,1.)
+                    is,ie,js,je,0,1,1.)
        endif
        no_tendency = .false.
      endif
@@ -778,10 +778,10 @@ contains
 
          if( master ) then
            if ( gray_rad ) then
-            write(*,*) 'Domain mean OLR =', olrm
-            write(*,*) 'Domain mean SWA =', swab
+            write(*,*) 'Domain mean OLR', trim(gn), ' =', olrm
+            write(*,*) 'Domain mean SWA', trim(gn), ' =', swab
            endif
-           if ( prog_cloud ) write(*,*) 'Domain mean low clouds fraction =', clds
+           if ( prog_cloud ) write(*,*) 'Domain mean low clouds fraction', trim(gn), ' =', clds
          endif
     endif
 
@@ -895,7 +895,7 @@ if ( zero_winds ) then
 #ifdef PRINT_W
     if ( master ) then
         if( sqrt(utmp(k)**2+vtmp(k)**2) > 1. ) then 
-            write(*,*) k, 'Domain avg winds=', utmp, vtmp
+            write(*,*) k, 'Domain avg winds', trim(gn), '=', utmp, vtmp
         endif
     endif
 #endif
@@ -1003,7 +1003,7 @@ endif
         hflux1 = g0_sum(net_rad, is, ie,  js, je, 0, gridstruct%area(is:ie,js:je), 1)
         net_rad = net_rad - rflux - flux_t - qflux
         hflux2 = g0_sum(net_rad, is, ie,  js, je, 0, gridstruct%area(is:ie,js:je), 1)
-        if(master) write(*,*) 'Net_flux=',hflux2, 'net_rad=', hflux1
+        if(master) write(*,*) 'Net_flux', trim(gn), '=',hflux2, 'net_rad', trim(gn), '=', hflux1
      endif
    else
 !  Unit flux_q, moisture flux (kg/sm^2)
@@ -1031,12 +1031,12 @@ endif
         call prt_maxmin('WETB_DT:', wet_t, is, ie, js, je, 0,  1, 1.0)
         call prt_maxmin('Mixed-layer SST:', sst, is, ie, js, je, 0,  1, 1.0)
         sstm = g0_sum(sst, is, ie, js, je, 0, gridstruct%area(is:ie,js:je), 1)
-        if(master) write(*,*) 'Domain mean SST=', sstm
+        if(master) write(*,*) 'Domain mean SST', trim(gn), '=', sstm
 ! Fluxes:
         hflux1 = g0_sum(rflux, is, ie,  js, je, 0, gridstruct%area(is:ie,js:je), 1)
         hflux2 = g0_sum(qflux, is, ie,  js, je, 0, gridstruct%area(is:ie,js:je), 1)
         hflux3 = g0_sum(flux_t, is, ie, js, je, 0, gridstruct%area(is:ie,js:je), 1)
-        if(master) write(*,*) 'RainF=',hflux1, 'LatentF=', hflux2, 'SenHF=', hflux3
+        if(master) write(*,*) 'RainF', trim(gn), '=',hflux1, 'LatentF', trim(gn), '=', hflux2, 'SenHF', trim(gn), '=', hflux3
         call prt_maxmin('Rain_F', rflux,  is, ie, js, je, 0,  1, 1.0)
         call prt_maxmin('LatH_F', qflux,  is, ie, js, je, 0,  1, 1.0)
         call prt_maxmin('SenH_F', flux_t, is, ie, js, je, 0,  1, 1.0)
@@ -1242,7 +1242,7 @@ endif
 
  if ( print_diag ) then
      tmp = g0_sum(pblh, is, ie, js, je, 0, area(is:ie,js:je), 1)
-     if (master) write(*,*) 'Mean PBL H (km)=', tmp*0.001
+     if (master) write(*,*) 'Mean PBL H (km)', trim(gn), '=', tmp*0.001
      call prt_maxmin('PBLH(km)', pblh, is, ie, js, je, 0,  1, 0.001)
 !    call prt_maxmin('K_ABL (m^2/s)', mu, is, ie, js, je, 0,  1, 1.)
  endif
@@ -1599,7 +1599,7 @@ endif
 
     if ( master ) then
         total_area = 4.*pi*radius**2
-        write(*,*) 'Total surface area =', total_area
+        write(*,*) 'Total surface area', trim(gn), ' =', total_area
     endif
 
     sim_phys_initialized = .true.

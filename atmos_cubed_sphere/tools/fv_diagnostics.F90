@@ -33,12 +33,12 @@ module fv_diagnostics_mod
  real :: ginv
  real :: pk0
  logical master
+ character(len=3) :: gn = ''
 
 ! private (to this module) diag:
 
  type(time_type) :: fv_time
  type(fv_diag_type), pointer :: idiag
- character(len=3) :: gn = ''
 
  logical :: module_is_initialized=.false.
  logical :: prt_minmax =.false.
@@ -56,7 +56,7 @@ module fv_diagnostics_mod
  real :: qcly0 ! initial value for terminator test
 
  public :: fv_diag_init, fv_time, fv_diag, prt_mxm, prt_maxmin, range_check!, id_divg, id_te
- public :: prt_mass, prt_minmax, ppme, fv_diag_init_gn, z_sum, sphum_ll_fix, eqv_pot, qcly0
+ public :: prt_mass, prt_minmax, ppme, fv_diag_init_gn, z_sum, sphum_ll_fix, eqv_pot, qcly0, gn
 
 !---- version number -----
  character(len=128) :: version = '$Id$'

@@ -2201,44 +2201,48 @@ contains
           if ( idiag%id_t100>0 .and. prt_minmax ) then
              call prt_mxm('T100:', a3(isc:iec,jsc:jec,3), isc, iec, jsc, jec, 0, 1, 1.,   &
                           Atm(n)%gridstruct%area_64, Atm(n)%domain)
-             tmp = 0.
-             sar = 0.
-!            Compute mean temp at 100 mb near EQ
-             do j=jsc,jec
-                do i=isc,iec
-                   slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-10.0 .and. slat<10.) ) then
-                        sar = sar + Atm(n)%gridstruct%area(i,j)
-                        tmp = tmp + a3(i,j,3)*Atm(n)%gridstruct%area(i,j)
-                   endif
+             if (.not. Atm(n)%neststruct%nested)  then
+                tmp = 0.
+                sar = 0.
+                !            Compute mean temp at 100 mb near EQ
+                do j=jsc,jec
+                   do i=isc,iec
+                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                      if( (slat>-10.0 .and. slat<10.) ) then
+                         sar = sar + Atm(n)%gridstruct%area(i,j)
+                         tmp = tmp + a3(i,j,3)*Atm(n)%gridstruct%area(i,j)
+                      endif
+                   enddo
                 enddo
-             enddo
-             call mp_reduce_sum(sar)
-             call mp_reduce_sum(tmp)
-             if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
-             else
-                  if (master) write(*,*) 'Warning: problem computing tropical mean T100'
+                call mp_reduce_sum(sar)
+                call mp_reduce_sum(tmp)
+                if ( sar > 0. ) then
+                   if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
+                else
+                   if (master) write(*,*) 'Warning: problem computing tropical mean T100'
+                endif
              endif
           endif
           if ( idiag%id_t200>0 .and. prt_minmax ) then
              call prt_mxm('T200:', a3(isc:iec,jsc:jec,4), isc, iec, jsc, jec, 0, 1, 1.,   &
                           Atm(n)%gridstruct%area_64, Atm(n)%domain)
-             tmp = 0.
-             sar = 0.
-             do j=jsc,jec
-                do i=isc,iec
-                   slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-20 .and. slat<20) ) then
-                        sar = sar + Atm(n)%gridstruct%area(i,j)
-                        tmp = tmp + a3(i,j,4)*Atm(n)%gridstruct%area(i,j)
-                   endif
+             if (.not. Atm(n)%neststruct%nested) then
+                tmp = 0.
+                sar = 0.
+                do j=jsc,jec
+                   do i=isc,iec
+                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                      if( (slat>-20 .and. slat<20) ) then
+                         sar = sar + Atm(n)%gridstruct%area(i,j)
+                         tmp = tmp + a3(i,j,4)*Atm(n)%gridstruct%area(i,j)
+                      endif
+                   enddo
                 enddo
-             enddo
-             call mp_reduce_sum(sar)
-             call mp_reduce_sum(tmp)
-             if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
+                call mp_reduce_sum(sar)
+                call mp_reduce_sum(tmp)
+                if ( sar > 0. ) then
+                   if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
+                endif
              endif
           endif
        endif

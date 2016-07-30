@@ -256,7 +256,7 @@ module gfs_physics_driver_mod
     logical :: debug = .false.
 !
 !--- controls for GFS diagnostic output
-    real(kind=kind_phys), dimension(480) :: fdiag
+    real(kind=kind_phys), dimension(2048) :: fdiag
     real(kind=kind_phys) :: fhzero = 6.
 !
 !--- control for surface data cycling

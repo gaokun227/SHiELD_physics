@@ -568,8 +568,10 @@ contains
       call prt_maxmin('V ', Atm(n)%v(isc:iec,jsc:jec,1:npz), isc, iec, jsc, jec, 0, npz, 1.)
 
       if ( (.not.Atm(n)%flagstruct%hydrostatic) .and. Atm(n)%flagstruct%make_nh ) then
+         call mpp_error(NOTE, "  Initializing w to 0")
          Atm(n)%w = 0.
          if ( .not.Atm(n)%flagstruct%hybrid_z ) then
+            call mpp_error(NOTE, "  Initializing delz from hydrostatic state")
              do k=1,npz
                 do j=jsc,jec
                    do i=isc,iec
@@ -1391,6 +1393,11 @@ contains
       if ( .not. Atm(n)%flagstruct%hydrostatic )    &
       call prt_maxmin('W ', Atm(n)%w , isc, iec, jsc, jec, Atm(n)%ng, npz, 1.)
       call prt_maxmin('T ', Atm(n)%pt, isc, iec, jsc, jec, Atm(n)%ng, npz, 1.)
+      do iq=1, ntprog
+          call get_tracer_names ( MODEL_ATMOS, iq, tracer_name )
+          call pmaxmn_g(trim(tracer_name), Atm(n)%q(isd:ied,jsd:jed,1:npz,iq:iq), isc, iec, jsc, jec, npz, &
+                        1., Atm(n)%gridstruct%area_64, Atm(n)%domain)
+      enddo
 ! Write4 energy correction term
 #endif
 

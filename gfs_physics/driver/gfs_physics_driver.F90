@@ -256,7 +256,7 @@ module gfs_physics_driver_mod
     logical :: debug = .false.
 !
 !--- controls for GFS diagnostic output
-    real(kind=kind_phys), dimension(480) :: fdiag
+    real(kind=kind_phys), dimension(2048) :: fdiag
     real(kind=kind_phys) :: fhzero = 6.
 !
 !--- control for surface data cycling
@@ -269,7 +269,8 @@ module gfs_physics_driver_mod
 !--- namelist definition ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
-                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
+                              hybedmf,shal_cnv
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -301,10 +302,11 @@ module gfs_physics_driver_mod
 !--- local variables
     integer :: ierr, io, unit, logunit, outunit
     integer :: nb, ibs, ibe, jbs, jbe, ngptc
-    integer :: i, j, ix, ntrac, ntp, sec, kdt, nnp
+    integer :: i, j, ix, ntrac, ntp, sec, days, kdt, nnp
     integer :: id1, id2
     integer :: jdate(8) = (/1, 1, 1, 0, 0, 0, 0, 0/)
     integer :: idate(4) = (/0, 1, 1, 1/)
+    real(kind=kind_phys) :: dt_diag
     real(kind=kind_phys) :: solhr = 0.0   
     real(kind=kind_phys) :: fhour = 0.
     logical :: sas_shal
@@ -340,9 +342,9 @@ module gfs_physics_driver_mod
     call fms_init
 !
 !--- set up various time/date related control variables
-    call get_time(Time - Time_init, sec)
-    fhour = real(sec)/3600.
-    kdt = fhour/dt_phys
+    call get_time(Time - Time_init, sec, days=days)
+    fhour = real(days)*24.d0 + real(sec)/3600.d0
+    kdt = fhour*3600.d0/dt_phys
     nnp = kdt
     jdate = 0 
     call get_date (Time, jdate(1), jdate(2), jdate(3),  &
@@ -376,8 +378,10 @@ module gfs_physics_driver_mod
 !
 !--- check fdiag to see if it is an interval or a list
     if (nint(fdiag(2)) == 0) then
+      dt_diag = fdiag(1)
+      fdiag(1) = fhour
       do i = 2, size(fdiag,1)
-        fdiag(i) = fdiag(i-1) + fdiag(1) 
+        fdiag(i) = fdiag(i-1) + dt_diag
       enddo
     endif
 !
@@ -655,6 +659,11 @@ module gfs_physics_driver_mod
 
     if (debug .and. mpp_pe() == mpp_root_pe()) then
       print *,'   kdt ', Dyn_parms(1)%kdt + 1
+      print *,' nsswr ', nsswr
+      print *,' nslwr ', nslwr
+      print *,' nscyc ', nscyc
+      print *,' lsswr ', lsswr
+      print *,' lslwr ', lslwr
       print *,' fhour ', fhour
       print *,' phour ', phour
       print *,' solhr ', mod(phour+Mdl_parms%idate(1),cons_24)

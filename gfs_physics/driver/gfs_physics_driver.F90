@@ -269,7 +269,8 @@ module gfs_physics_driver_mod
 !--- namelist definition ---
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
-                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols
+                              prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
+                              hybedmf,shal_cnv
 !-----------------------------------------------------------------------
 
   CONTAINS

@@ -1,6 +1,6 @@
 module dyn_core_mod
 
-  use constants_mod,      only: rdgas, radius
+  use constants_mod,      only: rdgas, radius, cp_air
   use mpp_mod,            only: mpp_pe 
   use mpp_domains_mod,    only: CGRID_NE, DGRID_NE, mpp_get_boundary, mpp_update_domains,  &
                                 domain2d
@@ -144,10 +144,10 @@ contains
 !---------------------------------------
     integer :: i,j,k, it, iq, n_con, nf_ke
     integer :: iep1, jep1
-    real    :: beta, beta_d, d_con_k, damp_w, damp_t,  kgb
+    real    :: beta, beta_d, d_con_k, damp_w, damp_t, kgb, cv_air
     real    :: dt, dt2, rdt
     real    :: d2_divg
-    real    :: k1k, kapag, gam, mk1
+    real    :: k1k, rdg, mk1
     logical :: last_step, remap_step
     logical used
     real :: split_timestep_bc
@@ -175,6 +175,8 @@ contains
     rdt = 1.0/dt
     ms = max(1, flagstruct%m_split/2)
     beta = flagstruct%beta
+    rdg = -rdgas / grav
+    cv_air = cp_air - rdgas
 
 ! Indexes:
     iep1 = ie + 1
@@ -184,7 +186,6 @@ contains
 
          rgrav = 1.0/grav
            k1k =  akap / (1.-akap)    ! rg/Cv=0.4
-         kapag = -akap / grav
 
 !$OMP parallel do default(none) shared(npz,dp_ref,ak,bk)
        do k=1,npz
@@ -872,15 +873,15 @@ contains
 !-------------------------------------------------------------------------------------------------------
     if ( flagstruct%breed_vortex_inline ) then
         if ( .not. hydrostatic ) then
-!$OMP parallel do default(none) shared(is,ie,js,je,npz,pkz,cappa,kapag,delp,delz,pt,k1k)
+!$OMP parallel do default(none) shared(is,ie,js,je,npz,pkz,cappa,rdg,delp,delz,pt,k1k)
            do k=1,npz
               do j=js,je
                  do i=is,ie
-! Note: pt at this stage is cp*Theta_m
+! Note: pt at this stage is Theta_m
 #ifdef MOIST_CAPPA
-                    pkz(i,j,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
+                    pkz(i,j,k) = exp(cappa(i,j,k)/(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
 #else
-                    pkz(i,j,k) = exp( k1k*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
+                    pkz(i,j,k) = exp( k1k*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
 #endif
                  enddo
               enddo
@@ -1023,26 +1024,24 @@ contains
        do j=js,je
           do k=1,n_con
              do i=is,ie
-                pt(i,j,k) = pt(i,j,k) + heat_source(i,j,k)/(delp(i,j,k)*pkz(i,j,k))
+                pt(i,j,k) = pt(i,j,k) + heat_source(i,j,k)/(cp_air*delp(i,j,k)*pkz(i,j,k))
              enddo
           enddo
        enddo
     else
-       gam = 1./(1.-akap)
-!$OMP parallel do default(none) shared(is,ie,js,je,n_con,pkz,cappa,kapag,delp,delz,pt, &
-!$OMP                                  heat_source,k1k,akap,gam) &
+!$OMP parallel do default(none) shared(is,ie,js,je,n_con,pkz,cappa,rdg,delp,delz,pt, &
+!$OMP                                  heat_source,k1k,akap,cv_air) &
 !$OMP                          private(mk1)
        do j=js,je
           do k=1,n_con    ! n_con is usually less than 3; not good as outer openMP loop
              do i=is,ie
 #ifdef MOIST_CAPPA
                 mk1 = cappa(i,j,k)/(1.-cappa(i,j,k))
-                pkz(i,j,k) = exp( mk1*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
-                pt(i,j,k) = pt(i,j,k) + mk1*heat_source(i,j,k)/(akap*delp(i,j,k)*pkz(i,j,k))
+                pkz(i,j,k) = exp( mk1*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
 #else
-                pkz(i,j,k) = exp( k1k*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
-                pt(i,j,k) = pt(i,j,k) + gam*heat_source(i,j,k)/(delp(i,j,k)*pkz(i,j,k))
+                pkz(i,j,k) = exp( k1k*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
 #endif
+                pt(i,j,k) = pt(i,j,k) + heat_source(i,j,k)/(cv_air*delp(i,j,k)*pkz(i,j,k))
              enddo
           enddo
        enddo
@@ -2014,10 +2013,14 @@ do 1000 j=jfirst,jlast
       ! Bottom up
       do k=km,1,-1
          do i=ifirst, ilast
-#ifdef USE_COND
-            gz(i,j,k) = gz(i,j,k+1) + pt(i,j,k)*(pkg(i,k+1)-pkg(i,k))
-#else
+#ifdef SW_DYNAMICS
             gz(i,j,k) = gz(i,j,k+1) + pt(i,j,k)*(pk(i,j,k+1)-pk(i,j,k))
+#else
+#ifdef USE_COND
+            gz(i,j,k) = gz(i,j,k+1) + cp_air*pt(i,j,k)*(pkg(i,k+1)-pkg(i,k))
+#else
+            gz(i,j,k) = gz(i,j,k+1) + cp_air*pt(i,j,k)*(pk(i,j,k+1)-pk(i,j,k))
+#endif
 #endif
          enddo
       enddo

@@ -950,13 +950,13 @@
             enddo
 #endif
 
-     if ( inline_q ) then
-        do j=jsd,jed
-           do i=isd,ied
-              pt(i,j) = pt(i,j)/(1.+zvir*q(i,j,k,sphum))
-           enddo
-        enddo
-     endif
+!    if ( inline_q .and. zvir>0.01 ) then
+!       do j=jsd,jed
+!          do i=isd,ied
+!             pt(i,j) = pt(i,j)/(1.+zvir*q(i,j,k,sphum))
+!          enddo
+!       enddo
+!    endif
 
         call fv_tp_2d(pt, crx_adv,cry_adv, npx, npy, hord_tm, gx, gy,  &
                       xfx_adv,yfx_adv, gridstruct, bd, ra_x, ra_y,     &
@@ -978,7 +978,8 @@
         enddo
         do iq=1,nq
            call fv_tp_2d(q(isd,jsd,k,iq), crx_adv,cry_adv, npx, npy, hord_tr, gx, gy,  &
-                         xfx_adv,yfx_adv, gridstruct, bd, ra_x, ra_y, mfx=fx, mfy=fy)
+                         xfx_adv,yfx_adv, gridstruct, bd, ra_x, ra_y,     &
+                         mfx=fx, mfy=fy, mass=delp, nord=nord_t, damp_c=damp_t)
            do j=js,je
               do i=is,ie
                  q(i,j,k,iq) = (q(i,j,k,iq)*wk(i,j) +               &
@@ -986,13 +987,14 @@
               enddo
            enddo
         enddo
-#ifndef SW_DYNAMICS
-        do j=js,je
-           do i=is,ie
-              pt(i,j) = pt(i,j)*(1.+zvir*q(i,j,k,sphum))
-           enddo
-        enddo
-#endif
+!     if ( zvir>0.01 ) then
+!       do j=js,je
+!          do i=is,ie
+!             pt(i,j) = pt(i,j)*(1.+zvir*q(i,j,k,sphum))
+!          enddo
+!       enddo
+!     endif
+
      else
         do j=js,je
            do i=is,ie

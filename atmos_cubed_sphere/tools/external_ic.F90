@@ -34,6 +34,7 @@ module external_ic_mod
    use fv_timing_mod,     only: timing_on, timing_off
    use init_hydro_mod,    only: p_var
    use fv_fill_mod,       only: fillz
+   use fv_eta_mod,        only: set_eta
    use sim_nc_mod,        only: open_ncfile, close_ncfile, get_ncdim1, get_var1_double, get_var2_real,   &
                                 get_var3_r4, get_var1_real
    use fv_nwp_nudge_mod,  only: T_is_Tv
@@ -551,7 +552,7 @@ contains
       integer :: nt_checker = 0
       real(kind=R_GRID), dimension(2):: p1, p2, p3
       real(kind=R_GRID), dimension(3):: e1, e2, ex, ey
-      integer:: i,j,k,nts
+      integer:: i,j,k,nts, ks
       integer:: liq_wat
       namelist /external_ic_nml/ filtered_terrain, ncep_plevels, levp, gfs_dwinds, &
                                  checker_tr, nt_checker
@@ -880,9 +881,13 @@ contains
           Atm(n)%ak(1:npz+1) = ak(itoa:levp+1)
           Atm(n)%bk(1:npz+1) = bk(itoa:levp+1)
         else
-          Atm(n)%ak(:) = ak_sj(:)
-          Atm(n)%bk(:) = bk_sj(:)
-          Atm(n)%ptop = Atm(n)%ak(1)
+          if ( npz <= 64 ) then
+             Atm(n)%ak(:) = ak_sj(:)
+             Atm(n)%bk(:) = bk_sj(:)
+             Atm(n)%ptop = Atm(n)%ak(1)
+          else
+             call set_eta(npz, ks, Atm(n)%ptop, Atm(n)%ak, Atm(n)%bk)
+          endif
         endif
         ! call vertical remapping algorithms
         if(is_master())  write(*,*) 'GFS ak(1)=', ak(1), ' ak(2)=', ak(2)
@@ -1624,7 +1629,8 @@ contains
   real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1, pn1
   real pt0(km), gz(km+1), pk0(km+1)
   real qp(Atm%bd%is:Atm%bd%ie,km,ncnst)
-  real pst, p1, p2, alpha, rdg
+  real p1, p2, alpha, rdg
+  real(kind=R_GRID):: pst
   integer i,j,k, iq
   integer  sphum, o3mr, clwmr
   integer :: is,  ie,  js,  je
@@ -1803,14 +1809,18 @@ contains
   real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je,km,ncnst):: qa
   real,    intent(in), dimension(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je,km+1):: zh
 ! local:
-  real, dimension(Atm%bd%is:Atm%bd%ie,km+1):: pe0, pn0
+  real, dimension(Atm%bd%is:Atm%bd%ie,km+1):: pe0
   real, dimension(Atm%bd%is:Atm%bd%ie,npz):: qn1, dp2
-  real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1, pn1
+  real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1
   real qp(Atm%bd%is:Atm%bd%ie,km)
   real wk(Atm%bd%is:Atm%bd%ie,Atm%bd%js:Atm%bd%je)
-  real, dimension(2*km+1):: gz, pn
-  real gz_fv(npz+1)
-  real pst
+!!! High-precision
+  real(kind=R_GRID), dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pn1
+  real(kind=R_GRID):: gz_fv(npz+1)
+  real(kind=R_GRID), dimension(2*km+1):: gz, pn
+  real(kind=R_GRID), dimension(Atm%bd%is:Atm%bd%ie,km+1):: pn0
+  real(kind=R_GRID):: pst
+!!! High-precision
   integer i,j,k, k2, l, iq
   integer  sphum, o3mr, clwmr
   integer :: is,  ie,  js,  je

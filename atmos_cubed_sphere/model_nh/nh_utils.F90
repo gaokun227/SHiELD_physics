@@ -291,22 +291,21 @@ CONTAINS
    real, intent(inout), dimension(is-ng:ie+ng,js-ng:je+ng,km+1):: gz
    real, intent(  out), dimension(is-ng:ie+ng,js-ng:je+ng,km+1):: pef
 ! Local:
-  real, dimension(is-1:ie+1,km  ):: dm, dz2, w2, pt2, pm2, gm2, cp2
+  real, dimension(is-1:ie+1,km  ):: dm, dz2, w2, pm2, gm2, cp2
   real, dimension(is-1:ie+1,km+1):: pem, pe2, peg
-  real gama, rgrav, rcp
+  real gama, rgrav
   integer i, j, k
   integer is1, ie1
 
     gama = 1./(1.-akap)
    rgrav = 1./grav
-     rcp = 1. / cp
 
    is1 = is - 1
    ie1 = ie + 1
 
-!$OMP parallel do default(none) shared(js,je,is1,ie1,km,delp,pef,ptop,gz,rgrav,w3,pt,rcp, &
+!$OMP parallel do default(none) shared(js,je,is1,ie1,km,delp,pef,ptop,gz,rgrav,w3,pt, &
 !$OMP                                  a_imp,dt,gama,akap,ws,p_fac,scale_m,ms,hs,q_con,cappa) &
-!$OMP                          private(cp2,gm2, dm, dz2, w2, pm2, pt2, pe2, pem, peg)
+!$OMP                          private(cp2,gm2, dm, dz2, w2, pm2, pe2, pem, peg)
    do 2000 j=js-1, je+1
 
       do k=1,km
@@ -349,20 +348,19 @@ CONTAINS
 #endif
              dm(i,k) = dm(i,k) * rgrav
              w2(i,k) = w3(i,j,k)
-            pt2(i,k) = pt(i,j,k) * rcp
          enddo
       enddo
 
 
       if ( a_imp < -0.01 ) then
            call SIM3p0_solver(dt, is1, ie1, km, rdgas, gama, akap, pe2, dm, &
-                              pem, w2, dz2, pt2, ws(is1,j), p_fac, scale_m)
+                              pem, w2, dz2, pt(is1:ie1,j,1:km), ws(is1,j), p_fac, scale_m)
       elseif ( a_imp <= 0.5 ) then
            call RIM_2D(ms, dt, is1, ie1, km, rdgas, gama, gm2, pe2, &
-                       dm, pm2, w2, dz2, pt2, ws(is1,j), .true.)
+                       dm, pm2, w2, dz2, pt(is1:ie1,j,1:km), ws(is1,j), .true.)
       else
            call SIM1_solver(dt, is1, ie1, km, rdgas, gama, gm2, cp2, akap, pe2,  &
-                            dm, pm2, pem, w2, dz2, pt2, ws(is1,j), p_fac)
+                            dm, pm2, pem, w2, dz2, pt(is1:ie1,j,1:km), ws(is1,j), p_fac)
       endif
 
       do k=2,km+1
@@ -417,21 +415,20 @@ CONTAINS
    real, intent(out):: pk(is:ie,js:je,km+1)
    real, intent(out):: pk3(isd:ied,jsd:jed,km+1)
 ! Local:
-  real, dimension(is:ie,km):: dm, dz2, pt2, pm2, w2, gm2, cp2
+  real, dimension(is:ie,km):: dm, dz2, pm2, w2, gm2, cp2
   real, dimension(is:ie,km+1)::pem, pe2, peln2, peg, pelng
-  real gama, rgrav, ptk, peln1, rcp
+  real gama, rgrav, ptk, peln1
   integer i, j, k
 
     gama = 1./(1.-akap)
    rgrav = 1./grav
    peln1 = log(ptop)
      ptk = exp(akap*peln1)
-     rcp = 1./cp
 
 !$OMP parallel do default(none) shared(is,ie,js,je,km,delp,ptop,peln1,pk3,ptk,akap,rgrav,zh,pt, &
-!$OMP                                  w,rcp,a_imp,dt,gama,ws,p_fac,scale_m,ms,delz,last_call,  &
+!$OMP                                  w,a_imp,dt,gama,ws,p_fac,scale_m,ms,delz,last_call,  &
 !$OMP                                  peln,pk,fp_out,ppe,use_logp,zs,pe,cappa,q_con )          &
-!$OMP                          private(cp2, gm2, dm, dz2, pm2, pt2, pem, peg, pelng, pe2, peln2, w2)
+!$OMP                          private(cp2, gm2, dm, dz2, pm2, pem, peg, pelng, pe2, peln2, w2)
    do 2000 j=js, je
 
       do k=1,km
@@ -480,26 +477,25 @@ CONTAINS
 #endif
              dm(i,k) = dm(i,k) * rgrav
             dz2(i,k) = zh(i,j,k+1) - zh(i,j,k)
-            pt2(i,k) = pt(i,j,k) * rcp
              w2(i,k) = w(i,j,k)
          enddo
       enddo
 
       if ( a_imp < -0.999 ) then
            call SIM3p0_solver(dt, is, ie, km, rdgas, gama, akap, pe2, dm,  &
-                              pem, w2, dz2, pt2, ws(is,j), p_fac, scale_m )
+                              pem, w2, dz2, pt(is:ie,j,1:km), ws(is,j), p_fac, scale_m )
       elseif ( a_imp < -0.5 ) then
            call SIM3_solver(dt, is, ie, km, rdgas, gama, akap, pe2, dm,   &
-                        pem, w2, dz2, pt2, ws(is,j), abs(a_imp), p_fac, scale_m)
+                        pem, w2, dz2, pt(is:ie,j,1:km), ws(is,j), abs(a_imp), p_fac, scale_m)
       elseif ( a_imp <= 0.5 ) then
            call RIM_2D(ms, dt, is, ie, km, rdgas, gama, gm2, pe2,   &
-                       dm, pm2, w2, dz2, pt2, ws(is,j), .false.)
+                       dm, pm2, w2, dz2, pt(is:ie,j,1:km), ws(is,j), .false.)
       elseif ( a_imp > 0.999 ) then
            call SIM1_solver(dt, is, ie, km, rdgas, gama, gm2, cp2, akap, pe2, dm,   &
-                            pm2, pem, w2, dz2, pt2, ws(is,j), p_fac)
+                            pm2, pem, w2, dz2, pt(is:ie,j,1:km), ws(is,j), p_fac)
       else
            call SIM_solver(dt, is, ie, km, rdgas, gama, gm2, cp2, akap, pe2, dm,  &
-                           pm2, pem, w2, dz2, pt2, ws(is,j), &
+                           pm2, pem, w2, dz2, pt(is:ie,j,1:km), ws(is,j), &
                            a_imp, p_fac, scale_m)
       endif
 
@@ -1635,10 +1631,7 @@ CONTAINS
 
       integer :: i,j,k
       real :: gama !'gamma'
-      real :: rcp
-      real :: ptk, rgrav, rkap
-      real :: peln1
-      real :: kapag
+      real :: ptk, rgrav, rkap, peln1, rdg
 
       real, dimension(bd%isd:bd%ied, npz+1, bd%jsd:bd%jed ) :: pe, peln
 #ifdef USE_COND
@@ -1674,11 +1667,10 @@ CONTAINS
 
       rgrav = 1./grav
       gama = 1./(1.-kappa)
-      rcp = 1./cp !not R/cp
       ptk = ptop ** kappa
       rkap = 1./kappa
       peln1 = log(ptop)
-      kapag = - kappa * rgrav
+      rdg = - rdgas * rgrav
 
       !NOTE: Compiler does NOT like this sort of nested-grid BC code. Is it trying to do some ugly optimization?
 
@@ -1721,9 +1713,9 @@ CONTAINS
                do i=ifirst,0
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
-                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
                   !hydro
 #ifdef USE_COND
@@ -1837,9 +1829,9 @@ CONTAINS
                do i=npx,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
-                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
                   !hydro
 #ifdef USE_COND
@@ -1949,9 +1941,9 @@ CONTAINS
                do i=ifirst,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
-                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
                   !hydro
 #ifdef USE_COND
@@ -2067,9 +2059,9 @@ CONTAINS
                do i=ifirst,ilast
                   !Full p
 #ifdef MOIST_CAPPA
-                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(kapag*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
+                  pkz(i,k) = exp(1./(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
-                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)*rcp))
+                  pkz(i,k) = exp(gama*log(-delp(i,j,k)*rgrav/delz(i,j,k)*rdgas*pt(i,j,k)))
 #endif
                   !hydro
 #ifdef USE_COND

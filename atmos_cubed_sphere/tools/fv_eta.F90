@@ -82,7 +82,31 @@ module fv_eta_mod
 
 #ifdef HIWPP
 #ifdef SUPER_K
+        case (20)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (24)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (30)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
         case (40)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (50)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (60)
+        ptop = 56.e2
+        pint = ptop
+        stretch_fac = 1.03
+        case (80)
         ptop = 56.e2
         pint = ptop
         stretch_fac = 1.03
@@ -114,6 +138,11 @@ module fv_eta_mod
              stretch_fac = 1.03
 #endif
 #endif
+        case (64)
+!!!          ptop = 3.e2
+             ptop = 2.0e2
+             pint = 300.E2
+             stretch_fac = 1.03
 #else
 ! *Very-low top: for idealized super-cell simulation:
         case (50)
@@ -1331,6 +1360,11 @@ module fv_eta_mod
              ptop = 1.
              pint = 100.E2
              call var_hi(km, ak, bk, ptop, ks, pint, 1.03)
+! NGGPS_GFS
+        case (95)
+             ptop = 50.
+             pint = 100.E2
+             call var_gfs(km, ak, bk, ptop, ks, pint, 1.028)
         case default
 
 #ifdef TEST_GWAVES
@@ -1369,6 +1403,173 @@ module fv_eta_mod
 
  end subroutine set_eta
 #endif
+
+ subroutine var_gfs(km, ak, bk, ptop, ks, pint, s_rate)
+  integer, intent(in):: km
+  real,    intent(in):: ptop
+  real,    intent(in):: s_rate        ! between [1. 1.1]
+  real,    intent(out):: ak(km+1), bk(km+1)
+  real,    intent(inout):: pint
+  integer, intent(out):: ks
+! Local
+  real, parameter:: p00 = 1.E5
+  real, dimension(km+1):: ze, pe1, peln, eta
+  real, dimension(km):: dz, s_fac, dlnp
+  real ztop, t0, dz0, sum1, tmp1
+  real ep, es, alpha, beta, gama
+!---- Tunable parameters:
+  integer:: k_inc = 20   ! # of layers from bottom up to near const dz region
+  real:: s0 = 0.13 ! lowest layer stretch factor
+!-----------------------
+  real:: s_inc
+  integer  k
+
+     pe1(1) = ptop
+     peln(1) = log(pe1(1))
+     pe1(km+1) = p00
+     peln(km+1) = log(pe1(km+1))
+       
+     t0 = 270.
+     ztop = rdgas/grav*t0*(peln(km+1) - peln(1))
+
+      s_inc = (1.-s0) / real(k_inc)
+      s_fac(km)  = s0
+
+      do k=km-1, km-k_inc, -1
+         s_fac(k)  = s_fac(k+1) + s_inc
+      enddo
+
+      s_fac(km-k_inc-1) = 0.5*(s_fac(km-k_inc) + s_rate)
+          
+      do k=km-k_inc-2, 9, -1
+         s_fac(k) = s_rate * s_fac(k+1)
+      enddo
+
+      s_fac(8) = 0.5*(1.1+s_rate)*s_fac(9)
+      s_fac(7) = 1.1 *s_fac(8)
+      s_fac(6) = 1.15*s_fac(7)
+      s_fac(5) = 1.2 *s_fac(6)
+      s_fac(4) = 1.3 *s_fac(5)
+      s_fac(3) = 1.4 *s_fac(4)
+      s_fac(2) = 1.45 *s_fac(3)
+      s_fac(1) = 1.5 *s_fac(2)
+
+      sum1 = 0.
+      do k=1,km
+         sum1 = sum1 + s_fac(k)
+      enddo
+
+      dz0 = ztop / sum1
+
+      do k=1,km
+         dz(k) = s_fac(k) * dz0
+      enddo
+
+      ze(km+1) = 0.
+      do k=km,1,-1
+         ze(k) = ze(k+1) + dz(k)
+      enddo
+
+! Re-scale dz with the stretched ztop
+      do k=1,km
+         dz(k) = dz(k) * (ztop/ze(1))
+      enddo
+
+      do k=km,1,-1
+         ze(k) = ze(k+1) + dz(k)
+      enddo
+!     ze(1) = ztop
+
+      if ( is_master() ) then
+           write(*,*) 'var_gfs: computed model top (m)=', ztop*0.001, ' bottom/top dz=', dz(km), dz(1)
+!          do k=1,km
+!             write(*,*) k, s_fac(k)
+!          enddo
+      endif
+
+      call sm1_edge(1, 1, 1, 1, km, 1, 1, ze, 2)
+
+! Given z --> p
+      do k=1,km
+          dz(k) = ze(k) - ze(k+1)
+        dlnp(k) = grav*dz(k) / (rdgas*t0)
+      enddo
+      do k=2,km
+         peln(k) = peln(k-1) + dlnp(k-1)
+          pe1(k) = exp(peln(k))
+      enddo
+
+! Pe(k) = ak(k) + bk(k) * PS
+! Locate pint and KS
+      ks = 0
+      do k=2,km
+         if ( pint < pe1(k)) then
+              ks = k-1
+              exit
+         endif
+      enddo
+      if ( is_master() ) then
+         write(*,*) 'For (input) PINT=', 0.01*pint, ' KS=', ks, 'pint(computed)=', 0.01*pe1(ks+1)
+         write(*,*) 'ptop =', ptop
+      endif
+      pint = pe1(ks+1)
+
+#ifdef NO_UKMO_HB
+      do k=1,ks+1
+         ak(k) = pe1(k)
+         bk(k) = 0.
+      enddo
+
+      do k=ks+2,km+1
+         bk(k) = (pe1(k) - pint) / (pe1(km+1)-pint)  ! bk == sigma
+         ak(k) =  pe1(k) - bk(k) * pe1(km+1)
+      enddo
+      bk(km+1) = 1.
+      ak(km+1) = 0.
+#else
+! Problematic for non-hydrostatic
+      do k=1,km+1
+         eta(k) = pe1(k) / pe1(km+1)
+      enddo
+
+      ep =  eta(ks+1) 
+      es =  eta(km) 
+!     es =  1.
+      alpha = (ep**2-2.*ep*es) / (es-ep)**2
+      beta  = 2.*ep*es**2 / (es-ep)**2
+      gama = -(ep*es)**2 / (es-ep)**2
+
+! Pure pressure:
+      do k=1,ks+1
+         ak(k) = eta(k)*1.e5
+         bk(k) = 0.
+      enddo
+
+      do k=ks+2, km
+         ak(k) = alpha*eta(k) + beta + gama/eta(k)
+         ak(k) = ak(k)*1.e5
+      enddo
+         ak(km+1) = 0.
+
+      do k=ks+2, km 
+         bk(k) = (pe1(k) - ak(k))/pe1(km+1)
+      enddo
+         bk(km+1) = 1.
+#endif
+
+      if ( is_master() ) then
+          write(*,*) 'KS=', ks, 'PINT (mb)=', pint/100.
+          do k=1,km
+             write(*,*) k, 0.5*(pe1(k)+pe1(k+1))/100., dz(k)
+          enddo
+          tmp1 = ak(ks+1)
+          do k=ks+1,km
+             tmp1 = max(tmp1, (ak(k)-ak(k+1))/max(1.E-5, (bk(k+1)-bk(k))) )
+          enddo
+          write(*,*) 'Hybrid Sigma-P: minimum allowable surface pressure (hpa)=', tmp1/100.
+      endif
+
+ end subroutine var_gfs
 
  subroutine var_hi(km, ak, bk, ptop, ks, pint, s_rate)
   integer, intent(in):: km

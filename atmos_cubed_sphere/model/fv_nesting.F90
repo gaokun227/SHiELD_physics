@@ -1138,6 +1138,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
                   enddo
                enddo
             enddo
+            deallocate(t_nest)
          endif
 
             call update_coarse_grid(parent_grid%pt, &

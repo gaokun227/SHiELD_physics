@@ -928,8 +928,6 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 
     type(fv_atmos_type), intent(INOUT) :: parent_grid
 
-    real, allocatable :: g_dat(:,:,:)
-    real, allocatable :: pt_coarse(:,:,:), pkz_coarse(:,:,:)
     real, allocatable :: t_nest(:,:,:), ps0(:,:)
     integer :: i,j,k,n
     integer :: isd_p, ied_p, jsd_p, jed_p, isc_p, iec_p, jsc_p, jec_p
@@ -1099,9 +1097,9 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
             do j=jsu,jeu
             do i=isu,ieu
                parent_grid%delp(i,j,k) = parent_grid%delp(i,j,k) + q_diff(i,j,k)
-               enddo
-               enddo
-               enddo
+            enddo
+            enddo
+            enddo
          endif
 
          do n=1,parent_grid%flagstruct%nwat
@@ -1109,14 +1107,14 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
          do j=jsu,jeu
          do i=isu,ieu
             parent_grid%q(i,j,k,n) = parent_grid%q(i,j,k,n)/parent_grid%delp(i,j,k)
-               enddo
-               enddo
-               enddo               
-               enddo
+         enddo
+         enddo
+         enddo               
+         enddo
          endif
 
       deallocate(qdp_coarse)
-      if (parent_grid%flagstruct%nwat > 0) deallocate(q_diff)
+      if  (allocated(q_diff)) deallocate(q_diff)
 
    endif
 

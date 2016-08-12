@@ -304,7 +304,7 @@ contains
 !-----------------------------------------------------------------------
 !------ initialize diagnostics manager ------
 
-    call diag_manager_init
+    call diag_manager_init (TIME_INIT=date)
 
 !----- always override initial/base date with diag_manager value -----
 

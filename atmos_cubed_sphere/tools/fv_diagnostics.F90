@@ -990,9 +990,10 @@ contains
     integer :: isd, ied, jsd, jed, npz, itrac
     integer :: ngc, nwater
 
-    real, allocatable :: a3(:,:,:), wk(:,:,:), wz(:,:,:)
+    real, allocatable :: a2(:,:),a3(:,:,:), wk(:,:,:), wz(:,:,:), ucoor(:,:,:), vcoor(:,:,:)
+    real, allocatable :: slp(:,:), depress(:,:), ws_max(:,:), tc_count(:,:)
+    real, allocatable :: u2(:,:), v2(:,:), x850(:,:), var1(:,:), var2(:,:), var3(:,:)
     real, allocatable :: dmmr(:,:,:), dvmr(:,:,:)
-    real, dimension(Atm(1)%bd%isc:Atm(1)%bd%iec,Atm(1)%bd%jsc:Atm(1)%bd%jec) ::  a2, slp, depress, ws_max, tc_count, x850, var2, u2, v2, var1, var3
     integer, parameter:: nplev = 10
     real height(2)
     real:: plevs(nplev), pout(nplev)
@@ -1006,7 +1007,7 @@ contains
     real, parameter:: ws_0 = 16.   ! minimum max_wind_speed within the 7x7 search box
     real, parameter:: ws_1 = 20.
     real, parameter:: vort_c0= 2.2e-5 
-    logical :: storm(Atm(1)%bd%isc:Atm(1)%bd%iec,Atm(1)%bd%jsc:Atm(1)%bd%jec), cat_crt(Atm(1)%bd%isc:Atm(1)%bd%iec,Atm(1)%bd%jsc:Atm(1)%bd%jec)
+    logical, allocatable :: storm(:,:), cat_crt(:,:)
     real :: tmp2, pvsum, e2, einf, qm, mm
     integer :: Cl, Cl2
 
@@ -1050,6 +1051,19 @@ contains
     isd = Atm(n)%bd%isd; ied = Atm(n)%bd%ied
     jsd = Atm(n)%bd%jsd; jed = Atm(n)%bd%jed
 
+
+    if( idiag%id_c15>0 ) then
+        allocate (   storm(isc:iec,jsc:jec) )
+        allocate ( depress(isc:iec,jsc:jec) )
+        allocate (  ws_max(isc:iec,jsc:jec) )
+        allocate ( cat_crt(isc:iec,jsc:jec) )
+        allocate (tc_count(isc:iec,jsc:jec) )
+    endif
+
+    if( idiag%id_x850>0 ) then
+        allocate ( x850(isc:iec,jsc:jec) )
+    endif
+
     fv_time = Time
     call set_domain(Atm(1)%domain)
 
@@ -1083,12 +1097,15 @@ contains
          endif
      endif
 
+    allocate ( a2(isc:iec,jsc:jec) )
+
     if( prt_minmax ) then
 
         call prt_mxm('ZS', idiag%zsurf,     isc, iec, jsc, jec, 0,   1, 1.0, Atm(n)%gridstruct%area_64, Atm(n)%domain)
         call prt_maxmin('PS', Atm(n)%ps, isc, iec, jsc, jec, ngc, 1, 0.01)
 
 #ifdef HIWPP
+        allocate(var2(isc:iec,jsc:jec))
         !hemispheric max/min pressure
         do j=jsc,jec
         do i=isc,iec
@@ -1105,6 +1122,7 @@ contains
         call prt_maxmin('NH PS', a2, isc, iec, jsc, jec, 0, 1, 0.01)
         call prt_maxmin('SH PS', var2, isc, iec, jsc, jec, 0, 1, 0.01)
 
+        deallocate(var2)
 #endif
 
 #ifdef TEST_TRACER
@@ -1183,6 +1201,8 @@ contains
 
     endif
 
+    allocate ( u2(isc:iec,jsc:jec) )
+    allocate ( v2(isc:iec,jsc:jec) )
     allocate ( wk(isc:iec,jsc:jec,npz) )
     if ( any(idiag%id_tracer_dmmr > 0) .or. any(idiag%id_tracer_dvmr > 0) ) then
         allocate ( dmmr(isc:iec,jsc:jec,1:npz) )
@@ -1433,6 +1453,7 @@ contains
 
           if(idiag%id_slp > 0) then
 ! Cumpute SLP (pressure at height=0)
+          allocate ( slp(isc:iec,jsc:jec) )
           call get_pressure_given_height(isc, iec, jsc, jec, ngc, npz, wz, 1, height(2),   &
                                         Atm(n)%pt(:,:,npz), Atm(n)%peln, slp, 0.01)
           used = send_data (idiag%id_slp, slp, Time)
@@ -1614,6 +1635,16 @@ contains
              if(idiag%id_f45>0) used = send_data(idiag%id_f45, tc_count, Time)
             endif
 
+            if (idiag%id_c15>0) then
+                deallocate(depress)
+                deallocate(cat_crt)
+                deallocate(storm)
+                deallocate(ws_max)
+                deallocate(tc_count)
+            endif
+
+            if(idiag%id_slp>0 )  deallocate( slp )
+
             deallocate( a3 )
           endif
 
@@ -1657,6 +1688,7 @@ contains
        Cl  = get_tracer_index (MODEL_ATMOS, 'Cl')
        Cl2 = get_tracer_index (MODEL_ATMOS, 'Cl2')
        if (Cl > 0 .and. Cl2 > 0) then
+        allocate(var2(isc:iec,jsc:jec))
           var2 = 0.
           do k=1,npz
           do j=jsc,jec
@@ -1743,6 +1775,8 @@ contains
                 endif
              endif
           endif
+
+          deallocate(var2)
 
        endif
 #endif
@@ -2257,6 +2291,7 @@ contains
             if ( idiag%id_x850>0 .and. idiag%id_vort850>0 ) then
                  x850(:,:) = x850(:,:)*a2(:,:) 
                  used=send_data(idiag%id_x850, x850, Time)
+                 deallocate ( x850 )
             endif
        endif
 
@@ -2439,6 +2474,9 @@ contains
 
    ! enddo  ! end ntileMe do-loop
 
+    deallocate ( a2 )
+    deallocate ( u2 )
+    deallocate ( v2 )
     deallocate ( wk )
 
     if (allocated(a3)) deallocate(a3)

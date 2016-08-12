@@ -19,7 +19,6 @@ module fv_dynamics_mod
    use boundary_mod,        only: nested_grid_BC_apply_intT
    use fv_arrays_mod,       only: fv_grid_type, fv_flags_type, fv_atmos_type, fv_nest_type, fv_diag_type, fv_grid_bounds_type
    use fv_nwp_nudge_mod,    only: do_adiabatic_init
-   use memutils_mod, only : print_memuse_stats
 
 implicit none
    logical :: RF_initialized = .false.
@@ -170,7 +169,6 @@ contains
       !We call this BEFORE converting pt to virtual potential temperature, 
       !since we interpolate on (regular) temperature rather than theta.
       if (gridstruct%nested .or. ANY(neststruct%child_grids)) then
-         call print_memuse_stats('Before nested BCs')
                                            call timing_on('NEST_BCs')
          call setup_nested_grid_BCs(npx, npy, npz, zvir, ncnst, &
               u, v, w, pt, delp, delz, q, uc, vc, pkz, &
@@ -178,7 +176,6 @@ contains
               gridstruct, flagstruct, neststruct, &
               neststruct%nest_timestep, neststruct%tracer_nest_timestep, &
               domain, bd, nwat)
-         call print_memuse_stats('After nested BCs')
 
 #ifndef SW_DYNAMICS
          if (gridstruct%nested) then
@@ -424,7 +421,6 @@ contains
                                            call timing_off('COMM_TOTAL')
 #endif
 
-         call print_memuse_stats('Before dyn_core')
                                            call timing_on('DYN_CORE')
       call dyn_core(npx, npy, npz, ng, sphum, nq, mdt, n_split, zvir, cp_air, akap, cappa, grav, hydrostatic, &
                     u, v, w, delz, pt, q, delp, pe, pk, phis, ws, omga, ptop, pfull, ua, va,           & 
@@ -432,7 +428,6 @@ contains
                     gridstruct, flagstruct, neststruct, idiag, bd, &
                     domain, n_map==1, i_pack, last_step, time_total)
                                            call timing_off('DYN_CORE')
-         call print_memuse_stats('After dyn_core')
 
 
 #ifdef SW_DYNAMICS
@@ -447,7 +442,6 @@ contains
 !--------------------------------------------------------
 ! Perform large-time-step scalar transport using the accumulated CFL and
 ! mass fluxes
-         call print_memuse_stats('Before tracer')
                                               call timing_on('tracer_2d')
        !!! CLEANUP: merge these two calls?
        if (gridstruct%nested) then
@@ -467,7 +461,6 @@ contains
          endif
        endif
                                              call timing_off('tracer_2d')
-         call print_memuse_stats('After tracer')
 
      if ( flagstruct%moist_phys ) then
                                                   call timing_on('Fill2D')
@@ -506,7 +499,6 @@ contains
          enddo
 
          do_omega = hydrostatic .and. last_step
-         call print_memuse_stats('Before L2E')
                                                   call timing_on('Remapping')
 #ifdef AVEC_TIMERS
                                                   call avec_timer_start(6)
@@ -521,7 +513,6 @@ contains
                      idiag%id_mdt>0, dtdt_m, ptop, ak, bk, gridstruct, domain, ze0,  &
                      flagstruct%do_sat_adj, hydrostatic, hybrid_z, do_omega,         &
                      flagstruct%adiabatic, do_adiabatic_init)
-         call print_memuse_stats('After L2E')
 
 #ifdef AVEC_TIMERS
                                                   call avec_timer_stop(6)

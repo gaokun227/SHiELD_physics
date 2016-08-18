@@ -651,7 +651,8 @@
 !
 
               value = max( min( tem1*(clwf(i,k)-clwm), 50.0 ), 0.0 )
-              tem2  = sqrt( sqrt(rhly(i,k)) )
+!             tem2  = sqrt( sqrt(rhly(i,k)) )
+              tem2  = rhly(i,k) ** 4.0
 
               cldtot(i,k) = max( tem2*(1.0-exp(-value)), 0.0 )
             endif

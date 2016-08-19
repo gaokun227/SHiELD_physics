@@ -65,6 +65,7 @@
        use physcons, only: dxmax, dxmin, dxinv, ozcalc, nocnv  ! lon lat dependant variables set in initialize
        use funcphys, only: gfuncphys
        use module_microphysics, only: gsmconst
+       use lin_cld_microphys_mod, only: lin_cld_microphys_init, lin_cld_microphys_end
  
 
        use module_radiation_driver,  only : grrad, radupdate
@@ -2187,6 +2188,8 @@
 
          call set_soilveg(me,nlunit)
 
+         call lin_cld_microphys_init
+
        end subroutine
 
 
@@ -3325,6 +3328,8 @@
        end subroutine 
 
        subroutine nuopc_phys_end
+
+         call lin_cld_microphys_end
 
        end subroutine
 

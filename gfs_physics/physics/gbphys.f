@@ -537,6 +537,7 @@
       use cs_conv, only : cs_convr
 !---GFDL addition
       use gfs_fv3_needs, only : get_prs_fv3, get_phi_fv3
+      use lin_cld_microphys_mod, only: lin_cld_microphys_driver
 
       implicit none
 !
@@ -764,6 +765,17 @@
 !     do i=1, ntrac-ncld-1
 !       fscav(i) = 0.
 !     enddo
+
+! lin cloud microphysics
+
+      integer :: iis, iie, jjs, jje, kks, kke, kt, kb, seconds
+      real(kind=kind_phys) :: dt_in
+      real(kind=kind_phys), dimension(im,1) :: area1, land, prec_mp
+      real(kind=kind_phys), dimension(im,1,levs) :: delp, dz, uin, vin, &
+     &           pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1, qs1, pt_dt,     &
+     &           qa_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt, qs_dt, &
+     &           qg_dt
+      logical :: hydrostatic, phys_hydrostatic
  
 
 !  --- ...  set up check print point (for debugging)
@@ -2919,6 +2931,79 @@
 
           endif   ! end of grid-scale precip/microphysics options
         endif     ! end if_num_p3d
+
+      elseif (ncld == 6) then       ! lin cloud microphysics
+
+        do i = 1, im
+          if (nint(slmsk(i)) .eq. 1) then
+            land(i,1) = 1
+          else
+            land(i,1) = 0
+          endif
+          do k = 1, levs
+            dz(i,1,k) = phii(i,k) - phii(i,k+1)
+          enddo
+        enddo
+
+        qv1    (:,1,:)   = gq0(:,:,1)
+        ql1    (:,1,:)   = gq0(:,:,2)
+        qr1    (:,1,:)   = gq0(:,:,3)
+        qi1    (:,1,:)   = gq0(:,:,4)
+        qs1    (:,1,:)   = gq0(:,:,5)
+        qg1    (:,1,:)   = gq0(:,:,6)
+        qa1    (:,1,:)   = gq0(:,:,7)
+        qn1    (:,1,:)   = gq0(:,:,7)
+        qv_dt  (:,1,:)   = 0.0
+        ql_dt  (:,1,:)   = 0.0
+        qr_dt  (:,1,:)   = 0.0
+        qi_dt  (:,1,:)   = 0.0
+        qs_dt  (:,1,:)   = 0.0
+        qg_dt  (:,1,:)   = 0.0
+        qa_dt  (:,1,:)   = 0.0
+        pt_dt  (:,1,:)   = 0.0
+        pt     (:,1,:)   = gt0
+        w      (:,1,:)   = vvel
+        uin    (:,1,:)   = gu0
+        vin    (:,1,:)   = gv0
+        udt    (:,1,:)   = 0.0
+        vdt    (:,1,:)   = 0.0
+        delp   (:,1,:)   = del
+        area1  (:,1  )   = area
+        dt_in            = dtp
+        prec_mp(:,1  )   = rain1
+        hydrostatic      = .False.
+        phys_hydrostatic = .True.
+        iis              = 1
+        iie              = im
+        jjs              = 1
+        jje              = 1
+        kks              = 1
+        kke              = levs
+        kt               = 1
+        kb               = levs
+        seconds          = mod(nint(fhour * 3600), 86400)
+
+        call lin_cld_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1,&
+     &                               qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
+     &                               qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
+     &                               uin, vin, udt, vdt, dz, delp,      &
+     &                               area1, dt_in, land, prec_mp,       &
+     &                               hydrostatic, phys_hydrostatic, iis,&
+     &                               iie, jjs, jje, kks, kke, kt, kb,   &
+     &                               seconds)
+
+        rain1 = prec_mp(:,1) / 86400.0 * dtp * 0.001
+
+        gq0(:,:,1) = gq0(:,:,1) + qv_dt(:,1,:) * dtp
+        gq0(:,:,2) = gq0(:,:,2) + ql_dt(:,1,:) * dtp
+        gq0(:,:,3) = gq0(:,:,3) + qr_dt(:,1,:) * dtp
+        gq0(:,:,4) = gq0(:,:,4) + qi_dt(:,1,:) * dtp
+        gq0(:,:,5) = gq0(:,:,5) + qs_dt(:,1,:) * dtp
+        gq0(:,:,6) = gq0(:,:,6) + qg_dt(:,1,:) * dtp
+        gq0(:,:,7) = gq0(:,:,7) + qa_dt(:,1,:) * dtp
+        gt0        = gt0        + pt_dt(:,1,:) * dtp
+        gu0        = gu0        + udt  (:,1,:) * dtp
+        gv0        = gv0        + vdt  (:,1,:) * dtp
 
       endif       ! end if_ncld
 

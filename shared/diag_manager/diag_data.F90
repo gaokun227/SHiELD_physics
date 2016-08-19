@@ -654,6 +654,10 @@ MODULE diag_data_mod
   !   only supported if the diag_manager_init routine is called with the optional time_init parameter.
   !   This was usually done by FRE after the model run.
   ! </DATA>
+  ! <DATA NAME="long_date" TYPE="LOGICAL" DEFAULT=".FALSE.">
+  !   If <TT>.TRUE.</TT> then prepend the file start date in long format to the output file.  <TT>.TRUE.</TT> is only supported if the
+  !   diag_manager_init routine is called with the optional time_init parameter.  Note: This is a specal case used for NWP outputs.
+  ! </DATA>
   ! <DATA NAME="region_out_use_alt_value" TYPE="LOGICAL" DEFAULT=".TRUE.">
   !   Will determine which value to use when checking a regional output if the region is the full axis or a sub-axis.
   !   The values are defined as <TT>GLO_REG_VAL</TT> (-999) and <TT>GLO_REG_VAL_ALT</TT> (-1) in <TT>diag_data_mod</TT>.
@@ -678,6 +682,7 @@ MODULE diag_data_mod
   INTEGER :: max_field_attributes = 2
   INTEGER :: max_file_attributes = 2
   LOGICAL :: prepend_date = .TRUE.
+  LOGICAL :: long_date = .FALSE.
   ! <!-- netCDF variable -->
   ! <DATA NAME="FILL_VALUE" TYPE="REAL" DEFAULT="NF90_FILL_REAL">
   !   Fill value used.  Value will be <TT>NF90_FILL_REAL</TT> if using the

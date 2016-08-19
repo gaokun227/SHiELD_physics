@@ -1,16 +1,25 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 #include <fms_platform.h>
 
 MODULE diag_manager_mod
-  ! <CONTACT EMAIL="Matthew.Harrison@gfdl.noaa.gov">
-  !   Matt Harrison
-  ! </CONTACT>
-  ! <CONTACT EMAIL="Giang.Nong@noaa.gov">
-  !   Giang Nong
-  ! </CONTACT>
-  ! <CONTACT EMAIL="seth.underwood@noaa.gov">
-  !   Seth Underwood
-  ! </CONTACT>
-  ! <HISTORY SRC="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/" />
   ! <OVERVIEW>
   !   <TT>diag_manager_mod</TT> is a set of simple calls for parallel diagnostics
   !   on distributed systems. It is geared toward the writing of data in netCDF

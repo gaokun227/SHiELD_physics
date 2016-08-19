@@ -292,7 +292,7 @@ module memutils_mod
     mstd = (m-mavg)**2; call mpp_sum(mstd); mstd = sqrt( mstd/mpp_npes() )
     if( mpp_pe().EQ.mpp_root_pe() ) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-      write( mu,'(a84,4es11.3)' ) trim(walldate)//' '//trim(walltime)//&
+      write( mu,'(a84,4es14.6)' ) trim(walldate)//' '//trim(walltime)//&
          ': Memuse(MB) at '//trim(text)//'=', mmin, mmax, mstd, mavg
     endif
     return

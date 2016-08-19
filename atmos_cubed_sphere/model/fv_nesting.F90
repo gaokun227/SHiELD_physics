@@ -38,10 +38,6 @@ implicit none
 	!Individual structures are allocated by nested_grid_BC_recv
    type(fv_nest_BC_type_3d) :: u_buf, v_buf, uc_buf, vc_buf, delp_buf, delz_buf, pt_buf, pkz_buf, w_buf, divg_buf
    type(fv_nest_BC_type_3d), allocatable:: q_buf(:)
-#ifdef USE_COND
-   real, dimension(:,:,:), allocatable, target :: dum_West, dum_East, dum_North, dum_South
-#endif
-
 private
 public :: twoway_nesting, setup_nested_grid_BCs
 
@@ -451,15 +447,14 @@ contains
     real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
 
    real, dimension(:,:,:), pointer :: ptBC, sphumBC, qconBC, delpBC, delzBC, cappaBC
-   real, dimension(:,:,:), pointer :: liq_watBC_west, ice_watBC_west, rainwatBC_west, snowwatBC_west, graupelBC_west
-   real, dimension(:,:,:), pointer :: liq_watBC_east, ice_watBC_east, rainwatBC_east, snowwatBC_east, graupelBC_east
-   real, dimension(:,:,:), pointer :: liq_watBC_north, ice_watBC_north, rainwatBC_north, snowwatBC_north, graupelBC_north
-   real, dimension(:,:,:), pointer :: liq_watBC_south, ice_watBC_south, rainwatBC_south, snowwatBC_south, graupelBC_south
+   real, dimension(:,:,:), pointer :: liq_watBC, ice_watBC, rainwatBC, snowwatBC, graupelBC
 
    real :: dp1, q_liq, q_sol, q_con = 0., cvm, pkz, rdg, cv_air
 
    integer :: i,j,k, istart, iend
    integer :: liq_wat, ice_wat, rainwat, snowwat, graupel
+   real, parameter:: tice = 273.16 ! For GFS Partitioning
+   real, parameter:: t_i0 = 15.
 
    integer :: is,  ie,  js,  je
    integer :: isd, ied, jsd, jed
@@ -476,130 +471,24 @@ contains
    rdg = -rdgas / grav
    cv_air =  cp_air - rdgas
 
-#ifdef USE_COND
    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
    ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
    rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
    snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-   graupel = get_tracer_index (MODEL_ATMOS, 'graupel')   
-
-   if (is == 1) then
-      if (.not. allocated(dum_West)) then
-         allocate(dum_West(isd:0,jsd:jed,npz))
-!$OMP parallel do default(none) shared(npz,isd,jsd,jed,dum_West)
-         do k=1,npz
-         do j=jsd,jed
-         do i=isd,0
-            dum_West(i,j,k) = 0.
-         enddo
-         enddo
-         enddo
-      endif
-   endif
-   if (js == 1) then
-      if (.not. allocated(dum_South)) then
-         allocate(dum_South(isd:ied,jsd:0,npz))
-!$OMP parallel do default(none) shared(npz,isd,ied,jsd,dum_South)
-         do k=1,npz
-         do j=jsd,0
-         do i=isd,ied
-            dum_South(i,j,k) = 0.
-         enddo
-         enddo
-         enddo
-      endif
-   endif
-   if (ie == npx-1) then
-      if (.not. allocated(dum_East)) then
-         allocate(dum_East(npx:ied,jsd:jed,npz))
-!$OMP parallel do default(none) shared(npx,npz,ied,jsd,jed,dum_East)
-         do k=1,npz
-         do j=jsd,jed
-         do i=npx,ied
-            dum_East(i,j,k) = 0.
-         enddo
-         enddo
-         enddo
-      endif
-   endif
-   if (je == npy-1) then
-      if (.not. allocated(dum_North)) then
-         allocate(dum_North(isd:ied,npy:jed,npz))
-!$OMP parallel do default(none) shared(npy,npz,isd,ied,jed,dum_North)
-         do k=1,npz
-         do j=npy,jed
-         do i=isd,ied
-            dum_North(i,j,k) = 0.
-         enddo
-         enddo
-         enddo
-      endif
-   endif
-
-   if (liq_wat > 0) then
-      liq_watBC_west  => q_BC(liq_wat)%west_t1
-      liq_watBC_east  => q_BC(liq_wat)%east_t1
-      liq_watBC_north => q_BC(liq_wat)%north_t1
-      liq_watBC_south => q_BC(liq_wat)%south_t1
-   else
-      liq_watBC_west  => dum_west
-      liq_watBC_east  => dum_east
-      liq_watBC_north => dum_north
-      liq_watBC_south => dum_south
-   endif
-   if (ice_wat > 0) then
-      ice_watBC_west  => q_BC(ice_wat)%west_t1
-      ice_watBC_east  => q_BC(ice_wat)%east_t1
-      ice_watBC_north => q_BC(ice_wat)%north_t1
-      ice_watBC_south => q_BC(ice_wat)%south_t1
-   else
-      ice_watBC_west  => dum_west
-      ice_watBC_east  => dum_east
-      ice_watBC_north => dum_north
-      ice_watBC_south => dum_south
-   endif
-   if (rainwat > 0) then
-      rainwatBC_west  => q_BC(rainwat)%west_t1
-      rainwatBC_east  => q_BC(rainwat)%east_t1
-      rainwatBC_north => q_BC(rainwat)%north_t1
-      rainwatBC_south => q_BC(rainwat)%south_t1
-   else
-      rainwatBC_west  => dum_west
-      rainwatBC_east  => dum_east
-      rainwatBC_north => dum_north
-      rainwatBC_south => dum_south
-   endif
-   if (snowwat > 0) then
-      snowwatBC_west  => q_BC(snowwat)%west_t1
-      snowwatBC_east  => q_BC(snowwat)%east_t1
-      snowwatBC_north => q_BC(snowwat)%north_t1
-      snowwatBC_south => q_BC(snowwat)%south_t1
-   else
-      snowwatBC_west  => dum_west
-      snowwatBC_east  => dum_east
-      snowwatBC_north => dum_north
-      snowwatBC_south => dum_south
-   endif
-   if (graupel > 0) then
-      graupelBC_west  => q_BC(graupel)%west_t1
-      graupelBC_east  => q_BC(graupel)%east_t1
-      graupelBC_north => q_BC(graupel)%north_t1
-      graupelBC_south => q_BC(graupel)%south_t1
-   else
-      graupelBC_west  => dum_west
-      graupelBC_east  => dum_east
-      graupelBC_north => dum_north
-      graupelBC_south => dum_south
-   endif
-
-#endif
-
+   graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
 
    if (is == 1) then
       ptBC    =>    pt_BC%west_t1
       sphumBC => sphum_BC%west_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%west_t1
+      liq_watBC => q_BC(liq_wat)%west_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%west_t1
+      rainwatBC => q_BC(rainwat)%west_t1
+      snowwatBC => q_BC(snowwat)%west_t1
+      graupelBC => q_BC(graupel)%west_t1
+#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%west_t1
 #endif
@@ -607,7 +496,7 @@ contains
       delpBC  =>  delp_BC%west_t1
       delzBC  =>  delz_BC%west_t1
 
-!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC_west,rainwatBC_west,ice_watBC_west,snowwatBC_west,graupelBC_west,qconBC,cappaBC, &
+!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC,rainwatBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
 !$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -615,9 +504,15 @@ contains
       do i=isd,0
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
-         q_liq = liq_watBC_west(i,j,k) + rainwatBC_west(i,j,k)
-         q_sol = ice_watBC_west(i,j,k) + snowwatBC_west(i,j,k) + graupelBC_west(i,j,k)
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
+         q_liq = q_con - q_sol
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
          q_con = q_liq + q_sol
+#endif 
          qconBC(i,j,k) = q_con
 #ifdef MOIST_CAPPA
          cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
@@ -645,6 +540,13 @@ contains
       sphumBC => sphum_BC%south_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%south_t1
+      liq_watBC => q_BC(liq_wat)%south_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%south_t1
+      rainwatBC => q_BC(rainwat)%south_t1
+      snowwatBC => q_BC(snowwat)%south_t1
+      graupelBC => q_BC(graupel)%south_t1
+#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%south_t1
 #endif
@@ -662,9 +564,7 @@ contains
          iend = ied
       end if
 
-!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC, &
-!$OMP      liq_watBC_south,rainwatBC_south,ice_watBC_south,&
-!$OMP      snowwatBC_south,graupelBC_south,qconBC,cappaBC, &
+!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC,liq_watBC,rainwatBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
 !$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -672,13 +572,19 @@ contains
       do i=istart,iend
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
-         q_liq = liq_watBC_south(i,j,k) + rainwatBC_south(i,j,k)
-         q_sol = ice_watBC_south(i,j,k) + snowwatBC_south(i,j,k) + graupelBC_south(i,j,k)
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
+         q_liq = q_con - q_sol
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
          q_con = q_liq + q_sol
+#endif 
          qconBC(i,j,k) = q_con
 #ifdef MOIST_CAPPA
          cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
-         cappaBC(i,j,k) =  rdgas/(rdgas + cvm/(1.+dp1))
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
          pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
               (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
 #else
@@ -702,28 +608,40 @@ contains
       sphumBC => sphum_BC%east_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%east_t1
+      liq_watBC => q_BC(liq_wat)%east_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%east_t1
+      rainwatBC => q_BC(rainwat)%east_t1
+      snowwatBC => q_BC(snowwat)%east_t1
+      graupelBC => q_BC(graupel)%east_t1
+#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%east_t1
 #endif
 #endif
       delpBC  =>  delp_BC%east_t1
       delzBC  =>  delz_BC%east_t1
-!$OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC, &
-!$OMP      liq_watBC_east,rainwatBC_east,ice_watBC_east,snowwatBC_east,graupelBC_east,qconBC,cappaBC, &
-!$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
-!$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
+!OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC,liq_watBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
+!OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=jsd,jed
       do i=npx,ied
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
-         q_liq = liq_watBC_east(i,j,k) + rainwatBC_east(i,j,k)
-         q_sol = ice_watBC_east(i,j,k) + snowwatBC_east(i,j,k) + graupelBC_east(i,j,k)
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
+         q_liq = q_con - q_sol
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
          q_con = q_liq + q_sol
+#endif 
          qconBC(i,j,k) = q_con
 #ifdef MOIST_CAPPA
          cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
-         cappaBC(i,j,k) =  rdgas/(rdgas + cvm/(1.+dp1))
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
          pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
               (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
 #else
@@ -746,6 +664,13 @@ contains
       sphumBC => sphum_BC%north_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%north_t1
+      liq_watBC => q_BC(liq_wat)%north_t1
+#ifndef GFS_PHYS
+      ice_watBC => q_BC(ice_wat)%north_t1
+      rainwatBC => q_BC(rainwat)%north_t1
+      snowwatBC => q_BC(snowwat)%north_t1
+      graupelBC => q_BC(graupel)%north_t1
+#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%north_t1
 #endif
@@ -763,22 +688,27 @@ contains
          iend = ied
       end if
 
-!$OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir, &
-!$OMP      sphumBC,liq_watBC_north,rainwatBC_north,ice_watBC_north,snowwatBC_north,graupelBC_north,qconBC,cappaBC, &
-!$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
-!$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
+!OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir,sphumBC,liq_watBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
+!OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=npy,jed
       do i=istart,iend
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
-         q_liq = liq_watBC_north(i,j,k) + rainwatBC_north(i,j,k)
-         q_sol = ice_watBC_north(i,j,k) + snowwatBC_north(i,j,k) + graupelBC_north(i,j,k)
+#ifdef GFS_PHYS
+         q_con = liq_watBC(i,j,k)
+         q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
+         q_liq = q_con - q_sol
+#else
+         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
+         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
          q_con = q_liq + q_sol
+#endif 
          qconBC(i,j,k) = q_con
 #ifdef MOIST_CAPPA
          cvm = (1.-(sphumBC(i,j,k)+q_con))*cv_air+sphumBC(i,j,k)*cv_vap+q_liq*c_liq+q_sol*c_ice
-         cappaBC(i,j,k) =  rdgas/(rdgas + cvm/(1.+dp1))
+         cappaBC(i,j,k) = rdgas/(rdgas + cvm/(1.+dp1))
          pkz = exp( cappaBC(i,j,k)*log(rdg*delpBC(i,j,k)*ptBC(i,j,k) * &
               (1.+dp1)*(1.-q_con)/delzBC(i,j,k)))         
 #else
@@ -998,8 +928,6 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 
     type(fv_atmos_type), intent(INOUT) :: parent_grid
 
-    real, allocatable :: g_dat(:,:,:)
-    real, allocatable :: pt_coarse(:,:,:), pkz_coarse(:,:,:)
     real, allocatable :: t_nest(:,:,:), ps0(:,:)
     integer :: i,j,k,n
     integer :: isd_p, ied_p, jsd_p, jed_p, isc_p, iec_p, jsc_p, jec_p
@@ -1169,9 +1097,9 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
             do j=jsu,jeu
             do i=isu,ieu
                parent_grid%delp(i,j,k) = parent_grid%delp(i,j,k) + q_diff(i,j,k)
-               enddo
-               enddo
-               enddo
+            enddo
+            enddo
+            enddo
          endif
 
          do n=1,parent_grid%flagstruct%nwat
@@ -1179,14 +1107,14 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
          do j=jsu,jeu
          do i=isu,ieu
             parent_grid%q(i,j,k,n) = parent_grid%q(i,j,k,n)/parent_grid%delp(i,j,k)
-               enddo
-               enddo
-               enddo               
-               enddo
+         enddo
+         enddo
+         enddo               
+         enddo
          endif
 
       deallocate(qdp_coarse)
-      if (parent_grid%flagstruct%nwat > 0) deallocate(q_diff)
+      if  (allocated(q_diff)) deallocate(q_diff)
 
    endif
 
@@ -1208,6 +1136,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
                   enddo
                enddo
             enddo
+            deallocate(t_nest)
          endif
 
             call update_coarse_grid(parent_grid%pt, &

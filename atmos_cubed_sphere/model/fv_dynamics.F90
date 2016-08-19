@@ -373,7 +373,7 @@ contains
   last_step = .false.
   mdt = bdt / real(k_split)
 
-  if ( idiag%id_mdt > 0 ) then
+  if ( idiag%id_mdt > 0 .and. (.not. do_adiabatic_init) ) then
        allocate ( dtdt_m(is:ie,js:je,npz) )
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,dtdt_m)
        do k=1,npz
@@ -657,6 +657,9 @@ contains
 
 911  call cubed_to_latlon(u, v, ua, va, gridstruct, &
           npx, npy, npz, 1, gridstruct%grid_type, domain, gridstruct%nested, flagstruct%c2l_ord, bd)
+
+  deallocate(dp1)
+  deallocate(cappa)
 
      if ( flagstruct%fv_debug ) then
        call prt_mxm('UA', ua, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)

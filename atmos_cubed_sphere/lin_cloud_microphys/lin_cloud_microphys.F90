@@ -5,26 +5,38 @@
 ! Developer: Shian-Jiann Lin
 !
 module lin_cld_microphys_mod
- use mpp_mod,           only: stdlog, mpp_pe, mpp_root_pe, mpp_clock_id, &
-                              mpp_clock_begin, mpp_clock_end, CLOCK_ROUTINE, &
-                              input_nml_file, mpp_max
- use diag_manager_mod,  only: register_diag_field, send_data
- use time_manager_mod,  only: time_type, get_time
- use constants_mod,     only: grav, rdgas, rvgas, cp_air, cp_vapor, hlv, hlf, kappa, pi=>pi_8
- use fms_mod,           only: write_version_number, open_namelist_file, &
-                              check_nml_error, file_exist, close_file,  &
-                              error_mesg, FATAL
+! use mpp_mod,           only: stdlog, mpp_pe, mpp_root_pe, mpp_clock_id, &
+!                              mpp_clock_begin, mpp_clock_end, CLOCK_ROUTINE, &
+!                              input_nml_file, mpp_max
+! use diag_manager_mod,  only: register_diag_field, send_data
+! use time_manager_mod,  only: time_type, get_time
+! use constants_mod,     only: grav, rdgas, rvgas, cp_air, cp_vapor, hlv, hlf, kappa, pi=>pi_8
+! use fms_mod,           only: write_version_number, open_namelist_file, &
+!                              check_nml_error, file_exist, close_file,  &
+!                              error_mesg, FATAL
 
  implicit none
  private
 
  public  lin_cld_microphys_driver, lin_cld_microphys_init, lin_cld_microphys_end, sg_conv, wqs1, wqs2, qs_blend
- public  qsmith_init, qsmith, es2_table1d, es3_table1d, esw_table1d, g_sum, wqsat_moist, wqsat2_moist, sat_adj2
+ public  qsmith_init, qsmith, es2_table1d, es3_table1d, esw_table1d, wqsat_moist, wqsat2_moist, sat_adj2
  public  setup_con, wet_bulb
  real             :: missing_value = -1.e10
  logical          :: module_is_initialized = .false.
  logical          :: qsmith_tables_initialized = .false.
  character(len=17) :: mod_name = 'lin_cld_microphys'
+
+!==== constants_mod ====
+real, parameter :: grav = 9.80665
+real, parameter :: rdgas = 287.05
+real, parameter :: rvgas = 461.50
+real, parameter :: cp_air = 1004.6
+real, parameter :: cp_vapor = 4.0*rvgas
+real, parameter :: hlv = 2.5e6
+real, parameter :: hlf = 3.3358e5
+real, parameter :: kappa = rdgas/cp_air
+real, parameter :: pi = 3.141592653589793
+!==== constants_mod ====
 
 !==== fms constants ====================
 !!! real, parameter :: latv  = hlv             ! = 2.500e6
@@ -229,23 +241,28 @@ module lin_cld_microphys_mod
  contains
 
 
+!  subroutine lin_cld_microphys_driver(qv, ql, qr, qi, qs, qg, qa, qn,                &
+!                               qv_dt, ql_dt, qr_dt, qi_dt, qs_dt, qg_dt, qa_dt,      &
+!                               pt_dt, pt, w, uin, vin, udt, vdt, dz, delp, area, dt_in, &
+!                               land,  rain, snow, ice, graupel,                      &
+!                               hydrostatic, phys_hydrostatic,                        &
+!                               iis,iie, jjs,jje, kks,kke, ktop, kbot, time)
   subroutine lin_cld_microphys_driver(qv, ql, qr, qi, qs, qg, qa, qn,                &
                                qv_dt, ql_dt, qr_dt, qi_dt, qs_dt, qg_dt, qa_dt,      &
                                pt_dt, pt, w, uin, vin, udt, vdt, dz, delp, area, dt_in, &
-                               land,  rain, snow, ice, graupel,                      &
-                               hydrostatic, phys_hydrostatic,                        &
-                               iis,iie, jjs,jje, kks,kke, ktop, kbot, time)
+                               land, prec_mp, hydrostatic, phys_hydrostatic,         &
+                               iis,iie, jjs,jje, kks,kke, ktop, kbot, seconds)
 ! kks == 1; kke == kbot == npz
-  type(time_type), intent(in):: time
   logical,         intent(in):: hydrostatic, phys_hydrostatic
   integer,         intent(in):: iis,iie, jjs,jje  ! physics window
   integer,         intent(in):: kks,kke           ! vertical dimension
   integer,         intent(in):: ktop, kbot        ! vertical compute domain
+  integer,         intent(in):: seconds
   real,            intent(in):: dt_in
 
   real, intent(in   ), dimension(:,:)  :: area
   real, intent(in   ), dimension(:,:)  :: land  !land fraction
-  real, intent(out  ), dimension(:,:)  :: rain, snow, ice, graupel
+  real, intent(out  ), dimension(:,:)  :: prec_mp
   real, intent(in   ), dimension(:,:,:):: delp, dz, uin, vin
   real, intent(in   ), dimension(:,:,:):: pt, qv, ql, qr, qg, qa, qn 
   real, intent(inout), dimension(:,:,:):: qi, qs
@@ -260,9 +277,10 @@ module lin_cld_microphys_mod
   integer :: i,j,k
   integer :: is,ie, js,je  ! physics window
   integer :: ks,ke         ! vertical dimension
-  integer :: seconds, days, ntimes
+  integer :: days, ntimes
 
-  real, dimension(iie-iis+1,jje-jjs+1)           :: prec1, prec_mp, cond, w_var, rh0, maxdbz
+  real, dimension(iie-iis+1,jje-jjs+1)           :: rain, snow, ice, graupel
+  real, dimension(iie-iis+1,jje-jjs+1)           :: prec1, cond, w_var, rh0, maxdbz
   real, dimension(iie-iis+1,jje-jjs+1,kke-kks+1) :: vt_r, vt_s, vt_g, vt_i, qn2, dbz
   real, dimension(size(pt,1), size(pt,3)) :: m2_rain, m2_sol
 
@@ -275,7 +293,7 @@ module lin_cld_microphys_mod
   je = jje-jjs+1
   ke = kke-kks+1
 
-  call mpp_clock_begin (lin_cld_mp_clock)
+!  call mpp_clock_begin (lin_cld_mp_clock)
 
   if ( phys_hydrostatic .or. hydrostatic ) then
         lv00 = Lv0
@@ -303,7 +321,7 @@ module lin_cld_microphys_mod
 ! small time step:
       dts = dt_in / real(ntimes)
 
-  call get_time (time, seconds, days)
+!  call get_time (time, seconds, days)
 
 
   do j=js, je
@@ -346,27 +364,27 @@ module lin_cld_microphys_mod
    endif
 
    if ( id_vtr> 0 ) then
-     used=send_data(id_vtr, vt_r, time, is_in=iis, js_in=jjs)
+!     used=send_data(id_vtr, vt_r, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_vts> 0 ) then
-     used=send_data(id_vts, vt_s, time, is_in=iis, js_in=jjs)
+!     used=send_data(id_vts, vt_s, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_vtg> 0 ) then
-     used=send_data(id_vtg, vt_g, time, is_in=iis, js_in=jjs)
+!     used=send_data(id_vtg, vt_g, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_vti> 0 ) then
-     used=send_data(id_vti, vt_i, time, is_in=iis, js_in=jjs)
+!     used=send_data(id_vti, vt_i, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_droplets> 0 ) then
-     used=send_data(id_droplets, qn2, time, is_in=iis, js_in=jjs)
+!     used=send_data(id_droplets, qn2, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_var> 0 ) then
-     used=send_data(id_var, w_var, time, is_in=iis, js_in=jjs)
+!     used=send_data(id_var, w_var, time, is_in=iis, js_in=jjs)
    endif
 
 ! Convert to mm/day
@@ -387,64 +405,64 @@ module lin_cld_microphys_mod
               cond(i,j) = cond(i,j)*rgrav
            enddo
         enddo
-        used=send_data(id_cond, cond, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_cond, cond, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_snow>0 ) then
 !       used=send_data(id_snow,    snow,    time, iis, jjs)
-        used=send_data(id_snow, snow, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_snow, snow, time, is_in=iis, js_in=jjs)
         if ( mp_print .and. seconds==0 ) then
-             tot_prec = g_sum(snow, is, ie, js, je, area, 1)
-             if(master) write(*,*) 'mean snow=', tot_prec
+!             tot_prec = g_sum(snow, is, ie, js, je, area, 1)
+!             if(master) write(*,*) 'mean snow=', tot_prec
         endif
    endif
 
    if ( id_graupel>0 ) then
 !       used=send_data(id_graupel, graupel, time, iis, jjs)
-        used=send_data(id_graupel, graupel, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_graupel, graupel, time, is_in=iis, js_in=jjs)
         if ( mp_print .and. seconds==0 ) then
-             tot_prec = g_sum(graupel, is, ie, js, je, area, 1)
-             if(master) write(*,*) 'mean graupel=', tot_prec
+!             tot_prec = g_sum(graupel, is, ie, js, je, area, 1)
+!             if(master) write(*,*) 'mean graupel=', tot_prec
         endif
    endif
 
    if ( id_ice>0 ) then
 !       used=send_data(id_ice, ice, time, iis, jjs)
-        used=send_data(id_ice, ice, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_ice, ice, time, is_in=iis, js_in=jjs)
         if ( mp_print .and. seconds==0 ) then
-             tot_prec = g_sum(ice, is, ie, js, je, area, 1)
-             if(master) write(*,*) 'mean ice_mp=', tot_prec
+!             tot_prec = g_sum(ice, is, ie, js, je, area, 1)
+!             if(master) write(*,*) 'mean ice_mp=', tot_prec
         endif
    endif
 
    if ( id_rain>0 ) then
 !       used=send_data(id_rain,    rain,    time, iis, jjs)
-        used=send_data(id_rain, rain, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_rain, rain, time, is_in=iis, js_in=jjs)
         if ( mp_print .and. seconds==0 ) then
-             tot_prec = g_sum(rain, is, ie, js, je, area, 1)
-             if(master) write(*,*) 'mean rain=', tot_prec
+!             tot_prec = g_sum(rain, is, ie, js, je, area, 1)
+!             if(master) write(*,*) 'mean rain=', tot_prec
         endif
    endif
 
    if ( id_rh>0 ) then !Not used?
 !       used=send_data(id_rh,  rh0,   time, iis, jjs)
-        used=send_data(id_rh, rh0, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_rh, rh0, time, is_in=iis, js_in=jjs)
    endif
 
 
    if ( id_prec>0 ) then
 !       used=send_data(id_prec, prec_mp, time, iis, jjs)
-        used=send_data(id_prec, prec_mp, time, is_in=iis, js_in=jjs)
+!        used=send_data(id_prec, prec_mp, time, is_in=iis, js_in=jjs)
    endif
 
    if ( id_dbz>0 .or. id_maxdbz>0 .or. id_basedbz>0) then
       call dbzcalc(qv, qr, qs, qg, pt, delp, dz, &
            dbz, maxdbz, allmax, is, ie, js, je, ks, ke, .true., .true., .true., .true.)
       if (id_dbz > 0) then
-         used=send_data(id_dbz, dbz, time, is_in=iis, js_in=jjs) 
+!         used=send_data(id_dbz, dbz, time, is_in=iis, js_in=jjs) 
       endif
       if (id_maxdbz > 0) then
-         used=send_data(id_maxdbz, maxdbz, time, is_in=iis, js_in=jjs)
+!         used=send_data(id_maxdbz, maxdbz, time, is_in=iis, js_in=jjs)
       endif
       if (id_basedbz > 0) then
          !interpolate to 1km dbz
@@ -454,12 +472,12 @@ module lin_cld_microphys_mod
             maxdbz(i,j) = dbz(i,j,ke)
          enddo
          enddo
-         used=send_data(id_basedbz, maxdbz, time, is_in=iis, js_in=jjs)
+!         used=send_data(id_basedbz, maxdbz, time, is_in=iis, js_in=jjs)
       endif
 
       if (mp_print .and. seconds == 0) then
-         call mpp_max(allmax)
-         if (master) write(*,*) 'max reflectivity = ', allmax, ' dBZ'
+!         call mpp_max(allmax)
+!         if (master) write(*,*) 'max reflectivity = ', allmax, ' dBZ'
       endif
       
    endif
@@ -470,15 +488,15 @@ module lin_cld_microphys_mod
         prec1(:,:) = prec1(:,:) + prec_mp(:,:)
         if ( seconds==0 ) then
              prec1(:,:) = prec1(:,:)*dt_in/86400.
-             tot_prec = g_sum(prec1, is, ie, js, je, area, 1)
-             if(master) write(*,*) 'Daily prec_mp=', tot_prec
+!             tot_prec = g_sum(prec1, is, ie, js, je, area, 1)
+!             if(master) write(*,*) 'Daily prec_mp=', tot_prec
              prec1(:,:) = 0.
         endif
    endif
 !----------------------------------------------------------------------------
 
 
-   call mpp_clock_end (lin_cld_mp_clock)
+!   call mpp_clock_end (lin_cld_mp_clock)
 
  end subroutine lin_cld_microphys_driver
 
@@ -1584,7 +1602,7 @@ endif   ! end ice-physics
    if ( mp_debug ) then
      if (k1 /= (kbot-2))  then
          write(*,*) 'FATAL: k1=', k1
-         call error_mesg ('LIN_CLD_MICROPHYS:', 'DO_MAP2_SAT', FATAL)
+!         call error_mesg ('LIN_CLD_MICROPHYS:', 'DO_MAP2_SAT', FATAL)
      endif
    endif
 
@@ -1914,9 +1932,9 @@ endif
  subroutine sat_adj2(mdt, is, ie, js, je, ng, hydrostatic, consv_te, &
                      te0, qv, ql, qi, qr, qs, qg, qa, area, dpeln, delz, pt, dp,  &
                      q_con, &
-#ifdef MOIST_CAPPA
+!#ifdef MOIST_CAPPA
 					 cappa, &
-#endif
+!#endif
 					 dtdt, out_dt, last_step)
 ! This is designed for 6-class micro-physics schemes
 ! input pt is T_vir
@@ -1928,9 +1946,9 @@ endif
  real, intent(in):: dpeln(is:ie,js:je)           ! ln(pe)
  real, intent(inout), dimension(is-ng:ie+ng,js-ng:je+ng):: pt, qv, ql, qi, qr, qs, qg, qa
  real, intent(inout), dimension(is-ng:,js-ng:):: q_con
-#ifdef MOIST_CAPPA
+!#ifdef MOIST_CAPPA
  real, intent(inout), dimension(is-ng:,js-ng:):: cappa
-#endif
+!#endif
  real, intent(inout)::dtdt(is:ie,js:je)
  real, intent(out):: te0(is:ie,js:je)
 ! Local:
@@ -2005,7 +2023,8 @@ endif
          enddo
        else
          do i=is, ie
-#if defined(USE_COND) && defined(MOIST_CAPPA)
+!#if defined(USE_COND) && defined(MOIST_CAPPA)
+#if defined(USE_COND)
             te0(i,j) = -cpm(i)*dp(i,j)*t0(i)
 #else
             te0(i,j) = -cv_air*dp(i,j)*t0(i)
@@ -2269,10 +2288,10 @@ endif
        q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
        q_con(i,j) = q_liq(i) + q_sol(i)
        pt(i,j) = pt1(i)*(1.+zvir*qv(i,j))*(1.-q_con(i,j))
-#ifdef MOIST_CAPPA
+!#ifdef MOIST_CAPPA
        cpm(i) = (1.-(qv(i,j)+q_con(i,j)))*cv_air + qv(i,j)*cv_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
        cappa(i,j) = rdgas/(rdgas + cpm(i)/(1.+zvir*qv(i,j)))
-#endif
+!#endif
 #else
        pt(i,j) = pt1(i)*(1.+zvir*qv(i,j))
 #endif
@@ -2291,7 +2310,8 @@ endif
          enddo
        else
          do i=is, ie
-#if defined(USE_COND) && defined(MOIST_CAPPA)
+!#if defined(USE_COND) && defined(MOIST_CAPPA)
+#if defined(USE_COND)
             te0(i,j) = te0(i,j) + cpm(i)*dp(i,j)*pt1(i)
 #else
             te0(i,j) = te0(i,j) + cv_air*dp(i,j)*pt1(i)
@@ -3222,13 +3242,13 @@ endif
       fac_rc = (4./3.)*pie*rhor*rthresh**3
 
    if ( prog_ccn ) then
-      if(master) write(*,*) 'prog_ccn option is .T.'
+!      if(master) write(*,*) 'prog_ccn option is .T.'
    else
       den_rc = fac_rc * ccn_o*1.e6
-      if(master) write(*,*) 'MP: rthresh=', rthresh, 'vi_fac=', vi_fac
-      if(master) write(*,*) 'MP: for ccn_o=', ccn_o, 'ql_rc=', den_rc
+!      if(master) write(*,*) 'MP: rthresh=', rthresh, 'vi_fac=', vi_fac
+!      if(master) write(*,*) 'MP: for ccn_o=', ccn_o, 'ql_rc=', den_rc
       den_rc = fac_rc * ccn_l*1.e6
-      if(master) write(*,*) 'MP: for ccn_l=', ccn_l, 'ql_rc=', den_rc
+!      if(master) write(*,*) 'MP: for ccn_l=', ccn_l, 'ql_rc=', den_rc
    endif
 
       vdifu=2.11e-5
@@ -3327,34 +3347,35 @@ endif
  end subroutine setupm
 
 
- subroutine lin_cld_microphys_init(id, jd, kd, axes, time)
+! subroutine lin_cld_microphys_init(id, jd, kd, axes, time)
+ subroutine lin_cld_microphys_init
 
-    integer,         intent(in) :: id, jd, kd
-    integer,         intent(in) :: axes(4)
-    type(time_type), intent(in) :: time
+!    integer,         intent(in) :: id, jd, kd
+!    integer,         intent(in) :: axes(4)
+!    type(time_type), intent(in) :: time
 
     integer   :: unit, io, ierr, k, logunit
     logical   :: flag
     real :: tmp, q1, q2
 
-    master = (mpp_pe().eq.mpp_root_pe())
+!    master = (mpp_pe().eq.mpp_root_pe())
 
-#ifdef INTERNAL_FILE_NML
-    read( input_nml_file, nml = lin_cld_microphys_nml, iostat = io )
-    ierr = check_nml_error(io,'lin_cloud_microphys_nml')
-#else
-    if( file_exist( 'input.nml' ) ) then
-       unit = open_namelist_file ()
-       io = 1
-       do while ( io .ne. 0 )
-          read( unit, nml = lin_cld_microphys_nml, iostat = io, end = 10 )
-          ierr = check_nml_error(io,'lin_cloud_microphys_nml')
-       end do
-10     call close_file ( unit )
-    end if
-#endif
-    call write_version_number (version, tagname)
-    logunit = stdlog()
+!#ifdef INTERNAL_FILE_NML
+!    read( input_nml_file, nml = lin_cld_microphys_nml, iostat = io )
+!    ierr = check_nml_error(io,'lin_cloud_microphys_nml')
+!#else
+!    if( file_exist( 'input.nml' ) ) then
+!       unit = open_namelist_file ()
+!       io = 1
+!       do while ( io .ne. 0 )
+!          read( unit, nml = lin_cld_microphys_nml, iostat = io, end = 10 )
+!          ierr = check_nml_error(io,'lin_cloud_microphys_nml')
+!       end do
+!10     call close_file ( unit )
+!    end if
+!#endif
+!    call write_version_number (version, tagname)
+!    logunit = stdlog()
 
     if ( do_setup ) then
       call setup_con
@@ -3365,64 +3386,80 @@ endif
     tice0 = tice - 0.1
     t_wfr = tice - 40. ! supercooled water can exist down to -48 C, which is the "absolute"
 
-    if (master) write( logunit, nml = lin_cld_microphys_nml )
+!    if (master) write( logunit, nml = lin_cld_microphys_nml )
 
-    id_vtr = register_diag_field ( mod_name, 'vt_r', axes(1:3), time,        &
-         'rain fall speed', 'm/sec', missing_value=missing_value )
-    id_vts = register_diag_field ( mod_name, 'vt_s', axes(1:3), time,        &
-         'snow fall speed', 'm/sec', missing_value=missing_value )
-    id_vtg = register_diag_field ( mod_name, 'vt_g', axes(1:3), time,        &
-         'graupel fall speed', 'm/sec', missing_value=missing_value )
-    id_vti = register_diag_field ( mod_name, 'vt_i', axes(1:3), time,        &
-         'ice fall speed', 'm/sec', missing_value=missing_value )
-    id_droplets = register_diag_field ( mod_name, 'droplets', axes(1:3), time,        &
-         'droplet number concentration', '#/m3', missing_value=missing_value )
-    id_rh = register_diag_field ( mod_name, 'rh_lin', axes(1:2), time,        &
-         'relative humidity', 'n/a', missing_value=missing_value )
+!    id_vtr = register_diag_field ( mod_name, 'vt_r', axes(1:3), time,        &
+!         'rain fall speed', 'm/sec', missing_value=missing_value )
+    id_vtr = 1
+!    id_vts = register_diag_field ( mod_name, 'vt_s', axes(1:3), time,        &
+!         'snow fall speed', 'm/sec', missing_value=missing_value )
+    id_vts = 1
+!    id_vtg = register_diag_field ( mod_name, 'vt_g', axes(1:3), time,        &
+!         'graupel fall speed', 'm/sec', missing_value=missing_value )
+    id_vtg = 1
+!    id_vti = register_diag_field ( mod_name, 'vt_i', axes(1:3), time,        &
+!         'ice fall speed', 'm/sec', missing_value=missing_value )
+    id_vti = 1
+!    id_droplets = register_diag_field ( mod_name, 'droplets', axes(1:3), time,        &
+!         'droplet number concentration', '#/m3', missing_value=missing_value )
+    id_droplets = 1
+!    id_rh = register_diag_field ( mod_name, 'rh_lin', axes(1:2), time,        &
+!         'relative humidity', 'n/a', missing_value=missing_value )
+    id_rh = 1
 
-    id_rain = register_diag_field ( mod_name, 'rain_lin', axes(1:2), time,        &
-         'rain_lin', 'mm/day', missing_value=missing_value )
-    id_snow = register_diag_field ( mod_name, 'snow_lin', axes(1:2), time,        &
-         'snow_lin', 'mm/day', missing_value=missing_value )
-    id_graupel = register_diag_field ( mod_name, 'graupel_lin', axes(1:2), time,  &
-         'graupel_lin', 'mm/day', missing_value=missing_value )
-    id_ice = register_diag_field ( mod_name, 'ice_lin', axes(1:2), time,        &
-         'ice_lin', 'mm/day', missing_value=missing_value )
-    id_prec = register_diag_field ( mod_name, 'prec_lin', axes(1:2), time,     &
-         'prec_lin', 'mm/day', missing_value=missing_value )
+!    id_rain = register_diag_field ( mod_name, 'rain_lin', axes(1:2), time,        &
+!         'rain_lin', 'mm/day', missing_value=missing_value )
+    id_rain = 1
+!    id_snow = register_diag_field ( mod_name, 'snow_lin', axes(1:2), time,        &
+!         'snow_lin', 'mm/day', missing_value=missing_value )
+    id_snow = 1
+!    id_graupel = register_diag_field ( mod_name, 'graupel_lin', axes(1:2), time,  &
+!         'graupel_lin', 'mm/day', missing_value=missing_value )
+    id_graupel = 1
+!    id_ice = register_diag_field ( mod_name, 'ice_lin', axes(1:2), time,        &
+!         'ice_lin', 'mm/day', missing_value=missing_value )
+    id_ice = 1
+!    id_prec = register_diag_field ( mod_name, 'prec_lin', axes(1:2), time,     &
+!         'prec_lin', 'mm/day', missing_value=missing_value )
+    id_prec = 1
 !   if ( master ) write(*,*) 'prec_lin diagnostics initialized.', id_prec
 
-    id_cond = register_diag_field ( mod_name, 'cond_lin', axes(1:2), time,     &
-         'total condensate', 'kg/m**2', missing_value=missing_value )
+!    id_cond = register_diag_field ( mod_name, 'cond_lin', axes(1:2), time,     &
+!         'total condensate', 'kg/m**2', missing_value=missing_value )
+    id_cond = 1
 
-    id_var = register_diag_field ( mod_name, 'var_lin', axes(1:2), time,     &
-         'subgrid variance', 'n/a',  missing_value=missing_value )
+!    id_var = register_diag_field ( mod_name, 'var_lin', axes(1:2), time,     &
+!         'subgrid variance', 'n/a',  missing_value=missing_value )
+    id_var = 1
 
-    id_dbz = register_diag_field ( mod_name, 'reflectivity', axes(1:3), time, &
-         'Stoelinga simulated reflectivity', 'dBz', missing_value=missing_value)
+!    id_dbz = register_diag_field ( mod_name, 'reflectivity', axes(1:3), time, &
+!         'Stoelinga simulated reflectivity', 'dBz', missing_value=missing_value)
+    id_dbz = 1
 
-    id_maxdbz = register_diag_field ( mod_name, 'max_reflectivity', axes(1:2), time, &
-         'Stoelinga simulated maximum (composite) reflectivity', 'dBz', missing_value=missing_value)
+!    id_maxdbz = register_diag_field ( mod_name, 'max_reflectivity', axes(1:2), time, &
+!         'Stoelinga simulated maximum (composite) reflectivity', 'dBz', missing_value=missing_value)
+    id_maxdbz = 1
 
-    id_basedbz = register_diag_field ( mod_name, 'base_reflectivity', axes(1:2), time, &
-         'Stoelinga simulated base reflectivity', 'dBz', missing_value=missing_value)
+!    id_basedbz = register_diag_field ( mod_name, 'base_reflectivity', axes(1:2), time, &
+!         'Stoelinga simulated base reflectivity', 'dBz', missing_value=missing_value)
+    id_basedbz = 1
 !   call qsmith_init
 
 ! TESTING the water vapor tables
-   if ( mp_debug .and. master ) then
-        write(*,*) 'TESTING water vapor tables in lin_cld_microphys'
-        tmp = tice - 90.
-   do k=1,25
-      q1 = wqsat_moist(tmp, 0., 1.E5)
-      q2 = qs1d_m(tmp, 0., 1.E5)
-      write(*,*) NINT(tmp-tice), q1, q2, 'dq=', q1-q2
-      tmp = tmp + 5.
-   enddo
-   endif
+!   if ( mp_debug .and. master ) then
+!        write(*,*) 'TESTING water vapor tables in lin_cld_microphys'
+!        tmp = tice - 90.
+!   do k=1,25
+!      q1 = wqsat_moist(tmp, 0., 1.E5)
+!      q2 = qs1d_m(tmp, 0., 1.E5)
+!      write(*,*) NINT(tmp-tice), q1, q2, 'dq=', q1-q2
+!      tmp = tmp + 5.
+!   enddo
+!   endif
 
-   if ( master ) write(*,*) 'lin_cld_micrphys diagnostics initialized.'
+!   if ( master ) write(*,*) 'lin_cld_micrphys diagnostics initialized.'
 
-   lin_cld_mp_clock = mpp_clock_id('Lin_cld_microphys', grain=CLOCK_ROUTINE)
+!   lin_cld_mp_clock = mpp_clock_id('Lin_cld_microphys', grain=CLOCK_ROUTINE)
 
    module_is_initialized = .true.
 
@@ -3449,7 +3486,7 @@ endif
 
  subroutine setup_con
 
-  master = (mpp_pe().eq.mpp_root_pe())
+!  master = (mpp_pe().eq.mpp_root_pe())
   rgrav = 1./ grav
 
   if ( .not. qsmith_tables_initialized ) call qsmith_init
@@ -3509,8 +3546,8 @@ endif
 
   if( .not. tables_are_initialized ) then
 
-    master = (mpp_pe().eq.mpp_root_pe())
-    if (master) print*, ' lin MP: initializing qs tables'
+!    master = (mpp_pe().eq.mpp_root_pe())
+!    if (master) print*, ' lin MP: initializing qs tables'
 !!! DEBUG CODE
 !    print*, mpp_pe(), allocated(table), allocated(table2), allocated(table3), allocated(tablew), allocated(des), allocated(des2), allocated(des3), allocated(desw)
 !!! END DEBUG CODE
@@ -4193,7 +4230,7 @@ endif
       real, parameter:: dh_min = 1.E-4
 
       if ( nqv /= 1 ) then
-           call error_mesg ('sg_conv', 'Tracer indexing error', FATAL)
+!           call error_mesg ('sg_conv', 'Tracer indexing error', FATAL)
       endif
 
     rz = rvgas - rdgas          ! rz = zvir * rdgas
@@ -4679,44 +4716,44 @@ endif
 
  end subroutine dbzcalc
 
- real function g_sum(p, ifirst, ilast, jfirst, jlast, area, mode)
-!-------------------------
-! Quick local sum algorithm
-!-------------------------
- use mpp_mod,           only: mpp_sum
- integer, intent(IN) :: ifirst, ilast
- integer, intent(IN) :: jfirst, jlast
- integer, intent(IN) :: mode  ! if ==1 divided by area
- real, intent(IN) :: p(ifirst:ilast,jfirst:jlast)      ! field to be summed
- real, intent(IN) :: area(ifirst:ilast,jfirst:jlast)
- integer :: i,j
- real gsum
-
-   if( global_area < 0. ) then
-       global_area = 0.
-       do j=jfirst,jlast
-          do i=ifirst,ilast
-             global_area = global_area + area(i,j)
-          enddo
-       enddo
-       call mpp_sum(global_area)
-   end if
-
-   gsum = 0.
-   do j=jfirst,jlast
-      do i=ifirst,ilast
-         gsum = gsum + p(i,j)*area(i,j)
-      enddo
-   enddo
-   call mpp_sum(gsum)
-
-   if ( mode==1 ) then
-        g_sum = gsum / global_area
-   else
-        g_sum = gsum
-   endif
-
- end function g_sum
+! real function g_sum(p, ifirst, ilast, jfirst, jlast, area, mode)
+!!-------------------------
+!! Quick local sum algorithm
+!!-------------------------
+! use mpp_mod,           only: mpp_sum
+! integer, intent(IN) :: ifirst, ilast
+! integer, intent(IN) :: jfirst, jlast
+! integer, intent(IN) :: mode  ! if ==1 divided by area
+! real, intent(IN) :: p(ifirst:ilast,jfirst:jlast)      ! field to be summed
+! real, intent(IN) :: area(ifirst:ilast,jfirst:jlast)
+! integer :: i,j
+! real gsum
+!
+!   if( global_area < 0. ) then
+!       global_area = 0.
+!       do j=jfirst,jlast
+!          do i=ifirst,ilast
+!             global_area = global_area + area(i,j)
+!          enddo
+!       enddo
+!       call mpp_sum(global_area)
+!   end if
+!
+!   gsum = 0.
+!   do j=jfirst,jlast
+!      do i=ifirst,ilast
+!         gsum = gsum + p(i,j)*area(i,j)
+!      enddo
+!   enddo
+!   call mpp_sum(gsum)
+!
+!   if ( mode==1 ) then
+!        g_sum = gsum / global_area
+!   else
+!        g_sum = gsum
+!   endif
+!
+! end function g_sum
 
  subroutine interpolate_z(is, ie, js, je, km, zl, hght, a3, a2)
 

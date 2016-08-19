@@ -99,6 +99,7 @@
        public :: nuopc_phys_run         ! wrapper for gbphys
        public :: nuopc_rad_run          ! wrapper for grrad
        public :: nuopc_rad_update       ! wrapper for radupdate - updates some fields between timesteps
+       public :: nuopc_phys_end         ! end routine
 
 
        ! Subroutines for standalone test driver
@@ -3322,5 +3323,9 @@
          end if
  
        end subroutine 
+
+       subroutine nuopc_phys_end
+
+       end subroutine
 
        end module

@@ -37,7 +37,8 @@ module gfs_physics_driver_mod
 !
 !--- NUOPC GFS Physics module routines ---
   use nuopc_physics,      only: nuopc_phys_init, nuopc_phys_run, &
-                                nuopc_rad_run, nuopc_rad_update
+                                nuopc_rad_run, nuopc_rad_update, &
+                                nuopc_phys_end
 !
 !--- NUOPC GFS Physics module datatypes ---
   use nuopc_physics,      only: state_fields_in, state_fields_out,      &
@@ -966,6 +967,7 @@ module gfs_physics_driver_mod
     type (block_control_type),   intent(in) :: Atm_block
     type (domain2d),             intent(in) :: fv_domain
 
+    call nuopc_phys_end
     call surface_props_output (Atm_block, fv_domain)
   end subroutine phys_rad_driver_end
 !-------------------------------------------------------------------------      

@@ -17,6 +17,7 @@
 !*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
 !* or see:   http://www.gnu.org/licenses/gpl.html                      *
 !***********************************************************************
+
  module test_cases_mod
 
       use constants_mod,     only: cnst_radius=>radius, pi=>pi_8, omega, grav, kappa, rdgas, cp_air, rvgas, R_GRID
@@ -50,14 +51,44 @@
       private
 
 ! Test Case Number  
+!                   -1 = Divergence conservation test
+!                    0 = Idealized non-linear deformational flow
+!                    1 = Cosine Bell advection
+!                    2 = Zonal geostrophically balanced flow
+!                    3 = non-rotating potential flow 
+!                    4 = Tropical cyclones (merger of Rankine vortices)
+!                    5 = Zonal geostrophically balanced flow over an isolated mountain
+!                    6 = Rossby Wave number 4 
+!                    7 = Barotropic instability
+!                    !   8 = Potential flow (as in 5 but no rotation and initially at rest)
+!                    8 = "Soliton" propagation twin-vortex along equator
+!                    9 = Polar vortex
+!                   10 = hydrostatically balanced 3D test with idealized mountain
 !                   11 = Use this for cold starting the climate model with USGS terrain
 !                   12 = Jablonowski & Williamson Baroclinic test case (Steady State)
 !                   13 = Jablonowski & Williamson Baroclinic test case Perturbation
 !                  -13 = DCMIP 2016 J&W BC Wave, with perturbation
 !                   14 = Use this for cold starting the Aqua-planet model
+!                   15 = Small Earth density current
+!                   16 = 3D hydrostatic non-rotating Gravity waves
+!                   17 = 3D hydrostatic rotating Inertial Gravity waves (case 6-3-0)
+!                   18 = 3D mountain-induced Rossby wave
+!                   19 = As in 15 but without rotation
+!                   20 = 3D non-hydrostatic lee vortices; non-rotating (small planet)
+!                   21 = 3D non-hydrostatic lee vortices; rotating     (small planet)
+!                   30 = Super-Cell storm, curved hodograph, centered at OKC, no rotation
+!                   31 = Super-Cell storm, curved hodograph, centered at OKC, with rotation
+!                   32 = Super-Cell storm, straight hodograph, centered at OKC, no rotation
+!                   33 = HIWPP Schar mountain waves, Ridge mountain (M1)
+!                   34 = HIWPP Schar mountain waves, Circular mountain (M2)
+!                   35 = HIWPP Schar mountain waves, Circular mountain with shear (M3)
 !                   36 = HIWPP Super_Cell; no perturbation
 !                   37 = HIWPP Super_Cell; with the prescribed thermal
+!                   44 = Lock-exchange on the sphere; atm at rest with no mountain
+!                   45 = New test
+!                   51 = 3D tracer advection (deformational nondivergent flow)
 !                   55 = TC 
+!                  101 = 3D non-hydrostatic Large-Eddy-Simulation (LES) with hybrid_z IC
 
       integer :: sphum, theta_d
       real(kind=R_GRID), parameter :: radius = cnst_radius
@@ -691,6 +722,794 @@
       delp(ie+1:ied,jsd:js-1,1:npz)=0.
       delp(ie+1:ied,je+1:jed,1:npz)=0.
 
+#if defined(SW_DYNAMICS)
+      select case (test_case)
+      case(-2)
+      case(-1)
+         Ubar = (2.0*pi*radius)/(12.0*86400.0)
+         gh0  = 2.94e4
+         phis = 0.0
+         do j=js,je
+            do i=is,ie
+               delp(i,j,1) = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(agrid(i  ,j  ,1))*cos(agrid(i  ,j  ,2))*sin(alpha) + &
+                                   sin(agrid(i  ,j  ,2))*cos(alpha) ) ** 2.0
+            enddo
+         enddo
+         call init_winds(UBar, u,v,ua,va,uc,vc, 1, npx, npy, ng, ndims, nregions, gridstruct%nested, gridstruct, domain, tile)
+
+! Test Divergence operator at cell centers
+         do j=js,je
+            do i=is,ie
+               divg(i,j) = (rarea(i,j)) * ( (uc(i+1,j,1)*dy(i+1,j) - uc(i,j,1)*dy(i,j)) + &
+                                            (vc(i,j+1,1)*dx(i,j+1) - vc(i,j,1)*dx(i,j)) )
+      if ( (tile==1) .and. (i==1) ) write(*,200) i,j,tile, divg(i,j), uc(i,j,1), uc(i+1,j,1), vc(i,j,1), vc(i,j+1,1)
+            enddo
+         enddo
+! Test Vorticity operator at cell centers
+         do j=js,je
+            do i=is,ie
+               vort(i,j) = (rarea(i,j)) * ( (v(i+1,j,1)*dy(i+1,j) - v(i,j,1)*dy(i,j)) - &
+                                            (u(i,j+1,1)*dx(i,j+1) - u(i,j,1)*dx(i,j)) )
+           enddo
+        enddo
+        div0(:,:) = 1.e-20
+     ! call mpp_update_domains( div0, domain )
+     ! call mpp_update_domains( vor0, domain )
+     ! call mpp_update_domains( divg, domain )
+     ! call mpp_update_domains( vort, domain )
+      call get_scalar_stats( divg, div0, npx, npy, ndims, nregions, &
+                             pmin, pmax, L1_norm, L2_norm, Linf_norm, gridstruct, tile)
+ 200  format(i4.4,'x',i4.4,'x',i4.4,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14,' ',e21.14)
+ 201  format('          ',A,e21.14,' ',e21.14)
+ 202  format('          ',A,i4.4,'x',i4.4,'x',i4.4)
+      if ( is_master() ) then
+          write(*,*) ' Error Norms of Analytical Divergence field C-Winds initialized'
+          write(*,201) 'Divergence MAX error     : ', pmax
+          write(*,201) 'Divergence MIN error     : ', pmin
+          write(*,201) 'Divergence L1_norm       : ', L1_norm
+          write(*,201) 'Divergence L2_norm       : ', L2_norm
+          write(*,201) 'Divergence Linf_norm     : ', Linf_norm
+      endif 
+
+         call init_winds(UBar, u,v,ua,va,uc,vc, 3, npx, npy, ng, ndims, nregions, gridstruct%nested, gridstruct, domain, tile)
+! Test Divergence operator at cell centers
+         do j=js,je
+            do i=is,ie
+               divg(i,j) = (rarea(i,j)) * ( (uc(i+1,j,1)*dy(i+1,j) - uc(i,j,1)*dy(i,j)) + &
+                                            (vc(i,j+1,1)*dx(i,j+1) - vc(i,j,1)*dx(i,j)) )
+      if ( (tile==1) .and. (i==1) ) write(*,200) i,j,tile, divg(i,j), uc(i,j,1), uc(i+1,j,1), vc(i,j,1), vc(i,j+1,1)
+            enddo
+         enddo
+! Test Vorticity operator at cell centers
+         do j=js,je
+            do i=is,ie
+               vort(i,j) = (rarea(i,j)) * ( (v(i+1,j,1)*dy(i+1,j) - v(i,j,1)*dy(i,j)) - &
+                                            (u(i,j+1,1)*dx(i,j+1) - u(i,j,1)*dx(i,j)) )
+           enddo
+        enddo
+        ua0 = ua
+        va0 = va
+        div0(:,:) = 1.e-20
+      call get_scalar_stats( divg, div0, npx, npy, ndims, nregions, &
+                             pmin, pmax, L1_norm, L2_norm, Linf_norm, gridstruct, tile)
+      if ( is_master() ) then
+          write(*,*) ' Error Norms of Analytical Divergence field A-Winds initialized'
+          write(*,201) 'Divergence MAX error     : ', pmax
+          write(*,201) 'Divergence MIN error     : ', pmin
+          write(*,201) 'Divergence L1_norm       : ', L1_norm
+          write(*,201) 'Divergence L2_norm       : ', L2_norm
+          write(*,201) 'Divergence Linf_norm     : ', Linf_norm
+      endif
+
+         call init_winds(UBar, u,v,ua,va,uc,vc, 2, npx, npy, ng, ndims, nregions, gridstruct%nested, gridstruct, domain, tile)
+         !call d2a2c(npx,npy,1, is,ie, js,je, ng, u(isd,jsd,1),v(isd,jsd,1), &
+         !           ua(isd,jsd,1),va(isd,jsd,1), uc(isd,jsd,1),vc(isd,jsd,1))
+! Test Divergence operator at cell centers
+         do j=js,je
+            do i=is,ie
+               divg(i,j) = (rarea(i,j)) * ( (uc(i+1,j,1)*dy(i+1,j) - uc(i,j,1)*dy(i,j)) + &
+                                            (vc(i,j+1,1)*dx(i,j+1) - vc(i,j,1)*dx(i,j)) )
+      if ( (tile==1) .and. ((i==1) .or.(i==npx-1)) ) write(*,200) i,j,tile, divg(i,j), uc(i,j,1), uc(i+1,j,1), vc(i,j,1), vc(i,j+1,1)
+            enddo
+         enddo
+! Test Vorticity operator at cell centers
+         do j=js,je
+            do i=is,ie
+               vort(i,j) = (rarea(i,j)) * ( (v(i+1,j,1)*dy(i+1,j) - v(i,j,1)*dy(i,j)) - &
+                                            (u(i,j+1,1)*dx(i,j+1) - u(i,j,1)*dx(i,j)) )
+           enddo
+        enddo
+        div0(:,:) = 1.e-20
+      call get_scalar_stats( divg, div0, npx, npy, ndims, nregions, &
+                             pmin, pmax, L1_norm, L2_norm, Linf_norm, gridstruct, tile)
+      if ( is_master() ) then
+          write(*,*) ' Error Norms of Analytical Divergence field D-Winds initialized'
+          write(*,201) 'Divergence MAX error     : ', pmax
+          write(*,201) 'Divergence MIN error     : ', pmin
+          write(*,201) 'Divergence L1_norm       : ', L1_norm
+          write(*,201) 'Divergence L2_norm       : ', L2_norm
+          write(*,201) 'Divergence Linf_norm     : ', Linf_norm
+      endif
+
+      call mp_stop()
+      stop
+      case(0)
+         do j=jsd,jed
+            do i=isd,ied
+
+               x1 = agrid(i,j,1) 
+               y1 = agrid(i,j,2)
+               z1 = radius
+
+               p = p0_c0 * cos(y1)
+               Vtx = ((3.0*SQRT(2.0))/2.0) * (( 1.0/cosh(p) )**2.0) * tanh(p)
+               w_p = 0.0
+               if (p /= 0.0) w_p = Vtx/p 
+               delp(i,j,1) = 1.0 - tanh( (p/rgamma) * sin(x1 - w_p*0.0) )
+               ua(i,j,1) = w_p*(sin(lat0)*cos(agrid(i,j,2)) + cos(lat0)*cos(agrid(i,j,1) - lon0)*sin(agrid(i,j,2)))
+               va(i,j,1) = w_p*cos(lat0)*sin(agrid(i,j,1) - lon0)
+               ua(i,j,1) = ua(i,j,1)*radius/86400.0
+               va(i,j,1) = va(i,j,1)*radius/86400.0
+
+               call mid_pt_sphere(grid(i,j,1:2), grid(i,j+1,1:2), p1)
+               call mid_pt_sphere(grid(i,j,1:2), grid(i+1,j,1:2), p2)
+               call mid_pt_sphere(grid(i+1,j,1:2), grid(i+1,j+1,1:2), p3)
+               call mid_pt_sphere(grid(i,j+1,1:2), grid(i+1,j+1,1:2), p4)      
+               if (cubed_sphere) call rotate_winds(ua(i,j,1),va(i,j,1), p1,p2,p3,p4, agrid(i,j,1:2), 2, 1)
+
+            enddo
+         enddo
+         call mpp_update_domains( ua, va, domain, gridtype=AGRID_PARAM)
+         call atod(ua,va, u, v,dxa, dya,dxc,dyc,npx,npy,ng, gridstruct%nested, domain)
+         call mp_update_dwinds(u, v, npx, npy, npz, domain)
+         call atoc(ua,va,uc,vc,dx,dy,dxa,dya,npx,npy,ng, gridstruct%nested, domain)
+         call mpp_update_domains( uc, vc, domain, gridtype=CGRID_NE_PARAM)
+         call fill_corners(uc, vc, npx, npy, npz, VECTOR=.true., CGRID=.true.)
+         initWindsCase=initWindsCase0
+      case(1)
+         Ubar = (2.0*pi*radius)/(12.0*86400.0)
+         gh0  = 1.0
+         phis = 0.0
+         r0 = radius/3. !RADIUS radius/3.
+         p1(1) = pi/2. + pi_shift
+         p1(2) = 0.
+         do j=jsd,jed
+            do i=isd,ied
+               p2(1) = agrid(i,j,1)
+               p2(2) = agrid(i,j,2)
+               r = great_circle_dist( p1, p2, radius )
+               if (r < r0) then
+                  delp(i,j,1) = phis(i,j) + gh0*0.5*(1.0+cos(PI*r/r0))
+               else
+                  delp(i,j,1) = phis(i,j)
+               endif
+            enddo
+         enddo
+         initWindsCase=initWindsCase1
+      case(2)
+#ifdef TEST_TRACER
+!!$         do j=js2,je2
+!!$         do i=is2,ie2
+!!$            q(i,j,1,:) = 1.e-3*cos(agrid(i,j,2))!*(1.+cos(agrid(i,j,1)))
+!!$         enddo
+!!$         enddo
+         gh0  = 1.0e-6
+         r0 = radius/3. !RADIUS radius/3.
+         p1(2) = 35./180.*pi !0.
+         p1(1) = pi/4.!pi/2.
+         do j=jsd,jed
+         do i=isd,ied
+            p2(1) = agrid(i,j,1)
+            p2(2) = agrid(i,j,2)
+            r = great_circle_dist( p1, p2, radius )
+            if (r < r0 .and. .not.( abs(p1(2)-p2(2)) < 1./18. .and. p2(1)-p1(1) < 5./36.)) then
+               !q(i,j,k,1) = max(gh0*0.5*(1.0+cos(PI*r/r0))*exp(real(k-npz)),0.)
+               q(i,j,1,1) = gh0
+            else
+               q(i,j,1,1) = 0.
+            endif
+         enddo
+         enddo
+#endif
+         Ubar = (2.0*pi*radius)/(12.0*86400.0)
+         gh0  = 2.94e4
+         phis = 0.0
+         do j=js2,je2
+            do i=is2,ie2
+!         do j=jsd,jed
+!            do i=isd,ied
+#ifdef FIVE_AVG
+               pt5 = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(agrid(i  ,j  ,1))*cos(agrid(i  ,j  ,2))*sin(alpha) + &
+                                   sin(agrid(i  ,j  ,2))*cos(alpha) ) ** 2.0
+               pt1 = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(grid(i  ,j  ,1))*cos(grid(i  ,j  ,2))*sin(alpha) + &
+                                   sin(grid(i  ,j  ,2))*cos(alpha) ) ** 2.0
+               pt2 = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(grid(i+1,j  ,1))*cos(grid(i+1,j  ,2))*sin(alpha) + &
+                                   sin(grid(i+1,j  ,2))*cos(alpha) ) ** 2.0
+               pt3 = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(grid(i+1,j+1,1))*cos(grid(i+1,j+1,2))*sin(alpha) + &
+                                   sin(grid(i+1,j+1,2))*cos(alpha) ) ** 2.0
+               pt4 = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(grid(i,j+1,1))*cos(grid(i,j+1,2))*sin(alpha) + &
+                                   sin(grid(i,j+1,2))*cos(alpha) ) ** 2.0
+               delp(i,j,1) = (0.25*(pt1+pt2+pt3+pt4) + 3.*pt5) / 4.
+#else
+               delp(i,j,1) = gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(agrid(i  ,j  ,1))*cos(agrid(i  ,j  ,2))*sin(alpha) + &
+                                   sin(agrid(i  ,j  ,2))*cos(alpha) ) ** 2.0
+#endif
+            enddo
+         enddo
+         initWindsCase=initWindsCase2
+      case(3)
+!----------------------------
+! Non-rotating potential flow
+!----------------------------
+#ifdef NO_WIND
+         ubar = 0.
+#else
+         ubar = 40.
+#endif
+         gh0  = 1.0e3 * grav
+         phis = 0.0
+         r0 = radius/3. !RADIUS radius/3.
+         p1(1) = pi*1.5
+         p1(2) = 0.
+         do j=jsd,jed
+            do i=isd,ied
+               p2(1) = agrid(i,j,1)
+               p2(2) = agrid(i,j,2)
+               r = great_circle_dist( p1, p2, radius )
+               if (r < r0) then
+                  delp(i,j,1) = phis(i,j) + gh0*0.5*(1.0+cos(PI*r/r0))
+               else
+                  delp(i,j,1) = phis(i,j)
+               endif
+! Add a constant:
+               delp(i,j,1) = delp(i,j,1) + grav*2.e3
+            enddo
+         enddo
+
+#ifdef NO_WIND
+         u  = 0.;   v = 0.
+         f0 = 0.;  fC = 0.
+#else
+
+         do j=js,je
+            do i=is,ie+1
+               p1(:) = grid(i  ,j ,1:2)
+               p2(:) = grid(i,j+1 ,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e2)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = ubar * cos(p3(2))
+               vtmp = 0.
+               v(i,j,1) = utmp*inner_prod(e2,ex) + vtmp*inner_prod(e2,ey)
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               p1(:) = grid(i,  j,1:2)
+               p2(:) = grid(i+1,j,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e1)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = ubar * cos(p3(2))
+               vtmp = 0.
+               u(i,j,1) = utmp*inner_prod(e1,ex) + vtmp*inner_prod(e1,ey)
+            enddo
+         enddo
+
+         anti_rot = -ubar/ radius
+         do j=jsd,jed+1
+            do i=isd,ied+1
+               fC(i,j) = 2.*anti_rot*sin(grid(i,j,2))
+            enddo
+         enddo
+         do j=jsd,jed
+            do i=isd,ied
+               f0(i,j) = 2.*anti_rot*sin(agrid(i,j,2))
+            enddo
+         enddo
+#endif
+         initWindsCase= -1
+
+      case(4)
+
+!----------------------------
+! Tropical cyclones
+!----------------------------
+!        f0 = 0.;  fC = 0.          ! non-rotating planet setup
+          u = 0.
+          v = 0.
+         phis = 0.0                 ! flat terrain
+
+         ubar = 50.                 ! maxmium wind speed (m/s)
+           r0 = 250.e3              ! RADIUS of the maximum wind of the Rankine vortex
+          gh0 = grav * 1.e3
+ 
+        do j=jsd,jed
+           do i=isd,ied
+              delp(i,j,1) = gh0
+           enddo
+        enddo
+
+!       ddeg = 2.*r0/radius     ! no merger
+        ddeg = 1.80*r0/radius   ! merged 
+
+        p1(1) = pi*1.5 - ddeg
+        p1(2) = pi/18.              ! 10 N
+        call rankine_vortex(ubar, r0, p1, u, v, grid)
+
+        p2(1) = pi*1.5 + ddeg
+        p2(2) = pi/18.              ! 10 N
+        call rankine_vortex(ubar, r0, p2, u, v, grid)
+
+#ifndef SINGULAR_VORTEX
+!-----------
+! Anti-pole:
+!-----------
+        ubar = -ubar
+        call latlon2xyz(p1, e1)
+        do i=1,3
+           e1(i) = -e1(i)
+        enddo
+        call cart_to_latlon(1, e1, p3(1), p3(2))
+        call rankine_vortex(ubar, r0, p3, u, v, grid)
+
+        call latlon2xyz(p2, e1)
+        do i=1,3
+           e1(i) = -e1(i)
+        enddo
+        call cart_to_latlon(1, e1, p4(1), p4(2))
+        call rankine_vortex(ubar, r0, p4, u, v, grid)
+#endif
+        call mp_update_dwinds(u, v, npx, npy, npz, domain)
+        initWindsCase=-1   ! do nothing
+
+      case(5)
+
+         Ubar = 20.        
+         gh0  = 5960.*Grav
+         phis = 0.0
+         r0 = PI/9.
+         p1(1) = PI/2.
+         p1(2) = PI/6.
+         do j=js2,je2
+            do i=is2,ie2
+               p2(1) = agrid(i,j,1)
+               p2(2) = agrid(i,j,2)
+               r = MIN(r0*r0, (p2(1)-p1(1))*(p2(1)-p1(1)) + (p2(2)-p1(2))*(p2(2)-p1(2)) )
+               r = SQRT(r)
+               phis(i,j) = 2000.0*Grav*(1.0-(r/r0))
+            enddo
+         enddo
+         do j=js2,je2
+            do i=is2,ie2
+               delp(i,j,1) =gh0 - (radius*omega*Ubar + (Ubar*Ubar)/2.) * &
+                             ( -1.*cos(agrid(i  ,j  ,1))*cos(agrid(i  ,j  ,2))*sin(alpha) + &
+                                   sin(agrid(i  ,j  ,2))*cos(alpha) ) ** 2  - phis(i,j)
+            enddo
+         enddo
+         initWindsCase=initWindsCase5
+      case(6)
+         gh0  = 8.E3*Grav
+         R    = 4.
+         omg  = 7.848E-6
+         rk    = 7.848E-6
+         phis = 0.0
+         do j=js,je
+            do i=is,ie
+               A = 0.5*omg*(2.*omega+omg)*(COS(agrid(i,j,2))**2) + &
+                   0.25*rk*rk*(COS(agrid(i,j,2))**(r+r)) * &
+                   ( (r+1)*(COS(agrid(i,j,2))**2) + (2.*r*r-r-2.) - &
+                     2.*(r*r)*COS(agrid(i,j,2))**(-2.) )
+               B = (2.*(omega+omg)*rk / ((r+1)*(r+2))) * (COS(agrid(i,j,2))**r) * &
+                    ( (r*r+2.*r+2.) - ((r+1.)*COS(agrid(i,j,2)))**2 )
+               C = 0.25*rk*rk*(COS(agrid(i,j,2))**(2.*r)) * ( &
+                   (r+1) * (COS(agrid(i,j,2))**2.) - (r+2.) )
+               delp(i,j,1) =gh0 + radius*radius*(A+B*COS(r*agrid(i,j,1))+C*COS(2.*r*agrid(i,j,1)))
+               delp(i,j,1) = delp(i,j,1) - phis(i,j)
+            enddo
+         enddo
+         do j=js,je
+            do i=is,ie+1
+               p1(:) = grid(i  ,j ,1:2)
+               p2(:) = grid(i,j+1 ,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e2)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = radius*omg*cos(p3(2)) +                      &
+                      radius*rk*(cos(p3(2))**(R-1))*(R*sin(p3(2))**2-cos(p3(2))**2)*cos(R*p3(1)) 
+               vtmp = -radius*rk*R*sin(p3(2))*sin(R*p3(1))*cos(p3(2))**(R-1)
+               v(i,j,1) = utmp*inner_prod(e2,ex) + vtmp*inner_prod(e2,ey)
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               p1(:) = grid(i,  j,1:2)
+               p2(:) = grid(i+1,j,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e1)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = radius*omg*cos(p3(2)) +                      &
+                      radius*rk*(cos(p3(2))**(R-1))*(R*sin(p3(2))**2-cos(p3(2))**2)*cos(R*p3(1)) 
+               vtmp = -radius*rk*R*sin(p3(2))*sin(R*p3(1))*cos(p3(2))**(R-1)
+               u(i,j,1) = utmp*inner_prod(e1,ex) + vtmp*inner_prod(e1,ey)
+            enddo
+         enddo
+         call mp_update_dwinds(u, v, npx, npy, npz, domain)
+         call dtoa( u, v,ua,va,dx,dy,dxa,dya,dxc,dyc,npx,npy,ng)
+         !call mpp_update_domains( ua, va, domain, gridtype=AGRID_PARAM)
+         call atoc(ua,va,uc,vc,dx,dy,dxa,dya,npx,npy,ng, gridstruct%nested, domain)
+         initWindsCase=initWindsCase6
+      case(7)
+! Barotropically unstable jet
+         gh0  = 10.E3*Grav
+         phis = 0.0
+         r0 = radius/12.
+         p2(1) = pi/2.
+         p2(2) = pi/4.
+         do j=js,je
+            do i=is,ie
+!              ftmp = gh0
+! 9-point average:
+!      9  4  8
+!
+!      5  1  3
+!          
+!      6  2  7
+               pt1 = gh_jet(npy, agrid(i,j,2))
+               call mid_pt_sphere(grid(i,j,1:2), grid(i+1,j,1:2), pa)
+               pt2 = gh_jet(npy, pa(2))
+               call mid_pt_sphere(grid(i+1,j,1:2), grid(i+1,j+1,1:2), pa)
+               pt3 = gh_jet(npy, pa(2))
+               call mid_pt_sphere(grid(i,j+1,1:2), grid(i+1,j+1,1:2), pa)
+               pt4 = gh_jet(npy, pa(2))
+               call mid_pt_sphere(grid(i,j,1:2), grid(i,j+1,1:2), pa)
+               pt5 = gh_jet(npy, pa(2))
+               pt6 = gh_jet(npy, grid(i,  j,  2))
+               pt7 = gh_jet(npy, grid(i+1,j,  2))
+               pt8 = gh_jet(npy, grid(i+1,j+1,2))
+               pt9 = gh_jet(npy, grid(i  ,j+1,2))
+               ftmp = 0.25*pt1 + 0.125*(pt2+pt3+pt4+pt5) + 0.0625*(pt6+pt7+pt8+pt9)
+#ifndef NEW_PERT
+               delp(i,j,1) = ftmp + 120.*grav*cos(agrid(i,j,2)) *  &
+               exp( -(3.*(agrid(i,j,1)-pi))**2 ) * exp( -(15.*(agrid(i,j,2)-pi/4.))**2 )
+!              phis(i,j) = ftmp
+!              delp(i,j,1) = 10.E3*grav + 120.*grav*cos(agrid(i,j,2)) *  &
+!              exp( -(3.*(agrid(i,j,1)-pi))**2 ) * exp( -(15.*(agrid(i,j,2)-pi/4.))**2 )
+#else
+! Using great circle dist:
+               p1(:) = agrid(i,j,1:2)
+               delp(i,j,1) = ftmp
+               r = great_circle_dist(p1, p2, radius)
+               if ( r < 3.*r0 ) then
+                    delp(i,j,1) = delp(i,j,1) + 1000.*grav*exp(-(r/r0)**2)
+               endif
+#endif
+            enddo
+         enddo
+
+! v-wind:
+         do j=js,je
+            do i=is,ie+1
+               p2(:) = grid(i,j+1,1:2)
+               vv1 = u_jet(p2(2))*(ee2(2,i,j+1)*cos(p2(1)) - ee2(1,i,j+1)*sin(p2(1)))
+               p1(:) = grid(i,j,1:2)
+               vv3 = u_jet(p1(2))*(ee2(2,i,j)*cos(p1(1)) - ee2(1,i,j)*sin(p1(1)))
+! Mid-point:
+               call mid_pt_sphere(p1, p2, pa)
+               vv2 = u_jet(pa(2))*(ew(2,i,j,2)*cos(pa(1)) - ew(1,i,j,2)*sin(pa(1)))
+! 3-point average:
+               v(i,j,1) = 0.25*(vv1 + 2.*vv2 + vv3)
+!              v(i,j,1) = vv2
+            enddo
+         enddo
+! U-wind:
+         do j=js,je+1
+            do i=is,ie
+               p1(:) = grid(i,j,1:2)
+               uu1 = u_jet(p1(2))*(ee1(2,i,j)*cos(p1(1)) - ee1(1,i,j)*sin(p1(1)))
+               p2(:) = grid(i+1,j,1:2)
+               uu3 = u_jet(p2(2))*(ee1(2,i+1,j)*cos(p2(1)) - ee1(1,i+1,j)*sin(p2(1)))
+! Mid-point:
+               call mid_pt_sphere(p1, p2, pa)
+               uu2 = u_jet(pa(2))*(es(2,i,j,1)*cos(pa(1)) - es(1,i,j,1)*sin(pa(1)))
+! 3-point average:
+               u(i,j,1) = 0.25*(uu1 + 2.*uu2 + uu3)
+!              u(i,j,1) = uu2
+            enddo
+         enddo
+         initWindsCase=initWindsCase6  ! shouldn't do anything with this
+!initialize tracer with shallow-water PV 
+         !Compute vorticity
+         call get_vorticity(is, ie, js, je, isd, ied, jsd, jed, npz, u, v, q(is:ie,js:je,:,1), dx, dy, rarea)
+         do j=jsd,jed+1
+            do i=isd,ied+1
+               fC(i,j) = 2.*omega*( -1.*cos(grid(i,j,1))*cos(grid(i,j,2))*sin(alpha) + &
+                    sin(grid(i,j,2))*cos(alpha) )
+            enddo
+         enddo
+         do j=jsd,jed
+            do i=isd,ied
+               f0(i,j) = 2.*omega*( -1.*cos(agrid(i,j,1))*cos(agrid(i,j,2))*sin(alpha) + &
+                    sin(agrid(i,j,2))*cos(alpha) )
+            enddo
+         enddo
+         call mpp_update_domains( f0, domain )
+         if (cubed_sphere) call fill_corners(f0, npx, npy, YDir)
+         do j=js,je
+         do i=is,ie
+            q(i,j,npz,1) = ( q(i,j,npz,1) + f0(i,j) ) / delp(i,j,npz) * 1.e6 ! PVU
+            !q(i,j,npz,1) = ( q(i,j,npz,1) + f0(i,j) ) * grav / delp(i,j,npz)
+         enddo
+         enddo
+!         call pv_entropy(is, ie, js, je, ng, npz, q(is:ie,js:je,:,2), f0, pt, pkz, delp, grav)
+
+      case(8)
+#ifdef USE_OLD
+!----------------------------
+! Non-rotating potential flow
+!----------------------------
+         gh0  = 5960.*Grav
+         phis = 0.0
+         r0 = PI/9.
+         p1(1) = PI/2.
+         p1(2) = PI/6.
+         do j=js,je
+            do i=is,ie
+               p2(1) = agrid(i,j,1)
+               p2(2) = agrid(i,j,2)
+               r = MIN(r0*r0, (p2(1)-p1(1))*(p2(1)-p1(1)) + (p2(2)-p1(2))*(p2(2)-p1(2)) )
+               r = SQRT(r)
+               phis(i,j) = 2000.0*Grav*(1.0-(r/r0))
+            enddo
+         enddo
+         do j=js,je
+            do i=is,ie
+               delp(i,j,1) = gh0
+            enddo
+         enddo
+         u  = 0.;   v = 0.
+         f0 = 0.;  fC = 0.
+         initWindsCase= -1
+#endif
+!----------------------------
+! Soliton twin-vortex
+!----------------------------
+        if ( is_master() ) write(*,*) 'Initialzing case-8: soliton twin cycolne...'
+        f0 = 0.;  fC = 0.          ! non-rotating planet setup
+        phis = 0.0                 ! flat terrain
+        gh0  = 5.E3*Grav
+        do j=js,je
+           do i=is,ie
+              delp(i,j,1) = gh0
+           enddo
+        enddo
+
+! Initiate the westerly-wind-burst:
+        ubar = soliton_Umax
+        r0   = soliton_size
+!!$        ubar = 200.       ! maxmium wind speed (m/s)
+!!$        r0 = 250.e3
+!!$        ubar = 50.       ! maxmium wind speed (m/s)
+!!$        r0 = 750.e3
+! #1 1: westerly
+        p0(1) = pi*0.5
+        p0(2) = 0.
+
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,1) = utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,1) = utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+
+! #1 2: easterly
+        p0(1) = p0(1) + pi
+        p0(2) = 0.
+
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,1) = v(i,j,1) - utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,1) = u(i,j,1) - utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+         initWindsCase= -1
+
+      case(9)
+#ifdef USE_OLD
+         jm1 = jm - 1
+         DDP = PI/DBLE(jm1)
+         DP  = DDP
+         ll_j(1) = -0.5*PI
+         do j=2,jm
+            ph5  = -0.5*PI + (DBLE(j-1)-0.5)*DDP
+            ll_j(j) = -0.5*PI + (DBLE(j-1)*DDP)
+            sine(j) = SIN(ph5)
+         enddo
+         cosp( 1) =  0.
+         cosp(jm) =  0.
+         do j=2,jm1
+            cosp(j) = (sine(j+1)-sine(j)) / DP
+         enddo
+         do j=2,jm
+            cose(j) = 0.5 * (cosp(j-1) + cosp(j))
+         enddo
+         cose(1) = cose(2)
+         ddeg = 180./float(jm-1)
+         do j=2,jm
+            deg = -90. + (float(j-1)-0.5)*ddeg
+            if (deg <= 0.) then
+               ll_u(j) = -10.*(deg+90.)/90.
+            elseif (deg <= 60.) then
+               ll_u(j) = -10. +  deg
+            else
+               ll_u(j) = 50. - (50./30.)* (deg - 60.)
+            endif
+         enddo
+         ll_phi(1) = 6000. * Grav
+         do j=2,jm1
+            ll_phi(j)=ll_phi(j-1)  - DP*sine(j) * &
+                    (radius*2.*omega + ll_u(j)/cose(j))*ll_u(j)
+         enddo
+         phis = 0.0
+         do j=js,je
+            do i=is,ie
+               do jj=1,jm1
+                  if ( (ll_j(jj) <= agrid(i,j,2)) .and. (agrid(i,j,2) <= ll_j(jj+1)) ) then
+                     delp(i,j,1)=0.5*(ll_phi(jj)+ll_phi(jj+1))
+                  endif
+               enddo
+            enddo
+         enddo
+
+         do j=js,je
+            do i=is,ie
+               if (agrid(i,j,2)*todeg <= 0.0) then
+                  ua(i,j,1) = -10.*(agrid(i,j,2)*todeg + 90.)/90.
+               elseif (agrid(i,j,2)*todeg <= 60.0) then
+                  ua(i,j,1) = -10. + agrid(i,j,2)*todeg
+               else
+                  ua(i,j,1) = 50. - (50./30.)* (agrid(i,j,2)*todeg - 60.)
+               endif
+               va(i,j,1) = 0.0
+               call mid_pt_sphere(grid(i,j,1:2), grid(i,j+1,1:2), p1)
+               call mid_pt_sphere(grid(i,j,1:2), grid(i+1,j,1:2), p2)
+               call mid_pt_sphere(grid(i+1,j,1:2), grid(i+1,j+1,1:2), p3)
+               call mid_pt_sphere(grid(i,j+1,1:2), grid(i+1,j+1,1:2), p4)
+               if (cubed_sphere) call rotate_winds(ua(i,j,1), va(i,j,1), p1,p2,p3,p4, agrid(i,j,1:2), 2, 1)
+            enddo
+         enddo
+
+         call mpp_update_domains( ua, va, domain, gridtype=AGRID_PARAM)
+         call atoc(ua,va,uc,vc,dx,dy,dxa,dya,npx,npy,ng, gridstruct%nested, domain)
+         call mpp_update_domains( uc, vc, domain, gridtype=CGRID_NE_PARAM)
+         call fill_corners(uc, vc, npx, npy, npz, VECTOR=.true., CGRID=.true.)
+         call atod(ua,va, u, v,dxa, dya,dxc,dyc,npx,npy,ng, gridstruct%nested, domain)
+         call mp_update_dwinds(u, v, npx, npy, npz, domain)
+         initWindsCase=initWindsCase9
+
+
+         call get_case9_B(case9_B, agrid)
+         AofT(:) = 0.0
+#else
+!----------------------------
+! Soliton twin-vortex
+!----------------------------
+        if ( is_master() ) write(*,*) 'Initialzing case-9: soliton cyclones...'
+        f0 = 0.;  fC = 0.          ! non-rotating planet setup
+        phis = 0.0                 ! flat terrain
+        gh0  = 5.E3*Grav
+        do j=js,je
+           do i=is,ie
+              delp(i,j,1) = gh0
+           enddo
+        enddo
+
+! Initiate the westerly-wind-burst:
+        ubar = soliton_Umax
+        r0   = soliton_size
+!!$        ubar = 200.       ! maxmium wind speed (m/s)
+!!$        r0 = 250.e3
+!!$        ubar = 50.       ! maxmium wind speed (m/s)
+!!$        r0 = 750.e3
+        p0(1) = pi*0.5
+        p0(2) = 0.
+
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,1) = utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,1) = utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+         initWindsCase= -1
+#endif
+      end select
+!--------------- end s-w cases --------------------------
+
+! Copy 3D data for Shallow Water Tests
+      do z=2,npz
+         delp(:,:,z) = delp(:,:,1)
+      enddo
+
+      call mpp_update_domains( delp, domain )
+      call mpp_update_domains( phis, domain )
+      phi0  = delp
+
+      call init_winds(UBar, u,v,ua,va,uc,vc, initWindsCase, npx, npy, ng, ndims, nregions, gridstruct%nested, gridstruct, domain, tile)
+! Copy 3D data for Shallow Water Tests
+      do z=2,npz
+         u(:,:,z) = u(:,:,1)
+         v(:,:,z) = v(:,:,1)
+      enddo
+
+      do j=js,je
+         do i=is,ie
+            ps(i,j) = delp(i,j,1)
+         enddo
+      enddo
+! -------- end s-w section ----------------------------------
+#else
+
       if (test_case==10 .or. test_case==14) then
 
          alpha = 0.
@@ -1145,6 +1964,1115 @@
 
          write(stdout(), *) 'PHIS:', mpp_chksum(phis(is:ie,js:je))
 
+      else if ( test_case==15 .or. test_case==19 ) then
+!------------------------------------
+! Non-hydrostatic 3D density current:
+!------------------------------------
+! C100_L64; hybrid_z = .T., make_nh = .F. ,   make_hybrid_z = .false.
+! Control: npz=64;  dx = 100 m; dt = 1; n_split=10
+
+        if ( test_case == 19 ) then
+             f0(:,:) = 0.
+             fC(:,:) = 0.
+        endif
+
+           phis = 0.
+           u = 0.
+           v = 0.
+           w = 0.
+          t00 = 300.
+          p00 = 1.E5
+          pk0 = p00**kappa
+! Set up vertical coordinare with constant del-z spacing:
+         ztop = 6.4E3
+         ze1(    1) = ztop
+         ze1(npz+1) = 0.
+         do k=npz,2,-1
+            ze1(k) = ze1(k+1) + ztop/real(npz)
+         enddo
+
+! Provide some room for the top layer
+         ze1(1) = ztop + 1.5*ztop/real(npz)
+
+         do j=js,je
+            do i=is,ie
+               ps(i,j) = p00
+               pe(i,npz+1,j) = p00
+               pk(i,j,npz+1) = pk0
+            enddo
+         enddo
+
+         do k=npz,1,-1
+            do j=js,je
+               do i=is,ie
+                  delz(i,j,k) = ze1(k+1) - ze1(k)
+                    pk(i,j,k) = pk(i,j,k+1) + grav*delz(i,j,k)/(cp_air*t00)*pk0
+                    pe(i,k,j) = pk(i,j,k)**(1./kappa)
+               enddo
+            enddo
+         enddo
+
+         ptop = pe(is,1,js)
+         if ( is_master() ) write(*,*) 'Density curent testcase: model top (mb)=', ptop/100.
+
+         do k=1,npz+1
+            do j=js,je
+               do i=is,ie
+                  peln(i,k,j) = log(pe(i,k,j))
+                   ze0(i,j,k) = ze1(k)
+               enddo
+            enddo
+         enddo
+
+         do k=1,npz
+            do j=js,je
+               do i=is,ie
+                  pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+                 delp(i,j,k) =  pe(i,k+1,j)-pe(i,k,j)
+                   pt(i,j,k) = t00/pk0   ! potential temp
+                enddo
+            enddo
+         enddo
+
+! Perturbation: center at 3 km from the ground
+         pturb = 15.
+         p1(1) = pi
+         p1(2) = 0.
+
+         do k=1,npz
+#ifndef STD_BUBBLE
+            r0 = 0.5*(ze1(k)+ze1(k+1)) - 3.2E3
+#else
+            r0 = (0.5*(ze1(k)+ze1(k+1)) - 3.0E3) / 2.E3
+#endif
+            do j=js,je
+               do i=is,ie
+! Impose perturbation in potential temperature: pturb
+               p2(1) = agrid(i,j,1)
+               p2(2) = agrid(i,j,2)
+#ifndef STD_BUBBLE
+               r = great_circle_dist( p1, p2, radius )
+               dist = sqrt( r**2 + r0**2 ) / 3.2E3
+#else
+               r = great_circle_dist( p1, p2, radius ) / 4.E3
+               dist = sqrt( r**2 + r0**2 )
+#endif
+                  if ( dist<=1. ) then
+                       q(i,j,k,1) =      pk0 * pturb/pkz(i,j,k)*(cos(pi*dist)+1.)/2.
+                       pt(i,j,k) = pt(i,j,k) - pturb/pkz(i,j,k)*(cos(pi*dist)+1.)/2.
+                  else
+                       q(i,j,k,1) = 0.
+                  endif
+! Transform back to temperature:
+                   pt(i,j,k) = pt(i,j,k) * pkz(i,j,k)
+               enddo
+            enddo
+          enddo
+
+      else if ( test_case==16 ) then
+
+! Non-rotating:
+       f0(:,:) = 0.
+       fC(:,:) = 0.
+! Initialize dry atmosphere
+       phis = 0.
+       u = 0.
+       v = 0.
+       p00 = 1000.E2
+! Set up vertical coordinare with constant del-z spacing:
+       ztop = 10.E3
+       call gw_1d(npz, p00, ak, bk, ptop, ztop, ppt)
+
+       do z=1,npz+1
+          pe1(z) = ak(z) + bk(z)*p00
+       enddo
+
+       ze1(npz+1) = 0.
+       do z=npz,2,-1
+          ze1(z) = ze1(z+1) + ztop/real(npz)
+       enddo
+       ze1(1) = ztop
+
+       if ( is_master() ) write(*,*) 'Model top (pa)=', ptop
+
+       do j=jsd,jed
+          do i=isd,ied
+             ps(i,j) = pe1(npz+1) 
+          enddo
+       enddo
+
+       do z=1,npz+1
+          do j=js,je
+             do i=is,ie
+                  pe(i,z,j) = pe1(z) 
+                peln(i,z,j) = log(pe1(z)) 
+                  pk(i,j,z) = exp(kappa*peln(i,z,j))
+             enddo
+          enddo
+       enddo
+
+! Horizontal shape function
+       p1(1) = pi
+       p1(2) = 0.
+       r0 = radius / 3.
+       do j=js,je
+          do i=is,ie
+             r = great_circle_dist( p1, agrid(i,j,1:2), radius )
+             if ( r<r0 ) then
+                  vort(i,j) = 0.5*(1.+cos(pi*r/r0))
+             else
+                  vort(i,j) = 0 
+             endif
+          enddo
+       enddo
+
+       q = 0.
+       pk0 = p00**kappa
+       pturb = 10./pk0
+       do z=1,npz
+          zmid = sin( 0.5*(ze1(z)+ze1(z+1))*pi/ztop )
+          do j=js,je
+             do i=is,ie
+                 pkz(i,j,z) = (pk(i,j,z+1)-pk(i,j,z))/(kappa*(peln(i,z+1,j)-peln(i,z,j)))
+                delp(i,j,z) =  pe(i,z+1,j)-pe(i,z,j)  
+! Impose perturbation in potential temperature: pturb
+                  pt(i,j,z) = ( ppt(z) + pturb*vort(i,j)*zmid ) * pkz(i,j,z)
+                  q(i,j,z,1) = q(i,j,z,1) + vort(i,j)*zmid
+             enddo
+          enddo
+       enddo
+
+      elseif ( test_case==17 ) then
+! Initialize dry atmosphere
+       phis = 0.
+       u = 0.
+       v = 0.
+       p00 = 1000.E2
+! Set up vertical coordinare with constant del-z spacing:
+       ztop = 10.E3
+       call gw_1d(npz, p00, ak, bk, ptop, ztop, ppt)
+
+       do z=1,npz+1
+          pe1(z) = ak(z) + bk(z)*p00
+       enddo
+
+       ze1(npz+1) = 0.
+       do z=npz,2,-1
+          ze1(z) = ze1(z+1) + ztop/real(npz)
+       enddo
+       ze1(1) = ztop
+
+       if ( is_master() ) write(*,*) 'Model top (pa)=', ptop
+
+       do j=jsd,jed
+          do i=isd,ied
+             ps(i,j) = pe1(npz+1) 
+          enddo
+       enddo
+
+       do z=1,npz+1
+          do j=js,je
+             do i=is,ie
+                  pe(i,z,j) = pe1(z) 
+                peln(i,z,j) = log(pe1(z)) 
+                  pk(i,j,z) = exp(kappa*peln(i,z,j))
+             enddo
+          enddo
+       enddo
+
+! Horizontal shape function
+       p1(1) = pi
+       p1(2) = pi/4.
+       r0 = radius / 3.
+       do j=js,je
+          do i=is,ie
+             r = great_circle_dist( p1, agrid(i,j,1:2), radius )
+             if ( r<r0 ) then
+                  vort(i,j) = 0.5*(1.+cos(pi*r/r0))
+             else
+                  vort(i,j) = 0 
+             endif
+          enddo
+       enddo
+
+         pk0 = p00**kappa
+       pturb = 10./pk0
+       do z=1,npz
+          zmid = sin( 0.5*(ze1(z)+ze1(z+1))*pi/ztop )
+          do j=js,je
+             do i=is,ie
+                 pkz(i,j,z) = (pk(i,j,z+1)-pk(i,j,z))/(kappa*(peln(i,z+1,j)-peln(i,z,j)))
+                delp(i,j,z) =  pe(i,z+1,j)-pe(i,z,j)  
+! Impose perturbation in potential temperature: pturb
+                  pt(i,j,z) = ( ppt(z) + pturb*vort(i,j)*zmid ) * pkz(i,j,z)
+             enddo
+          enddo
+       enddo
+
+      elseif ( test_case==18 ) then
+         ubar = 20.
+          pt0 = 288.
+         n2 = grav**2 / (cp_air*pt0)
+
+         pcen(1) = PI/2.
+         pcen(2) = PI/6.
+
+    ! Initialize surface Pressure
+         do j=js2,je2
+            do i=is2,ie2
+               r = great_circle_dist( pcen, agrid(i,j,1:2), radius )
+               phis(i,j) = grav*2.E3*exp( -(r/1500.E3)**2 )
+               ps(i,j) = 930.E2 * exp( -radius*n2*ubar/(2.*grav*grav*kappa)*(ubar/radius+2.*omega)*   &
+                                       (sin(agrid(i,j,2))**2-1.) - n2/(grav*grav*kappa)*phis(i,j))
+            enddo
+         enddo
+
+      do z=1,npz
+            do j=js,je
+               do i=is,ie
+                    pt(i,j,z) = pt0
+                  delp(i,j,z) = ak(z+1)-ak(z) + ps(i,j)*(bk(z+1)-bk(z))
+               enddo
+            enddo
+! v-wind:
+         do j=js,je
+            do i=is,ie+1
+               p1(:) = grid(i  ,j ,1:2)
+               p2(:) = grid(i,j+1 ,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e2)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = ubar * cos(p3(2))
+               vtmp = 0.
+               v(i,j,z) = utmp*inner_prod(e2,ex) + vtmp*inner_prod(e2,ey)
+            enddo
+         enddo
+
+! u-wind
+         do j=js,je+1
+            do i=is,ie
+               p1(:) = grid(i,  j,1:2)
+               p2(:) = grid(i+1,j,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e1)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = ubar * cos(p3(2))
+               vtmp = 0.
+               u(i,j,z) = utmp*inner_prod(e1,ex) + vtmp*inner_prod(e1,ey)
+            enddo
+         enddo
+      enddo
+
+      else if ( test_case==20 .or. test_case==21 ) then
+!------------------------------------
+! Non-hydrostatic 3D lee vortices
+!------------------------------------
+        f0(:,:) = 0.
+        fC(:,:) = 0.
+
+        if ( test_case == 20 ) then
+             Ubar = 4.       ! u = Ubar * cos(lat)
+             ftop = 2.0E3 * grav
+        else
+             Ubar = 8.       ! u = Ubar * cos(lat)
+             ftop = 4.0E3 * grav
+        endif
+
+        w = 0.
+
+         do j=js,je
+            do i=is,ie+1
+               p1(:) = grid(i  ,j ,1:2)
+               p2(:) = grid(i,j+1 ,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e2)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = ubar * cos(p3(2))
+               vtmp = 0.
+               v(i,j,1) = utmp*inner_prod(e2,ex) + vtmp*inner_prod(e2,ey)
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               p1(:) = grid(i,  j,1:2)
+               p2(:) = grid(i+1,j,1:2)
+               call mid_pt_sphere(p1, p2, p3)
+               call get_unit_vect2(p1, p2, e1)
+               call get_latlon_vector(p3, ex, ey)
+               utmp = ubar * cos(p3(2))
+               vtmp = 0.
+               u(i,j,1) = utmp*inner_prod(e1,ex) + vtmp*inner_prod(e1,ey)
+            enddo
+         enddo
+
+! copy vertically; no wind shear
+        do k=2,npz
+           do j=js,je+1
+              do i=is,ie
+                 u(i,j,k) = u(i,j,1)
+              enddo
+           enddo
+           do j=js,je
+              do i=is,ie+1
+                 v(i,j,k) = v(i,j,1)
+              enddo
+           enddo
+        enddo
+
+! Center of the mountain:
+        p1(1) = (0.5-0.125) * pi
+        p1(2) = 0.
+        call latlon2xyz(p1, e1)
+         uu1 =  5.0E3
+         uu2 = 10.0E3
+         do j=js2,je2
+            do i=is2,ie2
+              p2(:) = agrid(i,j,1:2)
+                  r = great_circle_dist( p1, p2, radius ) 
+              if ( r < pi*radius ) then
+                   p4(:) = p2(:) - p1(:)
+                   if ( abs(p4(1)) > 1.E-12 ) then
+                        zeta = asin ( p4(2) / sqrt(p4(1)**2 + p4(2)**2) ) 
+                   else
+                        zeta = pi/2.
+                   endif
+                   if ( p4(1) <= 0. ) zeta = pi - zeta
+                    zeta = zeta + pi/6.
+                     v1 = r/uu1 * cos( zeta )
+                     v2 = r/uu2 * sin( zeta )
+                   phis(i,j) = ftop / ( 1. + v1**2 + v2**2 )  
+              else
+                   phis(i,j) = 0.
+              endif
+            enddo
+         enddo
+
+       if ( hybrid_z ) then
+            rgrav = 1./ grav
+            if( npz==32 ) then
+                call compute_dz_L32( npz, ztop, dz1 )
+            elseif( npz.eq.31 .or. npz.eq.41 .or. npz.eq.51 ) then
+                ztop = 16.E3
+                call hybrid_z_dz(npz, dz1, ztop, 1.0)
+            else
+                if ( is_master() ) write(*,*) 'Using const DZ'
+                ztop = 15.E3
+                dz1(1) = ztop / real(npz) 
+                do k=2,npz
+                   dz1(k) = dz1(1)
+                enddo
+! Make top layer thicker
+                dz1(1) = max( 1.0E3, 3.*dz1(2) )   ! min 1 km
+            endif
+
+! Re-compute ztop
+             ze1(npz+1) = 0.
+             do k=npz,1,-1
+                ze1(k) = ze1(k+1) + dz1(k)
+             enddo
+             ztop = ze1(1)
+
+            call set_hybrid_z( is, ie, js, je, ng, npz, ztop, dz1, rgrav,  &
+                               phis, ze0, delz )
+       else
+            call mpp_error(FATAL, 'This test case is only currently setup for hybrid_z')
+       endif
+
+       do k=1,npz
+          do j=js,je
+             do i=is,ie
+                delz(i,j,k) = ze0(i,j,k+1) - ze0(i,j,k)
+             enddo
+          enddo
+       enddo
+
+       p00 = 1.E5        ! mean SLP
+       pk0 = p00**kappa
+       t00 = 300.
+       pt0 = t00/pk0
+        n2 = 1.E-4
+        s0 = grav*grav / (cp_air*n2) 
+
+! For constant N2, Given z --> p
+       do k=1,npz+1
+          pe1(k) = p00*( (1.-s0/t00) + s0/t00*exp(-n2*ze1(k)/grav) )**(1./kappa)
+       enddo
+
+       ptop = pe1(1) 
+       if ( is_master() ) write(*,*) 'Lee vortex testcase: model top (mb)=', ptop/100.
+
+! Set up fake "sigma" coordinate 
+       ak(1) = pe1(1)
+       bk(1) = 0.
+       do k=2,npz
+          bk(k) = (pe1(k) - pe1(1)) / (pe1(npz+1)-pe1(1))  ! bk == sigma
+          ak(k) =  pe1(1)*(1.-bk(k)) 
+       enddo                                                
+       ak(npz+1) = 0.
+       bk(npz+1) = 1.
+
+! Assuming constant N
+       do k=2,npz+1
+          do j=js,je
+             do i=is,ie
+                pk(i,j,k) = pk0 - (1.-exp(-n2/grav*ze0(i,j,k))) * (grav*grav)/(n2*cp_air*pt0)
+                pe(i,k,j) = pk(i,j,k) ** (1./kappa)
+                peln(i,k,j) = log(pe(i,k,j)) 
+             enddo
+          enddo
+       enddo
+
+       do j=js,je
+          do i=is,ie
+               pe(i,1,j) = ptop
+             peln(i,1,j) = log(pe(i,1,j)) 
+               pk(i,j,1) = pe(i,1,j) ** kappa
+                 ps(i,j) = pe(i,npz+1,j)
+          enddo
+       enddo
+
+       do k=1,npz
+          do j=js,je
+             do i=is,ie
+                pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+               delp(i,j,k) =  pe(i,k+1,j)-pe(i,k,j)  
+                 pt(i,j,k) =  pkz(i,j,k)*grav*delz(i,j,k) / ( cp_air*(pk(i,j,k)-pk(i,j,k+1)) )
+              enddo
+          enddo
+      enddo
+
+      else if (test_case == 51) then
+
+         alpha = 0.
+         t00 = 300.
+
+
+         if (.not.hydrostatic) w(:,:,:)= 0.0
+
+
+         select case (tracer_test)
+         case (1) !DCMIP 11
+
+         !Need to set up pressure arrays
+!!$         p00 = 1.e5
+!!$         ps = p00
+!!$         phis = 0.
+
+         !NOTE: since we have an isothermal atmosphere and specify constant height-thickness layers we will disregard ak and bk and specify the initial pressures in a different way
+
+         dz = 12000./real(npz)
+         
+         allocate(zz0(npz+1))
+         allocate(pz0(npz+1))
+
+         zz0(1) = 12000.
+         do k=2,npz
+            zz0(k) = zz0(k-1) - dz
+         enddo
+         zz0(npz+1) = 0.
+
+         if (is_master()) print*, 'TRACER ADVECTION TEST CASE'
+         if (is_master()) print*, 'INITIAL LEVELS'
+         !This gets interface pressure from input z-levels
+         do k=1,npz+1
+            !call test1_advection_deformation(agrid(is,js,1), agrid(is,js,2), pz0(k), zz0(k), 1, &
+            !     ua(is,js,1), va(is,js,1), dum1, pt(is,js,1), phis(is,js), &
+            !     ps(is,js), dum2, dum3, q(is,js,1,1), q(is,js,1,2), q(is,js,1,3), q(is,js,1,4))
+            if (is_master()) write(*,*) k, pz0(k), zz0(k)
+         enddo
+
+         !Pressure
+         do j=js,je
+            do k=1,npz+1
+            do i=is,ie
+               pe(i,k,j) = pz0(k)
+            enddo
+            enddo
+         enddo
+
+         do k=1,npz
+            ptmp = 0.5*(pz0(k) + pz0(k+1))
+         do j=js,je
+         do i=is,ie
+            !This gets level-mean values from input pressures
+            !call test1_advection_deformation(agrid(i,j,1),agrid(i,j,2),ptmp,dum,0, &
+            !     ua(i,j,k), va(i,j,k), dum4, pt(i,j,k), phis(i,j), &
+            !     ps(i,j), dum2, dum3, q(i,j,k,1), q(i,j,k,2), q(i,j,k,3), q(i,j,k,4))
+            delp(i,j,k) = pz0(k+1)-pz0(k)
+         enddo
+         enddo
+         enddo
+
+         ptop = 100000.*exp(-12000.*grav/t00/rdgas)
+
+
+         psi(:,:) = 1.e25
+         psi_b(:,:) = 1.e25
+         do j=jsd,jed
+            do i=isd,ied
+               psi(i,j) = (-1.0 * Ubar * radius *( sin(agrid(i,j,2))                  *cos(alpha) - &
+                    cos(agrid(i,j,1))*cos(agrid(i,j,2))*sin(alpha) ) )
+            enddo
+         enddo
+         call mpp_update_domains( psi, domain )
+         do j=jsd,jed+1
+            do i=isd,ied+1
+               psi_b(i,j) = (-1.0 * Ubar * radius *( sin(grid(i,j,2))                 *cos(alpha) - &
+                    cos(grid(i,j,1))*cos(grid(i,j,2))*sin(alpha) ) )
+            enddo
+         enddo
+
+         k = 1
+         do j=js,je+1
+            do i=is,ie
+               dist = dx(i,j)
+               vc(i,j,k) = (psi_b(i+1,j)-psi_b(i,j))/dist
+               if (dist==0) vc(i,j,k) = 0.
+            enddo
+         enddo
+         do j=js,je
+            do i=is,ie+1
+               dist = dy(i,j)
+               uc(i,j,k) = -1.0*(psi_b(i,j+1)-psi_b(i,j))/dist
+               if (dist==0) uc(i,j,k) = 0.
+            enddo
+         enddo
+
+         do j=js,je
+            do i=is,ie+1
+               dist = dxc(i,j)
+               v(i,j,k) = (psi(i,j)-psi(i-1,j))/dist
+               if (dist==0) v(i,j,k) = 0.
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               dist = dyc(i,j)
+               u(i,j,k) = -1.0*(psi(i,j)-psi(i,j-1))/dist
+               if (dist==0) u(i,j,k) = 0.
+            enddo
+         enddo
+
+         do j=js,je
+            do i=is,ie
+               psi1 = 0.5*(psi(i,j)+psi(i,j-1))
+               psi2 = 0.5*(psi(i,j)+psi(i,j+1))
+               dist = dya(i,j)
+               ua(i,j,k) = -1.0 * (psi2 - psi1) / (dist)
+               if (dist==0) ua(i,j,k) = 0.
+               psi1 = 0.5*(psi(i,j)+psi(i-1,j))
+               psi2 = 0.5*(psi(i,j)+psi(i+1,j))
+               dist = dxa(i,j)
+               va(i,j,k) = (psi2 - psi1) / (dist)
+               if (dist==0) va(i,j,k) = 0.
+            enddo
+         enddo
+
+         do k=2,npz
+            u(:,:,k) = u(:,:,1)
+            v(:,:,k) = v(:,:,1)
+            uc(:,:,k) = uc(:,:,1)
+            vc(:,:,k) = vc(:,:,1)
+            ua(:,:,k) = ua(:,:,1)
+            va(:,:,k) = va(:,:,1)
+         enddo
+
+         call mpp_update_domains( uc, vc, domain, gridtype=CGRID_NE_PARAM)
+         call fill_corners(uc, vc, npx, npy, npz, VECTOR=.true., CGRID=.true.)
+         call mp_update_dwinds(u, v, npx, npy, npz, domain)
+
+         case (2) !DCMIP 12
+
+         case (3) !DCMIP 13
+
+         case default
+            call mpp_error(FATAL, 'Value of tracer_test not implemented ')
+         end select
+         
+      else if (test_case == 52) then
+
+         !Orography and steady-state test: DCMIP 20
+   
+
+         f0 = 0.
+         fC = 0.
+
+         u = 0.
+         v = 0.
+
+         p00 = 1.e5
+
+         wind_field = tracer_test
+
+         if (.not.hydrostatic) w(:,:,:)= 0.0
+
+         !Set up ak and bk
+
+         dz = 12000./real(npz)
+         T00 = 300.
+         p00 = 1.e5
+         H = rdgas*T00/grav
+         gamma = 0.0065
+         exponent = Rdgas*gamma/grav
+         px = ((t00-9000.*gamma)/t00)**(1./exponent) !p00 not multiplied in
+
+
+         do k=1,npz+1
+            height = 12000. - dz*real(k-1)
+            if (height >= 9000. ) then
+               ak(k) = p00*((t00-height*gamma)/t00)**(1./exponent)
+               bk(k) = 0.
+            else
+               ak(k) = (((t00-height*gamma)/t00)**(1./exponent)-1.)/(px - 1.)*px*p00
+               bk(k) = (((t00-height*gamma)/t00)**(1./exponent)-px)/(1.-px)
+            endif
+            if (is_master()) write(*,*) k, ak(k), bk(k), height, ak(k)+bk(k)*p00
+         enddo
+
+         ptop = ak(1)
+
+         !Need to set up uniformly-spaced levels
+         p1(1) = 3.*pi/2. ; p1(2) =  0.
+         r0 = 0.75*pi
+         zetam = pi/16.
+
+         !Topography
+         do j=js,je
+         do i=is,ie
+            p2(:) = agrid(i,j,1:2)
+            r = great_circle_dist( p1, p2, one ) 
+            if (r < r0) then
+               phis(i,j) = grav*0.5*2000.*(1. + cos(pi*r/r0))*cos(pi*r/zetam)**2.
+               pe(i,npz+1,j) = p00*(1.-gamma/T00*phis(i,j)/grav)**(1./exponent)
+            else
+               phis(i,j) = 0.
+               pe(i,npz+1,j) = p00
+            endif
+            ps(i,j) = pe(i,npz+1,j)
+         enddo
+         enddo
+
+         do j=js,je
+         do k=1,npz
+         do i=is,ie
+            pe(i,k,j) = ak(k) + bk(k)*ps(i,j)
+            gz(i,j,k) = t00/gamma*(1. - (pe(i,k,j)/p00)**exponent)
+         enddo
+         enddo
+         enddo
+
+         do k=1,npz
+         do j=js,je
+         do i=is,ie
+
+            !call test2_steady_state_mountain(agrid(i,j,1),agrid(i,j,2),dum, dum2, 0, .true., &
+            !     0.5*(ak(k)+ak(k+1)), 0.5*(bk(k)+bk(k+1)), dum3, dum4, dum5, &
+            !     pt(i,j,k), phis(i,j), ps(i,j), dum6, q(i,j,k,1))
+            delp(i,j,k) = pe(i,k+1,j) - pe(i,k,j)
+            !Analytic point-value
+!!$            ptmp = 0.5*(pe(i,k,j)+pe(i,k+1,j))
+!!$            pt(i,j,k) = t00*(ptmp/p00)**exponent
+            !ANalytic layer-mean
+            pt(i,j,k) = -grav*t00*p00/(rdgas*gamma + grav)/delp(i,j,k) * &
+                 ( (pe(i,k,j)/p00)**(exponent+1.) - (pe(i,k+1,j)/p00)**(exponent+1.)  )
+            
+
+         enddo
+         enddo
+         enddo
+
+      else if ( abs(test_case)==30 .or.  abs(test_case)==31 ) then
+!------------------------------------
+! Super-Cell; with or with rotation
+!------------------------------------
+        if ( abs(test_case)==30) then
+           f0(:,:) = 0.
+           fC(:,:) = 0.
+        endif
+
+        zvir = rvgas/rdgas - 1.
+        p00 = 1000.E2
+          ps(:,:) = p00
+        phis(:,:) = 0.
+        do j=js,je
+           do i=is,ie
+                pk(i,j,1) = ptop**kappa
+                pe(i,1,j) = ptop
+              peln(i,1,j) = log(ptop)
+           enddo
+        enddo
+
+        do k=1,npz
+           do j=js,je
+              do i=is,ie
+                 delp(i,j,k) = ak(k+1)-ak(k) + ps(i,j)*(bk(k+1)-bk(k))
+                 pe(i,k+1,j) = ak(k+1) + ps(i,j)*bk(k+1)
+                 peln(i,k+1,j) = log(pe(i,k+1,j))
+                   pk(i,j,k+1) = exp( kappa*peln(i,k+1,j) )
+              enddo
+           enddo
+        enddo
+
+        i = is
+        j = js
+        do k=1,npz
+           pk1(k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+        enddo
+
+        call SuperCell_Sounding(npz, p00, pk1, ts1, qs1)
+
+        w(:,:,:) = 0.
+        q(:,:,:,:) = 0.
+
+        pp0(1) = 262.0/180.*pi   ! OKC            
+        pp0(2) =  35.0/180.*pi   
+
+        do k=1,npz
+           do j=js,je
+              do i=is,ie
+                 pt(i,j,k)   = ts1(k)
+                  q(i,j,k,1) = qs1(k)
+                 delz(i,j,k) = rdgas/grav*ts1(k)*(1.+zvir*qs1(k))*(peln(i,k,j)-peln(i,k+1,j))
+                enddo
+             enddo
+          enddo
+
+        ze1(npz+1) = 0.
+        do k=npz,1,-1
+           ze1(k) = ze1(k+1) - delz(is,js,k)
+        enddo
+
+        us0 = 30.
+        if (is_master()) then
+           if (test_case > 0) then
+              write(6,*) 'Toy supercell winds, piecewise approximation'
+           else
+              write(6,*) 'Toy supercell winds, tanh approximation'
+           endif
+        endif
+        do k=1,npz
+
+           zm = 0.5*(ze1(k)+ze1(k+1))
+           ! Quarter-circle hodograph (Harris approximation)
+
+           if (test_case > 0) then
+              ! SRH = 40
+              if ( zm .le. 2.e3 ) then
+                 utmp = 8.*(1.-cos(pi*zm/4.e3)) 
+                 vtmp = 8.*sin(pi*zm/4.e3)
+              elseif (zm .le. 6.e3 ) then
+                 utmp = 8. + (us0-8.)*(zm-2.e3)/4.e3
+                 vtmp = 8.
+              else
+                 utmp = us0
+                 vtmp = 8.
+              endif
+              ubar = utmp - 8.
+              vbar = vtmp - 4.
+           else
+              ! SRH = 39
+              utmp = 15.0*(1.+tanh(zm/2000. - 1.5))
+              vtmp = 8.5*tanh(zm/1000.)
+              ubar = utmp - 8.5
+              vbar = vtmp - 4.25
+!!$              ! SRH = 45
+!!$              utmp = 16.0*(1.+tanh(zm/2000. - 1.4))
+!!$              vtmp = 8.5*tanh(zm/1000.)
+!!$              ubar = utmp - 10.
+!!$              vbar = vtmp - 4.25
+!!$              ! SRH = 27 (really)
+!!$              utmp = 0.5*us0*(1.+tanh((zm-3500.)/2000.))
+!!$              vtmp = 8.*tanh(zm/1000.)
+!!$              ubar = utmp - 10.
+!!$              vbar = vtmp - 4.
+           endif
+
+           if( is_master() ) then
+              write(6,*) k, utmp, vtmp
+           endif
+              
+           do j=js,je
+              do i=is,ie+1
+                 p1(:) = grid(i  ,j ,1:2)
+                 p2(:) = grid(i,j+1 ,1:2)
+                 call mid_pt_sphere(p1, p2, p3)
+                 call get_unit_vect2(p1, p2, e2)
+                 call get_latlon_vector(p3, ex, ey)
+! Scaling factor is a Gaussian decay from center
+                 v(i,j,k) = exp(-8.*great_circle_dist(pp0,p3,radius)/radius) *   &
+                           (ubar*inner_prod(e2,ex) + vbar*inner_prod(e2,ey))
+              enddo
+           enddo
+           do j=js,je+1
+              do i=is,ie
+                 p1(:) = grid(i,  j,1:2)
+                 p2(:) = grid(i+1,j,1:2)
+                 call mid_pt_sphere(p1, p2, p3)
+                 call get_unit_vect2(p1, p2, e1)
+                 call get_latlon_vector(p3, ex, ey)
+! Scaling factor is a Gaussian decay from center
+                 u(i,j,k) = exp(-8.*great_circle_dist(pp0,p3,radius)/radius) *   &
+                           (ubar*inner_prod(e1,ex) + vbar*inner_prod(e1,ey))
+              enddo
+           enddo
+        enddo
+
+     call p_var(npz, is, ie, js, je, ptop, ptop_min, delp, delz, pt, ps,   &
+                pe, peln, pk, pkz, kappa, q, ng, ncnst, area, dry_mass, .false., .false., &
+                .true., hydrostatic, nwat, domain)
+
+! *** Add Initial perturbation ***
+        pturb = 2.
+        r0 = 10.e3     ! radius
+        zc = 1.4e3     ! center of bubble from surface
+        do k=1, npz
+           zm = 0.5*(ze1(k)+ze1(k+1))   ! center of the layer
+           ptmp = ( (zm-zc)/zc ) **2
+           if ( ptmp < 1. ) then
+              do j=js,je
+                 do i=is,ie
+                    dist = ptmp + (great_circle_dist(pp0, agrid(i,j,1:2), radius)/r0)**2
+                    if ( dist < 1. ) then
+                         pt(i,j,k) = pt(i,j,k) + pturb*(1.-sqrt(dist))
+                    endif
+                 enddo
+              enddo
+           endif
+        enddo
+
+     elseif (test_case == 32) then
+
+        call mpp_error(FATAL, ' test_case 32 not yet implemented')
+
+      else if ( test_case==33 .or. test_case==34 .or. test_case==35 ) then
+!------------------------------------
+! HIWPP M0ountain waves tests
+!------------------------------------
+        f0(:,:) = 0.
+        fC(:,:) = 0.
+
+        phis(:,:) = 1.E30
+          ps(:,:) = 1.E30
+
+        zvir = 0.
+        p00 = 1000.E2
+        t00 = 300.
+        us0 = 20.
+! Vertical shear parameter for M3 case:
+        if ( test_case == 35 ) then
+             cs_m3 = 2.5e-4
+        else
+             cs_m3 = 0.
+        endif
+
+! Mountain height:
+        h0 = 250.
+! Mountain center
+        p0(1) = 60./180. * pi
+        p0(2) = 0.
+! 9-point average:
+!      9  4  8
+!
+!      5  1  3
+!          
+!      6  2  7
+! pt = 0.25*pt1 + 0.125*(pt2+pt3+pt4+pt5) + 0.0625*(pt6+pt7+pt8+pt9)
+     if ( test_case==35 ) then
+        dum = -cs_m3/grav
+        do j=js,je
+           do i=is,ie
+! temperature is function of latitude (due to vertical shear)
+#ifdef USE_CELL_AVG
+                    p2(2) = agrid(i,j,2)
+              pt1 = exp( dum*(us0*sin(p2(2)))**2 )
+                    call mid_pt_sphere(grid(i,j,1:2), grid(i+1,j,1:2), p2)
+              pt2 = exp( dum*(us0*sin(p2(2)))**2 )
+                    call mid_pt_sphere(grid(i+1,j,1:2), grid(i+1,j+1,1:2), p2)
+              pt3 = exp( dum*(us0*sin(p2(2)))**2 )
+                    call mid_pt_sphere(grid(i,j+1,1:2), grid(i+1,j+1,1:2), p2)
+              pt4 = exp( dum*(us0*sin(p2(2)))**2 )
+                    call mid_pt_sphere(grid(i,j,1:2), grid(i,j+1,1:2), p2)
+              pt5 = exp( dum*(us0*sin(p2(2)))**2 )
+                    p2(2) = grid(i,j,2)
+              pt6 = exp( dum*(us0*sin(p2(2)))**2 )
+                    p2(2) = grid(i+1,j,2)
+              pt7 = exp( dum*(us0*sin(p2(2)))**2 )
+                    p2(2) = grid(i+1,j+1,2)
+              pt8 = exp( dum*(us0*sin(p2(2)))**2 )
+                    p2(2) = grid(i,j+1,2)
+              pt9 = exp( dum*(us0*sin(p2(2)))**2 )
+              ptmp = t00*(0.25*pt1+0.125*(pt2+pt3+pt4+pt5)+0.0625*(pt6+pt7+pt8+pt9))
+#else
+              ptmp = t00*exp( dum*(us0*sin(agrid(i,j,2)))**2 )
+#endif
+              do k=1,npz
+                 pt(i,j,k) = ptmp
+              enddo
+           enddo
+        enddo
+     else
+        pt(:,:,:) = t00
+     endif
+
+     if( test_case==33 ) then   
+! NCAR Ridge-mountain Mods:
+        do j=js,je
+           do i=is,ie
+#ifdef USE_CELL_AVG
+                p2(1:2) = agrid(i,j,1:2)
+                r = radius*(p2(1)-p0(1))
+              pt1 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                call mid_pt_sphere(grid(i,j,1:2), grid(i+1,j,1:2), p2)
+                r = radius*(p2(1)-p0(1))
+              pt2 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                call mid_pt_sphere(grid(i+1,j,1:2), grid(i+1,j+1,1:2), p2)
+                r = radius*(p2(1)-p0(1))
+              pt3 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                call mid_pt_sphere(grid(i,j+1,1:2), grid(i+1,j+1,1:2), p2)
+                r = radius*(p2(1)-p0(1))
+              pt4 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                call mid_pt_sphere(grid(i,j,1:2), grid(i,j+1,1:2), p2)
+                r = radius*(p2(1)-p0(1))
+              pt5 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                p2(1:2) = grid(i,j,1:2)
+                r = radius*(p2(1)-p0(1))
+              pt6 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                p2(1:2) = grid(i+1,j,1:2)
+                r = radius*(p2(1)-p0(1))
+              pt7 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                p2(1:2) = grid(i+1,j+1,1:2)
+                r = radius*(p2(1)-p0(1))
+              pt8 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                p2(1:2) = grid(i,j+1,1:2)
+                r = radius*(p2(1)-p0(1))
+              pt9 = cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+              phis(i,j) = grav*h0*(0.25*pt1+0.125*(pt2+pt3+pt4+pt5)+0.0625*(pt6+pt7+pt8+pt9))
+#else
+                p2(1:2) = agrid(i,j,1:2)
+                r = radius*(p2(1)-p0(1))
+              phis(i,j) = grav*h0*cos(p2(2))*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+#endif
+           enddo
+        enddo
+     else
+! Circular mountain:
+        do j=js,je
+           do i=is,ie
+! 9-point average:
+!      9  4  8
+!
+!      5  1  3
+!          
+!      6  2  7
+! pt = 0.25*pt1 + 0.125*(pt2+pt3+pt4+pt5) + 0.0625*(pt6+pt7+pt8+pt9)
+#ifdef USE_CELL_AVG
+                   r = great_circle_dist( p0, agrid(i,j,1:2), radius ) 
+                 pt1 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   call mid_pt_sphere(grid(i,j,1:2), grid(i+1,j,1:2), p2)
+                   r = great_circle_dist( p0, p2, radius ) 
+                 pt2 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   call mid_pt_sphere(grid(i+1,j,1:2), grid(i+1,j+1,1:2), p2)
+                   r = great_circle_dist( p0, p2, radius ) 
+                 pt3 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   call mid_pt_sphere(grid(i,j+1,1:2), grid(i+1,j+1,1:2), p2)
+                   r = great_circle_dist( p0, p2, radius ) 
+                 pt4 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   call mid_pt_sphere(grid(i,j,1:2), grid(i,j+1,1:2), p2)
+                   r = great_circle_dist( p0, p2, radius ) 
+                 pt5 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   r = great_circle_dist( p0, grid(i,j,1:2), radius ) 
+                 pt6 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   r = great_circle_dist( p0, grid(i+1,j,1:2), radius ) 
+                 pt7 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   r = great_circle_dist( p0, grid(i+1,j+1,1:2), radius ) 
+                 pt8 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+                   r = great_circle_dist( p0, grid(i,j+1,1:2), radius ) 
+                 pt9 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+              phis(i,j) = grav*h0*(0.25*pt1+0.125*(pt2+pt3+pt4+pt5)+0.0625*(pt6+pt7+pt8+pt9))
+#else
+                   r = great_circle_dist( p0, agrid(i,j,1:2), radius ) 
+                 pt1 = exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+              phis(i,j) = grav*h0*exp(-(r/5.e3)**2)*cos(pi*r/4.e3)**2
+#endif
+           enddo
+        enddo
+     endif
+
+     do j=js,je
+        do i=is,ie
+! DCMIP Eq(33)
+           ps(i,j) = p00*exp( -0.5*(us0*sin(agrid(i,j,2)))**2/(rdgas*t00)-phis(i,j)/(rdgas*pt(i,j,1)) )
+           pe(i,1,j) = ptop
+           peln(i,1,j) = log(ptop)
+           pk(i,j,1) = ptop**kappa
+        enddo
+     enddo
+
+        do k=2,npz+1
+           do j=js,je
+              do i=is,ie
+                 pe(i,k,j) = ak(k) + ps(i,j)*bk(k)
+               peln(i,k,j) = log(pe(i,k,j))
+                 pk(i,j,k) = exp( kappa*peln(i,k,j) )
+              enddo
+           enddo
+        enddo
+
+        do k=1,npz
+           do j=js,je
+              do i=is,ie
+                 delp(i,j,k) = pe(i,k+1,j) - pe(i,k,j)
+                 delz(i,j,k) = rdgas/grav*pt(i,j,k)*(peln(i,k,j)-peln(i,k+1,j))
+              enddo
+           enddo
+        enddo
+
+! Comnpute mid-level height, using w for temp storage
+        do j=js,je
+           do i=is,ie
+              ze1(npz+1) = phis(i,j)/grav
+              do k=npz,1,-1
+                 ze1(k) = ze1(k+1) - delz(i,j,k)
+              enddo
+              do k=1,npz
+                 w(i,j,k) = 0.5*(ze1(k)+ze1(k+1))
+              enddo
+           enddo
+        enddo
+        call mpp_update_domains( w, domain )
+
+        do k=1,npz
+           do j=js,je
+              do i=is,ie+1
+                 p1(:) = grid(i  ,j, 1:2)
+                 p2(:) = grid(i,j+1, 1:2)
+                 call mid_pt_sphere(p1, p2, p3)
+                 call get_unit_vect2(p1, p2, e2)
+                 call get_latlon_vector(p3, ex, ey)
+! Joe Klemp's mod:
+                 utmp = us0*cos(p3(2))*sqrt( 1. + cs_m3*(w(i-1,j,k)+w(i,j,k)) )
+                 v(i,j,k) = utmp*inner_prod(e2,ex)
+              enddo
+           enddo
+           do j=js,je+1
+              do i=is,ie
+                 p1(:) = grid(i,  j, 1:2)
+                 p2(:) = grid(i+1,j, 1:2)
+                 call mid_pt_sphere(p1, p2, p3)
+                 call get_unit_vect2(p1, p2, e1)
+                 call get_latlon_vector(p3, ex, ey)
+                 utmp = us0*cos(p3(2))*sqrt( 1. + cs_m3*(w(i,j-1,k)+w(i,j,k)) )
+                 u(i,j,k) = utmp*inner_prod(e1,ex)
+              enddo
+           enddo
+        enddo
+
+     w(:,:,:) = 0.    ! reset w
+     q(:,:,:,:) = 0.
+
+     call p_var(npz, is, ie, js, je, ptop, ptop_min, delp, delz, pt, ps,   &
+                pe, peln, pk, pkz, kappa, q, ng, ncnst, area, dry_mass, .false., .false., &
+                .true., hydrostatic, nwat, domain)
 
       else if ( test_case==36 .or. test_case==37 ) then
 !------------------------------------
@@ -1290,6 +3218,198 @@
         enddo
       endif
 
+      else if (test_case == 44) then    ! Lock-exchange K-H instability on a very large-scale
+
+         !Background state
+         p00 = 1000.e2
+         ps(:,:) = p00
+         phis = 0.0
+         u(:,:,:) = 0.
+         v(:,:,:) = 0.
+         q(:,:,:,:) = 0.
+
+         if (adiabatic) then
+             zvir = 0.
+         else
+             zvir = rvgas/rdgas - 1.
+         endif
+
+! Initialize delta-P
+        do z=1,npz
+            do j=js,je
+               do i=is,ie
+                  delp(i,j,z) = ak(z+1)-ak(z) + ps(i,j)*(bk(z+1)-bk(z))
+               enddo
+            enddo
+         enddo
+         
+         do j=js,je
+            do i=is,ie
+               pe(i,1,j) = ptop
+               peln(i,1,j) = log(pe(i,1,j)) 
+                 pk(i,j,1) = exp(kappa*peln(i,1,j))
+            enddo
+            do k=2,npz+1
+            do i=is,ie
+                 pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
+               peln(i,k,j) = log(pe(i,k,j)) 
+                 pk(i,j,k) = exp(kappa*peln(i,k,j))
+            enddo
+            enddo
+         enddo
+
+         p1(1) = pi
+         p1(2) = 0.
+         r0 = 1000.e3     ! hurricane size
+
+         do k=1,npz
+         do j=js,je
+            do i=is,ie
+               pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+               dist = great_circle_dist( p0, agrid(i,j,1:2), radius ) 
+               if ( dist .le. r0 ) then
+                  pt(i,j,k) = 275.
+                  q(i,j,k,1) = 1.
+               else
+                  pt(i,j,k) = 265.
+                  q(i,j,k,1) = 0.
+               end if
+!              pt(i,j,k) = pt(i,j,k)*pkz(i,j,k)
+            enddo
+         enddo
+         enddo
+
+         if (.not.hydrostatic) then
+             do k=1,npz
+                do j=js,je
+                   do i=is,ie
+                      delz(i,j,k) = rdgas*pt(i,j,k)*(1.+zvir*q(i,j,k,1))/grav*log(pe(i,k,j)/pe(i,k+1,j))
+                         w(i,j,k) = 0.0
+                   enddo
+                enddo
+             enddo
+         endif
+
+      else if (test_case == 45 .or. test_case == 46) then    ! NGGPS test?
+
+! Background state
+         f0 = 0.;  fC = 0.
+         pt0 = 300.   ! potentil temperature
+         p00 = 1000.e2
+         ps(:,:) = p00
+         phis = 0.0
+         u(:,:,:) = 0.
+         v(:,:,:) = 0.
+         q(:,:,:,:) = 0.
+
+         if (adiabatic) then
+             zvir = 0.
+         else
+             zvir = rvgas/rdgas - 1.
+         endif
+
+! Initialize delta-P
+        do k=1,npz
+            do j=js,je
+               do i=is,ie
+                  delp(i,j,k) = ak(k+1)-ak(k) + ps(i,j)*(bk(k+1)-bk(k))
+               enddo
+            enddo
+         enddo
+         
+         do j=js,je
+            do i=is,ie
+               pe(i,1,j) = ptop
+               peln(i,1,j) = log(pe(i,1,j)) 
+                 pk(i,j,1) = exp(kappa*peln(i,1,j))
+            enddo
+            do k=2,npz+1
+            do i=is,ie
+                 pe(i,k,j) = pe(i,k-1,j) + delp(i,j,k-1)
+               peln(i,k,j) = log(pe(i,k,j)) 
+                 pk(i,j,k) = exp(kappa*peln(i,k,j))
+            enddo
+            enddo
+         enddo
+
+! Initiate the westerly-wind-burst:
+         ubar = soliton_Umax
+         r0 = soliton_size 
+!!$        if (test_case == 46) then
+!!$           ubar = 200.
+!!$           r0 = 250.e3
+!!$        else
+!!$           ubar = 50.       ! Initial maxmium wind speed (m/s)
+!!$           r0 = 500.e3
+!!$        endif
+        p0(1) = pi*0.5
+        p0(2) = 0.
+
+     do k=1,npz
+        do j=js,je
+           do i=is,ie+1
+              p1(:) = grid(i  ,j ,1:2)
+              p2(:) = grid(i,j+1 ,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e2)
+              call get_latlon_vector(p3, ex, ey)
+              v(i,j,k) = utmp*inner_prod(e2,ex)
+           enddo
+        enddo
+        do j=js,je+1
+           do i=is,ie
+              p1(:) = grid(i,  j,1:2)
+              p2(:) = grid(i+1,j,1:2)
+              call mid_pt_sphere(p1, p2, p3)
+              r = great_circle_dist( p0, p3, radius )
+              utmp = ubar*exp(-(r/r0)**2)
+              call get_unit_vect2(p1, p2, e1)
+              call get_latlon_vector(p3, ex, ey)
+              u(i,j,k) = utmp*inner_prod(e1,ex)
+           enddo
+        enddo
+
+        do j=js,je
+           do i=is,ie
+              pkz(i,j,k) = (pk(i,j,k+1)-pk(i,j,k))/(kappa*(peln(i,k+1,j)-peln(i,k,j)))
+#ifdef USE_PT
+              pt(i,j,k) = pt0/p00**kappa
+! Convert back to temperature:
+              pt(i,j,k) = pt(i,j,k)*pkz(i,j,k)
+#else
+              pt(i,j,k) = pt0
+#endif
+              q(i,j,k,1) = 0.
+           enddo
+        enddo
+
+     enddo
+
+#ifdef NEST_TEST
+     do k=1,npz
+     do j=js,je
+     do i=is,ie
+        q(i,j,k,:) = agrid(i,j,1)*0.180/pi
+     enddo
+     enddo
+     enddo
+#else
+     call checker_tracers(is,ie, js,je, isd,ied, jsd,jed,  &
+                          ncnst, npz, q, agrid(is:ie,js:je,1), agrid(is:ie,js:je,2), 9., 9.)
+#endif
+
+        if ( .not. hydrostatic ) then
+            do k=1,npz
+               do j=js,je
+                  do i=is,ie
+                     delz(i,j,k) = rdgas*pt(i,j,k)/grav*log(pe(i,k,j)/pe(i,k+1,j))
+                        w(i,j,k) = 0.0
+                  enddo
+               enddo
+            enddo
+         endif
       else if (test_case == 55 .or. test_case == 56 .or. test_case == 57) then
 
          !Tropical cyclone test case: DCMIP 5X
@@ -1583,6 +3703,7 @@
          enddo
 #endif
 
+#endif
     call mp_update_dwinds(u, v, npx, npy, npz, domain)
 
 

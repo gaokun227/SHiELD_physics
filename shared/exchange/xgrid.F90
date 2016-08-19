@@ -1,3 +1,22 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 !
 ! xgrid_mod - implements exchange grids.  An exchange grid is the grid whose
@@ -38,19 +57,9 @@
 !             PE.  For the make_exchange_reproduce option, a special side 1 get
 !             is used.  This get communicates individual exchange cells.  The
 !             cells are summed in the order they appear in the grid spec. file.
-!                                    Michael Winton (Michael.Winton@noaa.gov) Oct 2001
 !
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 module xgrid_mod
-
-! <CONTACT EMAIL="Michael.Winton@noaa.gov">
-!   Michael Winton
-! </CONTACT>
-! <CONTACT EMAIL="Zhi.Liang@noaa.gov">
-!   Zhi Liang
-! </CONTACT>
-
-! <HISTORY SRC="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/"/>
 
 ! <OVERVIEW>
 !    <TT>xgrid_mod</TT> implements exchange grids for coupled models running on

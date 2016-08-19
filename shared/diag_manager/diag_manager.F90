@@ -1,16 +1,25 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 #include <fms_platform.h>
 
 MODULE diag_manager_mod
-  ! <CONTACT EMAIL="Matthew.Harrison@gfdl.noaa.gov">
-  !   Matt Harrison
-  ! </CONTACT>
-  ! <CONTACT EMAIL="Giang.Nong@noaa.gov">
-  !   Giang Nong
-  ! </CONTACT>
-  ! <CONTACT EMAIL="seth.underwood@noaa.gov">
-  !   Seth Underwood
-  ! </CONTACT>
-  ! <HISTORY SRC="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/" />
   ! <OVERVIEW>
   !   <TT>diag_manager_mod</TT> is a set of simple calls for parallel diagnostics
   !   on distributed systems. It is geared toward the writing of data in netCDF
@@ -170,8 +179,12 @@ MODULE diag_manager_mod
   !   </DATA>
   !   <DATA NAME="prepend_date" TYPE="LOGICAL" DEFAULT=".TRUE.">
   !     If <TT>.TRUE.</TT> then prepend the file start date to the output file.  <TT>.TRUE.</TT> is only supported if the
-  !      diag_manager_init routine is called with the optional time_init parameter.  Note: This was usually done by FRE after the
+  !     diag_manager_init routine is called with the optional time_init parameter.  Note: This was usually done by FRE after the
   !     model run.
+  !   </DATA>
+  !   <DATA NAME="long_date" TYPE="LOGICAL" DEFAULT=".FALSE.">
+  !     If <TT>.TRUE.</TT> then prepend the file start date in long format to the output file.  <TT>.TRUE.</TT> is only supported if the
+  !     diag_manager_init routine is called with the optional time_init parameter.  Note: This is a specal case used for NWP outputs.
   !   </DATA>
   !   <DATA NAME="region_out_use_alt_value" TYPE="LOGICAL" DEFAULT=".TRUE.">
   !     Will determine which value to use when checking a regional output if the region is the full axis or a sub-axis.
@@ -210,7 +223,7 @@ MODULE diag_manager_mod
        & diag_log_unit, time_unit_list, pelist_name, max_axes, module_is_initialized, max_num_axis_sets,&
        & use_cmor, issue_oor_warnings, oor_warnings_fatal, oor_warning, pack_size,&
        & max_out_per_in_field, conserve_water, region_out_use_alt_value, max_field_attributes, output_field_type,&
-       & max_file_attributes, prepend_date, DIAG_FIELD_NOT_FOUND, diag_init_time
+       & max_file_attributes, prepend_date, long_date, DIAG_FIELD_NOT_FOUND, diag_init_time
   USE diag_table_mod, ONLY: parse_diag_table
   USE diag_output_mod, ONLY: get_diag_global_att, set_diag_global_att
   USE diag_grid_mod, ONLY: diag_grid_init, diag_grid_end
@@ -1491,7 +1504,7 @@ CONTAINS
     REAL(kind=8), INTENT(in), DIMENSION(:,:,:) :: field
     REAL, INTENT(in), OPTIONAL :: weight
     TYPE (time_type), INTENT(in), OPTIONAL :: time
-    INTEGER, INTENT(in), OPTIONAL :: is_in, js_in, ks_in,ie_in,je_in, ke_in
+    INTEGER, INTENT(in), OPTIONAL :: is_in, js_in, ks_in, ie_in, je_in, ke_in
     LOGICAL, INTENT(in), DIMENSION(:,:,:), OPTIONAL :: mask
     REAL, INTENT(in), DIMENSION(:,:,:),OPTIONAL :: rmask
     CHARACTER(len=*), INTENT(out), OPTIONAL :: err_msg
@@ -3456,7 +3469,7 @@ CONTAINS
          & max_input_fields, max_axes, do_diag_field_log, write_bytes_in_file, debug_diag_manager,&
          & max_num_axis_sets, max_files, use_cmor, issue_oor_warnings,&
          & oor_warnings_fatal, max_out_per_in_field, conserve_water, region_out_use_alt_value, max_field_attributes,&
-         & max_file_attributes, prepend_date
+         & max_file_attributes, prepend_date, long_date
 
     ! If the module was already initialized do nothing
     IF ( module_is_initialized ) RETURN

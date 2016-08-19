@@ -3,8 +3,6 @@ Drifters
 
 $Id$
 
-Alexander.Pletzer@noaa.gov
-
 Overview:
 ---------
 

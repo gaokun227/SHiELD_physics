@@ -1,9 +1,25 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 #include <fms_platform.h>
 
 MODULE diag_data_mod
-  ! <CONTACT EMAIL="seth.underwood@noaa.gov">
-  !   Seth Underwood
-  ! </CONTACT>
 
   ! <OVERVIEW>
   !   Type descriptions and global variables for the diag_manager modules.
@@ -654,6 +670,10 @@ MODULE diag_data_mod
   !   only supported if the diag_manager_init routine is called with the optional time_init parameter.
   !   This was usually done by FRE after the model run.
   ! </DATA>
+  ! <DATA NAME="long_date" TYPE="LOGICAL" DEFAULT=".FALSE.">
+  !   If <TT>.TRUE.</TT> then prepend the file start date in long format to the output file.  <TT>.TRUE.</TT> is only supported if the
+  !   diag_manager_init routine is called with the optional time_init parameter.  Note: This is a specal case used for NWP outputs.
+  ! </DATA>
   ! <DATA NAME="region_out_use_alt_value" TYPE="LOGICAL" DEFAULT=".TRUE.">
   !   Will determine which value to use when checking a regional output if the region is the full axis or a sub-axis.
   !   The values are defined as <TT>GLO_REG_VAL</TT> (-999) and <TT>GLO_REG_VAL_ALT</TT> (-1) in <TT>diag_data_mod</TT>.
@@ -678,6 +698,7 @@ MODULE diag_data_mod
   INTEGER :: max_field_attributes = 2
   INTEGER :: max_file_attributes = 2
   LOGICAL :: prepend_date = .TRUE.
+  LOGICAL :: long_date = .FALSE.
   ! <!-- netCDF variable -->
   ! <DATA NAME="FILL_VALUE" TYPE="REAL" DEFAULT="NF90_FILL_REAL">
   !   Fill value used.  Value will be <TT>NF90_FILL_REAL</TT> if using the

@@ -1,3 +1,22 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 module boundary_mod
 
   use fv_mp_mod,         only: ng, isc,jsc,iec,jec, isd,jsd,ied,jed, is,js,ie,je, is_master
@@ -1309,7 +1328,7 @@ contains
            NORTH,  position=position)
 
       if( iew_c .GE. isw_c .AND. jew_c .GE. jsw_c ) then
-         allocate(nest_BC_buffers%west_t1(isw_c:iew_c, jsw_c:jew_c,npz))
+         If (.not. allocated(nest_BC_buffers%west_t1)) allocate(nest_BC_buffers%west_t1(isw_c:iew_c, jsw_c:jew_c,npz))
          !compatible with first touch principle
          do k=1,npz
          do j=jsw_c,jew_c
@@ -1324,7 +1343,7 @@ contains
       endif
 
       if( iee_c .GE. ise_c .AND. jee_c .GE. jse_c ) then
-         allocate(nest_BC_buffers%east_t1(ise_c:iee_c, jse_c:jee_c,npz))
+         If (.not. allocated(nest_BC_buffers%east_t1)) allocate(nest_BC_buffers%east_t1(ise_c:iee_c, jse_c:jee_c,npz))
          do k=1,npz
          do j=jse_c,jee_c
          do i=ise_c,iee_c
@@ -1338,7 +1357,7 @@ contains
       endif
 
       if( ies_c .GE. iss_c .AND. jes_c .GE. jss_c ) then
-         allocate(nest_BC_buffers%south_t1(iss_c:ies_c, jss_c:jes_c,npz))
+         If (.not. allocated(nest_BC_buffers%south_t1)) allocate(nest_BC_buffers%south_t1(iss_c:ies_c, jss_c:jes_c,npz))
          do k=1,npz
          do j=jss_c,jes_c
          do i=iss_c,ies_c
@@ -1352,7 +1371,7 @@ contains
       endif
 
       if( ien_c .GE. isn_c .AND. jen_c .GE. jsn_c ) then
-         allocate(nest_BC_buffers%north_t1(isn_c:ien_c, jsn_c:jen_c,npz))
+         If (.not. allocated(nest_BC_buffers%north_t1)) allocate(nest_BC_buffers%north_t1(isn_c:ien_c, jsn_c:jen_c,npz))
          do k=1,npz
          do j=jsn_c,jen_c
          do i=isn_c,ien_c

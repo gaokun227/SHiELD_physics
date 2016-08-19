@@ -174,8 +174,11 @@
       real(kind=kind_phys), parameter ::
      &                      c1=1.41,          c2=-0.38,     ricrit=0.25
      &,                     n2min=1.e-32,     zero=0.0,     one=1.0
+#ifdef NEW_TAUCTMAX 
+     &,                     taumin=1.0e-20,   tauctmax=-5.
+#else
      &,                     taumin=1.0e-20,   tauctmax=-20.
-!    &,                     taumin=1.0e-20,   tauctmax=-5.
+#endif
      &,                     qmin=1.0e-10,     shmin=1.0e-20
      &,                     rimax=1.0e+20,    rimaxm=0.99e+20
      &,                     rimaxp=1.01e+20,  rilarge=0.9e+20

@@ -1,5 +1,23 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 module memutils_mod
-!Author: Balaji (V.Balaji@noaa.gov)
 !Various operations for memory management
 !these currently include efficient methods for memory-to-memory copy
 !including strided data and arbitrary gather-scatter vectors
@@ -292,7 +310,7 @@ module memutils_mod
     mstd = (m-mavg)**2; call mpp_sum(mstd); mstd = sqrt( mstd/mpp_npes() )
     if( mpp_pe().EQ.mpp_root_pe() ) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-      write( mu,'(a84,4es11.3)' ) trim(walldate)//' '//trim(walltime)//&
+      write( mu,'(a84,4es14.6)' ) trim(walldate)//' '//trim(walltime)//&
          ': Memuse(MB) at '//trim(text)//'=', mmin, mmax, mstd, mavg
     endif
     return

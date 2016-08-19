@@ -1,3 +1,22 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 module fv_diagnostics_mod
 
  use constants_mod,    only: grav, rdgas, rvgas, pi=>pi_8, radius, kappa, WTMAIR, WTMCO2, R_GRID,   &
@@ -1649,7 +1668,7 @@ contains
           endif
 
          deallocate ( wz )
-       endif
+      endif
 
 
        if(idiag%id_mq > 0)  then
@@ -2201,44 +2220,48 @@ contains
           if ( idiag%id_t100>0 .and. prt_minmax ) then
              call prt_mxm('T100:', a3(isc:iec,jsc:jec,3), isc, iec, jsc, jec, 0, 1, 1.,   &
                           Atm(n)%gridstruct%area_64, Atm(n)%domain)
-             tmp = 0.
-             sar = 0.
-!            Compute mean temp at 100 mb near EQ
-             do j=jsc,jec
-                do i=isc,iec
-                   slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-10.0 .and. slat<10.) ) then
-                        sar = sar + Atm(n)%gridstruct%area(i,j)
-                        tmp = tmp + a3(i,j,3)*Atm(n)%gridstruct%area(i,j)
-                   endif
+             if (.not. Atm(n)%neststruct%nested)  then
+                tmp = 0.
+                sar = 0.
+                !            Compute mean temp at 100 mb near EQ
+                do j=jsc,jec
+                   do i=isc,iec
+                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                      if( (slat>-10.0 .and. slat<10.) ) then
+                         sar = sar + Atm(n)%gridstruct%area(i,j)
+                         tmp = tmp + a3(i,j,3)*Atm(n)%gridstruct%area(i,j)
+                      endif
+                   enddo
                 enddo
-             enddo
-             call mp_reduce_sum(sar)
-             call mp_reduce_sum(tmp)
-             if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
-             else
-                  if (master) write(*,*) 'Warning: problem computing tropical mean T100'
+                call mp_reduce_sum(sar)
+                call mp_reduce_sum(tmp)
+                if ( sar > 0. ) then
+                   if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
+                else
+                   if (master) write(*,*) 'Warning: problem computing tropical mean T100'
+                endif
              endif
           endif
           if ( idiag%id_t200>0 .and. prt_minmax ) then
              call prt_mxm('T200:', a3(isc:iec,jsc:jec,4), isc, iec, jsc, jec, 0, 1, 1.,   &
                           Atm(n)%gridstruct%area_64, Atm(n)%domain)
-             tmp = 0.
-             sar = 0.
-             do j=jsc,jec
-                do i=isc,iec
-                   slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                   if( (slat>-20 .and. slat<20) ) then
-                        sar = sar + Atm(n)%gridstruct%area(i,j)
-                        tmp = tmp + a3(i,j,4)*Atm(n)%gridstruct%area(i,j)
-                   endif
+             if (.not. Atm(n)%neststruct%nested) then
+                tmp = 0.
+                sar = 0.
+                do j=jsc,jec
+                   do i=isc,iec
+                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                      if( (slat>-20 .and. slat<20) ) then
+                         sar = sar + Atm(n)%gridstruct%area(i,j)
+                         tmp = tmp + a3(i,j,4)*Atm(n)%gridstruct%area(i,j)
+                      endif
+                   enddo
                 enddo
-             enddo
-             call mp_reduce_sum(sar)
-             call mp_reduce_sum(tmp)
-             if ( sar > 0. ) then
-                  if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
+                call mp_reduce_sum(sar)
+                call mp_reduce_sum(tmp)
+                if ( sar > 0. ) then
+                   if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
+                endif
              endif
           endif
        endif
@@ -2475,10 +2498,10 @@ contains
     deallocate ( v2 )
     deallocate ( wk )
 
-    if ( any(idiag%id_tracer_dmmr > 0) .or. any(idiag%id_tracer_dvmr > 0) ) then
-        deallocate (dmmr)
-        deallocate ( dvmr)
-    endif
+    if (allocated(a3)) deallocate(a3)
+    if (allocated(wz)) deallocate(wz)
+    if (allocated(dmmr)) deallocate(dmmr)
+    if (allocated(dvmr)) deallocate(dvmr)
 
     call nullify_domain()
 

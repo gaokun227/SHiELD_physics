@@ -7200,6 +7200,7 @@ end subroutine terminator_tracers
 
    real, parameter :: zconv = 1.e-6
    real, parameter :: rdgrav = rdgas/grav
+   real, parameter :: zvir = rvgas/rdgas - 1.
    real, parameter :: rrdgrav = grav/rdgas
 
    integer :: i,j,k,iter, sphum, cl, cl2, n
@@ -7284,7 +7285,7 @@ end subroutine terminator_tracers
 !!$            write(*,'(A,I,2x,I, 4(2x,F10.3), 2x, F7.3)') ' NEWTON: ' , k, iter, piter, p, ziter, z, titer
 !!$         endif
 !!$         !!! END DEBUG CODE
-!!$         if (abs(z - ziter) < zconv) exit
+         if (abs(z - ziter) < zconv) exit
       enddo      
       gz(i,j,k) = z
    enddo
@@ -7413,6 +7414,8 @@ end subroutine terminator_tracers
       do i=is,ie
          p = delp(i,j,k)/(peln(i,k+1,j) - peln(i,k,j))
          q(i,j,k,sphum) = DCMIP16_BC_sphum(p,ps(i,j),agrid(i,j,2),agrid(i,j,1))
+         !Convert pt to non-virtual temperature
+         pt(i,j,k) = pt(i,j,k) / ( 1. + zvir*q(i,j,k,sphum))
       enddo
       enddo
       enddo

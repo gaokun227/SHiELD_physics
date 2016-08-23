@@ -770,7 +770,8 @@
 
       integer :: iis, iie, jjs, jje, kks, kke, kt, kb, seconds
       real(kind=kind_phys) :: dt_in
-      real(kind=kind_phys), dimension(im,1) :: area1, land, prec_mp
+      real(kind=kind_phys), dimension(im,1) :: area1, land, rain0,      &
+     &           snow0, ice0, graupel0
       real(kind=kind_phys), dimension(im,1,levs) :: delp, dz, uin, vin, &
      &           pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1, qs1, pt_dt,     &
      &           qa_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt, qs_dt, &
@@ -2940,37 +2941,41 @@
           else
             land(i,1) = 0
           endif
+          area1   (i,1) = area(i)
+          rain0   (i,1) = 0.0
+          snow0   (i,1) = 0.0
+          ice0    (i,1) = 0.0
+          graupel0(i,1) = 0.0
           do k = 1, levs
-            dz(i,1,k) = phii(i,k) - phii(i,k+1)
+            qv1  (i,1,k) = gq0(i,levs-k+1,1)
+            ql1  (i,1,k) = gq0(i,levs-k+1,2)
+            qr1  (i,1,k) = gq0(i,levs-k+1,3)
+            qi1  (i,1,k) = gq0(i,levs-k+1,4)
+            qs1  (i,1,k) = gq0(i,levs-k+1,5)
+            qg1  (i,1,k) = gq0(i,levs-k+1,6)
+            qa1  (i,1,k) = gq0(i,levs-k+1,7)
+            qn1  (i,1,k) = gq0(i,levs-k+1,7)
+            pt   (i,1,k) = gt0(i,levs-k+1)
+            w    (i,1,k) = -vvel(i,levs-k+1)*con_rd*gt0(i,levs-k+1)     &
+     &                     /prsl(i,levs-k+1)/con_g
+            uin  (i,1,k) = gu0(i,levs-k+1)
+            vin  (i,1,k) = gv0(i,levs-k+1)
+            delp (i,1,k) = del(i,levs-k+1)
+            dz   (i,1,k) = (phii(i,levs-k+1)-phii(i,levs-k+2))/con_g
+            qv_dt(i,1,k) = 0.0
+            ql_dt(i,1,k) = 0.0
+            qr_dt(i,1,k) = 0.0
+            qi_dt(i,1,k) = 0.0
+            qs_dt(i,1,k) = 0.0
+            qg_dt(i,1,k) = 0.0
+            qa_dt(i,1,k) = 0.0
+            pt_dt(i,1,k) = 0.0
+            udt  (i,1,k) = 0.0
+            vdt  (i,1,k) = 0.0
           enddo
         enddo
 
-        qv1    (:,1,:)   = gq0(:,:,1)
-        ql1    (:,1,:)   = gq0(:,:,2)
-        qr1    (:,1,:)   = gq0(:,:,3)
-        qi1    (:,1,:)   = gq0(:,:,4)
-        qs1    (:,1,:)   = gq0(:,:,5)
-        qg1    (:,1,:)   = gq0(:,:,6)
-        qa1    (:,1,:)   = gq0(:,:,7)
-        qn1    (:,1,:)   = gq0(:,:,7)
-        qv_dt  (:,1,:)   = 0.0
-        ql_dt  (:,1,:)   = 0.0
-        qr_dt  (:,1,:)   = 0.0
-        qi_dt  (:,1,:)   = 0.0
-        qs_dt  (:,1,:)   = 0.0
-        qg_dt  (:,1,:)   = 0.0
-        qa_dt  (:,1,:)   = 0.0
-        pt_dt  (:,1,:)   = 0.0
-        pt     (:,1,:)   = gt0
-        w      (:,1,:)   = vvel
-        uin    (:,1,:)   = gu0
-        vin    (:,1,:)   = gv0
-        udt    (:,1,:)   = 0.0
-        vdt    (:,1,:)   = 0.0
-        delp   (:,1,:)   = del
-        area1  (:,1  )   = area
         dt_in            = dtp
-        prec_mp(:,1  )   = rain1
         hydrostatic      = .False.
         phys_hydrostatic = .True.
         iis              = 1
@@ -2981,29 +2986,93 @@
         kke              = levs
         kt               = 1
         kb               = levs
-        seconds          = mod(nint(fhour * 3600), 86400)
+        seconds          = mod(nint(fhour*3600),86400)
+
+!        print*,"before,qv1:     ",maxval(qv1    (1:im,1,1:levs)),       &
+!     &                            minval(qv1    (1:im,1,1:levs))
+!        print*,"before,ql1:     ",maxval(ql1    (1:im,1,1:levs)),       &
+!     &                            minval(ql1    (1:im,1,1:levs))
+!        print*,"before,qr1:     ",maxval(qr1    (1:im,1,1:levs)),       &
+!     &                            minval(qr1    (1:im,1,1:levs))
+!        print*,"before,qi1:     ",maxval(qi1    (1:im,1,1:levs)),       &
+!     &                            minval(qi1    (1:im,1,1:levs))
+!        print*,"before,qs1:     ",maxval(qs1    (1:im,1,1:levs)),       &
+!     &                            minval(qs1    (1:im,1,1:levs))
+!        print*,"before,qg1:     ",maxval(qg1    (1:im,1,1:levs)),       &
+!     &                            minval(qg1    (1:im,1,1:levs))
+!        print*,"before,qa1:     ",maxval(qa1    (1:im,1,1:levs)),       &
+!     &                            minval(qa1    (1:im,1,1:levs))
+!        print*,"before,qn1:     ",maxval(qn1    (1:im,1,1:levs)),       &
+!     &                            minval(qn1    (1:im,1,1:levs))
+!        print*,"before,pt:      ",maxval(pt     (1:im,1,1:levs)),       &
+!     &                            minval(pt     (1:im,1,1:levs))
+!        print*,"before,w:       ",maxval(w      (1:im,1,1:levs)),       &
+!     &                            minval(w      (1:im,1,1:levs))
+!        print*,"before,uin:     ",maxval(uin    (1:im,1,1:levs)),       &
+!     &                            minval(uin    (1:im,1,1:levs))
+!        print*,"before,vin:     ",maxval(vin    (1:im,1,1:levs)),       &
+!     &                            minval(vin    (1:im,1,1:levs))
+!        print*,"before,delp:    ",maxval(delp   (1:im,1,1:levs)),       &
+!     &                            minval(delp   (1:im,1,1:levs))
+!        print*,"before,area:    ",maxval(area1  (1:im,1       )),       &
+!     &                            minval(area1  (1:im,1       ))
+!        print*,"before,prec_mp: ",maxval(prec_mp(1:im,1       )),       &
+!     &                            minval(prec_mp(1:im,1       ))
 
         call lin_cld_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1,&
      &                               qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
      &                               qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
      &                               uin, vin, udt, vdt, dz, delp,      &
-     &                               area1, dt_in, land, prec_mp,       &
-     &                               hydrostatic, phys_hydrostatic, iis,&
-     &                               iie, jjs, jje, kks, kke, kt, kb,   &
-     &                               seconds)
+     &                               area1, dt_in, land, rain0, snow0,  &
+     &                               ice0, graupel0, hydrostatic,       &
+     &                               phys_hydrostatic, iis, iie, jjs,   &
+     &                               jje, kks, kke, kt, kb, seconds)
 
-        rain1 = prec_mp(:,1) / 86400.0 * dtp * 0.001
+        do i = 1, im
+          rain1(i) = (rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))    &
+     &               /86400.0*dtp*0.001
+          if (rain1(i) .gt. 0.0) then
+            sr(i)  = (snow0(i,1)+ice0(i,1)+graupel0(i,1))               &
+     &               /(rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))
+          else
+            sr(i) = 0.0
+          endif
+          do k = 1, levs
+            gq0(i,k,1) = gq0(i,k,1) + qv_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,2) = gq0(i,k,2) + ql_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,3) = gq0(i,k,3) + qr_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,4) = gq0(i,k,4) + qi_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,5) = gq0(i,k,5) + qs_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,6) = gq0(i,k,6) + qg_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,7) = gq0(i,k,7) + qa_dt(i,1,levs-k+1) * dtp
+            gt0(i,k)   = gt0(i,k)   + pt_dt(i,1,levs-k+1) * dtp
+            gu0(i,k)   = gu0(i,k)   + udt  (i,1,levs-k+1) * dtp
+            gv0(i,k)   = gv0(i,k)   + vdt  (i,1,levs-k+1) * dtp
+          enddo
+        enddo
 
-        gq0(:,:,1) = gq0(:,:,1) + qv_dt(:,1,:) * dtp
-        gq0(:,:,2) = gq0(:,:,2) + ql_dt(:,1,:) * dtp
-        gq0(:,:,3) = gq0(:,:,3) + qr_dt(:,1,:) * dtp
-        gq0(:,:,4) = gq0(:,:,4) + qi_dt(:,1,:) * dtp
-        gq0(:,:,5) = gq0(:,:,5) + qs_dt(:,1,:) * dtp
-        gq0(:,:,6) = gq0(:,:,6) + qg_dt(:,1,:) * dtp
-        gq0(:,:,7) = gq0(:,:,7) + qa_dt(:,1,:) * dtp
-        gt0        = gt0        + pt_dt(:,1,:) * dtp
-        gu0        = gu0        + udt  (:,1,:) * dtp
-        gv0        = gv0        + vdt  (:,1,:) * dtp
+!        print*,"after,gq1:  ",maxval(gq0  (1:im,1:levs,1)),             &
+!     &                        minval(gq0  (1:im,1:levs,1))
+!        print*,"after,gq2:  ",maxval(gq0  (1:im,1:levs,2)),             &
+!     &                        minval(gq0  (1:im,1:levs,2))
+!        print*,"after,gq3:  ",maxval(gq0  (1:im,1:levs,3)),             &
+!     &                        minval(gq0  (1:im,1:levs,3))
+!        print*,"after,gq4:  ",maxval(gq0  (1:im,1:levs,4)),             &
+!     &                        minval(gq0  (1:im,1:levs,4))
+!        print*,"after,gq5:  ",maxval(gq0  (1:im,1:levs,5)),             &
+!     &                        minval(gq0  (1:im,1:levs,5))
+!        print*,"after,gq6:  ",maxval(gq0  (1:im,1:levs,6)),             &
+!     &                        minval(gq0  (1:im,1:levs,6))
+!        print*,"after,gq7:  ",maxval(gq0  (1:im,1:levs,7)),             &
+!     &                        minval(gq0  (1:im,1:levs,7))
+!        print*,"after,gt0:  ",maxval(gt0  (1:im,1:levs  )),             &
+!     &                        minval(gt0  (1:im,1:levs  ))
+!        print*,"after,gu0:  ",maxval(gu0  (1:im,1:levs  )),             &
+!     &                        minval(gu0  (1:im,1:levs  ))
+!        print*,"after,gv0:  ",maxval(gv0  (1:im,1:levs  )),             &
+!     &                        minval(gv0  (1:im,1:levs  ))
+!        print*,"after,rain: ",maxval(rain1(1:im         )),             &
+!     &                        minval(rain1(1:im         ))
 
       endif       ! end if_ncld
 

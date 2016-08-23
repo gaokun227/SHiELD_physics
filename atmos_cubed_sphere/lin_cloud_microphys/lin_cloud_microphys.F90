@@ -250,7 +250,8 @@ real, parameter :: pi = 3.141592653589793
   subroutine lin_cld_microphys_driver(qv, ql, qr, qi, qs, qg, qa, qn,                &
                                qv_dt, ql_dt, qr_dt, qi_dt, qs_dt, qg_dt, qa_dt,      &
                                pt_dt, pt, w, uin, vin, udt, vdt, dz, delp, area, dt_in, &
-                               land, prec_mp, hydrostatic, phys_hydrostatic,         &
+                               land,  rain, snow, ice, graupel,                      &
+                               hydrostatic, phys_hydrostatic,                        &
                                iis,iie, jjs,jje, kks,kke, ktop, kbot, seconds)
 ! kks == 1; kke == kbot == npz
   logical,         intent(in):: hydrostatic, phys_hydrostatic
@@ -262,7 +263,7 @@ real, parameter :: pi = 3.141592653589793
 
   real, intent(in   ), dimension(:,:)  :: area
   real, intent(in   ), dimension(:,:)  :: land  !land fraction
-  real, intent(out  ), dimension(:,:)  :: prec_mp
+  real, intent(out  ), dimension(:,:)  :: rain, snow, ice, graupel
   real, intent(in   ), dimension(:,:,:):: delp, dz, uin, vin
   real, intent(in   ), dimension(:,:,:):: pt, qv, ql, qr, qg, qa, qn 
   real, intent(inout), dimension(:,:,:):: qi, qs
@@ -279,8 +280,7 @@ real, parameter :: pi = 3.141592653589793
   integer :: ks,ke         ! vertical dimension
   integer :: days, ntimes
 
-  real, dimension(iie-iis+1,jje-jjs+1)           :: rain, snow, ice, graupel
-  real, dimension(iie-iis+1,jje-jjs+1)           :: prec1, cond, w_var, rh0, maxdbz
+  real, dimension(iie-iis+1,jje-jjs+1)           :: prec_mp, prec1, cond, w_var, rh0, maxdbz
   real, dimension(iie-iis+1,jje-jjs+1,kke-kks+1) :: vt_r, vt_s, vt_g, vt_i, qn2, dbz
   real, dimension(size(pt,1), size(pt,3)) :: m2_rain, m2_sol
 
@@ -3357,6 +3357,39 @@ endif
     integer   :: unit, io, ierr, k, logunit
     logical   :: flag
     real :: tmp, q1, q2
+
+!-----------------------------------------------------------------------
+! namelist from Jan-Huey Chen
+    sedi_transport = .true.
+    do_sedi_heat   = .true.
+    rad_snow       = .true.
+    rad_graupel    = .true.
+    rad_rain       = .true.
+    use_deng_mace  = .true.
+!    prog_ccn       = .true.
+!    do_qa          = .true.
+!    fast_sat_adj   = .true.
+    tau_l2v        = 600.
+    tau_g2v        = 900.
+    rthresh        = 10.5e-6
+    vi_fac         = 1.0
+    cld_min        = 0.05
+    dw_land        = 0.20
+    dw_ocean       = 0.15
+    ql_gen         = 1.0e-3
+    sat_adj0       = 0.99
+    ql_mlt         = 3.0e-3
+    qi0_crt        = 0.8e-4
+    qs0_crt        = 0.6e-3
+    c_psaci        = 0.05
+    c_pgacs        = 0.01
+    rh_inc         = 0.1
+    rh_inr         = 0.30
+    rh_ins         = 0.30
+    !ccn_l          = 200.
+    !ccn_o          = 70
+    mp_time        = 75
+!-----------------------------------------------------------------------
 
 !    master = (mpp_pe().eq.mpp_root_pe())
 

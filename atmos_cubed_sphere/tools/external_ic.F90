@@ -1822,7 +1822,7 @@ contains
   real(kind=R_GRID):: pst
 !!! High-precision
   integer i,j,k, k2, l, iq
-  integer  sphum, o3mr, clwmr
+  integer  sphum, o3mr, liq_wat, ice_wat, rainwat, snowwat, graupel
   integer :: is,  ie,  js,  je
 
   is  = Atm%bd%is
@@ -1831,14 +1831,21 @@ contains
   je  = Atm%bd%je
 
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
-  clwmr   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+  liq_wat = get_tracer_index(MODEL_ATMOS, 'liq_wat')
   o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
+
+  if ( Atm%flagstruct%nwat .eq. 6 ) then
+    ice_wat = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+    rainwat = get_tracer_index(MODEL_ATMOS, 'rainwat')
+    snowwat = get_tracer_index(MODEL_ATMOS, 'snowwat')
+    graupel = get_tracer_index(MODEL_ATMOS, 'graupel')
+  endif
 
   k2 = max(10, km/2)
 
   if (mpp_pe()==1) then
     print *, 'sphum = ', sphum
-    print *, 'clwmr = ', clwmr
+    print *, 'clwmr = ', liq_wat
     print *, ' o3mr = ', o3mr
     print *, 'ncnst = ', ncnst
   endif
@@ -1896,7 +1903,7 @@ contains
         enddo
      enddo
 
-! map shpum, o3mr, clwmr tracers
+! map shpum, o3mr, liq_wat tracers
       do iq=1,ncnst
          do k=1,km
             do i=is,ie
@@ -1956,6 +1963,28 @@ contains
       endif
 
    enddo   ! i-loop
+
+!-----------------------------------------------------------------------
+! seperate cloud water and cloud ice
+! From Jan-Huey Chen's HiRAM code
+!-----------------------------------------------------------------------
+
+   if ( Atm%flagstruct%nwat .eq. 6 ) then
+      do k=1,npz
+         do i=is,ie
+            if ( Atm%pt(i,j,k) > 273.16 ) then       ! > 0C all liq_wat
+               Atm%q(i,j,k,liq_wat) = qn1(i,k)
+               Atm%q(i,j,k,ice_wat) = 0.
+            else if ( Atm%pt(i,j,k) < 258.16 ) then  ! < -15C all ice_wat
+               Atm%q(i,j,k,liq_wat) = 0.
+               Atm%q(i,j,k,ice_wat) = qn1(i,k)
+            else                                     ! between -15~0C: linear interpolation              
+               Atm%q(i,j,k,liq_wat) = qn1(i,k)*((Atm%pt(i,j,k)-258.16)/15.)
+               Atm%q(i,j,k,ice_wat) = qn1(i,k) - Atm%q(i,j,k,liq_wat)
+            endif
+         enddo
+      enddo
+   endif
 
 !-------------------------------------------------------------
 ! map omega

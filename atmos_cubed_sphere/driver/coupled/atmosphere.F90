@@ -1116,7 +1116,7 @@ contains
    real(kind=kind_phys), parameter:: qmin = 1.0e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
    real(kind=kind_phys) :: rTv
-   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1
+   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1, ice_wat, rainwat, snowwat, graupel
    logical :: diag_sounding = .false.
 
 !!! NOTES: lmh 6nov15
@@ -1131,13 +1131,20 @@ contains
    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat' )
    if ( liq_wat<0 ) call mpp_error(FATAL, 'GFS condensate does not exist')
 
+   if ( Atm(mytile)%flagstruct%nwat .eq. 6 ) then
+      ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat' )
+      rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat' )
+      snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat' )
+      graupel = get_tracer_index (MODEL_ATMOS, 'graupel' )
+   endif
+
    npz = Atm_block%npz
 
 !---------------------------------------------------------------------
 ! use most up to date atmospheric properties when running serially
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
-!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, pk0inv, &
+!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, ice_wat, rainwat, snowwat, graupel ,pk0inv, &
 !$OMP                      ptop, pktop, zvir, mytile, diag_sounding) &
 !$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
 
@@ -1177,7 +1184,15 @@ contains
               Statein(nb)%qgrs(ix,k,1:nq) =  _DBL_(_RL_(          Atm(mytile)%q(i,j,k1,1:nq))) * Statein(nb)%prsl(ix,k)
               Statein(nb)%qgrs(ix,k,nq+1:ncnst) = _DBL_(_RL_(Atm(mytile)%qdiag(i,j,k1,nq+1:ncnst))) * Statein(nb)%prsl(ix,k)
 ! Remove the contribution of condensates to delp (mass):
-              Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat)
+              if ( Atm(mytile)%flagstruct%nwat .eq. 2 ) then  ! GFS
+                 Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat)
+              elseif ( Atm(mytile)%flagstruct%nwat .eq. 6 ) then
+                 Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat) - &
+                                                                   Statein(nb)%qgrs(ix,k,ice_wat) - &
+                                                                   Statein(nb)%qgrs(ix,k,rainwat) - &
+                                                                   Statein(nb)%qgrs(ix,k,snowwat) - &
+                                                                   Statein(nb)%qgrs(ix,k,graupel)
+              endif
            enddo
         enddo
      enddo

@@ -1974,7 +1974,15 @@ contains
           do k=1,npz
             do j=jsc,jec
             do i=isc,iec         
-                wk(i,j,k) = Atm(n)%delp(i,j,k)*(1.-Atm(n)%q(i,j,k,liq_wat))
+                if ( Atm(n)%flagstruct%nwat .eq. 2) then
+                   wk(i,j,k) = Atm(n)%delp(i,j,k)*(1.-Atm(n)%q(i,j,k,liq_wat))
+                elseif ( Atm(n)%flagstruct%nwat .eq. 6) then
+                   wk(i,j,k) = Atm(n)%delp(i,j,k)*(1.-Atm(n)%q(i,j,k,liq_wat)-&
+                                                      Atm(n)%q(i,j,k,ice_wat)-&
+                                                      Atm(n)%q(i,j,k,rainwat)-&
+                                                      Atm(n)%q(i,j,k,snowwat)-&
+                                                      Atm(n)%q(i,j,k,graupel))
+                endif
             enddo
             enddo
           enddo

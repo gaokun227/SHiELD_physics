@@ -74,7 +74,7 @@ contains
 
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
-      integer :: sphum, liq_wat, ice_wat, o3mr
+      integer :: sphum, liq_wat, ice_wat, rainwat, snowwat, graupel, o3mr
 
       is  = Atm(1)%bd%is
       ie  = Atm(1)%bd%ie
@@ -157,10 +157,19 @@ contains
         o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
         liq_wat   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
         ice_wat   = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+        rainwat   = get_tracer_index(MODEL_ATMOS, 'rainwat')
+        snowwat   = get_tracer_index(MODEL_ATMOS, 'snowwat')
+        graupel   = get_tracer_index(MODEL_ATMOS, 'graupel')
         if ( liq_wat > 0 ) &
         call prt_maxmin('liq_wat', Atm(1)%q(:,:,:,liq_wat), is, ie, js, je, ng, Atm(1)%npz, 1.)
         if ( ice_wat > 0 ) &
         call prt_maxmin('ice_wat', Atm(1)%q(:,:,:,ice_wat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        if ( rainwat > 0 ) &
+        call prt_maxmin('rainwat', Atm(1)%q(:,:,:,rainwat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        if ( snowwat > 0 ) &
+        call prt_maxmin('snowwat', Atm(1)%q(:,:,:,snowwat), is, ie, js, je, ng, Atm(1)%npz, 1.)
+        if ( graupel > 0 ) &
+        call prt_maxmin('graupel', Atm(1)%q(:,:,:,graupel), is, ie, js, je, ng, Atm(1)%npz, 1.)
         if ( o3mr > 0 ) &
         call prt_maxmin('O3MR', Atm(1)%q(:,:,:,o3mr), is, ie, js, je, ng, Atm(1)%npz, 1.)
       endif
@@ -553,7 +562,7 @@ contains
       real(kind=R_GRID), dimension(2):: p1, p2, p3
       real(kind=R_GRID), dimension(3):: e1, e2, ex, ey
       integer:: i,j,k,nts, ks
-      integer:: liq_wat
+      integer:: liq_wat, ice_wat, rainwat, snowwat, graupel
       namelist /external_ic_nml/ filtered_terrain, ncep_plevels, levp, gfs_dwinds, &
                                  checker_tr, nt_checker
 #ifdef GFSL64
@@ -976,11 +985,25 @@ contains
 
         call mpp_update_domains( Atm(n)%phis, Atm(n)%domain, complete=.true. )
         liq_wat  = get_tracer_index(MODEL_ATMOS, 'liq_wat')
+        if ( Atm(n)%flagstruct%nwat .eq. 6 ) then
+           ice_wat = get_tracer_index(MODEL_ATMOS, 'ice_wat')
+           rainwat = get_tracer_index(MODEL_ATMOS, 'rainwat')
+           snowwat = get_tracer_index(MODEL_ATMOS, 'snowwat')
+           graupel = get_tracer_index(MODEL_ATMOS, 'graupel')
+        endif
 !--- Add cloud condensate from GFS to total MASS
         do k=1,npz
           do j=js,je
             do i=is,ie
-              Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
+              if ( Atm(n)%flagstruct%nwat .eq. 2 ) then
+                 Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
+              elseif ( Atm(n)%flagstruct%nwat .eq. 6 ) then
+                 Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat)+&
+                                                             Atm(n)%q(i,j,k,ice_wat)+&
+                                                             Atm(n)%q(i,j,k,rainwat)+&
+                                                             Atm(n)%q(i,j,k,snowwat)+&
+                                                             Atm(n)%q(i,j,k,graupel))
+              endif
             enddo
           enddo
         enddo

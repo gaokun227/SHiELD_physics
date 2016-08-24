@@ -708,7 +708,7 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q0, q1, q2, q3, rdt
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, q4, q5, q6, q7, q8, rdt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -724,7 +724,7 @@ contains
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
 !$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3)
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7, q8)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -744,6 +744,8 @@ contains
          u_dt(i,j,k1) = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k)) * rdt
          v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
          t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
+! LJZ notes: this section is extremely inflexible, need to be revised later
+         if ( Atm(n)%flagstruct%nwat .eq. 2 ) then
 ! SJL notes:
 ! ---- DO not touch the code below; dry mass conservation may change due to 64bit <-> 32bit conversion
 ! GFS total air mass = dry_mass + water_vapor (condensate excluded)
@@ -767,14 +769,35 @@ contains
          Atm(n)%q(i,j,k1,1) = q1 / q0
          Atm(n)%q(i,j,k1,2) = q2 / q0
          Atm(n)%q(i,j,k1,3) = q3 / q0
+         elseif ( Atm(n)%flagstruct%nwat .eq. 6 ) then
+         q0 = Statein(nb)%prsi(ix,k) - Statein(nb)%prsi(ix,k+1)
+         q1 = q0*Stateout(nb)%gq0(ix,k,1)
+         q2 = q0*Stateout(nb)%gq0(ix,k,2)
+         q3 = q0*Stateout(nb)%gq0(ix,k,3)
+         q4 = q0*Stateout(nb)%gq0(ix,k,4)
+         q5 = q0*Stateout(nb)%gq0(ix,k,5)
+         q6 = q0*Stateout(nb)%gq0(ix,k,6)
+         q7 = q0*Stateout(nb)%gq0(ix,k,7)
+         q8 = q0*Stateout(nb)%gq0(ix,k,8)
+         q0 = Atm(n)%delp(i,j,k1)*(1.-(Atm(n)%q(i,j,k1,1)+Atm(n)%q(i,j,k1,2)+Atm(n)%q(i,j,k1,3)+Atm(n)%q(i,j,k1,4)+Atm(n)%q(i,j,k1,5)+Atm(n)%q(i,j,k1,6))) + (q1+q2+q3+q4+q5+q6)
+         Atm(n)%delp(i,j,k1) = q0
+         Atm(n)%q(i,j,k1,1) = q1 / q0
+         Atm(n)%q(i,j,k1,2) = q2 / q0
+         Atm(n)%q(i,j,k1,3) = q3 / q0
+         Atm(n)%q(i,j,k1,4) = q4 / q0
+         Atm(n)%q(i,j,k1,5) = q5 / q0
+         Atm(n)%q(i,j,k1,6) = q6 / q0
+         Atm(n)%q(i,j,k1,7) = q7 / q0
+         Atm(n)%q(i,j,k1,8) = q8 / q0
+         endif
        enddo
       enddo
      enddo
 
 !rab#ifdef GFS_TRACER_TRANSPORT
 ! The following does nothing...
-     if ( nq > 3 ) then
-     do iq=4, nq
+     if ( nq > 8 ) then
+     do iq=9, nq
        do k = 1, npz
          k1 = npz+1-k !reverse the k direction 
          do j=jbs,jbe
@@ -788,6 +811,7 @@ contains
      enddo
      endif
 !rab#endif
+! LJZ notes: this section is extremely inflexible, need to be revised later
 
      !--- diagnostic tracers are being updated in-place
      !--- tracer fields must be returned to the Atm structure

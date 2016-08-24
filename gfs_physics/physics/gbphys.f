@@ -2954,7 +2954,7 @@
             qs1  (i,1,k) = gq0(i,levs-k+1,5)
             qg1  (i,1,k) = gq0(i,levs-k+1,6)
             qa1  (i,1,k) = gq0(i,levs-k+1,7)
-            qn1  (i,1,k) = gq0(i,levs-k+1,7)
+            qn1  (i,1,k) = 0.0
             pt   (i,1,k) = gt0(i,levs-k+1)
             w    (i,1,k) = -vvel(i,levs-k+1)*con_rd*gt0(i,levs-k+1)     &
      &                     /prsl(i,levs-k+1)/con_g
@@ -2988,37 +2988,6 @@
         kb               = levs
         seconds          = mod(nint(fhour*3600),86400)
 
-!        print*,"before,qv1:     ",maxval(qv1    (1:im,1,1:levs)),       &
-!     &                            minval(qv1    (1:im,1,1:levs))
-!        print*,"before,ql1:     ",maxval(ql1    (1:im,1,1:levs)),       &
-!     &                            minval(ql1    (1:im,1,1:levs))
-!        print*,"before,qr1:     ",maxval(qr1    (1:im,1,1:levs)),       &
-!     &                            minval(qr1    (1:im,1,1:levs))
-!        print*,"before,qi1:     ",maxval(qi1    (1:im,1,1:levs)),       &
-!     &                            minval(qi1    (1:im,1,1:levs))
-!        print*,"before,qs1:     ",maxval(qs1    (1:im,1,1:levs)),       &
-!     &                            minval(qs1    (1:im,1,1:levs))
-!        print*,"before,qg1:     ",maxval(qg1    (1:im,1,1:levs)),       &
-!     &                            minval(qg1    (1:im,1,1:levs))
-!        print*,"before,qa1:     ",maxval(qa1    (1:im,1,1:levs)),       &
-!     &                            minval(qa1    (1:im,1,1:levs))
-!        print*,"before,qn1:     ",maxval(qn1    (1:im,1,1:levs)),       &
-!     &                            minval(qn1    (1:im,1,1:levs))
-!        print*,"before,pt:      ",maxval(pt     (1:im,1,1:levs)),       &
-!     &                            minval(pt     (1:im,1,1:levs))
-!        print*,"before,w:       ",maxval(w      (1:im,1,1:levs)),       &
-!     &                            minval(w      (1:im,1,1:levs))
-!        print*,"before,uin:     ",maxval(uin    (1:im,1,1:levs)),       &
-!     &                            minval(uin    (1:im,1,1:levs))
-!        print*,"before,vin:     ",maxval(vin    (1:im,1,1:levs)),       &
-!     &                            minval(vin    (1:im,1,1:levs))
-!        print*,"before,delp:    ",maxval(delp   (1:im,1,1:levs)),       &
-!     &                            minval(delp   (1:im,1,1:levs))
-!        print*,"before,area:    ",maxval(area1  (1:im,1       )),       &
-!     &                            minval(area1  (1:im,1       ))
-!        print*,"before,prec_mp: ",maxval(prec_mp(1:im,1       )),       &
-!     &                            minval(prec_mp(1:im,1       ))
-
         call lin_cld_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1,&
      &                               qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
      &                               qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
@@ -3050,29 +3019,6 @@
             gv0(i,k)   = gv0(i,k)   + vdt  (i,1,levs-k+1) * dtp
           enddo
         enddo
-
-!        print*,"after,gq1:  ",maxval(gq0  (1:im,1:levs,1)),             &
-!     &                        minval(gq0  (1:im,1:levs,1))
-!        print*,"after,gq2:  ",maxval(gq0  (1:im,1:levs,2)),             &
-!     &                        minval(gq0  (1:im,1:levs,2))
-!        print*,"after,gq3:  ",maxval(gq0  (1:im,1:levs,3)),             &
-!     &                        minval(gq0  (1:im,1:levs,3))
-!        print*,"after,gq4:  ",maxval(gq0  (1:im,1:levs,4)),             &
-!     &                        minval(gq0  (1:im,1:levs,4))
-!        print*,"after,gq5:  ",maxval(gq0  (1:im,1:levs,5)),             &
-!     &                        minval(gq0  (1:im,1:levs,5))
-!        print*,"after,gq6:  ",maxval(gq0  (1:im,1:levs,6)),             &
-!     &                        minval(gq0  (1:im,1:levs,6))
-!        print*,"after,gq7:  ",maxval(gq0  (1:im,1:levs,7)),             &
-!     &                        minval(gq0  (1:im,1:levs,7))
-!        print*,"after,gt0:  ",maxval(gt0  (1:im,1:levs  )),             &
-!     &                        minval(gt0  (1:im,1:levs  ))
-!        print*,"after,gu0:  ",maxval(gu0  (1:im,1:levs  )),             &
-!     &                        minval(gu0  (1:im,1:levs  ))
-!        print*,"after,gv0:  ",maxval(gv0  (1:im,1:levs  )),             &
-!     &                        minval(gv0  (1:im,1:levs  ))
-!        print*,"after,rain: ",maxval(rain1(1:im         )),             &
-!     &                        minval(rain1(1:im         ))
 
       endif       ! end if_ncld
 

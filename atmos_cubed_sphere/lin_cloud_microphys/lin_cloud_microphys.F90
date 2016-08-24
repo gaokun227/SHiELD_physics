@@ -599,7 +599,8 @@ real, parameter :: pi = 3.141592653589793
       qrz(k) = qr(i,j,k)
       qgz(k) = qg(i,j,k)
 !-- dp1: Dry air_mass
-      dp1(k) = dp1(k)*(1. -(qvz(k)+qlz(k)+qrz(k)+qiz(k)+qsz(k)+qgz(k)))
+!      dp1(k) = dp1(k)*(1. -(qvz(k)+qlz(k)+qrz(k)+qiz(k)+qsz(k)+qgz(k)))
+      dp1(k) = dp1(k)*(1. -qvz(k))
 !-- Convert to dry mixing ratios
          omq = dp0(k) / dp1(k)
       qvz(k) = qvz(k)*omq
@@ -3359,16 +3360,16 @@ endif
     real :: tmp, q1, q2
 
 !-----------------------------------------------------------------------
-! namelist from Jan-Huey Chen
-    sedi_transport = .true.
-    do_sedi_heat   = .true.
+! namelist from Jan-Huey Chen and SJ
+    sedi_transport = .false.
+    do_sedi_heat   = .false.
     rad_snow       = .true.
     rad_graupel    = .true.
     rad_rain       = .true.
     use_deng_mace  = .true.
-!    prog_ccn       = .true.
-!    do_qa          = .true.
-!    fast_sat_adj   = .true.
+    prog_ccn       = .false.
+    do_qa          = .true.
+    fast_sat_adj   = .false.
     tau_l2v        = 600.
     tau_g2v        = 900.
     rthresh        = 10.5e-6
@@ -3388,7 +3389,7 @@ endif
     rh_ins         = 0.30
     !ccn_l          = 200.
     !ccn_o          = 70
-    mp_time        = 75
+    mp_time        = 60
 !-----------------------------------------------------------------------
 
 !    master = (mpp_pe().eq.mpp_root_pe())

@@ -200,7 +200,7 @@ contains
        else
           do i=is,ie
              q_liq = q0(i,k,liq_wat) + q0(i,k,rainwat)
-             q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat)
+             q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat) + q0(i,k,graupel)
              cpm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
              cvm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
           enddo
@@ -382,7 +382,7 @@ contains
            else
             do i=is,ie
                q_liq = q0(i,kk,liq_wat) + q0(i,kk,rainwat)
-               q_sol = q0(i,kk,ice_wat) + q0(i,kk,snowwat)
+               q_sol = q0(i,kk,ice_wat) + q0(i,kk,snowwat) + q0(i,kk,graupel)
                cpm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
                cvm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
             enddo
@@ -606,7 +606,7 @@ contains
        else
           do i=is,ie
              q_liq = q0(i,k,liq_wat) + q0(i,k,rainwat)
-             q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat)
+             q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat) + q0(i,k,graupel)
              cpm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
              cvm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cv_air + q0(i,k,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
           enddo
@@ -793,7 +793,7 @@ contains
            else
             do i=is,ie
                q_liq = q0(i,kk,liq_wat) + q0(i,kk,rainwat)
-               q_sol = q0(i,kk,ice_wat) + q0(i,kk,snowwat)
+               q_sol = q0(i,kk,ice_wat) + q0(i,kk,snowwat) + q0(i,kk,graupel)
                cpm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cp_air + q0(i,kk,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
                cvm(i) = (1.-(q0(i,kk,sphum)+q_liq+q_sol))*cv_air + q0(i,kk,sphum)*cv_vap   + q_liq*c_liq + q_sol*c_ice
             enddo
@@ -848,7 +848,7 @@ contains
 ! Compute pressure hydrostatically
            den(i,k) = pm(i,k)/(rdgas*t0(i,k)*(1.+xvir*q0(i,k,sphum)))
            q_liq = q0(i,k,liq_wat) + q0(i,k,rainwat)
-           q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat)
+           q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat) + q0(i,k,graupel)
            cpm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cp_air + q0(i,k,sphum)*cp_vapor + q_liq*c_liq + q_sol*c_ice
            lcp2(i) = hlv / cpm(i)
            icp2(i) = hlf / cpm(i)
@@ -857,7 +857,7 @@ contains
         do i=is, ie
            den(i,k) = -delp(i,j,k)/(grav*delz(i,j,k))
            q_liq = q0(i,k,liq_wat) + q0(i,k,rainwat)
-           q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat)
+           q_sol = q0(i,k,ice_wat) + q0(i,k,snowwat) + q0(i,k,graupel)
            cvm(i) = (1.-(q0(i,k,sphum)+q_liq+q_sol))*cv_air + q0(i,k,sphum)*cv_vap + q_liq*c_liq + q_sol*c_ice
            lcp2(i) = (Lv0+dc_vap*t0(i,k)) / cvm(i)
            icp2(i) = (Li0+dc_ice*t0(i,k)) / cvm(i)

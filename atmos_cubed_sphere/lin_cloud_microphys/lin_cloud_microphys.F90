@@ -54,7 +54,9 @@ real, parameter :: pi = 3.141592653589793
  real, parameter :: cv_air =  cp_air - rdgas ! = rdgas * (7/2-1) = 2.5*rdgas=717.68
 
    real, parameter:: e00 = 610.71  ! saturation vapor pressure at T0
-   real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+!   real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
+! GFS value
+   real, parameter:: c_liq = 4.1855e+3       ! heat capacity of water at 0C
    real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
    real, parameter:: cp_vap = cp_vapor   ! 1846.
 !  real, parameter:: cv_vap = 1410.0     ! Emanuel value
@@ -64,8 +66,12 @@ real, parameter :: pi = 3.141592653589793
    real, parameter:: dc_ice  =  c_liq - c_ice     ! =  2084
 
 ! Values at 0 Deg C
-   real, parameter:: hlv0 = 2.501e6   ! Emanuel Appendix-2
-   real, parameter:: hlf0 = 3.337e5   ! Emanuel
+!   real, parameter:: hlv0 = 2.501e6   ! Emanuel Appendix-2
+! GFS value
+   real, parameter:: hlv0 = 2.5e6   ! Emanuel Appendix-2
+!   real, parameter:: hlf0 = 3.337e5   ! Emanuel
+! GFS value
+   real, parameter:: hlf0 = 3.3358e5   ! Emanuel
    real, parameter:: t_ice = 273.16
    real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.141264e6
    real, parameter:: li00 = hlf0 - dc_ice *t_ice   ! = -2.355446e5

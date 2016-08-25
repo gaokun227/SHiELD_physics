@@ -7042,7 +7042,9 @@ end subroutine terminator_tracers
      write(*,*) 'Computing sounding for super-cell test'
  endif
 
+#ifdef NON_GFS
  call qsmith_init
+#endif
 
  dz0 = 50.
  zs(ns) = 0.
@@ -7087,6 +7089,9 @@ end subroutine terminator_tracers
 !      if ( (is_master()) ) write(*,*) k, temp1, rh(k)
        if ( pk(k) > 0. ) then
             pp(k) = exp(log(pk(k))/kappa) 
+#ifndef NON_GFS
+#define SUPER_K
+#endif
 #ifdef SUPER_K
             qs(k) = 380./pp(k)*exp(17.27*(temp1-273.)/(temp1-36.))
             qs(k) = min( qv0, rh(k)*qs(k) )

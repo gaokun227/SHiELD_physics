@@ -680,11 +680,12 @@ contains
   deallocate(dp1)
   deallocate(cappa)
 
-     if ( flagstruct%fv_debug ) then
-       call prt_mxm('UA', ua, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
-       call prt_mxm('VA', va, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
-       call prt_mxm('TA', pt, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
-     endif
+  if ( flagstruct%fv_debug ) then
+     call prt_mxm('UA', ua, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
+     call prt_mxm('VA', va, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
+     call prt_mxm('TA', pt, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
+     if (.not. hydrostatic) call prt_mxm('W ', w,  is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
+  endif
 
   if ( flagstruct%range_warn ) then
        call range_check('UA_dyn', ua, is, ie, js, je, ng, npz, gridstruct%agrid,   &
@@ -699,7 +700,7 @@ contains
                          160., 335., bad_range)
 #endif
        if ( .not. hydrostatic ) &
-       call range_check('W_dyn', w, is, ie, js, je, ng, npz, gridstruct%agrid,   &
+            call range_check('W_dyn', w, is, ie, js, je, ng, npz, gridstruct%agrid,   &
                          -50., 100., bad_range)
 #endif
 

@@ -41,7 +41,7 @@ module fv_nesting_mod
    use fv_timing_mod,       only: timing_on, timing_off
    use fv_mp_mod,           only: is_master
    use fv_mp_mod,           only: mp_reduce_sum
-   use fv_diagnostics_mod,  only: sphum_ll_fix
+   use fv_diagnostics_mod,  only: sphum_ll_fix, range_check
    use sw_core_mod,         only: divergence_corner, divergence_corner_nest
 
 implicit none
@@ -1296,9 +1296,13 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
                end do
             end do
          end if
-         call update_remap_tq(npz, parent_grid%ak, parent_grid%bk, &
+         call update_remap_tqw(npz, parent_grid%ak, parent_grid%bk, &
               parent_grid%ps, parent_grid%delp, &
-              parent_grid%pt, parent_grid%q, npz, ps0, zvir, parent_grid%ptop, ncnst, &
+              parent_grid%pt, parent_grid%q, parent_grid%w, &
+              parent_grid%flagstruct%hydrostatic, &
+              npz, ps0, zvir, parent_grid%ptop, ncnst, &
+              parent_grid%flagstruct%kord_tm, parent_grid%flagstruct%kord_tr, &
+              parent_grid%flagstruct%kord_wz, &
               isc_p, iec_p, jsc_p, jec_p, isd_p, ied_p, jsd_p, jed_p, .false. ) !neststruct%nestupdate < 7)
          if (.not. parent_grid%flagstruct%remap_t) then
 !$OMP parallel do default(none) shared(npz,jsc_p,jec_p,isc_p,iec_p,parent_grid,zvir,sphum)
@@ -1316,7 +1320,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
          call update_remap_uv(npz, parent_grid%ak, parent_grid%bk, &
               parent_grid%ps, &
               parent_grid%u, &
-              parent_grid%v, npz, ps0, &
+              parent_grid%v, npz, ps0, parent_grid%flagstruct%kord_mt, &
               isc_p, iec_p, jsc_p, jec_p, isd_p, ied_p, jsd_p, jed_p, parent_grid%ptop)
 
          endif !neststruct%parent_proc
@@ -1401,6 +1405,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
     type(fv_flags_type), intent(IN) :: flagstruct
     type(domain2d), intent(INOUT) :: domain
 
+    logical :: bad_range
 
     integer :: is,  ie,  js,  je
     integer :: isd, ied, jsd, jed
@@ -1438,24 +1443,35 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 
 #endif
 
+      if (flagstruct%range_warn) then
+         call range_check('TA update', pt, is, ie, js, je, ng, npz, gridstruct%agrid, 130., 350., bad_range)
+         call range_check('UA update', ua, is, ie, js, je, ng, npz, gridstruct%agrid, -220., 250., bad_range)
+         call range_check('VA update', va, is, ie, js, je, ng, npz, gridstruct%agrid, -220., 220., bad_range)
+         if (.not. flagstruct%hydrostatic) then
+            call range_check('W update', w, is, ie, js, je, ng, npz, gridstruct%agrid, -50., 100., bad_range)
+         endif
+      endif
+
+
+
  end subroutine after_twoway_nest_update
 
  !Routines for remapping (interpolated) nested-grid data to the coarse-grid's vertical coordinate.
 
  !This does not yet do anything for the tracers
- subroutine update_remap_tq( npz, ak,  bk,  ps, delp,  t,  q,  &
-                      kmd, ps0, zvir, ptop, nq, &
+ subroutine update_remap_tqw( npz, ak,  bk,  ps, delp,  t,  q, w, hydrostatic, &
+                      kmd, ps0, zvir, ptop, nq, kord_tm, kord_tr, kord_wz, &
                       is, ie, js, je, isd, ied, jsd, jed, do_q)
-  integer, intent(in):: npz, kmd, nq
+  integer, intent(in):: npz, kmd, nq, kord_tm, kord_tr, kord_wz
   real,    intent(in):: zvir, ptop
   real,    intent(in):: ak(npz+1), bk(npz+1)
   real,    intent(in), dimension(isd:ied,jsd:jed):: ps0
   real,    intent(in), dimension(isd:ied,jsd:jed):: ps
   real, intent(in), dimension(isd:ied,jsd:jed,npz):: delp
-  real,    intent(inout), dimension(isd:ied,jsd:jed,npz):: t
+  real,    intent(inout), dimension(isd:ied,jsd:jed,npz):: t, w
   real,    intent(inout), dimension(isd:ied,jsd:jed,npz,nq):: q
   integer,  intent(in) ::  is, ie, js, je, isd, ied, jsd, jed
-  logical,   intent(in) :: do_q
+  logical,   intent(in) :: hydrostatic, do_q
 ! local:
   real, dimension(is:ie,kmd):: tp, qp
   real, dimension(is:ie,kmd+1):: pe0, pn0
@@ -1463,7 +1479,8 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
   real, dimension(is:ie,npz+1):: pe1, pn1
   integer i,j,k,iq
 
-!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps0,q,npz,ptop,do_q,t,ps,nq) &
+!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps0,q,npz,ptop,do_q,&
+!$OMP          t,w,ps,nq,hydrostatic,kord_tm,kord_tr,kord_wz) &
 !$OMP          private(pe0,pn0,pe1,pn1,qp,tp,qn1)
   do 5000 j=js,je
 
@@ -1486,7 +1503,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
            qp(i,k) = q(i,j,k,iq)
         enddo
         enddo
-        call mappm(kmd, pe0, qp, npz, pe1,  qn1, is,ie, 0, 11, ptop)
+        call mappm(kmd, pe0, qp, npz, pe1,  qn1, is,ie, 0, kord_tr, ptop)
         do k=1,npz
            do i=is,ie
               q(i,j,k,iq) = qn1(i,k)
@@ -1495,25 +1512,43 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
         enddo
      endif
 
-   do k=1,kmd
-      do i=is,ie
-         tp(i,k) = t(i,j,k)
-      enddo
-   enddo
-   call mappm(kmd, pn0, tp, npz, pn1, qn1, is,ie, 1, 8, ptop)
+     do k=1,kmd
+        do i=is,ie
+           tp(i,k) = t(i,j,k)
+        enddo
+     enddo
+     !Remap T using logp
+     call mappm(kmd, pn0, tp, npz, pn1, qn1, is,ie, 1, abs(kord_tm), ptop)
+     
+     do k=1,npz
+        do i=is,ie
+           t(i,j,k) = qn1(i,k)
+        enddo
+     enddo
+
+     if (.not. hydrostatic) then
+        do k=1,kmd
+           do i=is,ie
+              tp(i,k) = w(i,j,k)
+           enddo
+        enddo
+        !Remap w using p
+        !Using iv == -1 instead of -2
+        call mappm(kmd, pe0, tp, npz, pe1, qn1, is,ie, -1, kord_wz, ptop)
 
         do k=1,npz
            do i=is,ie
-              t(i,j,k) = qn1(i,k)
+              w(i,j,k) = qn1(i,k)
            enddo
         enddo
+     endif
 
 5000 continue
 
- end subroutine update_remap_tq
+ end subroutine update_remap_tqw
 
  !remap_uv as-is remaps only a-grid velocities. A new routine has been written to handle staggered grids.
- subroutine update_remap_uv(npz, ak, bk, ps, u, v, kmd, ps0, &
+ subroutine update_remap_uv(npz, ak, bk, ps, u, v, kmd, ps0, kord_mt, &
                       is, ie, js, je, isd, ied, jsd, jed, ptop)
   integer, intent(in):: npz
   real,    intent(in):: ak(npz+1), bk(npz+1)
@@ -1521,7 +1556,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
   real,    intent(inout), dimension(isd:ied,jsd:jed+1,npz):: u
   real,    intent(inout), dimension(isd:ied+1,jsd:jed,npz):: v
 !
-  integer, intent(in):: kmd
+  integer, intent(in):: kmd, kord_mt
   real,    intent(IN) :: ptop
   real,    intent(in):: ps0(isd:ied,jsd:jed)
   integer,  intent(in) ::  is, ie, js, je, isd, ied, jsd, jed
@@ -1536,7 +1571,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
 !------
 ! map u
 !------
-!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps,ps0,npz,u,ptop) &
+!$OMP parallel do default(none) shared(js,je,kmd,is,ie,ak,bk,ps,ps0,npz,u,ptop,kord_mt) &
 !$OMP          private(pe0,pe1,qt,qn1)
   do j=js,je+1
 !------
@@ -1565,7 +1600,7 @@ subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
          enddo
       enddo
       qn1 = 0.
-      call mappm(kmd, pe0(is:ie,:), qt(is:ie,:), npz, pe1(is:ie,:), qn1(is:ie,:), is,ie, -1, 8, ptop)
+      call mappm(kmd, pe0(is:ie,:), qt(is:ie,:), npz, pe1(is:ie,:), qn1(is:ie,:), is,ie, -1, kord_mt, ptop)
       do k=1,npz
          do i=is,ie
             u(i,j,k) = qn1(i,k)

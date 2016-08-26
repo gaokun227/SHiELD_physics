@@ -1207,7 +1207,7 @@ contains
                            0.01*ptop, 200.E2, bad_range)
          call range_check('UA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
                            -220., 250., bad_range)
-         call range_check('VA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
+         call range_check('VA', Atm(n)%va, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
                            -220., 220., bad_range)
 #ifndef SW_DYNAMICS
          call range_check('TA', Atm(n)%pt, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
@@ -1218,7 +1218,7 @@ contains
 #endif
 #endif
 
-    endif
+      endif
 
     allocate ( u2(isc:iec,jsc:jec) )
     allocate ( v2(isc:iec,jsc:jec) )
@@ -1989,7 +1989,7 @@ contains
 
 
 #ifdef GFS_PHYS
-       if(idiag%id_delp > 0) then
+       if(idiag%id_delp > 0 .or. ((.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0)) then
           do k=1,npz
             do j=jsc,jec
             do i=isc,iec         
@@ -1997,7 +1997,7 @@ contains
             enddo
             enddo
           enddo
-          used=send_data(idiag%id_delp, wk, Time)
+          if (idiag%id_delp > 0) used=send_data(idiag%id_delp, wk, Time)
        endif
 
        if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0) then
@@ -2009,6 +2009,9 @@ contains
              enddo
              enddo
            enddo
+!           if (prt_minmax) then
+!              call prt_maxmin(' PFNH (mb)', wk(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, npz, 1.E-2)
+!           endif
            used=send_data(idiag%id_pfnh, wk, Time)
        endif
 #else

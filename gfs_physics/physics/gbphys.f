@@ -2961,7 +2961,7 @@
             uin  (i,1,k) = gu0(i,levs-k+1)
             vin  (i,1,k) = gv0(i,levs-k+1)
             delp (i,1,k) = del(i,levs-k+1)
-            dz   (i,1,k) = (phii(i,levs-k+1)-phii(i,levs-k+2))/con_g
+            dz   (i,1,k) = phii(i,levs-k+1)-phii(i,levs-k+2)
             qv_dt(i,1,k) = 0.0
             ql_dt(i,1,k) = 0.0
             qr_dt(i,1,k) = 0.0
@@ -3007,16 +3007,16 @@
             sr(i) = 0.0
           endif
           do k = 1, levs
-            gq0(i,k,1) = gq0(i,k,1) + qv_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,2) = gq0(i,k,2) + ql_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,3) = gq0(i,k,3) + qr_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,4) = gq0(i,k,4) + qi_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,5) = gq0(i,k,5) + qs_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,6) = gq0(i,k,6) + qg_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,7) = gq0(i,k,7) + qa_dt(i,1,levs-k+1) * dtp
-            gt0(i,k)   = gt0(i,k)   + pt_dt(i,1,levs-k+1) * dtp
-            gu0(i,k)   = gu0(i,k)   + udt  (i,1,levs-k+1) * dtp
-            gv0(i,k)   = gv0(i,k)   + vdt  (i,1,levs-k+1) * dtp
+            gq0(i,k,1) = qv1(i,1,levs-k+1) + qv_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,2) = ql1(i,1,levs-k+1) + ql_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,3) = qr1(i,1,levs-k+1) + qr_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,4) = qi1(i,1,levs-k+1) + qi_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,5) = qs1(i,1,levs-k+1) + qs_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,6) = qg1(i,1,levs-k+1) + qg_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,7) = qa1(i,1,levs-k+1) + qa_dt(i,1,levs-k+1) * dtp
+            gt0(i,k)   = pt (i,1,levs-k+1) + pt_dt(i,1,levs-k+1) * dtp
+            gu0(i,k)   = uin(i,1,levs-k+1) + udt  (i,1,levs-k+1) * dtp
+            gv0(i,k)   = vin(i,1,levs-k+1) + vdt  (i,1,levs-k+1) * dtp
           enddo
         enddo
 

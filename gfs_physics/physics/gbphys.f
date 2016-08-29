@@ -2961,7 +2961,7 @@
             uin  (i,1,k) = gu0(i,levs-k+1)
             vin  (i,1,k) = gv0(i,levs-k+1)
             delp (i,1,k) = del(i,levs-k+1)
-            dz   (i,1,k) = phii(i,levs-k+1)-phii(i,levs-k+2)
+            dz   (i,1,k) = (phii(i,levs-k+1)-phii(i,levs-k+2))/con_g
             qv_dt(i,1,k) = 0.0
             ql_dt(i,1,k) = 0.0
             qr_dt(i,1,k) = 0.0

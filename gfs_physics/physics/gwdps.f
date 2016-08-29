@@ -361,6 +361,7 @@
             ROLL(I)    = ROLL(I)  + RDELKS * RO(I,K) ! trial Mean RO below 
             RDELKS     = (PRSL(J,K)-PRSL(J,K+1)) * DELKS1(I)
             BNV2bar(I) = BNV2bar(I) + BNV2lm(I,K) * RDELKS
+            BNV2bar(I) = MAX(BNV2bar(I),BNV2MIN)
 ! --- these vert ave are for diags, testing and GWD to follow (*j*).
           ENDDO
         ENDDO
@@ -588,6 +589,7 @@
             ROLL(I)    = ROLL(I)  + RDELKS * RO(I,K)   ! Mean RO below kref
             RDELKS     = (PRSL(J,K)-PRSL(J,K+1)) * DELKS1(I)
             BNV2bar(I) = BNV2bar(I) + BNV2(I,K) * RDELKS
+            BNV2bar(I) = MAX(BNV2bar(I),BNV2MIN)
           ENDIF
         ENDDO
       ENDDO

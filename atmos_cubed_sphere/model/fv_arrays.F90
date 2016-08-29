@@ -35,7 +35,11 @@ module fv_arrays_mod
 
 
   integer, parameter:: max_step = 1000
+#ifdef OVERLOAD_R4
+  real, parameter:: real_big = 1.e8    ! big enough to cause blowup if used
+#else
   real, parameter:: real_big = 1.e30   ! big enough to cause blowup if used
+#endif
   type fv_diag_type
 
 

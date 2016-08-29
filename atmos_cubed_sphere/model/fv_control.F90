@@ -223,7 +223,11 @@ module fv_control_mod
 
    integer :: ntilesMe                ! Number of tiles on this process =1 for now
 
+#ifdef OVERLOAD_R4
+   real    :: too_big  = 1.E8
+#else
    real    :: too_big  = 1.E35
+#endif
    public :: fv_init, fv_end
 
    integer, public :: ngrids = 1

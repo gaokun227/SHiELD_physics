@@ -35,7 +35,11 @@
   real, parameter:: t11=27./28., t12=-13./28., t13=3./7., t14=6./7., t15=3./28.
   real, parameter:: s11=11./14., s13=-13./14., s14=4./7., s15=3./14.
   real, parameter:: near_zero = 1.E-9     ! for KE limiter
+#ifdef OVERLOAD_R4
+  real, parameter:: big_number = 1.E8
+#else
   real, parameter:: big_number = 1.E30
+#endif
 !----------------------
 ! PPM volume mean form:
 !----------------------

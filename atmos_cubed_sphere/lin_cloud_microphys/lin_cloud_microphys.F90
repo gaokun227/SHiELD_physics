@@ -3367,8 +3367,8 @@ endif
 
 !-----------------------------------------------------------------------
 ! namelist from Jan-Huey Chen and SJ
-    sedi_transport = .false.
-    do_sedi_heat   = .false.
+    sedi_transport = .true.
+    do_sedi_heat   = .true.
     rad_snow       = .true.
     rad_graupel    = .true.
     rad_rain       = .true.
@@ -3395,7 +3395,7 @@ endif
     rh_ins         = 0.30
     !ccn_l          = 200.
     !ccn_o          = 70
-    mp_time        = 112.5
+    mp_time        = 60.0
 !-----------------------------------------------------------------------
 
 !    master = (mpp_pe().eq.mpp_root_pe())

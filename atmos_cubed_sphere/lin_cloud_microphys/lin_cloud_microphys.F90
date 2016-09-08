@@ -3376,25 +3376,25 @@ endif
     prog_ccn       = .false.
     do_qa          = .true.
     fast_sat_adj   = .false.
-    tau_l2v        = 600.
-    tau_g2v        = 900.
-    rthresh        = 10.5e-6
-    vi_fac         = 1.0
+    tau_l2v        = 150.
+    tau_g2v        = 600.
+    rthresh        = 10.0e-6
+    vi_fac         = 0.9
     cld_min        = 0.05
     dw_land        = 0.20
     dw_ocean       = 0.15
     ql_gen         = 1.0e-3
     sat_adj0       = 0.99
     ql_mlt         = 3.0e-3
-    qi0_crt        = 0.8e-4
+    qi0_crt        = 1.0e-4
     qs0_crt        = 0.6e-3
-    c_psaci        = 0.05
+    c_psaci        = 0.01
     c_pgacs        = 0.01
     rh_inc         = 0.1
     rh_inr         = 0.30
     rh_ins         = 0.30
-    !ccn_l          = 200.
-    !ccn_o          = 70
+    ccn_l          = 250.
+    ccn_o          = 70
     mp_time        = 60.0
 !-----------------------------------------------------------------------
 

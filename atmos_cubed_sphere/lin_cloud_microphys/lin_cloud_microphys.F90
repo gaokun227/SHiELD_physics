@@ -27,15 +27,16 @@ module lin_cld_microphys_mod
  character(len=17) :: mod_name = 'lin_cld_microphys'
 
 !==== constants_mod ====
-real, parameter :: grav = 9.80665
-real, parameter :: rdgas = 287.05
-real, parameter :: rvgas = 461.50
-real, parameter :: cp_air = 1004.6
-real, parameter :: cp_vapor = 4.0*rvgas
-real, parameter :: hlv = 2.5e6
-real, parameter :: hlf = 3.3358e5
+integer, public, parameter :: R_GRID=8
+real, parameter :: grav = 9.80665_R_GRID
+real, parameter :: rdgas = 287.05_R_GRID
+real, parameter :: rvgas = 461.50_R_GRID
+real, parameter :: cp_air = 1004.6_R_GRID
+real, parameter :: cp_vapor = 4.0_R_GRID*RVGAS
+real, parameter :: hlv = 2.5e6_R_GRID
+real, parameter :: hlf = 3.3358e5_R_GRID
 real, parameter :: kappa = rdgas/cp_air
-real, parameter :: pi = 3.141592653589793
+real, parameter :: pi = 3.1415926535897931_R_GRID
 !==== constants_mod ====
 
 !==== fms constants ====================
@@ -121,8 +122,8 @@ real, parameter :: pi = 3.141592653589793
                                      ! dt_fr can be considered as the error bar
  integer :: lin_cld_mp_clock   ! clock for timing of driver routine
 
- real :: t_snow_melt = 12.      ! snow melt tempearture scale factor
- real :: t_grau_melt = 15.      ! graupel melt tempearture scale factor
+ real :: t_snow_melt = 16.      ! snow melt tempearture scale factor
+ real :: t_grau_melt = 32.      ! graupel melt tempearture scale factor
  real :: p_min = 100.    ! minimum pressure (Pascal) for MP to operate
 
 ! The defaults are good for 25-50 km simulation
@@ -217,8 +218,7 @@ real, parameter :: pi = 3.141592653589793
  logical :: use_deng_mace = .true.       ! Helmfield-Donner ice speed
  logical :: do_subgrid_z = .false.       ! 2X resolution sub-grid saturation/cloud scheme
  logical :: use_ccn      = .false.
- logical :: use_ppm      = .true.
- logical :: ppm_rain_fall  = .true.
+ logical :: use_ppm      = .false.
  logical :: mono_prof = .true.          ! perform terminal fall with mono ppm scheme
  logical :: mp_debug = .false.
  logical :: mp_print = .false.
@@ -237,7 +237,7 @@ real, parameter :: pi = 3.141592653589793
         c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
         c_paut, c_psaut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
         c_cracw, alin, clin, p_crt, tice, k_moist, rad_snow, rad_graupel, rad_rain,   &
-        cld_min, use_ppm, ppm_rain_fall, mono_prof, do_sedi_heat, sedi_transport,   &
+        cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
         do_sedi_w, de_ice, mp_debug, mp_print
 
 !---- version number -----
@@ -955,10 +955,10 @@ real, parameter :: pi = 3.141592653589793
       enddo
   endif
 
-  if ( ppm_rain_fall ) then
+  if ( use_ppm ) then
        call lagrangian_fall_ppm(ktop, kbot, zs, ze, zt, dp, qr, r1, m1_rain, mono_prof)
   else
-       call lagrangian_fall_pcm(ktop, kbot, zs, ze, zt, dp, qr, r1, m1_rain)
+       call implicit_fall(dt, ktop, kbot, ze, vtr, dp, qr, r1, m1_rain)
   endif
 
   if ( do_sedi_w ) then
@@ -1220,17 +1220,6 @@ if ( tc > 0. ) then
 !-----------------------------
      dqs0 = ces0/p1(k) - qv
 
-! The following is needed after the terminal fall
-     if ( qs>qvmin ) then
-! Melting of snow into rain ( half time step )
-          factor = min( 1., tc/t_snow_melt )
-            sink = min( fac_sno*qs, factor*tc/icpk(k) )
-          qs = qs - sink
-          qr = qr + sink
-          tz = tz - sink*icpk(k)    ! cooling due to snow melting
-          tc = tz-tice
-     endif
-
      if( qs>qcmin ) then
 
 ! * accretion: cloud water --> snow
@@ -1261,17 +1250,22 @@ if ( tc > 0. ) then
         qr = qr + sink
         tz = tz - sink*icpk(k)    ! cooling due to snow melting
         tc = tz-tice
+
+#ifdef MORE_SNOW_MLT
+! The following is needed after the terminal fall
+     if ( qs>qvmin ) then
+! Melting of snow into rain ( half time step )
+          factor = min( 1., tc/t_snow_melt )
+            sink = min( fac_sno*qs, factor*tc/icpk(k) )
+          qs = qs - sink
+          qr = qr + sink
+          tz = tz - sink*icpk(k)    ! cooling due to snow melting
+          tc = tz-tice
+     endif
+#endif
      endif
 
      if ( qg>qcmin .and. tc>0. ) then
-
-! *Temperature-dependent* Melting of graupel into rain ( half time step )
-          factor = min( 1., tc/t_grau_melt )   ! smoother !!
-            sink = min( fac_gra*qg, factor*tc/icpk(k) )
-          qg = qg - sink
-          qr = qr + sink
-          tz = tz - sink*icpk(k)    ! cooling due to melting
-          tc = tz-tice
 
          if ( qr>qrmin ) then
 ! * accretion: rain --> graupel
@@ -1292,6 +1286,16 @@ if ( tc > 0. ) then
             qg = qg - pgmlt
             qr = qr + pgmlt
             tz = tz - pgmlt*icpk(k)
+
+#ifdef MORE_SNOW_MLT
+! *Temperature-dependent* Melting of graupel into rain ( half time step )
+          tc = tz-tice
+          factor = min( 1., tc/t_grau_melt )   ! smoother !!
+            sink = min( fac_gra*qg, factor*tc/icpk(k) )
+          qg = qg - sink
+          qr = qr + sink
+          tz = tz - sink*icpk(k)    ! cooling due to melting
+#endif
 
      endif   ! graupel existed
 
@@ -1760,7 +1764,7 @@ endif
  real:: evap, sink, tc, pisub, iwt, q_adj, dtmp, lat2
  integer :: k
 
- fac_v2l = 1. - exp( -0.5*dts/tau_v2l )        !
+!fac_v2l = 1. - exp( -0.5*dts/tau_v2l )        !
  fac_l2v = 1. - exp( -0.5*dts/tau_l2v )        !
 
  lat2 = lats * lats
@@ -2544,7 +2548,7 @@ endif
 !------
 ! Snow
 !------
-!!!#ifdef MORE_SNOW_MLT
+#ifdef MORE_SNOW_MLT
     if ( qs(k)>qvmin .and. tc>0. ) then
          factor = min( 1., tc/t_snow_melt)
            sink = min(fac_sno*qs(k), factor*tc/icpk(k))
@@ -2564,7 +2568,7 @@ endif
           qr(k) = qr(k) + sink
           tz(k) = tz(k) - sink*icpk(k)
     endif
-!!!#endif
+#endif
  enddo
 
   if ( dtm < 60. ) k0 = kbot
@@ -2623,7 +2627,7 @@ endif
   if ( use_ppm ) then
        call lagrangian_fall_ppm(ktop, kbot, zs, ze, zt, dp, qi, i1, m1_sol, mono_prof)
   else
-       call lagrangian_fall_pcm(ktop, kbot, zs, ze, zt, dp, qi, i1, m1_sol)
+       call implicit_fall(dtm, ktop, kbot, ze, vti, dp, qi, i1, m1_sol)
   endif
 
   if ( do_sedi_w ) then
@@ -2688,7 +2692,7 @@ endif
   if ( use_ppm ) then
        call lagrangian_fall_ppm(ktop, kbot, zs, ze, zt, dp, qs, s1, m1, mono_prof)
   else
-       call lagrangian_fall_pcm(ktop, kbot, zs, ze, zt, dp, qs, s1, m1)
+       call implicit_fall(dtm, ktop, kbot, ze, vts, dp, qs, s1, m1)
   endif
   do k=ktop,kbot
      m1_sol(k) = m1_sol(k) + m1(k)
@@ -2751,7 +2755,7 @@ endif
   if ( use_ppm ) then
        call lagrangian_fall_ppm(ktop, kbot, zs, ze, zt, dp, qg, g1, m1, mono_prof)
   else
-       call lagrangian_fall_pcm(ktop, kbot, zs, ze, zt, dp, qg, g1, m1)
+       call implicit_fall(dtm, ktop, kbot, ze, vtg, dp, qg, g1, m1)
   endif
   do k=ktop,kbot
      m1_sol(k) = m1_sol(k) + m1(k)
@@ -2787,81 +2791,47 @@ endif
  end subroutine check_column
 
 
- subroutine lagrangian_fall_pcm(ktop, kbot, zs, ze, zt, dp, q, precip, m1)
- real,    intent(in):: zs
+ subroutine implicit_fall(dt, ktop, kbot, ze, vt, dp, q, precip, m1)
+ real,    intent(in):: dt
  integer, intent(in):: ktop, kbot
- real,    intent(in), dimension(ktop:kbot+1):: ze, zt
- real,    intent(in), dimension(ktop:kbot):: dp
- real,    intent(inout), dimension(ktop:kbot):: q, m1
+ real,    intent(in), dimension(ktop:kbot+1):: ze
+ real,    intent(in), dimension(ktop:kbot):: vt, dp
+ real,    intent(inout), dimension(ktop:kbot):: q
+ real,    intent(out), dimension(ktop:kbot):: m1
  real,    intent(out):: precip
 ! local:
- real, dimension(ktop:kbot):: qm
- integer k, k0, n, m
+ real, dimension(ktop:kbot):: dz, qm
+ integer:: k
 
-! density:
   do k=ktop,kbot
-     q(k) = q(k)*dp(k) / (zt(k)-zt(k+1))
-     qm(k) = 0.
+     dz(k) = ze(k) - ze(k+1)
   enddo
 
-   k0 = ktop
-   do k=ktop,kbot
-      do n=k0,kbot
-      if(ze(k) <= zt(n) .and. ze(k) >= zt(n+1)) then
-         if(ze(k+1) >= zt(n+1)) then
-!                          entire new grid is within the original grid
-            qm(k) = q(n)*(ze(k)-ze(k+1))
-            k0 = n
-            goto 555
-         else
-            qm(k) = q(n)*(ze(k)-zt(n+1))    ! fractional area
-            do m=n+1,kbot
-!                                        locate the bottom edge: ze(k+1)
-               if(ze(k+1) < zt(m+1) ) then
-                  qm(k) = qm(k) + q(m)
-               else
-                  qm(k) = qm(k) + q(m)*(zt(m)-ze(k+1))
-                  k0 = m
-                  goto 555
-               endif
-            enddo
-            goto 555
-         endif
-      endif
-      enddo
-555 continue
-   enddo
-
-  m1(ktop) = q(ktop) - qm(ktop)
+! Sedimentation:
+  qm(ktop) = q(ktop)*dp(ktop) / (dz(ktop)+dt*vt(ktop))
   do k=ktop+1,kbot
-     m1(k) = m1(k-1) + q(k) - qm(k)
+     qm(k) = (q(k)*dp(k)+dt*vt(k)*qm(k-1)) / (dz(k)+dt*vt(k))
+  enddo
+! qm is density at this stage
+
+! Convert back to *dry* mixing ratio
+  do k=ktop,kbot
+     qm(k) = qm(k)*dz(k)/dp(k)
   enddo
 
-#ifdef DO_ DIRECT_PRECIP
-     precip = 0.
-! direct algorithm (prevent small negatives)
-     do k=ktop,kbot
-        if ( zt(k+1) < zs ) then
-             precip = q(k)*(zs-zt(k+1))
-             if ( (k+1) > kbot ) goto 777
-                  do m=k+1,kbot
-                     precip = precip + q(m)
-                  enddo
-             goto 777
-        endif
-     enddo
-777  continue
-#else
+! Output mass fluxes:
+  m1(ktop) = (q(ktop)-qm(ktop))*dp(k)
+  do k=ktop+1,kbot
+     m1(k) = m1(k-1) + (q(k)-qm(k))*dp(k)
+  enddo
   precip = m1(kbot)
-#endif
 
-! Convert back to *dry* mixing ratio:
-! dp must be dry air_mass (because moist air mass will be changed due to terminal fall).
-   do k=ktop,kbot
-     q(k) = qm(k)/dp(k)
-   enddo
+! Update:
+  do k=ktop,kbot
+     q(k) = qm(k)
+  enddo
 
- end subroutine lagrangian_fall_pcm
+ end subroutine implicit_fall
 
 
 
@@ -3376,26 +3346,27 @@ endif
 !    prog_ccn       = .false.
 !    do_qa          = .true.
 !    fast_sat_adj   = .false.
-!    tau_l2v        = 150.
+!    tau_l2v        = 120.
 !    tau_g2v        = 600.
 !    rthresh        = 10.0e-6
-!    vi_fac         = 0.9
+!    vi_fac         = 1.0
 !    cld_min        = 0.05
 !    dw_land        = 0.20
 !    dw_ocean       = 0.15
 !    ql_gen         = 1.0e-3
 !    sat_adj0       = 0.99
-!    ql_mlt         = 3.0e-3
-!    qi0_crt        = 1.0e-4
-!    qs0_crt        = 0.6e-3
-!    c_psaci        = 0.01
+!    ql_mlt         = 2.0e-3
+!    qi0_crt        = 1.0e-4   ! for 13-km
+!    qs0_crt        = 1.0e-3
+!    c_psaci        = 0.05
 !    c_pgacs        = 0.01
 !    rh_inc         = 0.1
 !    rh_inr         = 0.30
 !    rh_ins         = 0.30
 !    ccn_l          = 250.
-!    ccn_o          = 70
-!    mp_time        = 60.0
+!    ccn_o          = 75.
+!    use_ppm        = .false.
+!    mp_time        = 120.0
 !-----------------------------------------------------------------------
 
 !    master = (mpp_pe().eq.mpp_root_pe())
@@ -3900,9 +3871,9 @@ endif
 
 ! constants
       esbasw = 1013246.0
-       tbasw =     373.16
+       tbasw = table_ice + 100.  !   373.16
       esbasi =    6107.1
-       tbasi =     273.16
+       tbasi = table_ice
         tmin = tbasi - 160.
 
      do i=1,n
@@ -3935,9 +3906,9 @@ endif
 
 ! constants
       esbasw = 1013246.0
-       tbasw =     373.16
+       tbasw = table_ice + 100. !    373.16
       esbasi =    6107.1
-       tbasi =     273.16
+       tbasi = table_ice
       tmin = tbasi - 160.
 
      do i=1,n
@@ -3994,9 +3965,9 @@ endif
 
 ! constants
       esbasw = 1013246.0
-       tbasw =     373.16
+       tbasw = table_ice + 100. !     373.16
       esbasi =    6107.1
-       tbasi =     273.16
+       tbasi = table_ice !     273.16
       tmin = tbasi - 160.
 
      do i=1,n
@@ -4061,9 +4032,9 @@ endif
 
 ! constants
       esbasw = 1013246.0
-       tbasw =     373.16
+       tbasw = table_ice + 100.  !  373.16
       esbasi =    6107.1
-       tbasi =     273.16
+       tbasi = table_ice !     273.16
 
 !  compute es over ice between -160c and 0 c.
       tmin = tbasi - 160.
@@ -4105,7 +4076,7 @@ endif
 !  derive blended es over ice and supercooled water between -20c and 0c
       do i=1,200
          tem  = 253.16+delt*real(i-1)
-         wice = 0.05*(273.16-tem)
+         wice = 0.05*(table_ice-tem)
          wh2o = 0.05*(tem-253.16)
          table(i+1400) = wice*table(i+1400)+wh2o*esupc(i)
       enddo

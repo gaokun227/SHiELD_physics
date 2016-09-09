@@ -69,7 +69,7 @@ module gfs_physics_driver_mod
                                    c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
                                    c_paut, c_psaut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
                                    c_cracw, alin, clin, p_crt, tice, k_moist, rad_snow, rad_graupel, rad_rain,   &
-                                   cld_min, use_ppm, ppm_rain_fall, mono_prof, do_sedi_heat, sedi_transport,   &
+                                   cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
                                    do_sedi_w, de_ice, mp_debug, mp_print
 !
 !-----------------------------------------------------------------------
@@ -296,8 +296,8 @@ module gfs_physics_driver_mod
                               c_paut,c_psaut,c_psaci,c_pgacs,z_slope_liq,        &
                               z_slope_ice,prog_ccn,c_cracw,alin,clin,p_crt,tice, &
                               k_moist,rad_snow,rad_graupel,rad_rain,cld_min,     &
-                              use_ppm,ppm_rain_fall,mono_prof,do_sedi_heat,      &
-                              sedi_transport,do_sedi_w,de_ice,mp_debug,mp_print
+                              use_ppm,mono_prof,do_sedi_heat,sedi_transport,     &
+                              do_sedi_w,de_ice,mp_debug,mp_print
 !-----------------------------------------------------------------------
 
   CONTAINS

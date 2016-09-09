@@ -229,16 +229,16 @@ real, parameter :: pi = 3.141592653589793
  real:: p_crt   = 100.E2   !
  integer:: k_moist = 100
 
- namelist /lin_cld_microphys_nml/mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
-                      vr_fac, vs_fac, vg_fac, vi_fac, ql_mlt, do_qa, fix_negative, &
-                      qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
-                      rh_inc, rh_ins, rh_inr, use_deng_mace, use_ccn, do_subgrid_z,  &
-                      rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
-                      c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
-                      c_paut, c_psaut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
-                      c_cracw, alin, clin, p_crt, tice, k_moist, rad_snow, rad_graupel, rad_rain,   &
-                      cld_min, use_ppm, ppm_rain_fall, mono_prof, do_sedi_heat,sedi_transport,   &
-                      do_sedi_w,  de_ice, mp_debug, mp_print
+ public mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
+        vr_fac, vs_fac, vg_fac, vi_fac, ql_mlt, do_qa, fix_negative, &
+        qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
+        rh_inc, rh_ins, rh_inr, use_deng_mace, use_ccn, do_subgrid_z,  &
+        rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
+        c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
+        c_paut, c_psaut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
+        c_cracw, alin, clin, p_crt, tice, k_moist, rad_snow, rad_graupel, rad_rain,   &
+        cld_min, use_ppm, ppm_rain_fall, mono_prof, do_sedi_heat, sedi_transport,   &
+        do_sedi_w, de_ice, mp_debug, mp_print
 
 !---- version number -----
  character(len=128) :: version = '$Id: lin_cloud_microphys.F90,v 21.0.2.1 2014/12/18 21:14:54 Lucas.Harris Exp $'
@@ -3367,35 +3367,35 @@ endif
 
 !-----------------------------------------------------------------------
 ! namelist from Jan-Huey Chen and SJ
-    sedi_transport = .true.
-    do_sedi_heat   = .true.
-    rad_snow       = .true.
-    rad_graupel    = .true.
-    rad_rain       = .true.
-    use_deng_mace  = .true.
-    prog_ccn       = .false.
-    do_qa          = .true.
-    fast_sat_adj   = .false.
-    tau_l2v        = 150.
-    tau_g2v        = 600.
-    rthresh        = 10.0e-6
-    vi_fac         = 0.9
-    cld_min        = 0.05
-    dw_land        = 0.20
-    dw_ocean       = 0.15
-    ql_gen         = 1.0e-3
-    sat_adj0       = 0.99
-    ql_mlt         = 3.0e-3
-    qi0_crt        = 1.0e-4
-    qs0_crt        = 0.6e-3
-    c_psaci        = 0.01
-    c_pgacs        = 0.01
-    rh_inc         = 0.1
-    rh_inr         = 0.30
-    rh_ins         = 0.30
-    ccn_l          = 250.
-    ccn_o          = 70
-    mp_time        = 60.0
+!    sedi_transport = .true.
+!    do_sedi_heat   = .true.
+!    rad_snow       = .true.
+!    rad_graupel    = .true.
+!    rad_rain       = .true.
+!    use_deng_mace  = .true.
+!    prog_ccn       = .false.
+!    do_qa          = .true.
+!    fast_sat_adj   = .false.
+!    tau_l2v        = 150.
+!    tau_g2v        = 600.
+!    rthresh        = 10.0e-6
+!    vi_fac         = 0.9
+!    cld_min        = 0.05
+!    dw_land        = 0.20
+!    dw_ocean       = 0.15
+!    ql_gen         = 1.0e-3
+!    sat_adj0       = 0.99
+!    ql_mlt         = 3.0e-3
+!    qi0_crt        = 1.0e-4
+!    qs0_crt        = 0.6e-3
+!    c_psaci        = 0.01
+!    c_pgacs        = 0.01
+!    rh_inc         = 0.1
+!    rh_inr         = 0.30
+!    rh_ins         = 0.30
+!    ccn_l          = 250.
+!    ccn_o          = 70
+!    mp_time        = 60.0
 !-----------------------------------------------------------------------
 
 !    master = (mpp_pe().eq.mpp_root_pe())

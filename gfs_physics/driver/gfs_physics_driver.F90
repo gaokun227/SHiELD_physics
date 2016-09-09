@@ -59,6 +59,19 @@ module gfs_physics_driver_mod
 !--- variables needed for calculating 'sncovr'
   use namelist_soilveg,   only: salp_data, snupx
 !
+!
+!--- tuning variable in Lin Cloud Microphysics
+  use lin_cld_microphys_mod, only: mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
+                                   vr_fac, vs_fac, vg_fac, vi_fac, ql_mlt, do_qa, fix_negative, &
+                                   qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
+                                   rh_inc, rh_ins, rh_inr, use_deng_mace, use_ccn, do_subgrid_z,  &
+                                   rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
+                                   c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
+                                   c_paut, c_psaut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
+                                   c_cracw, alin, clin, p_crt, tice, k_moist, rad_snow, rad_graupel, rad_rain,   &
+                                   cld_min, use_ppm, ppm_rain_fall, mono_prof, do_sedi_heat, sedi_transport,   &
+                                   do_sedi_w, de_ice, mp_debug, mp_print
+!
 !-----------------------------------------------------------------------
   implicit none
   private
@@ -271,7 +284,20 @@ module gfs_physics_driver_mod
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
-                              hybedmf,shal_cnv,ncld,ntoz
+                              hybedmf,shal_cnv,ncld,ntoz,                        &
+!--- namelist for Lin cloud microphysics
+                              mp_time,t_min,t_sub,tau_s,tau_g,dw_land,dw_ocean,  &
+                              vr_fac,vs_fac,vg_fac,vi_fac,ql_mlt,do_qa,          &
+                              fix_negative,qs0_crt,qi_gen,ql0_max,qi0_max,       &
+                              qi0_crt,qr0_crt,fast_sat_adj,rh_inc,rh_ins,rh_inr, &
+                              use_deng_mace,use_ccn,do_subgrid_z,rthresh,ccn_l,  &
+                              ccn_o,qc_crt,tau_g2v,tau_v2g,sat_adj0,c_piacr,     &
+                              tau_mlt,tau_v2l,tau_l2v,tau_i2s,qi_lim,ql_gen,     &
+                              c_paut,c_psaut,c_psaci,c_pgacs,z_slope_liq,        &
+                              z_slope_ice,prog_ccn,c_cracw,alin,clin,p_crt,tice, &
+                              k_moist,rad_snow,rad_graupel,rad_rain,cld_min,     &
+                              use_ppm,ppm_rain_fall,mono_prof,do_sedi_heat,      &
+                              sedi_transport,do_sedi_w,de_ice,mp_debug,mp_print
 !-----------------------------------------------------------------------
 
   CONTAINS

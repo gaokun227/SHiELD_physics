@@ -3335,40 +3335,6 @@ endif
     logical   :: flag
     real :: tmp, q1, q2
 
-!-----------------------------------------------------------------------
-! namelist from Jan-Huey Chen and SJ
-!    sedi_transport = .true.
-!    do_sedi_heat   = .true.
-!    rad_snow       = .true.
-!    rad_graupel    = .true.
-!    rad_rain       = .true.
-!    use_deng_mace  = .true.
-!    prog_ccn       = .false.
-!    do_qa          = .true.
-!    fast_sat_adj   = .false.
-!    tau_l2v        = 120.
-!    tau_g2v        = 600.
-!    rthresh        = 10.0e-6
-!    vi_fac         = 1.0
-!    cld_min        = 0.05
-!    dw_land        = 0.20
-!    dw_ocean       = 0.15
-!    ql_gen         = 1.0e-3
-!    sat_adj0       = 0.99
-!    ql_mlt         = 2.0e-3
-!    qi0_crt        = 1.0e-4   ! for 13-km
-!    qs0_crt        = 1.0e-3
-!    c_psaci        = 0.05
-!    c_pgacs        = 0.01
-!    rh_inc         = 0.1
-!    rh_inr         = 0.30
-!    rh_ins         = 0.30
-!    ccn_l          = 250.
-!    ccn_o          = 75.
-!    use_ppm        = .false.
-!    mp_time        = 120.0
-!-----------------------------------------------------------------------
-
 !    master = (mpp_pe().eq.mpp_root_pe())
 
 !#ifdef INTERNAL_FILE_NML

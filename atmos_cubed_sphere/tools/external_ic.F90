@@ -2006,6 +2006,8 @@ contains
                Atm%q(i,j,k,liq_wat) = qn1(i,k)*((Atm%pt(i,j,k)-258.16)/15.)
                Atm%q(i,j,k,ice_wat) = qn1(i,k) - Atm%q(i,j,k,liq_wat)
             endif
+            call mp_auto_conversion(Atm%q(i,j,k,liq_wat), Atm%q(i,j,k,rainwat),  &
+                                    Atm%q(i,j,k,ice_wat), Atm%q(i,j,k,snowwat) )
          enddo
       enddo
    endif
@@ -2050,6 +2052,23 @@ contains
 
  end subroutine remap_scalar_nggps
 
+ subroutine mp_auto_conversion(ql, qr, qi, qs)
+ real, intent(inout):: ql, qr, qi, qs
+ real, parameter:: qi0_crt = 1.4e-3
+ real, parameter:: ql0_crt = 2.4e-3
+
+! Convert excess cloud water into rain:
+  if ( ql > ql0_crt ) then
+       qr = ql - ql0_crt
+       ql = ql0_crt
+  endif
+! Convert excess cloud ice into snow:
+  if ( qi > qi0_crt ) then
+       qs = qi - qi0_crt
+       qi = qi0_crt
+  endif
+
+ end subroutine mp_auto_conversion
 
  subroutine get_pt_wdz( Atm, npz, zh) 
   type(fv_atmos_type), intent(inout) :: Atm

@@ -2054,18 +2054,18 @@ contains
 
  subroutine mp_auto_conversion(ql, qr, qi, qs)
  real, intent(inout):: ql, qr, qi, qs
- real, parameter:: qi0_crt = 1.4e-3
- real, parameter:: ql0_crt = 2.4e-3
+ real, parameter:: qi0_max = 1.2e-3
+ real, parameter:: ql0_max = 2.0e-3
 
 ! Convert excess cloud water into rain:
-  if ( ql > ql0_crt ) then
-       qr = ql - ql0_crt
-       ql = ql0_crt
+  if ( ql > ql0_max ) then
+       qr = ql - ql0_max
+       ql = ql0_max
   endif
 ! Convert excess cloud ice into snow:
-  if ( qi > qi0_crt ) then
-       qs = qi - qi0_crt
-       qi = qi0_crt
+  if ( qi > qi0_max ) then
+       qs = qi - qi0_max
+       qi = qi0_max
   endif
 
  end subroutine mp_auto_conversion

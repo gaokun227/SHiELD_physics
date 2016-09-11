@@ -708,7 +708,7 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q0, q1, q2, q3, q4, q5, q6, q7, q8, rdt
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, q4, q5, q6, q7, rdt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -724,7 +724,7 @@ contains
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
 !$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7, q8)
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -778,7 +778,6 @@ contains
          q5 = q0*Stateout(nb)%gq0(ix,k,5)
          q6 = q0*Stateout(nb)%gq0(ix,k,6)
          q7 = q0*Stateout(nb)%gq0(ix,k,7)
-         q8 = q0*Stateout(nb)%gq0(ix,k,8)
          q0 = Atm(n)%delp(i,j,k1)*(1.-(Atm(n)%q(i,j,k1,1)+Atm(n)%q(i,j,k1,2)+Atm(n)%q(i,j,k1,3)+Atm(n)%q(i,j,k1,4)+Atm(n)%q(i,j,k1,5)+Atm(n)%q(i,j,k1,6))) + (q1+q2+q3+q4+q5+q6)
          Atm(n)%delp(i,j,k1) = q0
          Atm(n)%q(i,j,k1,1) = q1 / q0
@@ -788,7 +787,6 @@ contains
          Atm(n)%q(i,j,k1,5) = q5 / q0
          Atm(n)%q(i,j,k1,6) = q6 / q0
          Atm(n)%q(i,j,k1,7) = q7 / q0
-         Atm(n)%q(i,j,k1,8) = q8 / q0
          endif
        enddo
       enddo

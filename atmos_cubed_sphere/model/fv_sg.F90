@@ -875,7 +875,9 @@ contains
              q0(i,k,  sphum) = q0(i,k,  sphum) - tmp
              q0(i,k,liq_wat) = q0(i,k,liq_wat) + tmp
 ! Grid box mean is saturated; 50% or higher cloud cover
-             qa(i,j,k,cld_amt) = max(0.5, min(1., qa(i,j,k,cld_amt)+25.*tmp/qsw))
+             if (cld_amt .gt. 0) then
+               qa(i,j,k,cld_amt) = max(0.5, min(1., qa(i,j,k,cld_amt)+25.*tmp/qsw))
+             end if
           endif
 ! Freezing
           tmp = tice-40. - t0(i,k)

@@ -2933,7 +2933,7 @@
           endif   ! end of grid-scale precip/microphysics options
         endif     ! end if_num_p3d
 
-      elseif (ncld == 6) then       ! lin cloud microphysics
+      elseif (ncld == 5) then       ! lin cloud microphysics
 
         do i = 1, im
           if (nint(slmsk(i)) .eq. 1) then
@@ -2953,7 +2953,7 @@
             qi1  (i,1,k) = gq0(i,levs-k+1,4)
             qs1  (i,1,k) = gq0(i,levs-k+1,5)
             qg1  (i,1,k) = gq0(i,levs-k+1,6)
-            qa1  (i,1,k) = gq0(i,levs-k+1,7)
+            qa1  (i,1,k) = 0.0
             qn1  (i,1,k) = 0.0
             pt   (i,1,k) = gt0(i,levs-k+1)
             w    (i,1,k) = -vvel(i,levs-k+1)*con_rd*gt0(i,levs-k+1)     &
@@ -3013,7 +3013,6 @@
             gq0(i,k,4) = qi1(i,1,levs-k+1) + qi_dt(i,1,levs-k+1) * dtp
             gq0(i,k,5) = qs1(i,1,levs-k+1) + qs_dt(i,1,levs-k+1) * dtp
             gq0(i,k,6) = qg1(i,1,levs-k+1) + qg_dt(i,1,levs-k+1) * dtp
-            gq0(i,k,7) = qa1(i,1,levs-k+1) + qa_dt(i,1,levs-k+1) * dtp
             gt0(i,k)   = pt (i,1,levs-k+1) + pt_dt(i,1,levs-k+1) * dtp
             gu0(i,k)   = uin(i,1,levs-k+1) + udt  (i,1,levs-k+1) * dtp
             gv0(i,k)   = vin(i,1,levs-k+1) + vdt  (i,1,levs-k+1) * dtp

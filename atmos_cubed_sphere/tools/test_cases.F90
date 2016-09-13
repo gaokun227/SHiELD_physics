@@ -7034,6 +7034,12 @@ end subroutine terminator_tracers
  real:: dz0, zvir, fac_z, pk0, temp1, p2
  integer:: k, n, kk
 
+#ifdef GFS_PHYS
+
+ call mpp_error(FATAL, 'SuperCell sounding cannot perform with GFS Physics.')
+
+#else
+
  zvir = rvgas/rdgas - 1.
  pk0 = p00**kappa
  pp(ns) = ps
@@ -7042,9 +7048,7 @@ end subroutine terminator_tracers
      write(*,*) 'Computing sounding for super-cell test'
  endif
 
-#ifdef NON_GFS
  call qsmith_init
-#endif
 
  dz0 = 50.
  zs(ns) = 0.
@@ -7089,9 +7093,6 @@ end subroutine terminator_tracers
 !      if ( (is_master()) ) write(*,*) k, temp1, rh(k)
        if ( pk(k) > 0. ) then
             pp(k) = exp(log(pk(k))/kappa) 
-#ifndef NON_GFS
-#define SUPER_K
-#endif
 #ifdef SUPER_K
             qs(k) = 380./pp(k)*exp(17.27*(temp1-273.)/(temp1-36.))
             qs(k) = min( qv0, rh(k)*qs(k) )
@@ -7136,6 +7137,8 @@ end subroutine terminator_tracers
     tp(k) = tp(k)*pk1(k)    ! temperature
     tp(k) = max(Tmin, tp(k))
  enddo
+
+#endif
 
  end subroutine SuperCell_Sounding
 

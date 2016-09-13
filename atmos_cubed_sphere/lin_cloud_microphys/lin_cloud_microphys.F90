@@ -18,7 +18,7 @@ module lin_cld_microphys_mod
  implicit none
  private
 
- public  lin_cld_microphys_driver, lin_cld_microphys_init, lin_cld_microphys_end, sg_conv, wqs1, wqs2, qs_blend
+ public  lin_cld_microphys_driver, lin_cld_microphys_init, lin_cld_microphys_end, wqs1, wqs2, qs_blend
  public  qsmith_init, qsmith, es2_table1d, es3_table1d, esw_table1d, wqsat_moist, wqsat2_moist, sat_adj2
  public  setup_con, wet_bulb
  real             :: missing_value = -1.e10
@@ -64,22 +64,22 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 ! For consistency, cv_vap derived FMS constants:
    real, parameter:: cv_vap = cp_vap - rvgas  ! 1384.5
    real, parameter:: dc_vap = cp_vap - c_liq     ! = -2344.    isobaric heating/cooling
-   real, parameter:: dc_ice  =  c_liq - c_ice     ! =  2084
+   real, parameter:: dc_ice =  c_liq - c_ice     ! =  2084
 
 ! Values at 0 Deg C
 !   real, parameter:: hlv0 = 2.501e6   ! Emanuel Appendix-2
 ! GFS value
    real, parameter:: hlv0 = 2.5e6   ! Emanuel Appendix-2
-!   real, parameter:: hlf0 = 3.337e5   ! Emanuel
+!  real, parameter:: hlf0 = 3.337e5   ! Emanuel
 ! GFS value
-   real, parameter:: hlf0 = 3.3358e5   ! Emanuel
+   real, parameter:: hlf0 = 3.3358e5
    real, parameter:: t_ice = 273.16
+! Latent heat at absolute zero:
    real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.141264e6
-   real, parameter:: li00 = hlf0 - dc_ice *t_ice   ! = -2.355446e5
+   real, parameter:: li00 = hlf0 - dc_ice*t_ice   ! = -2.355446e5
 
-   real, parameter:: d2ice   = cp_vap - c_ice
+   real, parameter:: d2ice = cp_vap - c_ice
    real, parameter:: Li2 = hlv0+hlf0 - d2ice*t_ice
-!==== fms constants ====================
 
  real, parameter :: qrmin  = 1.e-9
  real, parameter :: qvmin  = 1.e-22      ! min value for water vapor (treated as zero)
@@ -126,7 +126,6 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real :: t_grau_melt = 32.      ! graupel melt tempearture scale factor
  real :: p_min = 100.    ! minimum pressure (Pascal) for MP to operate
 
-! The defaults are good for 25-50 km simulation
 ! For cloud-resolving: 1-5 km
 !                       qi0_crt = 0.8E-4
 !                       qs0_crt = 0.6E-3
@@ -139,7 +138,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real :: tice  = 273.16  ! set tice = 165. to trun off ice-phase phys (Kessler emulator)
 
  real :: qc_crt  = 5.0e-8  ! minimum condensate mixing ratio to allow partial cloudiness
- real :: t_min   = 180.  ! Min temp to freeze-dry all water vapor
+ real :: t_min   = 178.  ! Min temp to freeze-dry all water vapor
  real :: t_sub   = 184.  ! Min temp for sublimation of cloud ice
  real :: mp_time = 150.  ! maximum micro-physics time step (sec)
 
@@ -156,7 +155,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 ! Fast MP:
  real :: tau_i2s = 150.   ! 
 ! cloud water
- real :: tau_v2l = 600.   ! vapor --> cloud water (condensation)  time scale
+ real :: tau_v2l = 300.   ! vapor --> cloud water (condensation)  time scale
  real :: tau_l2v = 600.   ! cloud water --> vapor (evaporation)  time scale
 ! Graupel
  real :: tau_g2v = 900.   ! Grapuel sublimation time scale
@@ -174,15 +173,17 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 ! qi_gen ~ 4.808e-7 at 0 C; 1.818e-6 at -10 C, 9.82679e-5 at -40C
 ! the following value is constructed such that qc_crt = 0 at zero C and @ -10C matches
 ! WRF/WSM6 ice initiation scheme; qi_crt = qi_gen*min(qi_lim, 0.1*tmp) / den
+!
  real :: qi_gen  = 1.818E-6
- real :: qi_lim  = 1.
- real :: ql_mlt  = 4.0e-3    ! max value of cloud water allowed from melted cloud ice
+ real :: qi_lim  = 2.
+ real :: ql_mlt  = 3.0e-3    ! max value of cloud water allowed from melted cloud ice
  real :: ql_gen  = 1.0e-3    ! max ql generation during remapping step if fast_sat_adj = .T.
  real :: sat_adj0 = 0.99     ! adjustment factor (0: no, 1: full) during fast_sat_adj
 
 ! Cloud condensate upper bounds: "safety valves" for ql & qi
- real :: ql0_max = 2.0e-3    ! max ql value (converted to rain)
- real :: qi0_max = 3.0e-6    ! max qi value (by other sources)
+ real :: ql0_max = 2.0e-3    ! max ql value (auto converted to rain)
+!!! real :: qi0_max = 3.0e-6    ! max qi value (by other sources)
+ real :: qi0_max = 1.0e-3    ! max qi value (by other sources)
 
  real :: qi0_crt = 1.0e-4    ! ice  --> snow autocon threshold (was 1.E-4)
                              ! qi0_crt is highly dependent on horizontal resolution
@@ -563,13 +564,10 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 
        dts = dt_in / real(ntimes)
    dt_rain = dts * 0.5
+   rdt = 1. / dt_in
 
    fac_sno = 1. - exp( -0.5*dts/tau_s )
    fac_gra = 1. - exp( -0.5*dts/tau_g )
-
-   rdt = 1. / dt_in
-
-! SJL: 20150210
    cpaut = c_paut*0.104*grav/1.717e-5
 
    do 2000 i=is, ie
@@ -606,7 +604,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
       qgz(k) = qg(i,j,k)
 !-- dp1: Dry air_mass
 !      dp1(k) = dp1(k)*(1. -(qvz(k)+qlz(k)+qrz(k)+qiz(k)+qsz(k)+qgz(k)))
-      dp1(k) = dp1(k)*(1. -qvz(k))
+      dp1(k) = dp1(k)*(1. -qvz(k))   ! GFS
 !-- Convert to dry mixing ratios
          omq = dp0(k) / dp1(k)
       qvz(k) = qvz(k)*omq
@@ -685,14 +683,14 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 !-------------------------
 
  if ( fix_negative )  &
- call neg_adj(ktop, kbot, p1, tz, dp1, qvz, qlz, qrz, qiz, qsz, qgz)
+ call neg_adj(ktop, kbot, tz, dp1, qvz, qlz, qrz, qiz, qsz, qgz)
 
  m2_rain(:,:) = 0.
  m2_sol(:,:) = 0.
  do 1000 n=1,ntimes
 
    if ( p_nonhydro ) then
-   do k=ktop, kbot
+       do k=ktop, kbot
           dz1(k) = dz0(k)
           den(k) = den0(k)    ! dry air density remains the same
           denfac(k) = sqrt(sfcrho/den(k))
@@ -700,17 +698,18 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
    else
        do k=ktop, kbot
           dz1(k) = dz0(k)*tz(k)/t0(k)    ! hydrostatic balance
-         den(k) = den0(k)*dz0(k)/dz1(k)
-      denfac(k) = sqrt(sfcrho/den(k))
-   enddo
+          den(k) = den0(k)*dz0(k)/dz1(k)
+          denfac(k) = sqrt(sfcrho/den(k))
+       enddo
    endif
 
 !-------------------------------------------
 ! Time-split warm rain processes: first pass
 !-------------------------------------------
-   call warm_rain(dt_rain, ktop, kbot, p1, dp1, dz1, tz, qvz, qlz, qrz, qiz, qsz, qgz, p1, den, denfac, ccn,  &
+   call warm_rain(dt_rain, ktop, kbot, dp1, dz1, tz, qvz, qlz, qrz, qiz, qsz, qgz, den, denfac, ccn,  &
                   c_praut, rh_rain, vtrz, r1, m1_rain, w1, h_var)
    rain(i) = rain(i) + r1
+
    do k=ktop, kbot
       m2_rain(i,k) = m2_rain(i,k) + m1_rain(k)
       m1(k) = m1(k) + m1_rain(k)
@@ -721,21 +720,21 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 !------------------------------------------------
    call fall_speed(ktop, kbot, den, qsz, qiz, qgz, qlz, tz, vtsz, vtiz, vtgz)
 
-   call terminal_fall ( dts, ktop, kbot, tz, qvz, qlz, qrz, qgz, qsz, qiz, p1, &
+   call terminal_fall ( dts, ktop, kbot, tz, qvz, qlz, qrz, qgz, qsz, qiz,  &
                         dz1, dp1, den, vtgz, vtsz, vtiz, fac_sno, fac_gra,    &
                         r1, g1, s1, i1, m1_sol, w1 )
-
       rain(i) = rain(i)    + r1  ! from melted snow & ice that reached the ground
       snow(i) = snow(i)    + s1
    graupel(i) = graupel(i) + g1
        ice(i) = ice(i)     + i1
+
    if ( do_sedi_heat )  &
    call sedi_heat(ktop, kbot, dp1, m1_sol, dz1, tz, qvz, qlz, qrz, qiz, qsz, qgz, c_ice)
 
 !-------------------------------------------
 ! Time-split warm rain processes: 2nd pass
 !-------------------------------------------
-   call warm_rain(dt_rain, ktop, kbot, p1, dp1, dz1, tz, qvz, qlz, qrz, qiz, qsz, qgz, p1, den, denfac, ccn,  &
+   call warm_rain(dt_rain, ktop, kbot, dp1, dz1, tz, qvz, qlz, qrz, qiz, qsz, qgz, den, denfac, ccn,  &
                   c_praut, rh_rain, vtrz, r1, m1_rain, w1, h_var)
    rain(i) = rain(i) + r1
    do k=ktop, kbot
@@ -752,6 +751,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
                 dp1, den, denfac, vtsz, vtgz, vtrz, qaz, rh_adj, rh_rain, dts, fac_sno, fac_gra, h_var )
 
 1000  continue  ! sub-cycle
+
    if ( sedi_transport ) then
 ! Note: dp1 is dry mass; dp0 is the old moist (total) mass
        do k = ktop+1, kbot
@@ -761,10 +761,10 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
           v_dt(i,j,k) = v_dt(i,j,k) + (v1(k)-v0(k))*rdt
        enddo
    endif
-       if ( do_sedi_w ) then
+   if ( do_sedi_w ) then
         do k = ktop, kbot
            w(i,j,k) = w1(k)
-       enddo
+        enddo
    endif
 
    do k = ktop, kbot
@@ -837,12 +837,11 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 ! Input q fields are dry mixing ratios, and dm is dry air mass
  real, intent(in   ), dimension(ktop:kbot):: dm, m1, dz, qv, ql, qr, qi, qs, qg
  real, intent(inout), dimension(ktop:kbot):: tz
- real, intent(in):: cw
+ real, intent(in):: cw    ! heat capacity
 !
  real,dimension(ktop:kbot):: dgz, cvm, cvn
  real:: tmp
  integer:: k
-
 
    do k=ktop, kbot
       dgz(k) = -0.5*grav*dz(k)    ! > 0
@@ -868,12 +867,12 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  end subroutine sedi_heat
 
 
- subroutine warm_rain( dt, ktop, kbot, p1, dp, dz, tz, qv, ql, qr, qi, qs, qg, pm, &
+ subroutine warm_rain( dt, ktop, kbot, dp, dz, tz, qv, ql, qr, qi, qs, qg, &
                        den, denfac, ccn, c_praut, rh_rain, vtr, r1, m1_rain, w1, h_var)
 
  integer, intent(in):: ktop, kbot
  real,    intent(in):: dt                    ! time step (s)
- real,    intent(in), dimension(ktop:kbot):: dp, p1, dz, pm, den, denfac, ccn, c_praut
+ real,    intent(in), dimension(ktop:kbot):: dp, dz, den, denfac, ccn, c_praut
  real,    intent(in):: rh_rain, h_var
  real, intent(inout), dimension(ktop:kbot):: tz, qv, ql, qr, qi, qs, qg, vtr
  real, intent(out):: r1
@@ -981,9 +980,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 ! Assuming linear subgrid vertical distribution of cloud water
 ! following Lin et al. 1994, MWR
 
-  call linear_prof( kbot-ktop+1, p1(ktop), ql(ktop), dl(ktop), z_slope_liq, h_var )
-
-
+  call linear_prof( kbot-ktop+1, ql(ktop), dl(ktop), z_slope_liq, h_var )
 
   do k=ktop,kbot
     qc0 = fac_rc*ccn(k)
@@ -1082,12 +1079,12 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  end subroutine revap_racc
 
 
- subroutine linear_prof(km, p1,  q, dm, z_var, h_var)
+ subroutine linear_prof(km, q, dm, z_var, h_var)
 ! Used for cloud ice and cloud water autoconversion
 ! qi --> ql  & ql --> qr
 ! Edges: qE == qbar +/- dm
  integer, intent(in):: km
- real, intent(in ):: p1(km),  q(km), h_var
+ real, intent(in ):: q(km), h_var
  real, intent(out):: dm(km)
  logical, intent(in):: z_var
 !
@@ -1140,9 +1137,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real, intent(in) :: rh_adj, rh_rain, dts, fac_sno, fac_gra, h_var
 ! local:
  real, parameter:: rhos = 0.1e3    ! snow density (1/10 of water)
- real, dimension(2*(kbot-ktop-1)):: p2, den2, tz2, qv2, ql2, qr2, qi2, qs2, qg2, qa2
  real, dimension(ktop:kbot) :: lcpk, icpk, tcpk, di
-!!! real:: rh_sno, rh_gra
  real:: rdts, fac_g2v, fac_v2g, fac_i2s
  real:: tz, qv, ql, qr, qi, qs, qg, melt
  real:: pracw, pracs, psacw, pgacw, pgmlt,   &
@@ -1154,9 +1149,6 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real:: dtmp, qc, q_plus, q_minus, cvm
  integer:: km, kn
  integer:: i, j, k, k1
-
-! rh_sno = max(0.3, rh_adj - rh_ins)
-! rh_gra = rh_sno - 0.05
 
  fac_i2s = 1. - exp( -dts/tau_i2s )
  fac_g2v = 1. - exp( -dts/tau_g2v )
@@ -1191,7 +1183,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
     endif
  enddo
 
- call linear_prof( kbot-ktop+1, p1(ktop), qik(ktop), di(ktop), z_slope_ice, h_var )
+ call linear_prof( kbot-ktop+1, qik(ktop), di(ktop), z_slope_ice, h_var )
 
  do 3000 k=ktop, kbot
 
@@ -1594,154 +1586,9 @@ endif   ! end ice-physics
 
 3000 continue   ! k-loop
 
- if ( do_subgrid_z ) then
-
-! Except top 2 and bottom 2 layers (4 layers total), using subgrid PPM distribution
-! to perform saturation adjustment at 2X the vertical resolution
-
-   kn = kbot - ktop + 1
-   km = 2*(kbot-ktop-1)
-
-   p2(1) =  p1(ktop  )
-   p2(2) =  p1(ktop+1)
-   do k=3,km-3,2
-           k1 = ktop+1 + k/2
-      p2(k  ) = p1(k1) - 0.25*dp1(k1)
-      p2(k+1) = p1(k1) + 0.25*dp1(k1)
-   enddo
-
-   if ( mp_debug ) then
-     if (k1 /= (kbot-2))  then
-         write(*,*) 'FATAL: k1=', k1
-!         call error_mesg ('LIN_CLD_MICROPHYS:', 'DO_MAP2_SAT', FATAL)
-     endif
-   endif
-
-   p2(km-1) = p1(kbot-1)
-   p2(km  ) = p1(kbot)
-
-   call remap2(ktop, kbot, kn, km, dp1, tzk, tz2, 1)
-   call remap2(ktop, kbot, kn, km, dp1, qvk, qv2, 1)
-   call remap2(ktop, kbot, kn, km, dp1, qlk, ql2, 1)
-   call remap2(ktop, kbot, kn, km, dp1, qik, qi2, 1)
-
-if( rad_snow .or. rad_rain ) then
-   call remap2(ktop, kbot, kn, km, dp1, qrk, qr2, 1)
-   call remap2(ktop, kbot, kn, km, dp1, qsk, qs2, 1)
-else
-   qr2(:) = 1.E30
-   qs2(:) = 1.E30
-endif
-
-   do k=1,km
-      den2(k) = p2(k)/(rdgas*tz2(k))
-       qa2(k) = 0.
-   enddo
-
-   qg2(:) = 0.  ! need to fix this hack
-   call subgrid_z_proc(1, km, p2, den2, dts, rh_adj, tz2, qv2, ql2, qr2, qi2, qs2, qg2, qa2, h_var)
-
-! Remap back to original larger volumes:
-   qak(ktop  ) = qak(ktop  ) + qa2(1)
-   qak(ktop+1) = qak(ktop+1) + qa2(2)
-
-   tzk(ktop  ) = tz2(1)
-   tzk(ktop+1) = tz2(2)
-
-   qvk(ktop  ) = qv2(1)
-   qvk(ktop+1) = qv2(2)
-
-   qlk(ktop  ) = ql2(1)
-   qlk(ktop+1) = ql2(2)
-
-   qik(ktop  ) = qi2(1)
-   qik(ktop+1) = qi2(2)
-
-if( rad_snow .or. rad_rain ) then
-   qrk(ktop  ) = qr2(1)
-   qrk(ktop+1) = qr2(2)
-
-   qsk(ktop  ) = qs2(1)
-   qsk(ktop+1) = qs2(2)
-endif
-
-   do k=3,km-3,2
-          k1  = ktop+1 + k/2
-      qak(k1) = qak(k1) + max(qa2(k), qa2(k+1))  ! Maximum only
-! Subgrid overlap schemes: max and random parts weighted by subgrid horizontal deviation
-!-------------------------------------------------------------------------------------
-! Random cloud fraction = 1 - (1-a1)*(1-a2) = a1 + a2 - a1*a2
-! RAND_CLOUD
-!     qak(k1) = qak(k1) + (1.-h_var)*max(qa2(k), qa2(k+1))     &  ! Maximum fraction
-!                       + h_var*(qa2(k)+qa2(k+1)-qa2(k)*qa2(k+1)) ! Random  fraction
-!-------------------------------------------------------------------------------------
-      tzk(k1) = 0.5*(tz2(k) + tz2(k+1))
-      qvk(k1) = 0.5*(qv2(k) + qv2(k+1))
-      qlk(k1) = 0.5*(ql2(k) + ql2(k+1))
-      qik(k1) = 0.5*(qi2(k) + qi2(k+1))
-   enddo
-
-   qak(kbot-1) = qak(kbot-1) + qa2(km-1)
-   qak(kbot  ) = qak(kbot  ) + qa2(km  )
-
-   tzk(kbot-1) = tz2(km-1)
-   tzk(kbot  ) = tz2(km  )
-
-   qvk(kbot-1) = qv2(km-1)
-   qvk(kbot  ) = qv2(km  )
-
-   qlk(kbot-1) = ql2(km-1)
-   qlk(kbot  ) = ql2(km  )
-
-   qik(kbot-1) = qi2(km-1)
-   qik(kbot  ) = qi2(km  )
-
- else
    call subgrid_z_proc(ktop, kbot, p1, den, dts, rh_adj, tzk, qvk, qlk, qrk, qik, qsk, qgk, qak, h_var)
- endif
 
  end subroutine icloud
-
-
- subroutine remap2(ktop, kbot, kn, km, dp, q1, q2, id)
- integer, intent(in):: ktop, kbot, kn, km , id
-! constant distribution if id ==0
- real, intent(in), dimension(ktop:kbot):: q1, dp
- real, intent(out):: q2(km)
-! local
- real:: a4(4,ktop:kbot)
- real:: tmp
- integer:: k, k1
-
-  q2(1) = q1(ktop  )
-  q2(2) = q1(ktop+1)
-
-  if ( id==1 ) then
-
-      do k=ktop,kbot
-         a4(1,k) = q1(k)
-      enddo
-      call cs_profile( a4(1,ktop), dp(ktop), kn, mono_prof )  ! non-monotonic
-
-      do k=3,km-3,2
-              k1 = ktop+1 + k/2
-         q2(k  ) = min( 2.*q1(k1), max( qvmin, a4(1,k1) + 0.25*(a4(2,k1)-a4(3,k1)) ) )
-         q2(k+1) = 2.*q1(k1) - q2(k)
-      enddo
-
-  else
-      do k=3,km-3,2
-              k1 = ktop+1 + k/2
-         q2(k  ) = q1(k1)
-         q2(k+1) = q1(k1)
-      enddo
-  endif
-
-  q2(km-1) = q1(kbot-1)
-  q2(km  ) = q1(kbot)
-
- end subroutine remap2
-
 
 
  subroutine subgrid_z_proc(ktop, kbot, p1, den, dts, rh_adj, tz, qv, ql, qr, qi, qs, qg, qa, h_var)
@@ -1760,12 +1607,18 @@ endif
 ! must not be too large to allow PSC
  real:: rh, clouds,  rqi, tin, qsw, qsi, qpz, qstar
  real:: dqsdt, dwsdt, dq, dq0, cond0, factor, tmp, cvm
- real:: q_plus, q_minus, dt_pisub
+ real:: q_plus, q_minus, dt_evap, dt_pisub
  real:: evap, sink, tc, pisub, iwt, q_adj, dtmp, lat2
  integer :: k
 
-!fac_v2l = 1. - exp( -0.5*dts/tau_v2l )        !
- fac_l2v = 1. - exp( -0.5*dts/tau_l2v )        !
+ if ( fast_sat_adj ) then
+    dt_evap = 0.5*dts
+ else
+    dt_evap = dts
+ endif
+
+ fac_v2l = 1. - exp( -dt_evap/tau_v2l )        !
+ fac_l2v = 1. - exp( -dt_evap/tau_l2v )        !
 
  lat2 = lats * lats
 
@@ -1816,7 +1669,9 @@ endif
         evap =  min( ql(k), fac_l2v*dq0/(1.+tcp3(k)*dwsdt) )
    else   ! condensate all excess vapor into cloud water
           ! this should take care of most of the super-sat due to phys.
-        evap = dq0/(1.+tcp3(k)*dwsdt)
+!       evap = dq0/(1.+tcp3(k)*dwsdt)
+!!! SJL-20160912
+        evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
    endif
    qv(k) = qv(k) + evap
    ql(k) = ql(k) - evap
@@ -1849,7 +1704,7 @@ endif
    cvm = c_air + qv(k)*c_vap + (ql(k)+qr(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
    lcpk(k) = (lv00+dc_vap*tz(k)) / cvm
    icpk(k) = (li00+dc_ice*tz(k)) / cvm
-     tcpk(k) = lcpk(k) + icpk(k)
+   tcpk(k) = lcpk(k) + icpk(k)
 !------------------------------------------
 ! * pidep: sublimation/deposition of ice:
 !------------------------------------------
@@ -1869,6 +1724,8 @@ endif
 
         if ( dq > 0. ) then   ! vapor -> ice
              tmp = tice - tz(k)
+! 20160912: the following should produce more ice at higher altitude
+!!!          qi_crt = 4.92e-11*exp( 1.33*log(1.e3*exp(0.1*tmp)) ) / den(k)
              qi_crt = qi_gen*min(qi_lim, 0.1*tmp) / den(k)
              sink = min(sink, max(qi_crt-qi(k),pidep), tmp/tcpk(k))
         else  ! ice --> vapor
@@ -1944,9 +1801,9 @@ endif
                      te0, qv, ql, qi, qr, qs, qg, qa, area, dpeln, delz, pt, dp,  &
                      q_con, &
 !#ifdef MOIST_CAPPA
-					 cappa, &
+                     cappa, &
 !#endif
-					 dtdt, out_dt, last_step)
+                     dtdt, out_dt, last_step)
 ! This is designed for 6-class micro-physics schemes
 ! input pt is T_vir
  real, intent(in):: mdt ! remapping time step
@@ -2242,6 +2099,7 @@ endif
          endif
          if ( dq > 0. ) then   ! vapor -> ice
              tmp = tice - pt1(i)
+! Simplified for:
              qi_crt = qi_gen*min(qi_lim, 0.1*tmp) / den(i)
              src(i) = min(sink, max(qi_crt-qi(i,j),pidep), tmp/tcp2(i))
          else
@@ -2485,7 +2343,7 @@ endif
 
  end subroutine revap_rac1
 
- subroutine terminal_fall(dtm, ktop, kbot, tz, qv, ql, qr, qg, qs, qi, pm, dz, dp,  &
+ subroutine terminal_fall(dtm, ktop, kbot, tz, qv, ql, qr, qg, qs, qi, dz, dp,  &
                           den, vtg, vts, vti, fac_sno, fac_gra, r1, g1, s1, i1, m1_sol, w1)
 
 ! lagrangian control-volume method:
@@ -2493,7 +2351,7 @@ endif
  real,    intent(in):: dtm                    ! time step (s)
  integer, intent(in):: ktop, kbot
  real,    intent(in):: fac_sno, fac_gra
- real,    intent(in), dimension(ktop:kbot):: vtg, vts, vti, pm, den, dp, dz
+ real,    intent(in), dimension(ktop:kbot):: vtg, vts, vti, den, dp, dz
  real,    intent(inout), dimension(ktop:kbot):: qv, ql, qr, qg, qs, qi, tz, m1_sol, w1
  real,    intent(out):: r1, g1, s1, i1
 ! local:
@@ -2800,17 +2658,18 @@ endif
  real,    intent(out), dimension(ktop:kbot):: m1
  real,    intent(out):: precip
 ! local:
- real, dimension(ktop:kbot):: dz, qm
+ real, dimension(ktop:kbot):: dz, qm, dd
  integer:: k
 
   do k=ktop,kbot
      dz(k) = ze(k) - ze(k+1)
+     dd(k) = dt * vt(k)
   enddo
 
 ! Sedimentation:
-  qm(ktop) = q(ktop)*dp(ktop) / (dz(ktop)+dt*vt(ktop))
+  qm(ktop) = q(ktop)*dp(ktop) / (dz(ktop)+dd(ktop))
   do k=ktop+1,kbot
-     qm(k) = (q(k)*dp(k)+dt*vt(k)*qm(k-1)) / (dz(k)+dt*vt(k))
+     qm(k) = (q(k)*dp(k)+dd(k)*qm(k-1)) / (dz(k)+dd(k))
   enddo
 ! qm is density at this stage
 
@@ -4091,11 +3950,11 @@ endif
  end subroutine qsmith
 
 
- subroutine neg_adj(ktop, kbot, p1, pt, dp, qv, ql, qr, qi, qs, qg)
+ subroutine neg_adj(ktop, kbot, pt, dp, qv, ql, qr, qi, qs, qg)
 ! 1d version:
 ! this is designed for 6-class micro-physics schemes
  integer, intent(in):: ktop, kbot
- real, intent(in):: dp(ktop:kbot), p1(ktop:kbot)
+ real, intent(in):: dp(ktop:kbot)
  real, intent(inout), dimension(ktop:kbot)::    &
                                 pt, qv, ql, qr, qi, qs, qg
 ! local:
@@ -4164,382 +4023,6 @@ endif
 
  end subroutine neg_adj
 
-
- subroutine sg_conv(is, ie, js, je, isd, ied, jsd, jed,               &
-                    km, nq, dt, tau,             &
-                    delp, phalf, pm, zfull, zhalf, ta, qa, ua, va, w, &
-                    u_dt, v_dt, t_dt, q_dt, nqv, nql, nqi, nqr, nqs, nqg, &
-                    hydrostatic, phys_hydrostatic)
-! Non-precipitating sub-grid scale convective adjustment-mixing
-!-------------------------------------------
-      logical, intent(in):: hydrostatic, phys_hydrostatic
-      integer, intent(in):: is, ie, js, je, km, nq
-      integer, intent(in):: isd, ied, jsd, jed
-      integer, intent(in):: tau            ! Relaxation time scale
-      integer, intent(in):: nqv, nql, nqi  ! vapor, liquid, ice
-      integer, intent(in):: nqr, nqs, nqg  !
-      real, intent(in):: dt             ! model time step
-      real, intent(in):: phalf(is:ie,js:je,km+1)
-      real, intent(in):: pm(is:ie,js:je,km)
-      real, intent(in):: zfull(is:ie,js:je,km)
-      real, intent(in):: zhalf(is:ie,js:je,km+1)
-      real, intent(in):: delp(isd:ied,jsd:jed,km)      ! Delta p at each model level
-! Output:
-      real, intent(inout), dimension(is:ie,js:je,km)::  ta, ua, va
-      real, intent(inout):: qa(is:ie,js:je,km,nq)   ! Specific humidity & tracers
-      real, intent(inout):: w(isd:ied,jsd:jed,km)
-      real, intent(inout):: u_dt(isd:ied,jsd:jed,km)   ! updated u-wind field
-      real, intent(inout):: v_dt(isd:ied,jsd:jed,km)   !         v-wind
-      real, intent(inout):: t_dt(is:ie,js:je,km)   !         temperature
-      real, intent(inout):: q_dt(is:ie,js:je,km,nq) !
-!---------------------------Local variables-----------------------------
-      real, dimension(is:ie,km):: tvm, u0, v0, w0, t0, gz, hd, pkz, qcon
-      real, dimension(is:ie,km+1):: pk, peln
-      real q0(is:ie,km,nq)
-      real gzh(is:ie)
-      real pbot, ri, pt1, pt2, lf, ratio
-      real rdt, dh, dh0, dhs, dq, tv, h0, mc, mx,  fra, rk, rz, rcp
-      real qsw
-      integer:: mcond
-      integer kcond
-      integer i, j, k, n, m, iq, kk
-      real, parameter:: ustar2 = 1.E-6
-      real, parameter:: dh_min = 1.E-4
-
-      if ( nqv /= 1 ) then
-!           call error_mesg ('sg_conv', 'Tracer indexing error', FATAL)
-      endif
-
-    rz = rvgas - rdgas          ! rz = zvir * rdgas
-    rk = cp_air/rdgas + 1.
-   rcp = 1./cp_air
-
-    m = 3
-    rdt = 1. / dt
-    fra = dt/real(tau)
-
-!------------
-! Compute gz: center
-!------------
-  mcond = 1
-  do 1000 j=js,je       ! this main loop can be OpneMPed in j
-
-    do k=mcond,km+1
-       do i=is,ie
-          peln(i,k) = log(phalf(i,j,k))
-            pk(i,k) = exp(kappa*peln(i,k))
-       enddo
-    enddo
-
-    do k=mcond,km
-       do i=is,ie
-          u0(i,k) = ua(i,j,k)
-          v0(i,k) = va(i,j,k)
-          t0(i,k) = ta(i,j,k)
-         pkz(i,k) = (pk(i,k+1)-pk(i,k))/(kappa*(peln(i,k+1)-peln(i,k)))
-       enddo
-    enddo
-
-    if ( .not.hydrostatic ) then
-       do k=mcond,km
-          do i=is,ie
-             w0(i,k) = w(i,j,k)
-          enddo
-       enddo
-    endif
-
-    do iq=1,nq
-       do k=mcond,km
-          do i=is,ie
-             q0(i,k,iq) = qa(i,j,k,iq)
-          enddo
-       enddo
-    enddo
-
-
-!-----------------
-! K-H instability:
-!-----------------
-   kcond = mcond
-
-   do n=1,m
-      ratio = real(n)/real(m)
-
-    if( phys_hydrostatic ) then
-       do i=is,ie
-          gzh(i) = 0.
-       enddo
-       do k=km, mcond,-1
-          do i=is,ie
-           tvm(i,k) = t0(i,k)*(1.+zvir*q0(i,k,nqv))
-                tv  = rdgas*tvm(i,k)
-            gz(i,k) = gzh(i) + tv*(1.-phalf(i,j,k)/pm(i,j,k))
-            hd(i,k) = cp_air*tvm(i,k)+gz(i,k)+0.5*(u0(i,k)**2+v0(i,k)**2)
-             gzh(i) = gzh(i) + tv*(peln(i,k+1)-peln(i,k))
-          enddo
-       enddo
-       do i=is,ie
-          gzh(i) = 0.
-       enddo
-    else
-       do k=mcond,km
-          do i=is,ie
-             gz(i,k) = grav*zfull(i,j,k)
-             hd(i,k) = cp_air*t0(i,k)+gz(i,k)+0.5*(u0(i,k)**2+v0(i,k)**2+w0(i,k)**2)
-          enddo
-       enddo
-    endif
-
-! PBL: ---------------------------------------
-#ifdef USE_PBL
-      do 123 i=is,ie
-         do k=km-1,km/2,-1
-! Richardson number = g*delz * theta / ( del_theta * (del_u**2 + del_v**2) )
-            pt1 = t0(i,k)/pkz(i,k)*(1.+zvir*q0(i,k,nqv)-q0(i,k,nql)-q0(i,k,nqi))
-            pt2 = t0(i,km)/pkz(i,km)*(1.+zvir*q0(i,km,nqv)-q0(i,km,nql)-q0(i,km,nqi))
-            ri = (gz(i,k)-gz(i,km))*(pt1-pt2)/( 0.5*(pt1+pt2)*        &
-                ((u0(i,k)-u0(i,km))**2+(v0(i,k)-v0(i,km))**2+ustar2) )
-            if ( ri < 1. ) then
-! Mix the lowest two layers completely
-                 mc = delp(i,j,km-1)*delp(i,j,km)/(delp(i,j,km-1)+delp(i,j,km))
-                 do iq=1,nq
-                              h0 = mc*(q0(i,km,iq)-q0(i,km-1,iq))
-                    q0(i,km-1,iq) = q0(i,km-1,iq) + h0/delp(i,j,km-1)
-                    q0(i,km  ,iq) = q0(i,km  ,iq) - h0/delp(i,j,km  )
-                 enddo
-! u:
-                        h0 = mc*(u0(i,km)-u0(i,km-1))
-                 u0(i,km-1) = u0(i,km-1) + h0/delp(i,j,km-1)
-                 u0(i,km  ) = u0(i,km  ) - h0/delp(i,j,km  )
-! v:
-                        h0 = mc*(v0(i,km)-v0(i,km-1))
-                 v0(i,km-1) = v0(i,km-1) + h0/delp(i,j,km-1)
-                 v0(i,km  ) = v0(i,km  ) - h0/delp(i,j,km  )
-! h:
-                          h0 = mc*(hd(i,km)-hd(i,km-1))
-                   hd(i,km-1) = hd(i,km-1) + h0/delp(i,j,km-1)
-                   hd(i,km  ) = hd(i,km  ) - h0/delp(i,j,km  )
-                if ( .not.hydrostatic ) then
-                           h0 = mc*(w0(i,km)-w0(i,km-1))
-                    w0(i,km-1) = w0(i,km-1) + h0/delp(i,j,km-1)
-                    w0(i,km  ) = w0(i,km  ) - h0/delp(i,j,km  )
-                endif
-              goto 123
-            endif
-         enddo
-123   continue
-#endif
-! PBL: ---------------------------------------
-
-      do k=km,kcond+1,-1
-         do i=is,ie
-            qcon(i,k-1) = q0(i,k-1,nql) + q0(i,k-1,nqi) + q0(i,k-1,nqs) + q0(i,k-1,nqr) + q0(i,k-1,nqg)
-            qcon(i,k) = q0(i,k,nql) + q0(i,k,nqi) + q0(i,k,nqs) + q0(i,k,nqr) + q0(i,k,nqg)
-! Richardson number = g*delz * theta / ( del_theta * (del_u**2 + del_v**2) )
-            pt1 = t0(i,k-1)/pkz(i,k-1)*(1.+zvir*q0(i,k-1,nqv)-qcon(i,k-1))
-            pt2 = t0(i,k  )/pkz(i,k  )*(1.+zvir*q0(i,k  ,nqv)-qcon(i,k))
-            ri = (gz(i,k-1)-gz(i,k))*(pt1-pt2)/( 0.5*(pt1+pt2)*        &
-                ((u0(i,k-1)-u0(i,k))**2+(v0(i,k-1)-v0(i,k))**2+ustar2) )
-! Dry convective mixing for K-H instability & CAT (Clear Air Turbulence):
-            if ( ri < 1. ) then
-! Compute equivalent mass flux: mc
-                 mc = ratio * (1.-max(0.0, ri)) ** 2
-                 mc = mc*delp(i,j,k-1)*delp(i,j,k)/(delp(i,j,k-1)+delp(i,j,k))
-                 do iq=1,nq
-                              h0 = mc*(q0(i,k,iq)-q0(i,k-1,iq))
-                    q0(i,k-1,iq) = q0(i,k-1,iq) + h0/delp(i,j,k-1)
-                    q0(i,k  ,iq) = q0(i,k  ,iq) - h0/delp(i,j,k  )
-                 enddo
-! u:
-                        h0 = mc*(u0(i,k)-u0(i,k-1))
-                 u0(i,k-1) = u0(i,k-1) + h0/delp(i,j,k-1)
-                 u0(i,k  ) = u0(i,k  ) - h0/delp(i,j,k  )
-! v:
-                        h0 = mc*(v0(i,k)-v0(i,k-1))
-                 v0(i,k-1) = v0(i,k-1) + h0/delp(i,j,k-1)
-                 v0(i,k  ) = v0(i,k  ) - h0/delp(i,j,k  )
-! h:
-                          h0 = mc*(hd(i,k)-hd(i,k-1))
-                   hd(i,k-1) = hd(i,k-1) + h0/delp(i,j,k-1)
-                   hd(i,k  ) = hd(i,k  ) - h0/delp(i,j,k  )
-                if ( .not.hydrostatic ) then
-                           h0 = mc*(w0(i,k)-w0(i,k-1))
-                    w0(i,k-1) = w0(i,k-1) + h0/delp(i,j,k-1)
-                    w0(i,k  ) = w0(i,k  ) - h0/delp(i,j,k  )
-                endif
-            endif
-         enddo
-!--------------
-! Retrive Temp:
-!--------------
-      if ( phys_hydrostatic ) then
-         kk = k
-         do i=is,ie
-            t0(i,kk) = (hd(i,kk)-gzh(i)-0.5*(u0(i,kk)**2+v0(i,kk)**2))  &
-                     / ( rk - phalf(i,j,kk)/pm(i,j,kk) )
-              gzh(i) = gzh(i) + t0(i,kk)*(peln(i,kk+1)-peln(i,kk))
-            t0(i,kk) = t0(i,kk) / ( rdgas + rz*q0(i,kk,nqv) )
-         enddo
-         kk = k-1
-         do i=is,ie
-            t0(i,kk) = (hd(i,kk)-gzh(i)-0.5*(u0(i,kk)**2+v0(i,kk)**2))  &
-                     / ((rk-phalf(i,j,kk)/pm(i,j,kk))*(rdgas+rz*q0(i,kk,nqv)))
-         enddo
-      else
-! Non-hydrostatic under constant volume heating/cooling
-         do kk=k-1,k
-            do i=is,ie
-               t0(i,kk) = rcp*(hd(i,kk)-gz(i,kk)-0.5*(u0(i,kk)**2+v0(i,kk)**2+w0(i,kk)**2))
-            enddo
-         enddo
-      endif
-      enddo
-   enddo       ! n-loop
-
-
-!-------------------------
-! Moist adjustment/mixing:
-!-------------------------
-  m = 4
-
- if( km>k_moist+1 ) then
-   do n=1,m
-
-    ratio = real(n)/real(m)
-
-    if ( phys_hydrostatic ) then
-       do i=is,ie
-          gzh(i) = 0.
-       enddo
-    endif
-
-!   do k=km,max(kcond,k_moist)+1,-1
-    do k=km, kcond+1, -1
-       do i=is,ie
-          if ( phalf(i,j,k) > p_crt ) then
-              qsw = wqsat_moist(t0(i,k-1), q0(i,k-1,nqv), pm(i,j,k-1))
-
-              dh0 = hd(i,k) - hd(i,k-1) - lati*(q0(i,k,nqi)-q0(i,k-1,nqi))
-              dhs = dh0 + latv*(q0(i,k,nqv)-qsw        )
-              dh  = dh0 + latv*(q0(i,k,nqv)-q0(i,k-1,nqv))
-
-              if ( dhs>0.0 .and. dh>dh_min .and. q0(i,k,nqv)>q0(i,k-1,nqv) ) then
-                   mc = ratio*min(1.0, dhs/dh)*    &
-                        delp(i,j,k-1)*delp(i,j,k)/(delp(i,j,k-1)+delp(i,j,k))
-                          h0 = mc*(hd(i,k) - hd(i,k-1))
-                   hd(i,k-1) = hd(i,k-1) + h0/delp(i,j,k-1)
-                   hd(i,k  ) = hd(i,k  ) - h0/delp(i,j,k  )
-! Perform local mixing of all advected tracers:
-                   do iq=1,nq
-                                h0 = mc*(q0(i,k,iq)-q0(i,k-1,iq))
-                      q0(i,k-1,iq) = q0(i,k-1,iq) + h0/delp(i,j,k-1)
-                      q0(i,k  ,iq) = q0(i,k  ,iq) - h0/delp(i,j,k  )
-                   enddo
-! u:
-                          h0 = mc*(u0(i,k)-u0(i,k-1))
-                   u0(i,k-1) = u0(i,k-1) + h0/delp(i,j,k-1)
-                   u0(i,k  ) = u0(i,k  ) - h0/delp(i,j,k  )
-! v:
-                          h0 = mc*(v0(i,k)-v0(i,k-1))
-                   v0(i,k-1) = v0(i,k-1) + h0/delp(i,j,k-1)
-                   v0(i,k  ) = v0(i,k  ) - h0/delp(i,j,k  )
-! *** Non-hydrostatic:
-                  if ( .not.hydrostatic ) then
-                          h0 = mc*(w0(i,k)-w0(i,k-1))
-                   w0(i,k-1) = w0(i,k-1) + h0/delp(i,j,k-1)
-                   w0(i,k  ) = w0(i,k  ) - h0/delp(i,j,k  )
-                  endif
-              endif  ! dh check
-            endif    ! p_crt check
-         enddo
-!--------------
-! Retrive Temp:
-!--------------
-       if ( phys_hydrostatic ) then
-         kk = k
-         do i=is,ie
-            t0(i,kk) = (hd(i,kk)-gzh(i)-0.5*(u0(i,kk)**2+v0(i,kk)**2))  &
-                     / ( rk - phalf(i,j,kk)/pm(i,j,kk) )
-              gzh(i) = gzh(i) + t0(i,kk)*(peln(i,kk+1)-peln(i,kk))
-            t0(i,kk) = t0(i,kk) / ( rdgas + rz*q0(i,kk,nqv) )
-         enddo
-         kk = k-1
-         do i=is,ie
-            t0(i,kk) = (hd(i,kk)-gzh(i)-0.5*(u0(i,kk)**2+v0(i,kk)**2))  &
-                     / ((rk-phalf(i,j,kk)/pm(i,j,kk))*(rdgas+rz*q0(i,kk,nqv)))
-         enddo
-       else
-! Non-hydrostatic under constant volume heating/cooling
-         do kk=k-1,k
-            do i=is,ie
-               t0(i,kk) = rcp*(hd(i,kk)-gz(i,kk)-0.5*(u0(i,kk)**2+v0(i,kk)**2+w0(i,kk)**2))
-            enddo
-         enddo
-       endif
-      enddo
-   enddo       ! n-loop
- endif      ! k_moist check
-
-   if ( fra < 1. ) then
-      do k=mcond,km
-         do i=is,ie
-            t0(i,k) = ta(i,j,k) + (t0(i,k) - ta(i,j,k))*fra
-            u0(i,k) = ua(i,j,k) + (u0(i,k) - ua(i,j,k))*fra
-            v0(i,k) = va(i,j,k) + (v0(i,k) - va(i,j,k))*fra
-         enddo
-      enddo
-
-      if ( .not.hydrostatic ) then
-      do k=mcond,km
-         do i=is,ie
-            w0(i,k) = w(i,j,k) + (w0(i,k) - w(i,j,k))*fra
-         enddo
-      enddo
-      endif
-
-      do iq=1,nq
-         do k=mcond,km
-            do i=is,ie
-               q0(i,k,iq) = qa(i,j,k,iq) + (q0(i,k,iq) - qa(i,j,k,iq))*fra
-            enddo
-         enddo
-      enddo
-   endif
-
-!---
-   do k=mcond, km
-      do i=is, ie
-         u_dt(i,j,k) = u_dt(i,j,k) + rdt*(u0(i,k) - ua(i,j,k))
-         v_dt(i,j,k) = v_dt(i,j,k) + rdt*(v0(i,k) - va(i,j,k))
-         t_dt(i,j,k) = t_dt(i,j,k) + rdt*(t0(i,k) - ta(i,j,k))
-! Updates:
-!          ua(i,j,k) = u0(i,k)
-!          va(i,j,k) = v0(i,k)
-           ta(i,j,k) = t0(i,k)
-      enddo
-   enddo
-
-   do iq=1,nq
-      do k=mcond, km
-         do i=is, ie
-            q_dt(i,j,k,iq) = q_dt(i,j,k,iq) + rdt*(q0(i,k,iq)-qa(i,j,k,iq))
-! q updated
-              qa(i,j,k,iq) = q0(i,k,iq)
-         enddo
-      enddo
-   enddo
-
-   if ( .not. hydrostatic ) then
-      do k=mcond,km
-         do i=is,ie
-            w(i,j,k) = w0(i,k)   ! w updated
-         enddo
-      enddo
-   endif
-
-1000 continue
-
- end subroutine sg_conv
 
  subroutine dbzcalc(qv, qr, qs, qg, pt, delp, dz, &
       dbz, maxdbz, allmax, is, ie, js, je, ks, ke, &

@@ -2054,8 +2054,8 @@ contains
 
  subroutine mp_auto_conversion(ql, qr, qi, qs)
  real, intent(inout):: ql, qr, qi, qs
- real, parameter:: qi0_max = 1.2e-3
- real, parameter:: ql0_max = 2.0e-3
+ real, parameter:: qi0_max = 2.0e-3
+ real, parameter:: ql0_max = 2.5e-3
 
 ! Convert excess cloud water into rain:
   if ( ql > ql0_max ) then

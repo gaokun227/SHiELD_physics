@@ -734,6 +734,7 @@ contains
 !SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
 !     This call may be commented out if RAS or other positivity-preserving CPS is used.
      ix = Atm_block%ix(nb)%ix(ibe,jbe)
+!    if ( Atm(n)%flagstruct%nwat /= 6 )  &
      call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
 
      do k = 1, npz
@@ -1137,7 +1138,7 @@ contains
    real(kind=kind_phys), parameter:: p00 = 1.e5
    real(kind=kind_phys), parameter:: qmin = 1.0e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
-   real(kind=kind_phys) :: rTv
+   real(kind=kind_phys) :: rTv, dm
    integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1, ice_wat, rainwat, snowwat, graupel
    logical :: diag_sounding = .false.
 
@@ -1168,7 +1169,7 @@ contains
 !$OMP parallel do default (none) & 
 !$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, ice_wat, rainwat, snowwat, graupel ,pk0inv, &
 !$OMP                      ptop, pktop, zvir, mytile, diag_sounding) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
+!$OMP             private (dm, nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
 
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
@@ -1244,7 +1245,21 @@ contains
            if ( Atm(mytile)%flagstruct%hydrostatic .or. Atm(mytile)%flagstruct%use_hydro_pressure )   &
                 Statein(nb)%phii(i,k+1) = Statein(nb)%phii(i,k) + rTv*(Statein(nb)%prsik(i,k)-Statein(nb)%prsik(i,k+1))
 ! Layer mean pressure by perfect gas law:
-           Statein(nb)%prsl(i,k) = Statein(nb)%prsl(i,k)*rTv/(Statein(nb)%phii(i,k+1)-Statein(nb)%phii(i,k))
+           dm = Statein(nb)%prsl(i,k)
+           Statein(nb)%prsl(i,k) = dm*rTv/(Statein(nb)%phii(i,k+1)-Statein(nb)%phii(i,k))
+!!! Ensure subgrid MONOTONICITY of Pressure: SJL 09/11/2016
+           if ( .not.Atm(mytile)%flagstruct%hydrostatic ) then
+#ifdef ALT_METHOD
+! If violated, replaces it with hydrostatic pressure
+              if (Statein(nb)%prsl(i,k).ge.Statein(nb)%prsi(i,k).or.Statein(nb)%prsl(i,k).le.Statein(nb)%prsi(i,k+1)) then
+                  Statein(nb)%prsl(i,k) = dm / (Statein(nb)%prsik(i,k)-Statein(nb)%prsik(i,k+1))
+              endif
+               
+#else
+              Statein(nb)%prsl(i,k) = min(Statein(nb)%prsl(i,k), Statein(nb)%prsi(i,k)   - 0.01*dm)
+              Statein(nb)%prsl(i,k) = max(Statein(nb)%prsl(i,k), Statein(nb)%prsi(i,k+1) + 0.01*dm)
+#endif
+           endif
         enddo
      enddo
 

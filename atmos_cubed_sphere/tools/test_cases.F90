@@ -1,3 +1,23 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
+
  module test_cases_mod
 
       use constants_mod,     only: cnst_radius=>radius, pi=>pi_8, omega, grav, kappa, rdgas, cp_air, rvgas, R_GRID
@@ -7188,6 +7208,7 @@ end subroutine terminator_tracers
 
    real, parameter :: zconv = 1.e-6
    real, parameter :: rdgrav = rdgas/grav
+   real, parameter :: zvir = rvgas/rdgas - 1.
    real, parameter :: rrdgrav = grav/rdgas
 
    integer :: i,j,k,iter, sphum, cl, cl2, n
@@ -7272,7 +7293,7 @@ end subroutine terminator_tracers
 !!$            write(*,'(A,I,2x,I, 4(2x,F10.3), 2x, F7.3)') ' NEWTON: ' , k, iter, piter, p, ziter, z, titer
 !!$         endif
 !!$         !!! END DEBUG CODE
-!!$         if (abs(z - ziter) < zconv) exit
+         if (abs(z - ziter) < zconv) exit
       enddo      
       gz(i,j,k) = z
    enddo
@@ -7401,6 +7422,8 @@ end subroutine terminator_tracers
       do i=is,ie
          p = delp(i,j,k)/(peln(i,k+1,j) - peln(i,k,j))
          q(i,j,k,sphum) = DCMIP16_BC_sphum(p,ps(i,j),agrid(i,j,2),agrid(i,j,1))
+         !Convert pt to non-virtual temperature
+         pt(i,j,k) = pt(i,j,k) / ( 1. + zvir*q(i,j,k,sphum))
       enddo
       enddo
       enddo

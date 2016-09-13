@@ -1,10 +1,25 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 #include <fms_platform.h>
 
 MODULE diag_util_mod
-  ! <CONTACT EMAIL="seth.underwood@noaa.gov">
-  !   Seth Underwood
-  ! </CONTACT>
-  ! <HISTORY SRC="http://cobweb.gfdl.noaa.gov/fms-cgi-bin/viewcvs/FMS/shared/diag_manager/"/>
 
   ! <OVERVIEW>
   !   Functions and subroutines necessary for the <TT>diag_manager_mod</TT>.
@@ -34,7 +49,7 @@ MODULE diag_util_mod
        & max_input_fields,num_input_fields, max_output_fields, num_output_fields, coord_type,&
        & mix_snapshot_average_fields, global_descriptor, CMOR_MISSING_VALUE, use_cmor, pack_size,&
        & debug_diag_manager, conserve_water, output_field_type, max_field_attributes, max_file_attributes,&
-       & file_type, prepend_date, region_out_use_alt_value, GLO_REG_VAL, GLO_REG_VAL_ALT,&
+       & file_type, prepend_date, long_date, region_out_use_alt_value, GLO_REG_VAL, GLO_REG_VAL_ALT,&
        & DIAG_FIELD_NOT_FOUND, diag_init_time
   USE diag_axis_mod, ONLY  : get_diag_axis_data, get_axis_global_length, get_diag_axis_cart,&
        & get_domain1d, get_domain2d, diag_subaxes_init, diag_axis_init, get_diag_axis, get_axis_aux,&
@@ -42,7 +57,7 @@ MODULE diag_util_mod
   USE diag_output_mod, ONLY: diag_flush, diag_field_out, diag_output_init, write_axis_meta_data,&
        & write_field_meta_data, done_meta_data
   USE diag_grid_mod, ONLY: get_local_indexes
-  USE fms_mod, ONLY        : error_mesg, FATAL, WARNING, mpp_pe, mpp_root_pe, lowercase, fms_error_handler
+  USE fms_mod, ONLY        : error_mesg, FATAL, WARNING, NOTE, mpp_pe, mpp_root_pe, lowercase, fms_error_handler
   USE fms_io_mod, ONLY     : get_tile_string, return_domain, string
   USE mpp_domains_mod,ONLY : domain1d, domain2d, mpp_get_compute_domain, null_domain1d, null_domain2d,&
        & OPERATOR(.NE.), OPERATOR(.EQ.), mpp_modify_domain, mpp_get_domain_components,&
@@ -1639,7 +1654,7 @@ CONTAINS
     CHARACTER(len=128) :: suffix, base_name
     CHARACTER(len=32) :: time_name, timeb_name,time_longname, timeb_longname, cart_name
     CHARACTER(len=256) :: fname
-    CHARACTER(len=24) :: start_date
+    CHARACTER(len=30) :: start_date
     TYPE(domain1d) :: domain
     TYPE(domain2d) :: domain2
 
@@ -1698,8 +1713,13 @@ CONTAINS
     ! prepend the file start date if prepend_date == .TRUE.
     IF ( prepend_date ) THEN
        call get_date(diag_init_time, year, month, day, hour, minute, second)
-       write (start_date, '(1I20.4, 2I2.2)') year, month, day
-
+       IF (long_date) THEN
+          write (start_date, '(1I20.4, 5I2.2)') year, month, day, hour, minute, second
+          CALL  error_mesg ('diag_util_mod::long_date is active:  ',&
+            &TRIM(start_date), NOTE)
+       ELSE
+          write (start_date, '(1I20.4, 2I2.2)') year, month, day
+       END IF
        filename = TRIM(adjustl(start_date))//'.'//TRIM(filename)
     END IF
 

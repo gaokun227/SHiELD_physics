@@ -1,3 +1,22 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
  module fv_grid_utils_mod
  
 #include <fms_platform.h>
@@ -1975,8 +1994,6 @@
 
   function great_circle_dist_cart(v1, v2, radius)
     !------------------------------------------------------------------!
-    ! author:  Michael Herzog                                          !
-    ! email:   Michael.Herzog@noaa.gov                                 !
     ! date:    July 2006                                               !
     ! version: 0.1                                                     !
     !                                                                  !
@@ -2008,8 +2025,6 @@
 
  subroutine intersect(a1,a2,b1,b2,radius,x_inter,local_a,local_b)
   !--------------------------------------------------------------------!
-  ! author:  Michael Herzog                                            !
-  ! email:   Michael.Herzog@noaa.gov                                   !
   ! date:    July 2006                                                 !
   ! version: 0.1                                                       !
   !                                                                    !
@@ -2710,8 +2725,6 @@
     ! calculate shortest normalized distance on sphere                 !
     ! from point to straight line defined by v1 and v2                 !
     ! This version uses cartesian coordinates.                         !
-    ! author:  Michael Herzog                                          !
-    ! email:   Michael.Herzog@noaa.gov                                 !
     ! date:    Feb 2007                                                !
     ! version: 0.1                                                     !
     !------------------------------------------------------------------!

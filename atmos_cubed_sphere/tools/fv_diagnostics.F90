@@ -1,3 +1,22 @@
+!***********************************************************************
+!*                   GNU General Public License                        *
+!* This file is a part of fvGFS.                                       *
+!*                                                                     *
+!* fvGFS is free software; you can redistribute it and/or modify it    *
+!* and are expected to follow the terms of the GNU General Public      *
+!* License as published by the Free Software Foundation; either        *
+!* version 2 of the License, or (at your option) any later version.    *
+!*                                                                     *
+!* fvGFS is distributed in the hope that it will be useful, but        *
+!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
+!* General Public License for more details.                            *
+!*                                                                     *
+!* For the full text of the GNU General Public License,                *
+!* write to: Free Software Foundation, Inc.,                           *
+!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
+!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!***********************************************************************
 module fv_diagnostics_mod
 
  use constants_mod,    only: grav, rdgas, rvgas, pi=>pi_8, radius, kappa, WTMAIR, WTMCO2, R_GRID,   &
@@ -1190,7 +1209,7 @@ contains
                            0.01*ptop, 200.E2, bad_range)
          call range_check('UA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
                            -220., 250., bad_range)
-         call range_check('VA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
+         call range_check('VA', Atm(n)%va, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
                            -220., 220., bad_range)
 #ifndef SW_DYNAMICS
          call range_check('TA', Atm(n)%pt, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
@@ -1201,7 +1220,7 @@ contains
 #endif
 #endif
 
-    endif
+      endif
 
     allocate ( u2(isc:iec,jsc:jec) )
     allocate ( v2(isc:iec,jsc:jec) )
@@ -1972,7 +1991,7 @@ contains
 
 
 #ifdef GFS_PHYS
-       if(idiag%id_delp > 0) then
+       if(idiag%id_delp > 0 .or. ((.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0)) then
           do k=1,npz
             do j=jsc,jec
             do i=isc,iec         
@@ -1988,7 +2007,7 @@ contains
             enddo
             enddo
           enddo
-          used=send_data(idiag%id_delp, wk, Time)
+          if (idiag%id_delp > 0) used=send_data(idiag%id_delp, wk, Time)
        endif
 
        if( (.not. Atm(n)%flagstruct%hydrostatic) .and. idiag%id_pfnh > 0) then
@@ -2000,6 +2019,9 @@ contains
              enddo
              enddo
            enddo
+!           if (prt_minmax) then
+!              call prt_maxmin(' PFNH (mb)', wk(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, npz, 1.E-2)
+!           endif
            used=send_data(idiag%id_pfnh, wk, Time)
        endif
 #else
@@ -2741,7 +2763,7 @@ contains
 !     gmean = g_sum(domain, q(is,js,km), is, ie, js, je, 3, area, 1) 
       gmean = g_sum(domain, q(is:ie,js:je,km), is, ie, js, je, 3, area, 1) 
 
-      if(master) write(6,*) qname, qmax*fac, qmin*fac, gmean*fac
+      if(master) write(6,*) qname, gn, qmax*fac, qmin*fac, gmean*fac
 
  end subroutine prt_mxm
 

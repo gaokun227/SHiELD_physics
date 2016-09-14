@@ -808,7 +808,7 @@ contains
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
 #ifdef GFS_PHYS
-         q_con = liq_watBC(i,j,k)
+         q_con = liq_watBC_north(i,j,k)
          q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
          q_liq = q_con - q_sol
 #else

@@ -581,9 +581,9 @@ contains
   endif
 
   if( nwat==6 ) then
-      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum  ), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,rainwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!     call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,sphum  ), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!     call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!     call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,rainwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
      if (cld_amt > 0) then
       call neg_adj3(is, ie, js, je, ng, npz,        &
                     flagstruct%hydrostatic,         &
@@ -606,9 +606,9 @@ contains
                                 q(isd,jsd,1,snowwat), &
                                 q(isd,jsd,1,graupel), check_negative=flagstruct%check_negative)
      endif
-      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,ice_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,snowwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,graupel), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!     call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,ice_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!     call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,snowwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
+!     call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,graupel), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
      if ( flagstruct%fv_debug ) then
        call prt_mxm('T_dyn_a3',    pt, is, ie, js, je, ng, npz, 1., gridstruct%area_64, domain)
        call prt_mxm('SPHUM_dyn',   q(isd,jsd,1,sphum  ), is, ie, js, je, ng, npz, 1.,gridstruct%area_64, domain)

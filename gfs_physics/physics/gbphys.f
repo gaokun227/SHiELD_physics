@@ -537,6 +537,7 @@
       use cs_conv, only : cs_convr
 !---GFDL addition
       use gfs_fv3_needs, only : get_prs_fv3, get_phi_fv3
+      use lin_cld_microphys_mod, only: lin_cld_microphys_driver
 
       implicit none
 !
@@ -764,6 +765,18 @@
 !     do i=1, ntrac-ncld-1
 !       fscav(i) = 0.
 !     enddo
+
+! lin cloud microphysics
+
+      integer :: iis, iie, jjs, jje, kks, kke, kt, kb, seconds
+      real(kind=kind_phys) :: dt_in
+      real(kind=kind_phys), dimension(im,1) :: area1, land, rain0,      &
+     &           snow0, ice0, graupel0
+      real(kind=kind_phys), dimension(im,1,levs) :: delp, dz, uin, vin, &
+     &           pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1, qs1, pt_dt,     &
+     &           qa_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt, qs_dt, &
+     &           qg_dt
+      logical :: hydrostatic, phys_hydrostatic
  
 
 !  --- ...  set up check print point (for debugging)
@@ -2919,6 +2932,92 @@
 
           endif   ! end of grid-scale precip/microphysics options
         endif     ! end if_num_p3d
+
+      elseif (ncld == 5) then       ! lin cloud microphysics
+
+        do i = 1, im
+          if (nint(slmsk(i)) .eq. 1) then
+            land(i,1) = 1
+          else
+            land(i,1) = 0
+          endif
+          area1   (i,1) = area(i)
+          rain0   (i,1) = 0.0
+          snow0   (i,1) = 0.0
+          ice0    (i,1) = 0.0
+          graupel0(i,1) = 0.0
+          do k = 1, levs
+            qv1  (i,1,k) = gq0(i,levs-k+1,1)
+            ql1  (i,1,k) = gq0(i,levs-k+1,2)
+            qr1  (i,1,k) = gq0(i,levs-k+1,3)
+            qi1  (i,1,k) = gq0(i,levs-k+1,4)
+            qs1  (i,1,k) = gq0(i,levs-k+1,5)
+            qg1  (i,1,k) = gq0(i,levs-k+1,6)
+            qa1  (i,1,k) = 0.0
+            qn1  (i,1,k) = 0.0
+            pt   (i,1,k) = gt0(i,levs-k+1)
+            w    (i,1,k) = -vvel(i,levs-k+1)*con_rd*gt0(i,levs-k+1)     &
+     &                     /prsl(i,levs-k+1)/con_g
+            uin  (i,1,k) = gu0(i,levs-k+1)
+            vin  (i,1,k) = gv0(i,levs-k+1)
+            delp (i,1,k) = del(i,levs-k+1)
+            dz   (i,1,k) = (phii(i,levs-k+1)-phii(i,levs-k+2))/con_g
+            qv_dt(i,1,k) = 0.0
+            ql_dt(i,1,k) = 0.0
+            qr_dt(i,1,k) = 0.0
+            qi_dt(i,1,k) = 0.0
+            qs_dt(i,1,k) = 0.0
+            qg_dt(i,1,k) = 0.0
+            qa_dt(i,1,k) = 0.0
+            pt_dt(i,1,k) = 0.0
+            udt  (i,1,k) = 0.0
+            vdt  (i,1,k) = 0.0
+          enddo
+        enddo
+
+        dt_in            = dtp
+        hydrostatic      = .False.
+        phys_hydrostatic = .True.
+        iis              = 1
+        iie              = im
+        jjs              = 1
+        jje              = 1
+        kks              = 1
+        kke              = levs
+        kt               = 1
+        kb               = levs
+        seconds          = mod(nint(fhour*3600),86400)
+
+        call lin_cld_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1,&
+     &                               qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
+     &                               qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
+     &                               uin, vin, udt, vdt, dz, delp,      &
+     &                               area1, dt_in, land, rain0, snow0,  &
+     &                               ice0, graupel0, hydrostatic,       &
+     &                               phys_hydrostatic, iis, iie, jjs,   &
+     &                               jje, kks, kke, kt, kb, seconds)
+
+        do i = 1, im
+          rain1(i) = (rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))    &
+     &               /86400.0*dtp*0.001
+          if (rain1(i) .gt. 0.0) then
+            sr(i)  = (snow0(i,1)+ice0(i,1)+graupel0(i,1))               &
+     &               /(rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))
+          else
+            sr(i) = 0.0
+          endif
+          do k = 1, levs
+            gq0(i,k,1) = qv1(i,1,levs-k+1) + qv_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,2) = ql1(i,1,levs-k+1) + ql_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,3) = qr1(i,1,levs-k+1) + qr_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,4) = qi1(i,1,levs-k+1) + qi_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,5) = qs1(i,1,levs-k+1) + qs_dt(i,1,levs-k+1) * dtp
+            gq0(i,k,6) = qg1(i,1,levs-k+1) + qg_dt(i,1,levs-k+1) * dtp
+            gt0(i,k)   = pt (i,1,levs-k+1) + pt_dt(i,1,levs-k+1) * dtp
+            gu0(i,k)   = uin(i,1,levs-k+1) + udt  (i,1,levs-k+1) * dtp
+            gv0(i,k)   = vin(i,1,levs-k+1) + vdt  (i,1,levs-k+1) * dtp
+          enddo
+        enddo
 
       endif       ! end if_ncld
 

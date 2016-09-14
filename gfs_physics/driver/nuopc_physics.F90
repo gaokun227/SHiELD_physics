@@ -65,6 +65,7 @@
        use physcons, only: dxmax, dxmin, dxinv, ozcalc, nocnv  ! lon lat dependant variables set in initialize
        use funcphys, only: gfuncphys
        use module_microphysics, only: gsmconst
+       use lin_cld_microphys_mod, only: lin_cld_microphys_init, lin_cld_microphys_end
  
 
        use module_radiation_driver,  only : grrad, radupdate
@@ -99,6 +100,7 @@
        public :: nuopc_phys_run         ! wrapper for gbphys
        public :: nuopc_rad_run          ! wrapper for grrad
        public :: nuopc_rad_update       ! wrapper for radupdate - updates some fields between timesteps
+       public :: nuopc_phys_end         ! end routine
 
 
        ! Subroutines for standalone test driver
@@ -2186,6 +2188,8 @@
 
          call set_soilveg(me,nlunit)
 
+         call lin_cld_microphys_init
+
        end subroutine
 
 
@@ -3322,5 +3326,11 @@
          end if
  
        end subroutine 
+
+       subroutine nuopc_phys_end
+
+         call lin_cld_microphys_end
+
+       end subroutine
 
        end module

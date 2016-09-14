@@ -655,6 +655,7 @@ endif        ! end last_step check
                         hydrostatic, phys_hydrostatic, time)
                                            call timing_off('FAST_LIN_MP')
 #else
+#ifdef NON_GFS
        if ( do_sat_adj ) then
                                            call timing_on('sat_adj2')
 !$OMP do
@@ -701,6 +702,7 @@ endif        ! end last_step check
            endif
                                            call timing_off('sat_adj2')
        endif  ! do_sat_adj
+#endif
 #endif
   endif   ! .not. do_adiabatic_init
 

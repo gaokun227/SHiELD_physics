@@ -727,7 +727,7 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q0, q1, q2, q3, rdt
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, q4, q5, q6, q7, rdt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -743,7 +743,7 @@ contains
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
 !$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3)
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -753,6 +753,7 @@ contains
 !SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
 !     This call may be commented out if RAS or other positivity-preserving CPS is used.
      ix = Atm_block%ix(nb)%ix(ibe,jbe)
+!    if ( Atm(n)%flagstruct%nwat /= 6 )  &
      call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
 
      do k = 1, npz
@@ -763,6 +764,8 @@ contains
          u_dt(i,j,k1) = u_dt(i,j,k1) + (Stateout(nb)%gu0(ix,k) - Statein(nb)%ugrs(ix,k)) * rdt
          v_dt(i,j,k1) = v_dt(i,j,k1) + (Stateout(nb)%gv0(ix,k) - Statein(nb)%vgrs(ix,k)) * rdt
          t_dt(i,j,k1) = (Stateout(nb)%gt0(ix,k) - Statein(nb)%tgrs(ix,k)) * rdt
+! LJZ notes: this section is extremely inflexible, need to be revised later
+         if ( Atm(n)%flagstruct%nwat .eq. 2 ) then
 ! SJL notes:
 ! ---- DO not touch the code below; dry mass conservation may change due to 64bit <-> 32bit conversion
 ! GFS total air mass = dry_mass + water_vapor (condensate excluded)
@@ -786,14 +789,33 @@ contains
          Atm(n)%q(i,j,k1,1) = q1 / q0
          Atm(n)%q(i,j,k1,2) = q2 / q0
          Atm(n)%q(i,j,k1,3) = q3 / q0
+         elseif ( Atm(n)%flagstruct%nwat .eq. 6 ) then
+         q0 = Statein(nb)%prsi(ix,k) - Statein(nb)%prsi(ix,k+1)
+         q1 = q0*Stateout(nb)%gq0(ix,k,1)
+         q2 = q0*Stateout(nb)%gq0(ix,k,2)
+         q3 = q0*Stateout(nb)%gq0(ix,k,3)
+         q4 = q0*Stateout(nb)%gq0(ix,k,4)
+         q5 = q0*Stateout(nb)%gq0(ix,k,5)
+         q6 = q0*Stateout(nb)%gq0(ix,k,6)
+         q7 = q0*Stateout(nb)%gq0(ix,k,7)
+         q0 = Atm(n)%delp(i,j,k1)*(1.-(Atm(n)%q(i,j,k1,1)+Atm(n)%q(i,j,k1,2)+Atm(n)%q(i,j,k1,3)+Atm(n)%q(i,j,k1,4)+Atm(n)%q(i,j,k1,5)+Atm(n)%q(i,j,k1,6))) + (q1+q2+q3+q4+q5+q6)
+         Atm(n)%delp(i,j,k1) = q0
+         Atm(n)%q(i,j,k1,1) = q1 / q0
+         Atm(n)%q(i,j,k1,2) = q2 / q0
+         Atm(n)%q(i,j,k1,3) = q3 / q0
+         Atm(n)%q(i,j,k1,4) = q4 / q0
+         Atm(n)%q(i,j,k1,5) = q5 / q0
+         Atm(n)%q(i,j,k1,6) = q6 / q0
+         Atm(n)%q(i,j,k1,7) = q7 / q0
+         endif
        enddo
       enddo
      enddo
 
 !rab#ifdef GFS_TRACER_TRANSPORT
 ! The following does nothing...
-     if ( nq > 3 ) then
-     do iq=4, nq
+     if ( nq > 8 ) then
+     do iq=9, nq
        do k = 1, npz
          k1 = npz+1-k !reverse the k direction 
          do j=jbs,jbe
@@ -807,6 +829,7 @@ contains
      enddo
      endif
 !rab#endif
+! LJZ notes: this section is extremely inflexible, need to be revised later
 
      !--- diagnostic tracers are being updated in-place
      !--- tracer fields must be returned to the Atm structure
@@ -1134,8 +1157,8 @@ contains
    real(kind=kind_phys), parameter:: p00 = 1.e5
    real(kind=kind_phys), parameter:: qmin = 1.0e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
-   real(kind=kind_phys) :: rTv
-   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1
+   real(kind=kind_phys) :: rTv, dm
+   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1, ice_wat, rainwat, snowwat, graupel
    logical :: diag_sounding = .false.
 
 !!! NOTES: lmh 6nov15
@@ -1150,15 +1173,22 @@ contains
    liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat' )
    if ( liq_wat<0 ) call mpp_error(FATAL, 'GFS condensate does not exist')
 
+   if ( Atm(mytile)%flagstruct%nwat .eq. 6 ) then
+      ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat' )
+      rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat' )
+      snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat' )
+      graupel = get_tracer_index (MODEL_ATMOS, 'graupel' )
+   endif
+
    npz = Atm_block%npz
 
 !---------------------------------------------------------------------
 ! use most up to date atmospheric properties when running serially
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
-!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, pk0inv, &
+!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, ice_wat, rainwat, snowwat, graupel ,pk0inv, &
 !$OMP                      ptop, pktop, zvir, mytile, diag_sounding) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
+!$OMP             private (dm, nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
 
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
@@ -1196,7 +1226,15 @@ contains
               Statein(nb)%qgrs(ix,k,1:nq) =  _DBL_(_RL_(          Atm(mytile)%q(i,j,k1,1:nq))) * Statein(nb)%prsl(ix,k)
               Statein(nb)%qgrs(ix,k,nq+1:ncnst) = _DBL_(_RL_(Atm(mytile)%qdiag(i,j,k1,nq+1:ncnst))) * Statein(nb)%prsl(ix,k)
 ! Remove the contribution of condensates to delp (mass):
-              Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat)
+              if ( Atm(mytile)%flagstruct%nwat .eq. 2 ) then  ! GFS
+                 Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat)
+              elseif ( Atm(mytile)%flagstruct%nwat .eq. 6 ) then
+                 Statein(nb)%prsl(ix,k) = Statein(nb)%prsl(ix,k) - Statein(nb)%qgrs(ix,k,liq_wat) - &
+                                                                   Statein(nb)%qgrs(ix,k,ice_wat) - &
+                                                                   Statein(nb)%qgrs(ix,k,rainwat) - &
+                                                                   Statein(nb)%qgrs(ix,k,snowwat) - &
+                                                                   Statein(nb)%qgrs(ix,k,graupel)
+              endif
            enddo
         enddo
      enddo
@@ -1226,7 +1264,21 @@ contains
            if ( Atm(mytile)%flagstruct%hydrostatic .or. Atm(mytile)%flagstruct%use_hydro_pressure )   &
                 Statein(nb)%phii(i,k+1) = Statein(nb)%phii(i,k) + rTv*(Statein(nb)%prsik(i,k)-Statein(nb)%prsik(i,k+1))
 ! Layer mean pressure by perfect gas law:
-           Statein(nb)%prsl(i,k) = Statein(nb)%prsl(i,k)*rTv/(Statein(nb)%phii(i,k+1)-Statein(nb)%phii(i,k))
+           dm = Statein(nb)%prsl(i,k)
+           Statein(nb)%prsl(i,k) = dm*rTv/(Statein(nb)%phii(i,k+1)-Statein(nb)%phii(i,k))
+!!! Ensure subgrid MONOTONICITY of Pressure: SJL 09/11/2016
+           if ( .not.Atm(mytile)%flagstruct%hydrostatic ) then
+#ifdef ALT_METHOD
+! If violated, replaces it with hydrostatic pressure
+              if (Statein(nb)%prsl(i,k).ge.Statein(nb)%prsi(i,k).or.Statein(nb)%prsl(i,k).le.Statein(nb)%prsi(i,k+1)) then
+                  Statein(nb)%prsl(i,k) = dm / (Statein(nb)%prsik(i,k)-Statein(nb)%prsik(i,k+1))
+              endif
+               
+#else
+              Statein(nb)%prsl(i,k) = min(Statein(nb)%prsl(i,k), Statein(nb)%prsi(i,k)   - 0.01*dm)
+              Statein(nb)%prsl(i,k) = max(Statein(nb)%prsl(i,k), Statein(nb)%prsi(i,k+1) + 0.01*dm)
+#endif
+           endif
         enddo
      enddo
 

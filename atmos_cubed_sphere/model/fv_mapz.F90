@@ -655,7 +655,7 @@ endif        ! end last_step check
                         hydrostatic, phys_hydrostatic, time)
                                            call timing_off('FAST_LIN_MP')
 #else
-#ifdef NON_GFS
+#ifndef GFS_PHYS
        if ( do_sat_adj ) then
                                            call timing_on('sat_adj2')
 !$OMP do

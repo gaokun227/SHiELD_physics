@@ -926,7 +926,7 @@ contains
 
     module_is_initialized=.true.
     istep = 0
-#ifdef NON_GFS
+#ifndef GFS_PHYS
     if(idiag%id_theta_e >0 ) call qsmith_init
 #endif
  end subroutine fv_diag_init

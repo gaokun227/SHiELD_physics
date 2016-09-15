@@ -859,7 +859,7 @@ contains
 !----------------------
 ! Saturation adjustment
 !----------------------
-#ifdef NON_GFS
+#ifndef GFS_PHYS
   if ( nwat > 5 ) then
     do k=1, kbot
       if ( hydrostatic ) then
@@ -1271,7 +1271,7 @@ real, dimension(is:ie,js:je):: pt2, qv2, ql2, qi2, qs2, qr2, qg2, dp2, p2, icpk,
 !******************************************
 ! Fast moist physics: Saturation adjustment
 !******************************************
-#ifdef NON_GFS
+#ifndef GFS_PHYS
  if ( sat_adj ) then
 
    do j=js, je

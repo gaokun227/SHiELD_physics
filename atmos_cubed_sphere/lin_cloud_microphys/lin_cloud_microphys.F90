@@ -1,22 +1,3 @@
-!***********************************************************************
-!*                   GNU General Public License                        *
-!* This file is a part of fvGFS.                                       *
-!*                                                                     *
-!* fvGFS is free software; you can redistribute it and/or modify it    *
-!* and are expected to follow the terms of the GNU General Public      *
-!* License as published by the Free Software Foundation; either        *
-!* version 2 of the License, or (at your option) any later version.    *
-!*                                                                     *
-!* fvGFS is distributed in the hope that it will be useful, but        *
-!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
-!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
-!* General Public License for more details.                            *
-!*                                                                     *
-!* For the full text of the GNU General Public License,                *
-!* write to: Free Software Foundation, Inc.,                           *
-!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
-!* or see:   http://www.gnu.org/licenses/gpl.html                      *
-!***********************************************************************
 !
 ! Cloud micro-physics package for GFDL global cloud resolving model
 ! The algorithms are originally based on Lin et al 1983. Many key
@@ -2669,6 +2650,7 @@ endif
 
 
  subroutine implicit_fall(dt, ktop, kbot, ze, vt, dp, q, precip, m1)
+! Developed by SJ Lin, 2016
  real,    intent(in):: dt
  integer, intent(in):: ktop, kbot
  real,    intent(in), dimension(ktop:kbot+1):: ze
@@ -2683,30 +2665,30 @@ endif
   do k=ktop,kbot
      dz(k) = ze(k) - ze(k+1)
      dd(k) = dt * vt(k)
+      q(k) = q(k)*dp(k)
   enddo
 
 ! Sedimentation:
-  qm(ktop) = q(ktop)*dp(ktop) / (dz(ktop)+dd(ktop))
+  qm(ktop) = q(ktop) / (dz(ktop)+dd(ktop))
   do k=ktop+1,kbot
-     qm(k) = (q(k)*dp(k)+dd(k)*qm(k-1)) / (dz(k)+dd(k))
+     qm(k) = (q(k) + dd(k)*qm(k-1)) / (dz(k) + dd(k))
   enddo
 ! qm is density at this stage
 
-! Convert back to *dry* mixing ratio
   do k=ktop,kbot
-     qm(k) = qm(k)*dz(k)/dp(k)
+     qm(k) = qm(k)*dz(k)
   enddo
 
 ! Output mass fluxes:
-  m1(ktop) = (q(ktop)-qm(ktop))*dp(k)
+  m1(ktop) = q(ktop) - qm(ktop)
   do k=ktop+1,kbot
-     m1(k) = m1(k-1) + (q(k)-qm(k))*dp(k)
+     m1(k) = m1(k-1) + q(k) - qm(k)
   enddo
   precip = m1(kbot)
 
 ! Update:
   do k=ktop,kbot
-     q(k) = qm(k)
+     q(k) = qm(k) / dp(k)
   enddo
 
  end subroutine implicit_fall

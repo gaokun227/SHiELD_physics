@@ -2015,6 +2015,7 @@ contains
       do k=1,npz
          do i=is,ie
             qn1(i,k) = Atm%q(i,j,k,liq_wat)
+            Atm%q(i,j,k,graupel) = 0. !IC has no graupel
             if ( Atm%pt(i,j,k) > 273.16 ) then       ! > 0C all liq_wat
                Atm%q(i,j,k,liq_wat) = qn1(i,k)
                Atm%q(i,j,k,ice_wat) = 0.
@@ -2075,6 +2076,9 @@ contains
  real, intent(inout):: ql, qr, qi, qs
  real, parameter:: qi0_max = 2.0e-3
  real, parameter:: ql0_max = 2.5e-3
+
+  qr = 0.
+  qs = 0.
 
 ! Convert excess cloud water into rain:
   if ( ql > ql0_max ) then

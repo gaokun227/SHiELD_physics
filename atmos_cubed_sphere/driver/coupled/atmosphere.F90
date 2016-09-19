@@ -113,6 +113,7 @@ character(len=7)   :: mod_name = 'atmos'
 
   integer, dimension(:), allocatable :: id_tracerdt_dyn
   integer :: num_tracers = 0
+  integer :: sphum, liq_wat, rainwat, ice_wat, snowwat, graupel ! Lin Micro-physics
 
   integer :: mytile = 1
   integer :: p_split = 1
@@ -151,6 +152,8 @@ contains
    call mpp_get_current_pelist(pelist)
 
    call get_number_tracers(MODEL_ATMOS, num_prog= num_tracers)
+
+   sphum   = get_tracer_index (MODEL_ATMOS, 'sphum')
 
    zvir = rvgas/rdgas - 1.
 
@@ -389,9 +392,9 @@ contains
 !-----------------------------------------------------
 !--- zero out tendencies 
     call mpp_clock_begin (id_dryconv)
-    u_dt(:,:,:)   = 0 
-    v_dt(:,:,:)   = 0 
-    t_dt(:,:,:)   = 0 
+    u_dt(:,:,:)   = 0. 
+    v_dt(:,:,:)   = 0. 
+    t_dt(:,:,:)   = 0. 
 
     w_diff = get_tracer_index (MODEL_ATMOS, 'w_diff' )
     if ( Atm(n)%flagstruct%fv_sg_adj > 0 ) then
@@ -727,7 +730,7 @@ contains
 !--- local variables ---
    integer :: i, j, ix, k, k1, n, w_diff, nt_dyn, iq
    integer :: nb, ibs, ibe, jbs, jbe
-   real(kind=kind_phys):: rcp, q0, q1, q2, q3, q4, q5, q6, q7, rdt
+   real(kind=kind_phys):: rcp, q0, q1, q2, q3, q4, q5, q6, q7, qt, rdt
 
    Time_prev = Time
    Time_next = Time + Time_step_atmos
@@ -742,8 +745,8 @@ contains
    call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
-!$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block) &
-!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7)
+!$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block,sphum,liq_wat,rainwat,ice_wat,snowwat,graupel) &
+!$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7, qt)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
      ibe = Atm_block%ibe(nb)
@@ -753,7 +756,6 @@ contains
 !SJL: perform vertical filling to fix the negative humidity if the SAS convection scheme is used
 !     This call may be commented out if RAS or other positivity-preserving CPS is used.
      ix = Atm_block%ix(nb)%ix(ibe,jbe)
-!    if ( Atm(n)%flagstruct%nwat /= 6 )  &
      call fill_gfs(ix, npz, Statein(nb)%prsi(1:ix,1:npz+1), Stateout(nb)%gq0(1:ix,1:npz,1), 1.e-9_kind_phys)
 
      do k = 1, npz
@@ -791,22 +793,24 @@ contains
          Atm(n)%q(i,j,k1,3) = q3 / q0
          elseif ( Atm(n)%flagstruct%nwat .eq. 6 ) then
          q0 = Statein(nb)%prsi(ix,k) - Statein(nb)%prsi(ix,k+1)
-         q1 = q0*Stateout(nb)%gq0(ix,k,1)
-         q2 = q0*Stateout(nb)%gq0(ix,k,2)
-         q3 = q0*Stateout(nb)%gq0(ix,k,3)
-         q4 = q0*Stateout(nb)%gq0(ix,k,4)
-         q5 = q0*Stateout(nb)%gq0(ix,k,5)
-         q6 = q0*Stateout(nb)%gq0(ix,k,6)
+         q1 = q0*Stateout(nb)%gq0(ix,k,sphum)
+         q2 = q0*Stateout(nb)%gq0(ix,k,liq_wat)
+         q3 = q0*Stateout(nb)%gq0(ix,k,rainwat)
+         q4 = q0*Stateout(nb)%gq0(ix,k,ice_wat)
+         q5 = q0*Stateout(nb)%gq0(ix,k,snowwat)
+         q6 = q0*Stateout(nb)%gq0(ix,k,graupel)
          q7 = q0*Stateout(nb)%gq0(ix,k,7)
-         q0 = Atm(n)%delp(i,j,k1)*(1.-(Atm(n)%q(i,j,k1,1)+Atm(n)%q(i,j,k1,2)+Atm(n)%q(i,j,k1,3)+Atm(n)%q(i,j,k1,4)+Atm(n)%q(i,j,k1,5)+Atm(n)%q(i,j,k1,6))) + (q1+q2+q3+q4+q5+q6)
+         qt = q1+q2+q3+q4+q5+q6
+         q0 = Atm(n)%delp(i,j,k1)*(1.-(Atm(n)%q(i,j,k1,sphum)+Atm(n)%q(i,j,k1,liq_wat)+Atm(n)%q(i,j,k1,rainwat)+    &
+              Atm(n)%q(i,j,k1,ice_wat)+Atm(n)%q(i,j,k1,snowwat)+Atm(n)%q(i,j,k1,graupel))) + qt
          Atm(n)%delp(i,j,k1) = q0
-         Atm(n)%q(i,j,k1,1) = q1 / q0
-         Atm(n)%q(i,j,k1,2) = q2 / q0
-         Atm(n)%q(i,j,k1,3) = q3 / q0
-         Atm(n)%q(i,j,k1,4) = q4 / q0
-         Atm(n)%q(i,j,k1,5) = q5 / q0
-         Atm(n)%q(i,j,k1,6) = q6 / q0
-         Atm(n)%q(i,j,k1,7) = q7 / q0
+         Atm(n)%q(i,j,k1,  sphum) = q1 / q0
+         Atm(n)%q(i,j,k1,liq_wat) = q2 / q0
+         Atm(n)%q(i,j,k1,rainwat) = q3 / q0
+         Atm(n)%q(i,j,k1,snowwat) = q4 / q0
+         Atm(n)%q(i,j,k1,ice_wat) = q5 / q0
+         Atm(n)%q(i,j,k1,graupel) = q6 / q0
+         Atm(n)%q(i,j,k1,      7) = q7 / q0     ! ozone
          endif
        enddo
       enddo
@@ -925,7 +929,7 @@ contains
    real, parameter:: wt = 1.  ! was 2.
    real:: xt
    integer:: isc, iec, jsc, jec, npz
-   integer:: m, n, i,j,k, ngc, sphum
+   integer:: m, n, i,j,k, ngc
 
    character(len=80) :: errstr
 
@@ -1158,7 +1162,7 @@ contains
    real(kind=kind_phys), parameter:: qmin = 1.0e-10   
    real(kind=kind_phys):: pk0inv, ptop, pktop
    real(kind=kind_phys) :: rTv, dm
-   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, sphum, liq_wat, k1, ice_wat, rainwat, snowwat, graupel
+   integer :: nb, npz, ibs, ibe, jbs, jbe, i, j, k, ix, k1
    logical :: diag_sounding = .false.
 
 !!! NOTES: lmh 6nov15

@@ -57,7 +57,9 @@
       logical:: zero_ocean = .true.          ! if true, no diffusive flux into water/ocean area 
       integer           ::  nlon = 21600
       integer           ::  nlat = 10800
+      real:: cd4 = 0.15        ! Dimensionless coeff for del-4 difussion (with FCT)
       real:: peak_fac = 1.0  ! overshoot factor for the mountain peak
+      real:: max_slope = 0.2
       character(len=128)::  surf_file = "INPUT/topo1min.nc"
       character(len=6)  ::  surf_format = 'netcdf'
 
@@ -65,7 +67,7 @@
       real cos_grid
       character(len=3) :: grid_string = ''
 
-      namelist /surf_map_nml/ surf_file,surf_format,nlon,nlat, zero_ocean, zs_filter, peak_fac
+      namelist /surf_map_nml/ surf_file,surf_format,nlon,nlat, zero_ocean, zs_filter, cd4, peak_fac, max_slope
 !
       real, allocatable:: zs_g(:,:), sgh_g(:,:), oro_g(:,:)
 
@@ -79,12 +81,8 @@
 
       contains
 
-      subroutine surfdrv(npx, npy, grid, agrid,   &
-                         area, dx, dy, dxc, dyc, &
-                         sin_sg, phis, &
-                         stretch_fac, nested, &
-                         npx_global, domain, &
-                         grid_number, bd) 
+      subroutine surfdrv(npx, npy, grid, agrid, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, phis, &
+                         stretch_fac, nested, npx_global, domain,grid_number, bd)
 
       implicit         none
 #include <netcdf.inc>
@@ -95,6 +93,7 @@
       real(kind=R_GRID), intent(in)::area(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng)
       real, intent(in):: dx(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng+1)
       real, intent(in):: dy(bd%is-ng:bd%ie+ng+1, bd%js-ng:bd%je+ng)
+      real, intent(in), dimension(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng)::dxa, dya
       real, intent(in)::dxc(bd%is-ng:bd%ie+ng+1, bd%js-ng:bd%je+ng)
       real, intent(in)::dyc(bd%is-ng:bd%ie+ng, bd%js-ng:bd%je+ng+1)
 
@@ -384,50 +383,15 @@
                                                     call timing_on('Terrain_filter')
 ! Del-2: high resolution only
       if ( zs_filter ) then
-         if(is_master()) write(*,*) 'Applying terrain filters. zero_ocean is', zero_ocean
-         
-         cd2 = 0.20d0*da_min
-         if ( npx_global>512 ) then
-           if ( npx_global<=1001 ) then
-              n_del2 = 1
-           else
-              n_del2 = 2
-           endif
-           call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del2, cd2, zero_ocean, oro_g, nested, domain, bd)
+         if(is_master()) then
+            write(*,*) 'Applying terrain filters. zero_ocean is', zero_ocean
          endif
-
-         ! MFCT Del-4:
-         mdim = nint( real(npx_global) * min(10., stretch_fac) )
-         if ( mdim<=97 ) then
-            n_del4 = 1
-         elseif( mdim<=181 ) then
-            n_del4 = 2
-         elseif( mdim<=360 ) then
-            n_del4 = 3
-         elseif( mdim<=361 ) then
-            n_del4 = 4
-         elseif( mdim<=385 ) then
-            n_del4 = 5
-         elseif( mdim<=769 ) then
-            n_del4 = 6
-         elseif( mdim<=1025 ) then
-            n_del4 = 7
-         else
-            n_del4 = 8
-         endif
-         call del4_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del4, zero_ocean, oro_g, nested, domain, bd)
-
-         ! Final pass: high-res only: C720 or higher
-         if( mdim >= 721 .and. mdim<1001 ) then
-            call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, 2, cd2, zero_ocean, oro_g, nested, domain, bd)
-         elseif( mdim >= 1001 .and. mdim<=2001 ) then
-            call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, 4, cd2, zero_ocean, oro_g, nested, domain, bd)
-         elseif( mdim>2001 ) then
-            call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, 6, cd2, zero_ocean, oro_g, nested, domain, bd)
-         endif
-
-                                                    call timing_off('Terrain_filter')
+         call FV3_zs_filter (bd, isd, ied, jsd, jed, npx, npy, npx_global,  &
+                             stretch_fac, nested, domain, area, dxa, dya, dx, dy, dxc, dyc, grid,  &
+                             agrid, sin_sg, phis)
+         call mpp_update_domains(phis, domain)
       endif          ! end terrain filter
+                                                    call timing_off('Terrain_filter')
 
       do j=js,je
          do i=is,ie
@@ -466,8 +430,6 @@
 
       do j=jsd,jed
          do i=isd,ied
-!!$      do j=js,je
-!!$         do i=is,ie
             phis(i,j) =  grav * phis(i,j)
             if ( sgh_g(i,j) <= 0. ) then
                  sgh_g(i,j) = 0.
@@ -497,6 +459,344 @@
       enddo
 
  end subroutine surfdrv
+
+ subroutine FV3_zs_filter (bd, isd, ied, jsd, jed, npx, npy, npx_global,  &
+                           stretch_fac, nested, domain, area, dxa, dya, dx, dy, dxc, dyc, grid,  &
+                            agrid, sin_sg,  phis )
+      integer, intent(in):: isd, ied, jsd, jed, npx, npy, npx_global
+      type(fv_grid_bounds_type), intent(IN) :: bd
+      real(kind=R_GRID), intent(in), dimension(isd:ied,jsd:jed)::area
+      real, intent(in), dimension(isd:ied,jsd:jed)::dxa, dya
+      real, intent(in), dimension(isd:ied,  jsd:jed+1):: dx, dyc
+      real, intent(in), dimension(isd:ied+1,jsd:jed):: dy, dxc
+
+      real(kind=R_GRID), intent(in)::  grid(isd:ied+1, jsd:jed+1,2)
+      real(kind=R_GRID), intent(in):: agrid(isd:ied,   jsd:jed,  2)
+      real, intent(IN):: sin_sg(9,isd:ied,jsd:jed)
+      real(kind=R_GRID), intent(IN):: stretch_fac
+      logical, intent(IN) :: nested
+      real, intent(inout):: phis(isd:ied,jsd,jed)
+      type(domain2d), intent(INOUT) :: domain
+      real:: cd2
+      integer mdim, n_del2, n_del4
+
+      mdim = nint( real(npx_global) * min(10., stretch_fac) )
+
+! Del-2: high resolution only
+! call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del2, cd2, zero_ocean, oro_g, nested, domain, bd)
+         if ( npx_global<=97 ) then
+              n_del2 = 0
+         elseif ( npx_global<=193 ) then
+              n_del2 = 1
+         else
+              n_del2 = 2
+         endif
+         cd2 = 0.16*da_min
+! Applying strong 2-delta-filter:
+         if ( n_del2 > 0 )   &
+         call two_delta_filter(npx, npy, phis, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd2, zero_ocean,  &
+                               .true., 0, oro_g, nested, domain, bd, n_del2)
+
+! MFCT Del-4:
+         if ( mdim<=193 ) then
+              n_del4 = 1
+         elseif ( mdim<=1537 ) then
+              n_del4 = 2
+         else
+              n_del4 = 3
+         endif
+         call del4_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del4, zero_ocean, oro_g, nested, domain, bd)
+! Applying weak 2-delta-filter:
+         cd2 = 0.12*da_min
+         call two_delta_filter(npx, npy, phis, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd2, zero_ocean,  &
+                               .true., 1, oro_g, nested, domain, bd, 15)
+! Check slope
+
+ end subroutine FV3_zs_filter
+
+
+ subroutine two_delta_filter(npx, npy, q, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd, zero_ocean,  &
+                            check_slope, filter_type, oro, nested, domain, bd, ntmax)
+   type(fv_grid_bounds_type), intent(IN) :: bd
+   integer, intent(in):: npx, npy
+   integer, intent(in):: ntmax
+   integer, intent(in):: filter_type    ! 0: strong,   1: weak
+   real, intent(in):: cd
+! INPUT arrays
+   real(kind=R_GRID), intent(in)::area(bd%isd:bd%ied,  bd%jsd:bd%jed)
+   real, intent(in)::  dx(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
+   real, intent(in)::  dy(bd%isd:bd%ied+1,bd%jsd:bd%jed)
+   real, intent(in):: dxa(bd%isd:bd%ied,  bd%jsd:bd%jed)
+   real, intent(in):: dya(bd%isd:bd%ied,  bd%jsd:bd%jed)
+   real, intent(in):: dxc(bd%isd:bd%ied+1,bd%jsd:bd%jed)
+   real, intent(in):: dyc(bd%isd:bd%ied,  bd%jsd:bd%jed+1)
+   real, intent(in):: sin_sg(9,bd%isd:bd%ied,bd%jsd:bd%jed)
+   real, intent(in):: oro(bd%isd:bd%ied,  bd%jsd:bd%jed)        ! 0==water, 1==land
+   logical, intent(in):: zero_ocean, check_slope
+   logical, intent(in):: nested
+   type(domain2d), intent(inout) :: domain
+! OUTPUT arrays
+   real, intent(inout):: q(bd%isd:bd%ied, bd%jsd:bd%jed)
+! Local:
+      real, parameter:: p1 =  7./12.
+      real, parameter:: p2 = -1./12.
+      real, parameter:: c1 = -2./14.
+      real, parameter:: c2 = 11./14.
+      real, parameter:: c3 =  5./14.
+
+   real:: ddx(bd%is:bd%ie+1,bd%js:bd%je), ddy(bd%is:bd%ie,bd%js:bd%je+1)
+   logical:: extm(bd%is-1:bd%ie+1)
+   logical:: ext2(bd%is:bd%ie,bd%js-1:bd%je+1)
+   real::  a1(bd%is-1:bd%ie+2)
+   real::  a2(bd%is:bd%ie,bd%js-1:bd%je+2)
+   real(kind=R_GRID):: a3(bd%is:bd%ie,bd%js:bd%je)
+   real(kind=R_GRID):: smax, smin
+   real:: m_slope, fac
+   integer:: i,j, nt
+   integer:: is,  ie,  js,  je
+   integer:: isd, ied, jsd, jed
+   integer:: is1, ie2, js1, je2
+
+   is  = bd%is
+   ie  = bd%ie
+   js  = bd%js
+   je  = bd%je
+   isd = bd%isd
+   ied = bd%ied
+   jsd = bd%jsd
+   jed = bd%jed
+
+   if ( .not. nested ) then
+        is1 = max(3,is-1);  ie2 = min(npx-2,ie+2)
+        js1 = max(3,js-1);  je2 = min(npy-2,je+2)
+   else
+        is1 = is-1;         ie2 = ie+2
+        js1 = js-1;         je2 = je+2
+   end if
+
+   if ( check_slope ) then
+        m_slope = max_slope
+   else
+        m_slope = 10.
+   endif
+         
+
+   do 777 nt=1, ntmax
+    call mpp_update_domains(q, domain)
+
+! Check slope
+    if ( nt==1 .and. check_slope ) then
+         do j=js,je
+            do i=is,ie+1
+               ddx(i,j) = (q(i,j) - q(i-1,j))/dxc(i,j) 
+               ddx(i,j) = abs(ddx(i,j))
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               ddy(i,j) = (q(i,j) - q(i,j-1))/dyc(i,j) 
+               ddy(i,j) = abs(ddy(i,j))
+            enddo
+         enddo
+         do j=js,je
+            do i=is,ie
+               a3(i,j) = max( ddx(i,j), ddx(i+1,j), ddy(i,j), ddy(i,j+1) )
+            enddo
+         enddo
+         call global_mx(a3, 0, smin, smax, bd)
+         if ( is_master() ) write(*,*) 'Before filter: Max_slope=', smax
+    endif
+
+! First step: average the corners:
+  if ( .not. nested .and. nt==1 ) then
+    if ( is==1 .and. js==1 ) then
+         q(1,1) = (q(1,1)*area(1,1)+q(0,1)*area(0,1)+q(1,0)*area(1,0))  &
+                / (       area(1,1)+       area(0,1)+       area(1,0) )
+         q(0,1) =  q(1,1)
+         q(1,0) =  q(1,1)
+    endif
+    if ( (ie+1)==npx .and. js==1 ) then
+         q(ie, 1) = (q(ie,1)*area(ie,1)+q(npx,1)*area(npx,1)+q(ie,0)*area(ie,0)) &
+                  / (        area(ie,1)+         area(npx,1)+        area(ie,0))
+         q(npx,1) =  q(ie,1)
+         q(ie, 0) =  q(ie,1)
+    endif
+    if ( is==1 .and. (je+1)==npy ) then
+         q(1, je) = (q(1,je)*area(1,je)+q(0,je)*area(0,je)+q(1,npy)*area(1,npy))   &
+                  / (        area(1,je)+        area(0,je)+         area(1,npy))
+         q(0, je) =  q(1,je)
+         q(1,npy) =  q(1,je)
+    endif
+    if ( (ie+1)==npx .and. (je+1)==npy ) then
+         q(ie, je) = (q(ie,je)*area(ie,je)+q(npx,je)*area(npx,je)+q(ie,npy)*area(ie,npy))  &
+                   / (         area(ie,je)+          area(npx,je)+          area(ie,npy))
+         q(npx,je) =  q(ie,je)
+         q(ie,npy) =  q(ie,je)
+    endif
+    call mpp_update_domains(q, domain)
+  endif
+
+! x-diffusive flux:
+ do 333 j=js,je
+
+    do i=is1, ie2
+       a1(i) = p1*(q(i-1,j)+q(i,j)) + p2*(q(i-2,j)+q(i+1,j))
+    enddo
+
+    if ( .not. nested ) then
+      if ( is==1 ) then
+        a1(0) = c1*q(-2,j) + c2*q(-1,j) + c3*q(0,j)
+        a1(1) = 0.5*(((2.*dxa(0,j)+dxa(-1,j))*q(0,j)-dxa(0,j)*q(-1,j))/(dxa(-1,j)+dxa(0,j)) &
+              +      ((2.*dxa(1,j)+dxa( 2,j))*q(1,j)-dxa(1,j)*q( 2,j))/(dxa(1, j)+dxa(2,j)))
+        a1(2) = c3*q(1,j) + c2*q(2,j) +c1*q(3,j)
+      endif
+      if ( (ie+1)==npx ) then
+        a1(npx-1) = c1*q(npx-3,j) + c2*q(npx-2,j) + c3*q(npx-1,j)
+        a1(npx) = 0.5*(((2.*dxa(npx-1,j)+dxa(npx-2,j))*q(npx-1,j)-dxa(npx-1,j)*q(npx-2,j))/(dxa(npx-2,j)+dxa(npx-1,j)) &
+                +      ((2.*dxa(npx,  j)+dxa(npx+1,j))*q(npx,  j)-dxa(npx,  j)*q(npx+1,j))/(dxa(npx,  j)+dxa(npx+1,j)))
+        a1(npx+1) = c3*q(npx,j) + c2*q(npx+1,j) + c1*q(npx+2,j)
+      endif
+    endif
+
+    if ( filter_type == 0 ) then
+       do i=is-1, ie+1
+          if( abs(3.*(a1(i)+a1(i+1)-2.*q(i,j))) > abs(a1(i)-a1(i+1)) ) then
+              extm(i) = .true.
+          else
+              extm(i) = .false.
+          endif
+       enddo
+    else
+       do i=is-1, ie+1
+          if ( (a1(i)-q(i,j))*(a1(i+1)-q(i,j)) > 0. ) then
+               extm(i) = .true.
+          else
+               extm(i) = .false.
+          endif
+       enddo
+    endif
+
+    do i=is,ie+1
+            ddx(i,j) = (q(i-1,j)-q(i,j))/dxc(i,j)
+       if ( extm(i-1).and.extm(i) ) then
+            ddx(i,j) = 0.5*(sin_sg(3,i-1,j)+sin_sg(1,i,j))*dy(i,j)*ddx(i,j)
+       elseif ( abs(ddx(i,j)) > m_slope ) then
+            fac = min(1., max(0.1,(abs(ddx(i,j))-m_slope)/m_slope ) )
+            ddx(i,j) = fac*0.5*(sin_sg(3,i-1,j)+sin_sg(1,i,j))*dy(i,j)*ddx(i,j)
+       else
+            ddx(i,j) = 0.
+       endif
+   enddo
+333   continue
+
+! y-diffusive flux:
+   do j=js1,je2
+      do i=is,ie
+         a2(i,j) = p1*(q(i,j-1)+q(i,j)) + p2*(q(i,j-2)+q(i,j+1))
+      enddo
+   enddo
+   if ( .not. nested ) then
+      if( js==1 ) then
+        do i=is,ie
+           a2(i,0) = c1*q(i,-2) + c2*q(i,-1) + c3*q(i,0)
+           a2(i,1) = 0.5*(((2.*dya(i,0)+dya(i,-1))*q(i,0)-dya(i,0)*q(i,-1))/(dya(i,-1)+dya(i,0))   &
+                   +      ((2.*dya(i,1)+dya(i, 2))*q(i,1)-dya(i,1)*q(i, 2))/(dya(i, 1)+dya(i,2)))
+           a2(i,2) = c3*q(i,1) + c2*q(i,2) + c1*q(i,3)
+        enddo
+      endif
+      if( (je+1)==npy ) then
+        do i=is,ie
+           a2(i,npy-1) = c1*q(i,npy-3) + c2*q(i,npy-2) + c3*q(i,npy-1)
+           a2(i,npy) = 0.5*(((2.*dya(i,npy-1)+dya(i,npy-2))*q(i,npy-1)-dya(i,npy-1)*q(i,npy-2))/(dya(i,npy-2)+dya(i,npy-1))  &
+                     +      ((2.*dya(i,npy)+dya(i,npy+1))*q(i,npy)-dya(i,npy)*q(i,npy+1))/(dya(i,npy)+dya(i,npy+1)))
+           a2(i,npy+1) = c3*q(i,npy) + c2*q(i,npy+1) + c1*q(i,npy+2)
+        enddo
+      endif
+   endif
+
+   if ( filter_type == 0 ) then
+     do j=js-1,je+1
+        do i=is,ie
+           if( abs(3.*(a2(i,j)+a2(i,j+1)-2.*q(i,j))) > abs(a2(i,j)-a2(i,j+1)) ) then
+               ext2(i,j) = .true.
+           else
+               ext2(i,j) = .false.
+           endif
+        enddo
+     enddo
+   else
+     do j=js-1,je+1
+        do i=is,ie
+           if ( (a2(i,j)-q(i,j))*(a2(i,j+1)-q(i,j)) > 0. ) then
+                ext2(i,j) = .true.
+           else
+                ext2(i,j) = .false.
+           endif
+        enddo
+     enddo
+   endif
+
+   do j=js,je+1
+      do i=is,ie
+         ddy(i,j) = (q(i,j-1)-q(i,j))/dyc(i,j)
+         if ( ext2(i,j-1) .and. ext2(i,j) ) then
+              ddy(i,j) = 0.5*(sin_sg(4,i,j-1)+sin_sg(2,i,j))*dx(i,j)*ddy(i,j)
+         elseif ( abs(ddy(i,j))>m_slope ) then
+              fac = min(1., max(0.1,(abs(ddy(i,j))-m_slope)/m_slope))
+              ddy(i,j) = fac*0.5*(sin_sg(4,i,j-1)+sin_sg(2,i,j))*dx(i,j)*ddy(i,j)
+         else
+              ddy(i,j) = 0.
+         endif
+      enddo
+   enddo
+
+    if ( zero_ocean ) then
+! Limit diffusive flux over water cells:
+         do j=js,je
+            do i=is,ie+1
+               ddx(i,j) = max(0., min(oro(i-1,j), oro(i,j))) * ddx(i,j)
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               ddy(i,j) = max(0., min(oro(i,j-1), oro(i,j))) * ddy(i,j)
+            enddo
+         enddo
+    endif
+
+    do j=js,je
+       do i=is,ie
+          q(i,j) = q(i,j) + cd/area(i,j)*(ddx(i,j)-ddx(i+1,j)+ddy(i,j)-ddy(i,j+1))
+       enddo
+    enddo
+777 continue
+
+! Check slope
+    if ( check_slope ) then
+         call mpp_update_domains(q, domain)
+         do j=js,je
+            do i=is,ie+1
+               ddx(i,j) = (q(i,j) - q(i-1,j))/dxc(i,j) 
+               ddx(i,j) = abs(ddx(i,j))
+            enddo
+         enddo
+         do j=js,je+1
+            do i=is,ie
+               ddy(i,j) = (q(i,j) - q(i,j-1))/dyc(i,j) 
+               ddy(i,j) = abs(ddy(i,j))
+            enddo
+         enddo
+         do j=js,je
+            do i=is,ie
+               a3(i,j) = max( ddx(i,j), ddx(i+1,j), ddy(i,j), ddy(i,j+1) )
+            enddo
+         enddo
+         call global_mx(a3, 0, smin, smax, bd)
+         if ( is_master() ) write(*,*) 'After filter: Max_slope=', smax
+    endif
+
+ end subroutine two_delta_filter
+
 
 
  subroutine del2_cubed_sphere(npx, npy, q, area, dx, dy, dxc, dyc, sin_sg, nmax, cd, zero_ocean, oro, nested, domain, bd)
@@ -622,7 +922,7 @@
       real :: fx2(bd%is:bd%ie+1,bd%js:bd%je), fy2(bd%is:bd%ie,bd%js:bd%je+1)
       real :: fx4(bd%is:bd%ie+1,bd%js:bd%je), fy4(bd%is:bd%ie,bd%js:bd%je+1)
       real, dimension(bd%isd:bd%ied,bd%jsd:bd%jed):: d2, win, wou 
-      real, dimension(bd%is:bd%ie,bd%js:bd%je):: qlow, q0, qmin, qmax
+      real, dimension(bd%is:bd%ie,bd%js:bd%je):: qlow, qmin, qmax
       real, parameter:: esl = 1.E-20
       integer i,j, n
 
@@ -645,13 +945,14 @@
 
       do j=js-1,je+1
          do i=is-1,ie+1
-            diff(i,j) = 0.18*area(i,j) ! area dependency is needed for stretched grid
+            diff(i,j) = cd4*area(i,j) ! area dependency is needed for stretched grid
          enddo
      enddo
 
      do j=js,je
         do i=is,ie
-           q0(i,j) = q(i,j)
+           qmax(i,j) = q(i,j) * peak_fac
+           qmin(i,j) = q(i,j) / peak_fac
         enddo
      enddo
 
@@ -690,12 +991,12 @@
 
      do j=js,je
         do i=is,ie
-           qmin(i,j) = min(q0(i,j), q(i-1,j-1), q(i,j-1), q(i+1,j-1),  &
-                                    q(i-1,j  ), q(i,j  ), q(i+1,j  ),  &
-                                    q(i-1,j+1), q(i,j+1), q(i+1,j+1) )
-           qmax(i,j) = max(peak_fac*q0(i,j), q(i-1,j-1), q(i,j-1), q(i+1,j-1),  &
-                                    q(i-1,j  ), q(i,j  ), q(i+1,j  ),  &
-                                    q(i-1,j+1), q(i,j+1), q(i+1,j+1) )
+           qmin(i,j) = min(qmin(i,j), q(i-1,j-1), q(i,j-1), q(i+1,j-1),  &
+                                      q(i-1,j  ), q(i,j  ), q(i+1,j  ),  &
+                                      q(i-1,j+1), q(i,j+1), q(i+1,j+1) )
+           qmax(i,j) = max(qmax(i,j), q(i-1,j-1), q(i,j-1), q(i+1,j-1),  &
+                                      q(i-1,j  ), q(i,j  ), q(i+1,j  ),  &
+                                      q(i-1,j+1), q(i,j+1), q(i+1,j+1) )
         enddo
      enddo
 

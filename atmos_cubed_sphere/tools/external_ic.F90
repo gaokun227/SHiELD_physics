@@ -254,6 +254,7 @@ contains
        else
           call surfdrv(  Atm(n)%npx, Atm(n)%npy, Atm(n)%gridstruct%grid_64, Atm(n)%gridstruct%agrid_64,   &
                          Atm(n)%gridstruct%area_64, Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy, &
+                         Atm(n)%gridstruct%dxa, Atm(n)%gridstruct%dya, &
                          Atm(n)%gridstruct%dxc, Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%sin_sg, &
                          Atm(n)%phis, Atm(n)%flagstruct%stretch_fac, &
                          Atm(n)%neststruct%nested, Atm(n)%neststruct%npx_global, Atm(N)%domain, &

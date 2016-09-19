@@ -1548,7 +1548,7 @@
       else if (test_case==11) then
 
        call surfdrv(npx, npy, grid, agrid,   &
-                    gridstruct%area_64, dx, dy, dxc, dyc, &
+                    gridstruct%area_64, dx, dy, dxa, dya, dxc, dyc, &
                     gridstruct%sin_sg, phis, &
                     flagstruct%stretch_fac, gridstruct%nested, &
                     npx_global, domain, flagstruct%grid_number, bd)

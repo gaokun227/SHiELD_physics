@@ -2121,6 +2121,87 @@ module gfs_physics_driver_mod
       Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%rainc(1:ngptc)
     enddo
 
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ice'
+    Diag(idx)%desc = 'ice fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'snow'
+    Diag(idx)%desc = 'snow fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%snow(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'graupel'
+    Diag(idx)%desc = 'graupel fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%graupel(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totice'
+    Diag(idx)%desc = 'surface ice precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totsnw'
+    Diag(idx)%desc = 'surface snow precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totsnw(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totgrp'
+    Diag(idx)%desc = 'surface graupel precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totgrp(1:ngptc)
+    enddo
+
 !--- physics instantaneous diagnostics ---
     idx = idx + 1
     Diag(idx)%axes = 2

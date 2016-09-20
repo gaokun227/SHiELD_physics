@@ -496,6 +496,7 @@
      &      dusfc,dvsfc,dtsfc,dqsfc,totprcp,gflux,                      &
      &      dlwsfc,ulwsfc,suntim,runoff,ep,cldwrk,                      &
      &      dugwd,dvgwd,psmean,cnvprcp,spfhmin,spfhmax,rain,rainc,      &
+     &      ice,snow,graupel,totice,totsnw,totgrp,                      &
 
      &      dt3dt,dq3dt,du3dt,dv3dt,dqdt_v,cnvqc_v,acv,acvb,acvt,       &
      &      slc,smc,stc,upd_mf,dwn_mf,det_mf,phy_f3d,phy_f2d,           &
@@ -619,7 +620,8 @@
      &      snowca, soilm,   tmpmin, tmpmax, dusfc,  dvsfc,  dtsfc,     &
      &      dqsfc,  totprcp, gflux,  dlwsfc, ulwsfc, suntim, runoff, ep,&
      &      cldwrk, dugwd,   dvgwd,  psmean, cnvprcp,spfhmin, spfhmax,  &
-     &      rain,   rainc,   acv,    acvb,   acvt
+     &      rain,   rainc,   acv,    acvb,   acvt,                      &
+     &      ice, snow, graupel, totice, totsnw, totgrp
       real(kind=kind_phys), dimension(im), optional,  intent(inout) ::  &
 ! for A/O/I coupling
      &      dusfc_cpl, dvsfc_cpl, dtsfc_cpl, dqsfc_cpl,                 &
@@ -2853,6 +2855,12 @@
 !     grid-scale condensation/precipitations and microphysics parameterization
 !     ------------------------------------------------------------------------
 
+      do i = 1, im
+        ice(i) = 0.0
+        snow(i) = 0.0
+        graupel(i) = 0.0
+      enddo
+
       if (ncld == 0) then           ! no cloud microphysics
 
         call lrgscl(ix,im,levs,dtp,gt0,gq0,prsl,del,prslk,rain1,clw)
@@ -2998,8 +3006,11 @@
      &                               jje, kks, kke, kt, kb, seconds)
 
         do i = 1, im
-          rain1(i) = (rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))    &
-     &               /86400.0*dtp*0.001
+          rain1(i)   = (rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))  &
+     &                 /86400.0*dtp*0.001
+          ice(i)     = ice0(i,1)
+          snow(i)    = snow0(i,1)
+          graupel(i) = graupel0(i,1)
           if (rain1(i) .gt. 0.0) then
             sr(i)  = (snow0(i,1)+ice0(i,1)+graupel0(i,1))               &
      &               /(rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))
@@ -3068,6 +3079,9 @@
       if (lssav) then
         do i = 1, im
           totprcp(i) = totprcp(i) + rain(i)
+          totice(i) = totice(i) + ice(i)
+          totsnw(i) = totsnw(i) + snow(i)
+          totgrp(i) = totgrp(i) + graupel(i)
         enddo
 
         if (ldiag3d) then

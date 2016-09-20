@@ -3008,9 +3008,9 @@
         do i = 1, im
           rain1(i)   = (rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))  &
      &                 /86400.0*dtp*0.001
-          ice(i)     = ice0(i,1)
-          snow(i)    = snow0(i,1)
-          graupel(i) = graupel0(i,1)
+          ice(i)     = ice0(i,1)/86400.0*dtp*0.001
+          snow(i)    = snow0(i,1)/86400.0*dtp*0.001
+          graupel(i) = graupel0(i,1)/86400.0*dtp*0.001
           if (rain1(i) .gt. 0.0) then
             sr(i)  = (snow0(i,1)+ice0(i,1)+graupel0(i,1))               &
      &               /(rain0(i,1)+snow0(i,1)+ice0(i,1)+graupel0(i,1))

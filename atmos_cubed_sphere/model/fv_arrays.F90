@@ -48,7 +48,7 @@ module fv_arrays_mod
            id_delp, id_delz, id_zratio, id_ws, id_iw, id_lw,      &
            id_pfhy, id_pfnh,                                      &
            id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt, &
-           id_acly, id_acl, id_acl2
+           id_acly, id_acl, id_acl2, id_dbz, id_maxdbz, id_basedbz
 
 ! Selected p-level fields from 3D variables:
  integer :: id_vort200, id_vort500, id_w500, id_w700
@@ -72,9 +72,7 @@ module fv_arrays_mod
 
      ! For initial conditions:
      integer ic_ps, ic_ua, ic_va, ic_ppt
-#ifdef LASPRAT
      integer ic_sphum
-#endif
      integer, allocatable :: id_tracer(:)
 ! ESM requested diagnostics  -  dry mass/volume mixing ratios
  integer, allocatable :: id_tracer_dmmr(:)
@@ -291,6 +289,7 @@ module fv_arrays_mod
 ! Additional (after the fact) terrain filter (to further smooth the terrain after cold start)
    integer ::    n_zs_filter=0      !  number of application of the terrain filter
    integer :: nord_zs_filter=4      !  use del-2 (2) OR del-4 (4)
+   logical :: full_zs_filter=.false.! perform full filtering of topography (in external_ic only )
 
    logical :: consv_am  = .false.   ! Apply Angular Momentum Correction (to zonal wind component)
    logical :: do_sat_adj= .false.   ! 
@@ -872,9 +871,9 @@ contains
     allocate ( Atm%u_srf(is:ie,js:je) )
     allocate ( Atm%v_srf(is:ie,js:je) )
 
-    if ( Atm%flagstruct%fv_land ) then
-       allocate ( Atm%sgh(is:ie,js:je) )
-       allocate ( Atm%oro(is:ie,js:je) )
+    if ( Atm%flagstruct%fv_land .or. Atm%flagstruct%full_zs_filter) then
+       allocate ( Atm%sgh(isd:ied,jsd:jed) )
+       allocate ( Atm%oro(isd:ied,jsd:jed) )
     else
        allocate ( Atm%oro(1,1) )
     endif
@@ -970,6 +969,15 @@ contains
         enddo
         enddo
      enddo
+     
+     if (Atm%flagstruct%fv_land .or. Atm%flagstruct%full_zs_filter ) then
+     do j=jsd,jed
+     do i=isd,ied
+        Atm%oro(i,j) = 1.
+     enddo
+     enddo
+     endif
+
 #endif
 
     allocate ( Atm%gridstruct% area(isd_2d:ied_2d  ,jsd_2d:jed_2d  ) )   ! Cell Centered

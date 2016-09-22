@@ -114,7 +114,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  logical :: tables_are_initialized = .false.
 
  integer:: id_rh, id_vtr, id_vts,  id_vtg, id_vti, id_rain, id_snow, id_graupel, &
-           id_ice, id_prec, id_cond, id_var, id_droplets, id_dbz, id_maxdbz, id_basedbz
+           id_ice, id_prec, id_cond, id_var, id_droplets
  real:: lati, latv, lats
 
  real, parameter :: dt_fr = 8.       ! homogeneous freezing of all cloud water at t_wfr - dt_fr
@@ -288,8 +288,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
   integer :: ks,ke         ! vertical dimension
   integer :: days, ntimes
 
-  real, dimension(iie-iis+1,jje-jjs+1)           :: prec_mp, prec1, cond, w_var, rh0, maxdbz
-  real, dimension(iie-iis+1,jje-jjs+1,kke-kks+1) :: vt_r, vt_s, vt_g, vt_i, qn2, dbz
+  real, dimension(iie-iis+1,jje-jjs+1)           :: prec_mp, prec1, cond, w_var, rh0
+  real, dimension(iie-iis+1,jje-jjs+1,kke-kks+1) :: vt_r, vt_s, vt_g, vt_i, qn2
   real, dimension(size(pt,1), size(pt,3)) :: m2_rain, m2_sol
 
   real :: allmax
@@ -462,33 +462,6 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
    if ( id_prec>0 ) then
 !       used=send_data(id_prec, prec_mp, time, iis, jjs)
 !        used=send_data(id_prec, prec_mp, time, is_in=iis, js_in=jjs)
-   endif
-
-   if ( id_dbz>0 .or. id_maxdbz>0 .or. id_basedbz>0) then
-      call dbzcalc(qv, qr, qs, qg, pt, delp, dz, &
-           dbz, maxdbz, allmax, is, ie, js, je, ks, ke, .true., .true., .true., .true.)
-      if (id_dbz > 0) then
-!         used=send_data(id_dbz, dbz, time, is_in=iis, js_in=jjs) 
-      endif
-      if (id_maxdbz > 0) then
-!         used=send_data(id_maxdbz, maxdbz, time, is_in=iis, js_in=jjs)
-      endif
-      if (id_basedbz > 0) then
-         !interpolate to 1km dbz
-         !Reusing maxdbz
-         do j=js,je
-         do i=is,ie
-            maxdbz(i,j) = dbz(i,j,ke)
-         enddo
-         enddo
-!         used=send_data(id_basedbz, maxdbz, time, is_in=iis, js_in=jjs)
-      endif
-
-      if (mp_print .and. seconds == 0) then
-!         call mpp_max(allmax)
-!         if (master) write(*,*) 'max reflectivity = ', allmax, ' dBZ'
-      endif
-      
    endif
 
 !----------------------------------------------------------------------------
@@ -3068,9 +3041,11 @@ endif
 !     physical constants (mks)
 !
  real :: rnzr, rnzs, rnzg, rhos, rhog
+ !Intercept parameters
  data rnzr /8.0e6/  ! lin83
  data rnzs /3.0e6/  ! lin83
  data rnzg /4.0e6/  ! rh84
+ !Density parameters
  data rhos /0.1e3/  ! lin83    (snow density; 1/10 of water)
  data rhog /0.4e3/  ! rh84     (graupel density)
  data acc/5.0,2.0,0.5/
@@ -3277,17 +3252,6 @@ endif
 !         'subgrid variance', 'n/a',  missing_value=missing_value )
     id_var = 1
 
-!    id_dbz = register_diag_field ( mod_name, 'reflectivity', axes(1:3), time, &
-!         'Stoelinga simulated reflectivity', 'dBz', missing_value=missing_value)
-    id_dbz = 1
-
-!    id_maxdbz = register_diag_field ( mod_name, 'max_reflectivity', axes(1:2), time, &
-!         'Stoelinga simulated maximum (composite) reflectivity', 'dBz', missing_value=missing_value)
-    id_maxdbz = 1
-
-!    id_basedbz = register_diag_field ( mod_name, 'base_reflectivity', axes(1:2), time, &
-!         'Stoelinga simulated base reflectivity', 'dBz', missing_value=missing_value)
-    id_basedbz = 1
 !   call qsmith_init
 
 ! TESTING the water vapor tables
@@ -3986,158 +3950,6 @@ endif
 
  end subroutine neg_adj
 
-
- subroutine dbzcalc(qv, qr, qs, qg, pt, delp, dz, &
-      dbz, maxdbz, allmax, is, ie, js, je, ks, ke, &
-      in0r, in0s, in0g, iliqskin)
-
-   !Code from Mark Stoelinga's dbzcalc.f from the RIP package. 
-   !Currently just using values taken directly from that code, which is
-   ! consistent for the MM5 Reisner-2 microphysics. From that file:
-
-!     This routine computes equivalent reflectivity factor (in dBZ) at
-!     each model grid point.  In calculating Ze, the RIP algorithm makes
-!     assumptions consistent with those made in an early version
-!     (ca. 1996) of the bulk mixed-phase microphysical scheme in the MM5
-!     model (i.e., the scheme known as "Resiner-2").  For each species:
-!
-!     1. Particles are assumed to be spheres of constant density.  The
-!     densities of rain drops, snow particles, and graupel particles are
-!     taken to be rho_r = rho_l = 1000 kg m^-3, rho_s = 100 kg m^-3, and
-!     rho_g = 400 kg m^-3, respectively. (l refers to the density of
-!     liquid water.)
-!
-!     2. The size distribution (in terms of the actual diameter of the
-!     particles, rather than the melted diameter or the equivalent solid
-!     ice sphere diameter) is assumed to follow an exponential
-!     distribution of the form N(D) = N_0 * exp( lambda*D ).
-!
-!     3. If in0X=0, the intercept parameter is assumed constant (as in
-!     early Reisner-2), with values of 8x10^6, 2x10^7, and 4x10^6 m^-4,
-!     for rain, snow, and graupel, respectively.  Various choices of
-!     in0X are available (or can be added).  Currently, in0X=1 gives the
-!     variable intercept for each species that is consistent with
-!     Thompson, Rasmussen, and Manning (2004, Monthly Weather Review,
-!     Vol. 132, No. 2, pp. 519-542.)
-!
-!     4. If iliqskin=1, frozen particles that are at a temperature above
-!     freezing are assumed to scatter as a liquid particle.
-!
-!     More information on the derivation of simulated reflectivity in RIP
-!     can be found in Stoelinga (2005, unpublished write-up).  Contact
-!     Mark Stoelinga (stoeling@atmos.washington.edu) for a copy.  
-
-   integer, intent(IN) :: is, ie, js, je, ks, ke
-   real,    intent(IN),  dimension(is:, js:, ks:) :: qv, qr, qs, qg, pt, delp, dz
-   real,    intent(OUT), dimension(is:, js:, ks:) :: dbz
-   real,    intent(OUT), dimension(is:, js:)      :: maxdbz
-   logical, intent(IN) :: in0r, in0s, in0g, iliqskin
-   real,    intent(OUT) :: allmax
-
-   !Parameters for constant intercepts (in0[rsg] = .false.)
-   real, parameter :: rn0_r = 8.e6 ! m^-4
-   real, parameter :: rn0_s = 2.e7 ! m^-4
-   real, parameter :: rn0_g = 4.e6 ! m^-4
-
-   !Constants for variable intercepts
-   real, parameter :: r1=1.e-15
-   real, parameter :: ron=8.e6
-   real, parameter :: ron2=1.e10
-   real, parameter :: son=2.e7
-   real, parameter :: gon=5.e7
-   real, parameter :: ron_min = 8.e6
-   real, parameter :: ron_qr0 = 0.00010
-   real, parameter :: ron_delqr0 = 0.25*ron_qr0
-   real, parameter :: ron_const1r = (ron2-ron_min)*0.5
-   real, parameter :: ron_const2r = (ron2+ron_min)*0.5
-
-   !Other constants
-   real, parameter :: gamma_seven = 720.
-   real, parameter :: rho_r = rhor ! 1000. kg m^-3
-   real, parameter :: rho_s = 100.   ! kg m^-3
-   real, parameter :: rho_g = 400.   ! kg m^-3
-   real, parameter :: alpha = 0.224
-   real, parameter :: factor_r = gamma_seven * 1.e18 * (1./(pi*rho_r))**1.75
-   real, parameter :: factor_s = gamma_seven * 1.e18 * (1./(pi*rho_s))**1.75 &
-        * (rho_s/rho_r)**2 * alpha
-   real, parameter :: factor_g = gamma_seven * 1.e18 * (1./(pi*rho_g))**1.75 &
-        * (rho_g/rho_r)**2 * alpha
-
-   integer :: i,j,k
-   real :: factorb_s, factorb_g, rhoair
-   real :: temp_c, pres, sonv, gonv, ronv, z_e
-   real :: q1, q2, q3
-
-   maxdbz = 0.
-   allmax = 0.
-
-   do k=ks, ke
-   do j=js, je
-   do i=is, ie
-      
-      rhoair = -delp(i,j,k)/(grav*dz(i,j,k)) ! air density
-      
-      !      Adjust factor for brightband, where snow or graupel particle
-      !      scatters like liquid water (alpha=1.0) because it is assumed to
-      !      have a liquid skin.
-      
-      !lmh: celkel in dbzcalc.f presumably freezing temperature
-      if (iliqskin .and. pt(i,j,k) .gt. tice) then
-         factorb_s=factor_s/alpha
-         factorb_g=factor_g/alpha
-      else
-         factorb_s=factor_s
-         factorb_g=factor_g
-      endif
-
-      !Calculate variable intercept parameters if necessary
-      !  using definitions from Thompson et al
-      if (in0s) then
-         temp_c = min(-0.001, pt(i,j,k) - tice)
-         sonv = min(2.0e8, 2.0e6*exp(-0.12*temp_c))
-      else
-         sonv = rn0_s
-      end if
-
-      q1 = max(0., qg(i,j,k))
-      q2 = max(0., qr(i,j,k))
-      q3 = max(0., qs(i,j,k))
-
-      if (in0g) then
-         gonv = gon
-         if ( qg(i,j,k) > r1) then
-            gonv = 2.38 * (pi * rho_g / (rhoair*q1))**0.92
-            gonv = max(1.e4, min(gonv,gon))
-         end if
-      else
-         gonv = rn0_g
-      end if
-
-      if (in0r) then
-         ronv = ron2
-         if (qr(i,j,k) > r1 ) then
-            ronv = ron_const1r * tanh((ron_qr0-q2)/ron_delqr0) + ron_const2r
-         end if
-      else
-         ronv = rn0_r
-      end if
-
-      !Total equivalent reflectivity: mm^6 m^-3
-      z_e =   factor_r  * (rhoair*q2)**1.75 / ronv**.75    & ! rain
-            + factorb_s * (rhoair*q3)**1.75 / sonv**.75    & ! snow
-            + factorb_g * (rhoair*q1)**1.75 / gonv**.75      ! graupel
-      
-      z_e = max(z_e,0.01)
-      dbz(i,j,k) = 10. * log10(z_e)
-
-      maxdbz(i,j) = max(dbz(i,j,k), maxdbz(i,j))
-      allmax      = max(dbz(i,j,k), allmax)
-
-   enddo
-   enddo
-   enddo
-
- end subroutine dbzcalc
 
 ! real function g_sum(p, ifirst, ilast, jfirst, jlast, area, mode)
 !!-------------------------

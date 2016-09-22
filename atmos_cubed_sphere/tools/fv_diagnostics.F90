@@ -26,7 +26,7 @@ module fv_diagnostics_mod
  use mpp_domains_mod,  only: domain2d, mpp_update_domains, DGRID_NE
  use diag_manager_mod, only: diag_axis_init, register_diag_field, &
                              register_static_field, send_data, diag_grid_init
- use fv_arrays_mod,    only: fv_atmos_type, fv_grid_type, fv_diag_type
+ use fv_arrays_mod,    only: fv_atmos_type, fv_grid_type, fv_diag_type, fv_grid_bounds_type
  !!! CLEANUP needs removal?
  use fv_mapz_mod,      only: E_Flux, moist_cv
  use fv_mp_mod,        only: mp_reduce_sum, mp_reduce_min, mp_reduce_max, is_master
@@ -293,10 +293,8 @@ contains
             'meridional wind', 'm/sec' )
        idiag%ic_ppt= register_static_field ( trim(field), 'ppt_ic', axes(1:3),        &
             'potential temperature perturbation', 'K' )
-#ifdef LASPRAT
        idiag%ic_sphum  = register_static_field ( trim(field), 'sphum_ic', axes(1:2),  &
                                          'initial surface pressure', 'Pa' )
-#endif
 
 !    end do
 
@@ -572,6 +570,13 @@ contains
                'DT/Dt: fast moist phys', 'deg/sec', missing_value=missing_value )
        idiag%id_qdt = register_diag_field ( trim(field), 'qdt', axes(1:3), Time,       &
                'Dqv/Dt: fast moist phys', 'kg/kg/sec', missing_value=missing_value )
+       idiag%id_dbz = register_diag_field ( trim(field), 'reflectivity', axes(1:3), time, &
+                'Stoelinga simulated reflectivity', 'dBz', missing_value=missing_value)
+       idiag%id_maxdbz = register_diag_field ( trim(field), 'max_reflectivity', axes(1:2), time, &
+                'Stoelinga simulated maximum (composite) reflectivity', 'dBz', missing_value=missing_value)
+       idiag%id_basedbz = register_diag_field ( trim(field), 'base_reflectivity', axes(1:2), time, &
+                'Stoelinga simulated base reflectivity', 'dBz', missing_value=missing_value)
+            
 !--------------------
 ! Relative vorticity
 !--------------------
@@ -1029,7 +1034,7 @@ contains
     real, parameter:: ws_1 = 20.
     real, parameter:: vort_c0= 2.2e-5 
     logical, allocatable :: storm(:,:), cat_crt(:,:)
-    real :: tmp2, pvsum, e2, einf, qm, mm
+    real :: tmp2, pvsum, e2, einf, qm, mm, maxdbz, allmax
     integer :: Cl, Cl2
 
     !!! CLEANUP: does it really make sense to have this routine loop over Atm% anymore? We assume n=1 below anyway
@@ -2084,6 +2089,39 @@ contains
             enddo
             enddo
             used=send_data(idiag%id_pmaskv2, a2, Time)
+       endif
+
+       if ( rainwat > 0 .and. (idiag%id_dbz>0 .or. idiag%id_maxdbz>0 .or. idiag%id_basedbz>0)) then
+
+          if (.not. allocated(a3)) allocate(a3(isc:iec,jsc:jec,npz))
+
+          call dbzcalc(Atm(n)%q, Atm(n)%pt, Atm(n)%delp, Atm(n)%peln, Atm(n)%delz, &
+               a3, a2, allmax, Atm(n)%bd, npz, Atm(n)%ncnst, Atm(n)%flagstruct%hydrostatic, &
+               zvir, .false., .false., .false., .true. ) ! Lin MP has constant N_0 intercept
+
+          if (idiag%id_dbz > 0) then
+             used=send_data(idiag%id_dbz, a3, time)
+          endif
+          if (idiag%id_maxdbz > 0) then
+             used=send_data(idiag%id_maxdbz, a2, time)
+          endif
+          if (idiag%id_basedbz > 0) then
+             !interpolate to 1km dbz
+             !Reusing maxdbz
+             do j=jsc,jec
+                do i=isc,iec
+                   a2(i,j) = a3(i,j,npz)
+                enddo
+             enddo
+             used=send_data(idiag%id_basedbz, a2, time)
+          endif
+
+          if (prt_minmax) then
+             call mpp_max(allmax)
+             if (master) write(*,*) 'max reflectivity = ', allmax, ' dBZ'
+          endif
+
+          deallocate(a3)
        endif
 
 !-------------------------------------------------------
@@ -3816,6 +3854,193 @@ end subroutine eqv_pot
 
   end subroutine nh_total_energy
 
+
+ subroutine dbzcalc(q, pt, delp, peln, delz, &
+      dbz, maxdbz, allmax, bd, npz, ncnst, &
+      hydrostatic, zvir, in0r, in0s, in0g, iliqskin)
+
+   !Code from Mark Stoelinga's dbzcalc.f from the RIP package. 
+   !Currently just using values taken directly from that code, which is
+   ! consistent for the MM5 Reisner-2 microphysics. From that file:
+
+!     This routine computes equivalent reflectivity factor (in dBZ) at
+!     each model grid point.  In calculating Ze, the RIP algorithm makes
+!     assumptions consistent with those made in an early version
+!     (ca. 1996) of the bulk mixed-phase microphysical scheme in the MM5
+!     model (i.e., the scheme known as "Resiner-2").  For each species:
+!
+!     1. Particles are assumed to be spheres of constant density.  The
+!     densities of rain drops, snow particles, and graupel particles are
+!     taken to be rho_r = rho_l = 1000 kg m^-3, rho_s = 100 kg m^-3, and
+!     rho_g = 400 kg m^-3, respectively. (l refers to the density of
+!     liquid water.)
+!
+!     2. The size distribution (in terms of the actual diameter of the
+!     particles, rather than the melted diameter or the equivalent solid
+!     ice sphere diameter) is assumed to follow an exponential
+!     distribution of the form N(D) = N_0 * exp( lambda*D ).
+!
+!     3. If in0X=0, the intercept parameter is assumed constant (as in
+!     early Reisner-2), with values of 8x10^6, 2x10^7, and 4x10^6 m^-4,
+!     for rain, snow, and graupel, respectively.  Various choices of
+!     in0X are available (or can be added).  Currently, in0X=1 gives the
+!     variable intercept for each species that is consistent with
+!     Thompson, Rasmussen, and Manning (2004, Monthly Weather Review,
+!     Vol. 132, No. 2, pp. 519-542.)
+!
+!     4. If iliqskin=1, frozen particles that are at a temperature above
+!     freezing are assumed to scatter as a liquid particle.
+!
+!     More information on the derivation of simulated reflectivity in RIP
+!     can be found in Stoelinga (2005, unpublished write-up).  Contact
+!     Mark Stoelinga (stoeling@atmos.washington.edu) for a copy.  
+
+! 22sep16: Modifying to use the Lin MP parameters. If doing so remember
+!   that the Lin MP assumes a constant intercept (in0X = .false.)
+!   Ferrier-Aligo has an option for fixed slope (rather than fixed intercept).
+!   Thompson presumably is an extension of Reisner MP.
+
+   type(fv_grid_bounds_type), intent(IN) :: bd
+   integer, intent(IN) :: npz, ncnst
+   real,    intent(IN),  dimension(bd%isd:bd%ied, bd%jsd:bd%jed, npz) :: pt, delp, delz
+   real,    intent(IN),  dimension(bd%isd:bd%ied, bd%jsd:bd%jed, npz, ncnst) :: q
+   real,    intent(IN),  dimension(bd%is :bd%ie,  npz+1, bd%js:bd%je) :: peln
+   real,    intent(OUT), dimension(bd%is :bd%ie,  bd%js :bd%je , npz) :: dbz
+   real,    intent(OUT), dimension(bd%is :bd%ie,  bd%js :bd%je)      :: maxdbz
+   logical, intent(IN) :: hydrostatic, in0r, in0s, in0g, iliqskin
+   real,    intent(IN) :: zvir
+   real,    intent(OUT) :: allmax
+
+   !Parameters for constant intercepts (in0[rsg] = .false.)
+   !Using Lin MP values
+   real, parameter :: rn0_r = 8.e6 ! m^-4
+   real, parameter :: rn0_s = 3.e6 ! m^-4
+   real, parameter :: rn0_g = 4.e6 ! m^-4
+
+   !Constants for variable intercepts
+   !Will need to be changed based on MP scheme
+   real, parameter :: r1=1.e-15
+   real, parameter :: ron=8.e6
+   real, parameter :: ron2=1.e10
+   real, parameter :: son=2.e7
+   real, parameter :: gon=5.e7
+   real, parameter :: ron_min = 8.e6
+   real, parameter :: ron_qr0 = 0.00010
+   real, parameter :: ron_delqr0 = 0.25*ron_qr0
+   real, parameter :: ron_const1r = (ron2-ron_min)*0.5
+   real, parameter :: ron_const2r = (ron2+ron_min)*0.5
+
+   !Other constants
+   real, parameter :: gamma_seven = 720.
+   !The following values are also used in Lin-Lin MP
+   real, parameter :: rho_r = 1.0e3  ! LFO83
+   real, parameter :: rho_s = 100.   ! kg m^-3 
+   real, parameter :: rho_g = 400.   ! kg m^-3
+   real, parameter :: alpha = 0.224
+   real, parameter :: factor_r = gamma_seven * 1.e18 * (1./(pi*rho_r))**1.75
+   real, parameter :: factor_s = gamma_seven * 1.e18 * (1./(pi*rho_s))**1.75 &
+        * (rho_s/rho_r)**2 * alpha
+   real, parameter :: factor_g = gamma_seven * 1.e18 * (1./(pi*rho_g))**1.75 &
+        * (rho_g/rho_r)**2 * alpha
+   real, parameter :: tice = 273.16
+
+   integer :: i,j,k
+   real :: factorb_s, factorb_g, rhoair
+   real :: temp_c, pres, sonv, gonv, ronv, z_e
+   real :: qr1, qs1, qg1
+
+   integer :: is, ie, js, je
+
+   is = bd%is
+   ie = bd%ie
+   js = bd%js
+   je = bd%je
+
+   maxdbz(:,:) = -20. !Minimum value
+   allmax = -20. 
+
+   if (rainwat < 1) return
+
+   do k=1, npz
+   do j=js, je
+   do i=is, ie
+      
+      if (hydrostatic) then
+         rhoair = delp(i,j,k)/( (peln(i,k+1,j)-peln(i,k,j)) * rdgas * pt(i,j,k) * ( 1. + zvir*q(i,j,k,sphum) ) )
+      else
+         rhoair = -delp(i,j,k)/(grav*delz(i,j,k)) ! air density
+      endif
+      
+      !      Adjust factor for brightband, where snow or graupel particle
+      !      scatters like liquid water (alpha=1.0) because it is assumed to
+      !      have a liquid skin.
+      
+      !lmh: celkel in dbzcalc.f presumably freezing temperature
+      if (iliqskin .and. pt(i,j,k) .gt. tice) then
+         factorb_s=factor_s/alpha
+         factorb_g=factor_g/alpha
+      else
+         factorb_s=factor_s
+         factorb_g=factor_g
+      endif
+
+      !Calculate variable intercept parameters if necessary
+      !  using definitions from Thompson et al
+      if (in0s) then
+         temp_c = min(-0.001, pt(i,j,k) - tice)
+         sonv = min(2.0e8, 2.0e6*exp(-0.12*temp_c))
+      else
+         sonv = rn0_s
+      end if
+
+      qr1 = max(0., q(i,j,k,rainwat))
+      if (graupel > 0) then
+         qg1 = max(0., q(i,j,k,graupel))
+      else
+         qg1 = 0.
+      endif
+      if (snowwat > 0) then
+         qs1 = max(0., q(i,j,k,snowwat))
+      else
+         qs1 = 0.
+      endif
+
+      if (in0g) then
+         gonv = gon
+         if ( qg1 > r1) then
+            gonv = 2.38 * (pi * rho_g / (rhoair*qg1))**0.92
+            gonv = max(1.e4, min(gonv,gon))
+         end if
+      else
+         gonv = rn0_g
+      end if
+
+      if (in0r) then
+         ronv = ron2
+         if (qr1 > r1 ) then
+            ronv = ron_const1r * tanh((ron_qr0-qr1)/ron_delqr0) + ron_const2r
+         end if
+      else
+         ronv = rn0_r
+      end if
+
+      !Total equivalent reflectivity: mm^6 m^-3
+      z_e =   factor_r  * (rhoair*qr1)**1.75 / ronv**.75    & ! rain
+            + factorb_s * (rhoair*qs1)**1.75 / sonv**.75    & ! snow
+            + factorb_g * (rhoair*qg1)**1.75 / gonv**.75      ! graupel
+      
+      !Minimum allowed dbz is -20
+      z_e = max(z_e,0.01)
+      dbz(i,j,k) = 10. * log10(z_e)
+
+      maxdbz(i,j) = max(dbz(i,j,k), maxdbz(i,j))
+      allmax      = max(dbz(i,j,k), allmax)
+
+   enddo
+   enddo
+   enddo
+
+ end subroutine dbzcalc
 
 !#######################################################################
 

@@ -142,7 +142,7 @@ contains
                              call timing_on('NCEP_IC')
            call get_ncep_ic( Atm, fv_domain, nq )
                              call timing_off('NCEP_IC')
-#ifndef NO_FV_TRACERS
+#ifdef FV_TRACERS
            if (.not. cold_start) then
               call fv_io_read_tracers( fv_domain, Atm )
               if(is_master()) write(*,*) 'All tracers except sphum replaced by FV IC'
@@ -332,8 +332,8 @@ contains
           allocate (  lon(im) )
           allocate (  lat(jm) )
  
-          call _GET_VAR1 (ncid, 'lon', im, lon )
-          call _GET_VAR1 (ncid, 'lat', jm, lat )
+          call _GET_VAR1(ncid, 'lon', im, lon )
+          call _GET_VAR1(ncid, 'lat', jm, lat )
 
 ! Convert to radian
           do i=1,im
@@ -1054,6 +1054,31 @@ contains
       type(domain2d),      intent(inout) :: fv_domain
       integer, intent(in):: nq
 ! local:
+#ifdef HIWPP_ETA
+      real :: ak_HIWPP(65), bk_HIWPP(65)
+      data ak_HIWPP/                                                                &
+           0, 0.00064247, 0.0013779, 0.00221958, 0.00318266, 0.00428434,            &
+           0.00554424, 0.00698457, 0.00863058, 0.0105108, 0.01265752, 0.01510711,   &
+           0.01790051, 0.02108366, 0.02470788, 0.02883038, 0.0335146, 0.03883052,   &
+           0.04485493, 0.05167146, 0.0593705, 0.06804874, 0.0777715, 0.08832537,    &
+           0.09936614, 0.1105485, 0.1215294, 0.1319707, 0.1415432, 0.1499307,       &
+           0.1568349, 0.1619797, 0.1651174, 0.166116, 0.1650314, 0.1619731,         &
+           0.1570889, 0.1505634, 0.1426143, 0.1334867, 0.1234449, 0.1127635,        &
+           0.1017171, 0.09057051, 0.07956908, 0.06893117, 0.05884206, 0.04945029,   &
+           0.04086614, 0.03316217, 0.02637553, 0.0205115, 0.01554789, 0.01143988,   &
+           0.00812489, 0.0055272, 0.00356223, 0.00214015, 0.00116899, 0.00055712,   &
+           0.00021516, 5.741e-05, 5.75e-06, 0, 0 /
+
+      data bk_HIWPP/                                                                &
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,        &
+           3.697e-05, 0.00043106, 0.00163591, 0.00410671, 0.00829402, 0.01463712,   &
+           0.02355588, 0.03544162, 0.05064684, 0.06947458, 0.09216691, 0.1188122,   &
+           0.1492688, 0.1832962, 0.2205702, 0.2606854, 0.3031641, 0.3474685,        &
+           0.3930182, 0.4392108, 0.4854433, 0.5311348, 0.5757467, 0.6187996,        &
+           0.659887, 0.6986829, 0.7349452, 0.7685147, 0.7993097, 0.8273188,         &
+           0.8525907, 0.8752236, 0.895355, 0.913151, 0.9287973, 0.9424911,          &
+           0.9544341, 0.9648276, 0.9738676, 0.9817423, 0.9886266, 0.9946712, 1 /
+#endif
       character(len=128) :: fname
       real(kind=4), allocatable:: wk1(:), wk2(:,:), wk3(:,:,:)
       real, allocatable:: tp(:,:,:), qp(:,:,:)
@@ -1107,8 +1132,8 @@ contains
           allocate (  lon(im) )
           allocate (  lat(jm) )
  
-          call _GET_VAR1 (ncid, 'lon', im, lon )
-          call _GET_VAR1 (ncid, 'lat', jm, lat )
+          call _GET_VAR1(ncid, 'lon', im, lon )
+          call _GET_VAR1(ncid, 'lat', jm, lat )
 
 ! Convert to radian
           do i=1,im
@@ -1120,16 +1145,31 @@ contains
 
           allocate ( ak0(km+1) )
           allocate ( bk0(km+1) )
-          call _GET_VAR1 (ncid, 'hyai', km+1, ak0, found )
+
+#ifdef HIWPP_ETA
+! The HIWPP data from Jeff does not contain (ak,bk)
+          do k=1, km+1
+            ak0(k) = ak_HIWPP (k)
+            bk0(k) = bk_HIWPP (k)
+          enddo
+#else
+          call _GET_VAR1(ncid, 'hyai', km+1, ak0, found )
           if ( .not. found )  ak0(:) = 0.
 
-          call _GET_VAR1 (ncid, 'hybi', km+1, bk0 )
+          call _GET_VAR1(ncid, 'hybi', km+1, bk0 )
+#endif
+          if( is_master() ) then
+             do k=1,km+1
+                write(*,*) k, ak0(k), bk0(k)
+             enddo
+          endif
 
 ! Note: definition of NCEP hybrid is p(k) = a(k)*1.E5 + b(k)*ps
           ak0(:) = ak0(:) * 1.E5
 
 ! Limiter to prevent NAN at top during remapping
           if ( bk0(1) < 1.E-9 ) ak0(1) = max(1.e-9, ak0(1))
+
       else
           call mpp_error(FATAL,'==> Error in get_external_ic: Expected file '//trim(fname)//' for NCEP IC does not exist')
       endif
@@ -1670,11 +1710,12 @@ contains
   real, dimension(Atm%bd%is:Atm%bd%ie,km+1):: pe0, pn0
   real, dimension(Atm%bd%is:Atm%bd%ie,npz):: qn1
   real, dimension(Atm%bd%is:Atm%bd%ie,npz+1):: pe1, pn1
-  real pt0(km), gz(km+1), pk0(km+1)
+  real(kind=R_GRID), dimension(2*km+1):: gz, pn
+  real pk0(km+1)
   real qp(Atm%bd%is:Atm%bd%ie,km,ncnst)
   real p1, p2, alpha, rdg
-  real(kind=R_GRID):: pst
-  integer i,j,k, iq
+  real(kind=R_GRID):: pst, pt0
+  integer i,j,k, k2,l, iq
   integer  sphum, o3mr, clwmr
   integer :: is,  ie,  js,  je
   integer :: isd, ied, jsd, jed
@@ -1688,25 +1729,25 @@ contains
   jsd = Atm%bd%jsd
   jed = Atm%bd%jed
 
+  k2 = max(10, km/2)
 
+! nq is always 1
   sphum   = get_tracer_index(MODEL_ATMOS, 'sphum')
-  clwmr   = get_tracer_index(MODEL_ATMOS, 'liq_wat')
-  o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
 
   if (mpp_pe()==1) then
-    print *, 'sphum = ', sphum
-    print *, 'clwmr = ', clwmr
-    print *, ' o3mr = ', o3mr
-    print *, 'ncnst = ', ncnst
+    print *, 'sphum = ', sphum, ' ncnst=', ncnst
+    print *, 'T_is_Tv = ', T_is_Tv, ' zvir=', zvir, ' kappa=', kappa
   endif
 
   if ( sphum/=1 ) then
        call mpp_error(FATAL,'SPHUM must be 1st tracer')
   endif
 
-!rab  if ( o3mr/=ncnst ) then
-!rab       call mpp_error(FATAL,'number of q species is not match')
-!rab  endif
+  call prt_maxmin('ZS_FV3', Atm%phis, is, ie, js, je, 3, 1, 1./grav)
+  call prt_maxmin('ZS_GFS', gzc,      is, ie, js, je, 0, 1, 1.)
+  call prt_maxmin('PS_Data', psc, is, ie, js, je, 0, 1, 0.01)
+  call prt_maxmin('T_Data', ta, is, ie, js, je, 0, km, 1.)
+  call prt_maxmin('q_Data', qa(is:ie,js:je,1:km,1), is, ie, js, je, 0, km, 1.)
 
   do 5000 j=js,je
 
@@ -1736,36 +1777,32 @@ contains
           pn0(i,k) = log(pe0(i,k))
             pk0(k) = pe0(i,k)**kappa
        enddo
+! gzc is height
 
-#ifdef USE_DATA_ZS
-       Atm%  ps(i,j) = psc(i,j)
-       Atm%phis(i,j) = gzc(i,j)
-#else
-
-! * Adjust interpolated ps to model terrain
-       gz(km+1) = gzc(i,j)
+! Note the following line, gz is actully Z (from Jeff's data).
+       gz(km+1) = gzc(i,j)*grav
        do k=km,1,-1
-           gz(k) = gz(k+1) + rdgas*tp(i,k)*(pn0(i,k+1)-pn0(i,k))
+          gz(k) = gz(k+1) + rdgas*tp(i,k)*(pn0(i,k+1)-pn0(i,k))
        enddo
-! Only lowest layer potential temp is needed
-          pt0(km) = tp(i,km)/(pk0(km+1)-pk0(km))*(kappa*(pn0(i,km+1)-pn0(i,km)))
-       if( Atm%phis(i,j)>gzc(i,j) ) then
-           do k=km,1,-1
-              if( Atm%phis(i,j) <  gz(k)  .and.    &
-                  Atm%phis(i,j) >= gz(k+1) ) then
-                  pst = pk0(k) + (pk0(k+1)-pk0(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
-                  go to 123
-              endif
-           enddo
-       else
-! Extrapolation into the ground
-           pst = pk0(km+1) + (gzc(i,j)-Atm%phis(i,j))/(cp_air*pt0(km))
-       endif
 
-123    Atm%ps(i,j) = pst**(1./kappa)
-#endif
-     enddo   !i-loop
-
+        do k=1,km+1
+           pn(k) = pn0(i,k)
+        enddo
+! Use log-p for interpolation/extrapolation
+! mirror image method:
+        do k=km+2, km+k2
+              l = 2*(km+1) - k
+           gz(k) = 2.*gz(km+1) - gz(l)
+           pn(k) = 2.*pn(km+1) - pn(l)
+        enddo
+        do k=km+k2-1, 2, -1
+          if( Atm%phis(i,j).le.gz(k) .and. Atm%phis(i,j).ge.gz(k+1) ) then
+              pst = pn(k) + (pn(k+1)-pn(k))*(gz(k)-Atm%phis(i,j))/(gz(k)-gz(k+1))
+              go to 123
+          endif
+        enddo
+123     Atm%ps(i,j) = exp(pst)
+     enddo   ! i-loop
 
      do i=is,ie
         pe1(i,1) = Atm%ak(1)
@@ -1790,28 +1827,11 @@ contains
 !----------------
       do iq=1,ncnst
          call mappm(km, pe0, qp(is,1,iq), npz, pe1,  qn1, is,ie, 0, 11, Atm%ptop)
-         if (iq==sphum .and. Atm%flagstruct%ncep_ic ) then
-             p1 = 200.E2
-             p2 =  75.E2
-! Blend model sphum with NCEP data
-             do k=1,npz
-                do i=is,ie
-                   pst = 0.5*(pe1(i,k)+pe1(i,k+1))
-                   if ( pst > p1 ) then
-                        Atm%q(i,j,k,iq) = qn1(i,k)
-                   elseif( pst > p2 ) then            ! p2 < pst < p1
-                        alpha = (pst-p2)/(p1-p2)
-                        Atm%q(i,j,k,1) = qn1(i,k)*alpha + Atm%q(i,j,k,1)*(1.-alpha)
-                   endif
-                enddo
-             enddo
-         else
-             do k=1,npz
-                do i=is,ie
-                   Atm%q(i,j,k,iq) = qn1(i,k)
-                enddo
-             enddo
-         endif
+         do k=1,npz
+            do i=is,ie
+               Atm%q(i,j,k,iq) = qn1(i,k)
+            enddo
+         enddo
       enddo
 
 !-------------------------------------------------------------
@@ -1836,7 +1856,7 @@ contains
 
 5000 continue
 
-  call prt_maxmin('PS_model', Atm%ps, is, ie, js, je, ng, 1, 0.01)
+  call prt_maxmin('PS_model', Atm%ps(is:ie,js:je), is, ie, js, je, 0, 1, 0.01)
 
   if (is_master()) write(*,*) 'done remap_scalar'
 

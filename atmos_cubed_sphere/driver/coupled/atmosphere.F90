@@ -807,8 +807,8 @@ contains
          Atm(n)%q(i,j,k1,  sphum) = q1 / q0
          Atm(n)%q(i,j,k1,liq_wat) = q2 / q0
          Atm(n)%q(i,j,k1,rainwat) = q3 / q0
-         Atm(n)%q(i,j,k1,snowwat) = q4 / q0
-         Atm(n)%q(i,j,k1,ice_wat) = q5 / q0
+         Atm(n)%q(i,j,k1,ice_wat) = q4 / q0
+         Atm(n)%q(i,j,k1,snowwat) = q5 / q0
          Atm(n)%q(i,j,k1,graupel) = q6 / q0
          Atm(n)%q(i,j,k1,      7) = q7 / q0     ! ozone
          endif

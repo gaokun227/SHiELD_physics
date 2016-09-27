@@ -417,6 +417,12 @@
          real (kind=kind_phys), pointer :: spfhmax(:)  => null()  ! flx_fld%spfhmax  maximum specific humidity
          real (kind=kind_phys), pointer :: rain   (:)  => null()  ! flx_fld%rain     total rain at this time step
          real (kind=kind_phys), pointer :: rainc  (:)  => null()  ! flx_fld%rainc    convective rain at this time step
+         real (kind=kind_phys), pointer :: ice    (:)  => null()  ! flx_fld%ice      ice fall at this time step
+         real (kind=kind_phys), pointer :: snow   (:)  => null()  ! flx_fld%snow     snow fall at this time step
+         real (kind=kind_phys), pointer :: graupel(:)  => null()  ! flx_fld%graupel  graupel fall at this time step
+         real (kind=kind_phys), pointer :: totice (:)  => null()  ! flx_fld%totice   accumulated ice precipitation (kg/m2)
+         real (kind=kind_phys), pointer :: totsnw (:)  => null()  ! flx_fld%totsnw   accumulated snow precipitation (kg/m2)
+         real (kind=kind_phys), pointer :: totgrp (:)  => null()  ! flx_fld%totgrp   accumulated graupel precipitation (kg/m2)
 
          real (kind=kind_phys), pointer :: dt3dt (:,:,:) => null()  ! ix,levs,6            temperature change due to physics
          real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()  ! ix,levs,5+pl_coeff   moisture change due to physics
@@ -1285,9 +1291,9 @@
 !GFDL                          snohfa, transa, sbsnoa, snowca, soilm,                         &
 !GFDL                          tmpmin, tmpmax, dusfc, dvsfc, dtsfc, dqsfc, totprcp, gflux,    &
 !GFDL                          dlwsfc, ulwsfc, suntim, runoff, ep, cldwrk, dugwd, dvgwd,      &
-!GFDL                          psmean, cnvprcp, spfhmin, spfhmax, rain, rainc,                &
-!GFDL                          dt3dt, dq3dt, du3dt, dv3dt, dqdt_v,                            &
-!GFDL                          u10m, v10m, zlvl, psurf, hpbl, pwat, t1, q1,                   &
+!GFDL                          psmean, cnvprcp, spfhmin, spfhmax, rain, rainc, ice, snow,     &
+!GFDL                          graupel, totice, totsnw, totgrp, dt3dt, dq3dt, du3dt, dv3dt,   &
+!GFDL                          dqdt_v, u10m, v10m, zlvl, psurf, hpbl, pwat, t1, q1,           &
 !GFDL                          u1, v1, chh, cmm, dlwsfci, ulwsfci, dswsfci, uswsfci,          &
 !GFDL                          dusfci, dvsfci, dtsfci, dqsfci, gfluxi, epi, smcwlt2, smcref2, &
 !GFDL                          wet1, sr )
@@ -1332,6 +1338,12 @@
            allocate(this%spfhmax (IX))
            allocate(this%rain    (IX))
            allocate(this%rainc   (IX))
+           allocate(this%ice     (IX))
+           allocate(this%snow    (IX))
+           allocate(this%graupel (IX))
+           allocate(this%totice  (IX))
+           allocate(this%totsnw  (IX))
+           allocate(this%totgrp  (IX))
            allocate(this%dt3dt   (IX,Model%levs,6))
            allocate(this%dq3dt   (IX,Model%levs,5+Model%pl_coeff))
            allocate(this%du3dt   (IX,Model%levs,4))
@@ -1369,6 +1381,12 @@
          this%spfhmax = zero
          this%rain    = zero
          this%rainc   = zero
+         this%ice     = zero
+         this%snow    = zero
+         this%graupel = zero
+         this%totice  = zero
+         this%totsnw  = zero
+         this%totgrp  = zero
          this%dt3dt   = zero
          this%dq3dt   = zero
          this%du3dt   = zero
@@ -2770,7 +2788,8 @@
                  diag%soilm, diag%tmpmin, diag%tmpmax, diag%dusfc, diag%dvsfc, diag%dtsfc,  &
                  diag%dqsfc, diag%totprcp, diag%gflux, diag%dlwsfc, diag%ulwsfc, diag%suntim,  &
                  diag%runoff, diag%ep, diag%cldwrk, diag%dugwd, diag%dvgwd, diag%psmean,  &
-                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, diag%dt3dt,  &
+                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, &
+                 diag%ice, diag%snow, diag%graupel, diag%totice, diag%totsnw, diag%totgrp, diag%dt3dt,  &
                  diag%dq3dt, diag%du3dt, diag%dv3dt, diag%dqdt_v, cld%cnvqc_v, tbd%acv, tbd%acvb,  &
                  tbd%acvt, tbd%slc, tbd%smc, tbd%stc, tbd%upd_mf, tbd%dwn_mf,  &
                  tbd%det_mf, tbd%phy_f3d, tbd%phy_f2d, &
@@ -3019,7 +3038,8 @@
                  diag%soilm, diag%tmpmin, diag%tmpmax, diag%dusfc, diag%dvsfc, diag%dtsfc,  &
                  diag%dqsfc, diag%totprcp, diag%gflux, diag%dlwsfc, diag%ulwsfc, diag%suntim,  &
                  diag%runoff, diag%ep, diag%cldwrk, diag%dugwd, diag%dvgwd, diag%psmean,  &
-                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, diag%dt3dt,  &
+                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, &
+                 diag%ice, diag%snow, diag%graupel, diag%totice, diag%totsnw, diag%totgrp, diag%dt3dt,  &
                  diag%dq3dt, diag%du3dt, diag%dv3dt, diag%dqdt_v, cld%cnvqc_v, &
                  tbd%acv, tbd%acvb, tbd%acvt, &
 
@@ -3098,7 +3118,8 @@
                  diag%soilm, diag%tmpmin, diag%tmpmax, diag%dusfc, diag%dvsfc, diag%dtsfc,  &
                  diag%dqsfc, diag%totprcp, diag%gflux, diag%dlwsfc, diag%ulwsfc, diag%suntim,  &
                  diag%runoff, diag%ep, diag%cldwrk, diag%dugwd, diag%dvgwd, diag%psmean,  &
-                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, diag%dt3dt,  &
+                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, &
+                 diag%ice, diag%snow, diag%graupel, diag%totice, diag%totsnw, diag%totgrp, diag%dt3dt,  &
                  diag%dq3dt, diag%du3dt, diag%dv3dt, diag%dqdt_v, cld%cnvqc_v, tbd%acv, tbd%acvb,  &
                  tbd%acvt, tbd%slc, tbd%smc, tbd%stc, tbd%upd_mf, tbd%dwn_mf,  &
                  tbd%det_mf, tbd%phy_f3d, tbd%phy_f2d, &
@@ -3148,7 +3169,8 @@
                  diag%soilm, diag%tmpmin, diag%tmpmax, diag%dusfc, diag%dvsfc, diag%dtsfc,  &
                  diag%dqsfc, diag%totprcp, diag%gflux, diag%dlwsfc, diag%ulwsfc, diag%suntim,  &
                  diag%runoff, diag%ep, diag%cldwrk, diag%dugwd, diag%dvgwd, diag%psmean,  &
-                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, diag%dt3dt,  &
+                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, &
+                 diag%ice, diag%snow, diag%graupel, diag%totice, diag%totsnw, diag%totgrp, diag%dt3dt,  &
                  diag%dq3dt, diag%du3dt, diag%dv3dt, diag%dqdt_v, cld%cnvqc_v, &
 ! PT - Possible bug in gsm for these fields
                  tbd%acv, tbd%acvb, tbd%acvt, &
@@ -3280,7 +3302,8 @@
                  diag%soilm, diag%tmpmin, diag%tmpmax, diag%dusfc, diag%dvsfc, diag%dtsfc,  &
                  diag%dqsfc, diag%totprcp, diag%gflux, diag%dlwsfc, diag%ulwsfc, diag%suntim,  &
                  diag%runoff, diag%ep, diag%cldwrk, diag%dugwd, diag%dvgwd, diag%psmean,  &
-                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, diag%dt3dt,  &
+                 diag%cnvprcp, diag%spfhmin, diag%spfhmax, diag%rain, diag%rainc, &
+                 diag%ice, diag%snow, diag%graupel, diag%totice, diag%totsnw, diag%totgrp, diag%dt3dt,  &
                  diag%dq3dt, diag%du3dt, diag%dv3dt, diag%dqdt_v, cld%cnvqc_v, tbd%acv, tbd%acvb,  &
                  tbd%acvt, tbd%slc, tbd%smc, tbd%stc, tbd%upd_mf, tbd%dwn_mf,  &
                  tbd%det_mf, tbd%phy_f3d, tbd%phy_f2d, &

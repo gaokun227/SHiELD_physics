@@ -81,16 +81,17 @@ module gfs_physics_driver_mod
 !
 !
 !--- tuning variable in Lin Cloud Microphysics
-  use lin_cld_microphys_mod, only: mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
-                                   vr_fac, vs_fac, vg_fac, vi_fac, ql_mlt, do_qa, fix_negative, &
-                                   qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
-                                   rh_inc, rh_ins, rh_inr, use_deng_mace, use_ccn, do_subgrid_z,  &
-                                   rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
-                                   c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
-                                   c_paut, c_psaut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
-                                   c_cracw, alin, clin, p_crt, tice, k_moist, rad_snow, rad_graupel, rad_rain,   &
-                                   cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
-                                   do_sedi_w, de_ice, mp_debug, mp_print
+ use lin_cld_microphys_mod, only: mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
+        vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &
+        vi_max, vs_max, vg_max, vr_max,        &
+        qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
+        rh_inc, rh_ins, rh_inr, const_vi, const_vs, const_vg, const_vr,    &
+        use_ccn, rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
+        c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
+        c_paut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
+        c_cracw, alin, clin, tice, rad_snow, rad_graupel, rad_rain,   &
+        cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
+        do_sedi_w, de_ice, mp_print
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -306,18 +307,17 @@ module gfs_physics_driver_mod
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
                               hybedmf,shal_cnv,ncld,ntoz,                        &
 !--- namelist for Lin cloud microphysics
-                              mp_time,t_min,t_sub,tau_s,tau_g,dw_land,dw_ocean,  &
-                              vr_fac,vs_fac,vg_fac,vi_fac,ql_mlt,do_qa,          &
-                              fix_negative,qs0_crt,qi_gen,ql0_max,qi0_max,       &
-                              qi0_crt,qr0_crt,fast_sat_adj,rh_inc,rh_ins,rh_inr, &
-                              use_deng_mace,use_ccn,do_subgrid_z,rthresh,ccn_l,  &
-                              ccn_o,qc_crt,tau_g2v,tau_v2g,sat_adj0,c_piacr,     &
-                              tau_mlt,tau_v2l,tau_l2v,tau_i2s,qi_lim,ql_gen,     &
-                              c_paut,c_psaut,c_psaci,c_pgacs,z_slope_liq,        &
-                              z_slope_ice,prog_ccn,c_cracw,alin,clin,p_crt,tice, &
-                              k_moist,rad_snow,rad_graupel,rad_rain,cld_min,     &
-                              use_ppm,mono_prof,do_sedi_heat,sedi_transport,     &
-                              do_sedi_w,de_ice,mp_debug,mp_print
+        mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
+        vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &
+        vi_max, vs_max, vg_max, vr_max,        &
+        qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
+        rh_inc, rh_ins, rh_inr, const_vi, const_vs, const_vg, const_vr,    &
+        use_ccn, rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
+        c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
+        c_paut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
+        c_cracw, alin, clin, tice, rad_snow, rad_graupel, rad_rain,   &
+        cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
+        do_sedi_w, de_ice, mp_print
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -2119,6 +2119,87 @@ module gfs_physics_driver_mod
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
       ngptc = nx*ny
       Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%rainc(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ice'
+    Diag(idx)%desc = 'ice fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'snow'
+    Diag(idx)%desc = 'snow fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%snow(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'graupel'
+    Diag(idx)%desc = 'graupel fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%graupel(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totice'
+    Diag(idx)%desc = 'surface ice precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totsnw'
+    Diag(idx)%desc = 'surface snow precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totsnw(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totgrp'
+    Diag(idx)%desc = 'surface graupel precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totgrp(1:ngptc)
     enddo
 
 !--- physics instantaneous diagnostics ---

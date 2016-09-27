@@ -652,7 +652,8 @@
 
               value = max( min( tem1*(clwf(i,k)-clwm), 50.0 ), 0.0 )
 #ifdef BEST_CASE
-              tem2  = rhly(i,k) ** 4.0
+!             tem2  = rhly(i,k) ** 4.0
+              tem2  = rhly(i,k) ! SJL
 #else
               tem2  = sqrt( sqrt(rhly(i,k)) )
 #endif

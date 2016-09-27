@@ -871,9 +871,9 @@ contains
     allocate ( Atm%u_srf(is:ie,js:je) )
     allocate ( Atm%v_srf(is:ie,js:je) )
 
-    if ( Atm%flagstruct%fv_land .or. Atm%flagstruct%full_zs_filter) then
-       allocate ( Atm%sgh(isd:ied,jsd:jed) )
-       allocate ( Atm%oro(isd:ied,jsd:jed) )
+    if ( Atm%flagstruct%fv_land ) then
+       allocate ( Atm%sgh(is:ie,js:je) )
+       allocate ( Atm%oro(is:ie,js:je) )
     else
        allocate ( Atm%oro(1,1) )
     endif
@@ -969,15 +969,6 @@ contains
         enddo
         enddo
      enddo
-     
-     if (Atm%flagstruct%fv_land .or. Atm%flagstruct%full_zs_filter ) then
-     do j=jsd,jed
-     do i=isd,ied
-        Atm%oro(i,j) = 1.
-     enddo
-     enddo
-     endif
-
 #endif
 
     allocate ( Atm%gridstruct% area(isd_2d:ied_2d  ,jsd_2d:jed_2d  ) )   ! Cell Centered

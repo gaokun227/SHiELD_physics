@@ -83,7 +83,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
    real, parameter:: d2ice = cp_vap - c_ice
    real, parameter:: Li2 = hlv0+hlf0 - d2ice*t_ice
 
- real, parameter :: qrmin  = 1.e-9
+ real, parameter :: qrmin  = 1.e-8
  real, parameter :: qvmin  = 1.e-20      ! min value for water vapor (treated as zero)
  real, parameter :: qcmin  = 1.e-12      ! min value for cloud condensates
  real, parameter :: sfcrho = 1.2         ! surface air density
@@ -149,11 +149,11 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real :: rh_inr = 0.25
  real :: rh_ins = 0.25   ! rh increment for sublimation of snow
 
- real :: tau_r  = 120.    ! rain freezing time scale during fast_sat
+ real :: tau_r  = 300.    ! rain freezing time scale during fast_sat
 ! The following 3 time scales are for melting during terminal falls
- real :: tau_s  = 120.    ! snow melt
- real :: tau_g  = 180.    ! graupel melt
- real :: tau_mlt = 10.    ! ice melting time-scale
+ real :: tau_s   = 300.    ! snow melt
+ real :: tau_g   = 600.    ! graupel melt
+ real :: tau_mlt = 300.    ! ice melting time-scale
 
 ! Fast MP:
  real :: tau_i2s = 1000.  ! ice2snow auto-conversion time scale (sec) 
@@ -185,8 +185,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 
 ! Cloud condensate upper bounds: "safety valves" for ql & qi
  real :: ql0_max = 2.0e-3    ! max ql value (auto converted to rain)
-!!! real :: qi0_max = 3.0e-6    ! max qi value (by other sources)
- real :: qi0_max = 1.0e-3    ! max qi value (by other sources)
+ real :: qi0_max = 5.0e-6    ! max qi value (by other sources)
 
  real :: qi0_crt = 1.0e-4    ! ice  --> snow autocon threshold (was 1.E-4)
                              ! qi0_crt is highly dependent on horizontal resolution
@@ -965,7 +964,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
   do k=ktop,kbot
     qc0 = fac_rc*ccn(k)
     if ( tz(k) > t_wfr + dt_fr ) then
-      dl(k) = min(max(1.e-5, dl(k)), 0.5*ql(k))
+      dl(k) = min(max(1.e-6, dl(k)), 0.5*ql(k))
 
 !--------------------------------------------------------------------
 !  As in Klein's GFDL AM2 stratiform scheme (with subgrid variations)
@@ -1117,13 +1116,13 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real, intent(in) :: rh_adj, rh_rain, dts, fac_sno, fac_gra, h_var
 ! local:
  real, dimension(ktop:kbot) :: lcpk, icpk, tcpk, di
- real:: rdts, fac_g2v, fac_v2g, fac_i2s
+ real:: rdts, fac_g2v, fac_v2g, fac_i2s, fac_mlt
  real:: tz, qv, ql, qr, qi, qs, qg, melt
  real:: pracs, psacw, pgacw, pgmlt,    &
         psmlt, psacr, pgacr, pgfr,     &
         pgaut, pgaci, praci, psaut, psaci, pgsub
  real:: tc, tsq, dqs0, qden, qim, qsm, pssub
- real:: factor, sink
+ real:: dt5, factor, sink, qi_crt
  real:: tmp1, qsw, qsi, dqsdt, dq
  real:: dtmp, qc, q_plus, q_minus, cvm
  integer:: k
@@ -1131,6 +1130,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  fac_i2s = 1. - exp( -dts/tau_i2s )
  fac_g2v = 1. - exp( -dts/tau_g2v )
  fac_v2g = 1. - exp( -dts/tau_v2g )
+ dt5 = 0.5*dts
+ fac_mlt = 1. - exp( -dt5/tau_mlt )
 
  rdts = 1./dts
 
@@ -1150,7 +1151,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 !--------------------------------------
 ! * pimlt: instant melting of cloud ice
 !--------------------------------------
-        melt = min( qik(k), (tzk(k)-tice)/icpk(k) )
+        melt = min( qik(k), fac_mlt*(tzk(k)-tice)/icpk(k) )
         tmp1 = min( melt, dim(ql_mlt, qlk(k)) )   ! max ql amount
         qlk(k) = qlk(k) + tmp1
         qrk(k) = qrk(k) + melt - tmp1
@@ -1164,8 +1165,12 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
           dtmp = t_wfr - tzk(k)
         factor = min( 1., dtmp/dt_fr )
           sink = min( qlk(k)*factor, dtmp/icpk(k) )
+! DE_ICE_GFS: prevent large ice build-up from SAS
+          qi_crt = qi_gen*min(qi_lim, 0.1*(tice-tzk(k))) / den(k)
+          tmp1 = min(sink, dim(qi_crt, qik(k)))
             qlk(k) = qlk(k) - sink
-            qik(k) = qik(k) + sink
+            qsk(k) = qsk(k) + sink - tmp1
+            qik(k) = qik(k) + tmp1
             tzk(k) = tzk(k) + sink*icpk(k)
     endif
  enddo
@@ -1260,7 +1265,7 @@ else
 !------------------
 ! Cloud ice proc:
 !------------------
-  if ( qi>1.E-6 ) then  ! cloud ice sink terms
+  if ( qi>3.E-7 ) then  ! cloud ice sink terms
 
 !----------------------------------------
 ! * accretion (pacr): cloud ice --> snow
@@ -1513,7 +1518,6 @@ endif   ! end ice-physics
    if ( dq0 > 0. ) then
         evap =  min( ql(k), fac_l2v*dq0/(1.+tcp3(k)*dwsdt) )
    else   ! condensate all excess vapor into cloud water
-!       evap = dq0/(1.+tcp3(k)*dwsdt)
         evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
    endif
    qv(k) = qv(k) + evap
@@ -1599,7 +1603,9 @@ endif   ! end ice-physics
 ! Minimum sublimation:
 !             pssub = max(pssub, min(qs(k), dim(0.35*qsi,qv(k))/(1.+tcpk(k)*dqsdt)) )
          else
-              if ( tz(k)>tice .or. (ql(k)+qr(k))<1.e-6 ) then
+!             if ( tz(k)>tice .or. (ql(k)+qr(k))<1.e-6 ) then
+!!!!          if ( tz(k)>tice .or. tz(k)<t_wfr-dt_fr ) then
+              if ( tz(k)>tice ) then
                    pssub = 0.  ! no deposition
               else
                    pssub = max( pssub, 0.5*dq, (tz(k)-tice)/tcpk(k) )
@@ -1618,10 +1624,10 @@ endif   ! end ice-physics
           dq = (qv(k)-qsi)/(1.+tcpk(k)*dqsdt)
        pgsub = (qv(k)/qsi-1.) * qg(k)
        if ( pgsub > 0. ) then        ! deposition
-            if ( tz(k)>tice .or. (ql(k)+qr(k))<1.e-6 ) then
+            if ( tz(k)>tice ) then
                  pgsub = 0.   ! no deposition
             else
-                 pgsub = min(fac_v2g*pgsub, 0.1*dq, (tice-tz(k))/tcpk(k))
+                 pgsub = min(fac_v2g*pgsub, 0.2*dq, ql(k)+qr(k), (tice-tz(k))/tcpk(k))
             endif
        else                   ! submilation
             pgsub = max( fac_g2v*pgsub, dq )*min(1.,dim(tz(k),t_sub)*0.1)
@@ -2269,7 +2275,7 @@ endif
  real, dimension(ktop:kbot):: lcpk, icpk
  real, dimension(ktop:kbot):: m1, dm
  real:: zs = 0.
- real:: cvm
+ real:: cvm, fac_mlt
  integer k, k0, m
  logical no_fall
 
@@ -2282,6 +2288,7 @@ endif
   enddo
 
   dt5 = 0.5*dtm
+  fac_mlt = 1. - exp( -dt5/tau_mlt )
 
 
 ! Melting of cloud_ice and snow (before fall):
@@ -2302,7 +2309,7 @@ endif
 !------
     tc = tz(k) - tice
     if( qi(k) > qcmin .and. tc>0. ) then
-        melt = min( qi(k), tc/icpk(k) )
+        melt = min( qi(k), fac_mlt*tc/icpk(k) )
         tmp1 = min( melt, dim(ql_mlt, ql(k)) )
         ql(k) = ql(k) + tmp1
         qr(k) = qr(k) + melt - tmp1
@@ -2310,38 +2317,10 @@ endif
         tz(k) = tz(k) - melt*icpk(k)
            tc = tz(k) - tice
     endif
-!------
-! Snow
-!------
-#ifdef MORE_SNOW_MLT
-    if ( qs(k)>qvmin .and. tc>0. ) then
-         factor = min( 1., tc/t_snow_melt)
-           sink = min(fac_sno*qs(k), factor*tc/icpk(k))
-         qs(k) = qs(k) - sink
-         qr(k) = qr(k) + sink
-         tz(k) = tz(k) - sink*icpk(k)    ! cooling due to snow melting
-            tc = tz(k) - tice
-    endif
-
-!------
-! Graupel
-!------
-    if ( qg(k)>qcmin .and. tc>0.01 ) then
-         factor = min( 1., tc/t_grau_melt )
-           sink = min( fac_gra*qg(k), factor*tc/icpk(k) )
-          qg(k) = qg(k) - sink
-          qr(k) = qr(k) + sink
-          tz(k) = tz(k) - sink*icpk(k)
-    endif
-#endif
  enddo
 
   if ( dtm < 60. ) k0 = kbot
   k0 = kbot
-
-!-----
-! ice:
-!-----
 
   ze(kbot+1) = zs
   do k=kbot, ktop, -1

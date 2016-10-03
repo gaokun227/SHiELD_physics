@@ -1025,6 +1025,7 @@ contains
     real:: plevs(nplev), pout(nplev)
     integer:: idg(nplev)
     real    :: tot_mq, tmp, sar, slon, slat
+    real    :: t_gb, t_nh, t_sh, t_eq, area_gb, area_nh, area_sh, area_eq
     logical :: do_cs_intp
     logical :: used
     logical :: bad_range
@@ -1533,10 +1534,47 @@ contains
              enddo
 
              if( prt_minmax ) then
+  
                 if(idiag%id_h100>0)  &
                 call prt_mxm('Z100',a3(isc:iec,jsc:jec,3),isc,iec,jsc,jec,0,1,1.E-3,Atm(n)%gridstruct%area_64,Atm(n)%domain)
-                if(idiag%id_h500>0)  &
-                call prt_mxm('Z500',a3(isc:iec,jsc:jec,7),isc,iec,jsc,jec,0,1,1.,Atm(n)%gridstruct%area_64,Atm(n)%domain)
+
+                if(idiag%id_h500>0)  then
+!                  call prt_mxm('Z500',a3(isc:iec,jsc:jec,7),isc,iec,jsc,jec,0,1,1.,Atm(n)%gridstruct%area_64,Atm(n)%domain)
+                   if (.not. Atm(n)%neststruct%nested) then
+                   t_eq = 0.   ;    t_nh = 0.;    t_sh = 0.;    t_gb = 0.
+                   area_eq = 0.; area_nh = 0.; area_sh = 0.; area_gb = 0.
+                   do j=jsc,jec
+                      do i=isc,iec
+                         slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                         area_gb = area_gb + Atm(n)%gridstruct%area(i,j)
+                         t_gb = t_gb + a3(i,j,7)*Atm(n)%gridstruct%area(i,j)
+                         if( (slat>-20. .and. slat<20.) ) then
+! Tropics:
+                              area_eq = area_eq + Atm(n)%gridstruct%area(i,j)
+                                 t_eq =    t_eq + a3(i,j,7)*Atm(n)%gridstruct%area(i,j)
+                         elseif( slat>=20. .and. slat<80. ) then
+! NH
+                              area_nh = area_nh + Atm(n)%gridstruct%area(i,j)
+                                 t_nh =    t_nh + a3(i,j,7)*Atm(n)%gridstruct%area(i,j)
+                         elseif( slat<=-20. .and. slat>-80. ) then
+! SH
+                              area_sh = area_sh + Atm(n)%gridstruct%area(i,j)
+                                 t_sh =    t_sh + a3(i,j,7)*Atm(n)%gridstruct%area(i,j)
+                         endif
+                      enddo
+                   enddo
+                   call mp_reduce_sum(area_gb)
+                   call mp_reduce_sum(   t_gb)
+                   call mp_reduce_sum(area_nh)
+                   call mp_reduce_sum(   t_nh)
+                   call mp_reduce_sum(area_sh)
+                   call mp_reduce_sum(   t_sh)
+                   call mp_reduce_sum(area_eq)
+                   call mp_reduce_sum(   t_eq)
+                   if (master) write(*,*) 'Z500 GB_NH_SH_EQ=', t_gb/area_gb, t_nh/area_nh, t_sh/area_sh, t_eq/area_eq
+                   endif
+                endif
+
              endif
 
              ! mean virtual temp 300mb to 500mb

@@ -560,8 +560,8 @@ contains
       real, dimension(:,:,:), allocatable:: zh(:,:,:)  ! 3D height at 65 edges
       real, dimension(:,:,:,:), allocatable:: q
       real, dimension(:,:), allocatable :: phis_coarse ! lmh
-      real rdg, wt
-      integer:: n, npx, npy, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac
+      real rdg, wt, qt, m_fac
+      integer:: n, npx, npy, npz, itoa, nt, ntprog, ntdiag, ntracers, ntrac, iq
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
       integer :: ios, ierr, unit, id_res
@@ -1011,19 +1011,27 @@ contains
            snowwat = get_tracer_index(MODEL_ATMOS, 'snowwat')
            graupel = get_tracer_index(MODEL_ATMOS, 'graupel')
         endif
+
 !--- Add cloud condensate from GFS to total MASS
+! 20160928: Adjust the mixing ratios consistently...
         do k=1,npz
           do j=js,je
             do i=is,ie
+              wt = Atm(n)%delp(i,j,k)
               if ( Atm(n)%flagstruct%nwat .eq. 2 ) then
-                 Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat))
+                 qt = wt*(1.+Atm(n)%q(i,j,k,liq_wat))
               elseif ( Atm(n)%flagstruct%nwat .eq. 6 ) then
-                 Atm(n)%delp(i,j,k) = Atm(n)%delp(i,j,k)*(1.+Atm(n)%q(i,j,k,liq_wat)+&
-                                                             Atm(n)%q(i,j,k,ice_wat)+&
-                                                             Atm(n)%q(i,j,k,rainwat)+&
-                                                             Atm(n)%q(i,j,k,snowwat)+&
-                                                             Atm(n)%q(i,j,k,graupel))
+                 qt = wt*(1. + Atm(n)%q(i,j,k,liq_wat) + &
+                               Atm(n)%q(i,j,k,ice_wat) + &
+                               Atm(n)%q(i,j,k,rainwat) + &
+                               Atm(n)%q(i,j,k,snowwat) + &
+                               Atm(n)%q(i,j,k,graupel))
               endif
+              m_fac = wt / qt
+              do iq=1,ntracers
+                 Atm(n)%q(i,j,k,iq) = m_fac * Atm(n)%q(i,j,k,iq)
+              enddo
+              Atm(n)%delp(i,j,k) = qt
             enddo
           enddo
         enddo
@@ -2036,7 +2044,9 @@ contains
       do k=1,npz
          do i=is,ie
             qn1(i,k) = Atm%q(i,j,k,liq_wat)
-            Atm%q(i,j,k,graupel) = 0. !IC has no graupel
+            Atm%q(i,j,k,rainwat) = 0.
+            Atm%q(i,j,k,snowwat) = 0.
+            Atm%q(i,j,k,graupel) = 0.
             if ( Atm%pt(i,j,k) > 273.16 ) then       ! > 0C all liq_wat
                Atm%q(i,j,k,liq_wat) = qn1(i,k)
                Atm%q(i,j,k,ice_wat) = 0.
@@ -2097,9 +2107,6 @@ contains
  real, intent(inout):: ql, qr, qi, qs
  real, parameter:: qi0_max = 2.5e-3
  real, parameter:: ql0_max = 2.5e-3
-
-  qr = 0.
-  qs = 0.
 
 ! Convert excess cloud water into rain:
   if ( ql > ql0_max ) then

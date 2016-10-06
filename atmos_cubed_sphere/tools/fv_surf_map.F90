@@ -57,23 +57,31 @@
       logical:: zero_ocean = .true.          ! if true, no diffusive flux into water/ocean area 
       integer           ::  nlon = 21600
       integer           ::  nlat = 10800
-      real:: cd4 = 0.15        ! Dimensionless coeff for del-4 difussion (with FCT)
+      real:: cd4 = 0.15        ! Dimensionless coeff for del-4 diffusion (with FCT)
+      real:: cd2 = -1.        ! Dimensionless coeff for del-2 diffusion (-1 gives resolution-determined value)
       real:: peak_fac = 1.0  ! overshoot factor for the mountain peak
       real:: max_slope = 0.2
+      integer:: n_del2_weak = 15
+      integer:: n_del2_strong = -1
+      integer:: n_del4 = -1
+      
+
       character(len=128)::  surf_file = "INPUT/topo1min.nc"
       character(len=6)  ::  surf_format = 'netcdf'
+      logical :: namelist_read = .false.
 
-      real(kind=R_GRID) da_min
+      real(kind=R_GRID) da_min 
       real cos_grid
       character(len=3) :: grid_string = ''
 
-      namelist /surf_map_nml/ surf_file,surf_format,nlon,nlat, zero_ocean, zs_filter, cd4, peak_fac, max_slope
+      namelist /surf_map_nml/ surf_file,surf_format,nlon,nlat, zero_ocean, zs_filter, &
+           cd4, peak_fac, max_slope, n_del2_weak, n_del2_strong, cd2, n_del4
 !
       real, allocatable:: zs_g(:,:), sgh_g(:,:), oro_g(:,:)
 
       public  sgh_g, oro_g, zs_g
       public  surfdrv
-      public  del2_cubed_sphere, del4_cubed_sphere
+      public  del2_cubed_sphere, del4_cubed_sphere, FV3_zs_filter
 
 !---- version number -----
       character(len=128) :: version = '$Id$'
@@ -118,10 +126,9 @@
       real, allocatable :: lon1(:),  lat1(:)
       real dx1, dx2, dy1, dy2, lats, latn, r2d
       real(kind=R_GRID) da_max
-      real(kind=R_GRID) cd2
       real zmean, z2mean, delg, rgrav
 !     real z_sp, f_sp, z_np, f_np
-      integer i, j, n, mdim, n_del2, n_del4
+      integer i, j, n, mdim
       integer igh, jt
       integer ncid, lonid, latid, ftopoid, htopoid
       integer jstart, jend, start(4), nread(4)
@@ -356,7 +363,7 @@
       endif
 
       !On a nested grid blend coarse-grid and nested-grid
-      ! orography near boundary, similar to WRF's approach.
+      ! orography near boundary.
       ! This works only on the height of topography; assume
       ! land fraction and sub-grid variance unchanged
 
@@ -388,7 +395,7 @@
          endif
          call FV3_zs_filter (bd, isd, ied, jsd, jed, npx, npy, npx_global,  &
                              stretch_fac, nested, domain, area, dxa, dya, dx, dy, dxc, dyc, grid,  &
-                             agrid, sin_sg, phis)
+                             agrid, sin_sg, phis, oro_g)
          call mpp_update_domains(phis, domain)
       endif          ! end terrain filter
                                                     call timing_off('Terrain_filter')
@@ -462,7 +469,7 @@
 
  subroutine FV3_zs_filter (bd, isd, ied, jsd, jed, npx, npy, npx_global,  &
                            stretch_fac, nested, domain, area, dxa, dya, dx, dy, dxc, dyc, grid,  &
-                            agrid, sin_sg,  phis )
+                            agrid, sin_sg,  phis, oro )
       integer, intent(in):: isd, ied, jsd, jed, npx, npy, npx_global
       type(fv_grid_bounds_type), intent(IN) :: bd
       real(kind=R_GRID), intent(in), dimension(isd:ied,jsd:jed)::area
@@ -476,28 +483,37 @@
       real(kind=R_GRID), intent(IN):: stretch_fac
       logical, intent(IN) :: nested
       real, intent(inout):: phis(isd:ied,jsd,jed)
+      real, intent(inout):: oro(isd:ied,jsd,jed)
       type(domain2d), intent(INOUT) :: domain
-      real:: cd2
-      integer mdim, n_del2, n_del4
+      integer mdim
+      real(kind=R_GRID) da_max
+
+      if (is_master()) print*, ' Calling FV3_zs_filter...'
+
+      if (.not. namelist_read) call read_namelist !when calling from external_ic
+      call global_mx(area, ng, da_min, da_max, bd)
 
       mdim = nint( real(npx_global) * min(10., stretch_fac) )
 
 ! Del-2: high resolution only
-! call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del2, cd2, zero_ocean, oro_g, nested, domain, bd)
-         if ( npx_global<=97 ) then
-              n_del2 = 0
+! call del2_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del2, cd2, zero_ocean, oro, nested, domain, bd)
+      if (n_del2_strong < 0) then
+         if ( npx_global<=97) then
+              n_del2_strong = 0
          elseif ( npx_global<=193 ) then
-              n_del2 = 1
+              n_del2_strong = 1
          else
-              n_del2 = 2
+              n_del2_strong = 2
          endif
-         cd2 = 0.16*da_min
+      endif
+      if (cd2 < 0.) cd2 = 0.16*da_min
 ! Applying strong 2-delta-filter:
-         if ( n_del2 > 0 )   &
-         call two_delta_filter(npx, npy, phis, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd2, zero_ocean,  &
-                               .true., 0, oro_g, nested, domain, bd, n_del2)
+      if ( n_del2_strong > 0 )   &
+           call two_delta_filter(npx, npy, phis, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd2, zero_ocean,  &
+                                 .true., 0, oro, nested, domain, bd, n_del2_strong)
 
 ! MFCT Del-4:
+      if (n_del4 < 0) then
          if ( mdim<=193 ) then
               n_del4 = 1
          elseif ( mdim<=1537 ) then
@@ -505,12 +521,13 @@
          else
               n_del4 = 3
          endif
-         call del4_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del4, zero_ocean, oro_g, nested, domain, bd)
+      endif
+      call del4_cubed_sphere(npx, npy, phis, area, dx, dy, dxc, dyc, sin_sg, n_del4, zero_ocean, oro, nested, domain, bd)
 ! Applying weak 2-delta-filter:
-         cd2 = 0.12*da_min
-         call two_delta_filter(npx, npy, phis, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd2, zero_ocean,  &
-                               .true., 1, oro_g, nested, domain, bd, 15)
-! Check slope
+      cd2 = 0.12*da_min
+      call two_delta_filter(npx, npy, phis, area, dx, dy, dxa, dya, dxc, dyc, sin_sg, cd2, zero_ocean,  &
+                               .true., 1, oro, nested, domain, bd, n_del2_weak)
+
 
  end subroutine FV3_zs_filter
 
@@ -543,6 +560,8 @@
       real, parameter:: c1 = -2./14.
       real, parameter:: c2 = 11./14.
       real, parameter:: c3 =  5./14.
+   real :: q0(bd%isd:bd%ied,bd%jsd:bd%jed)
+
 
    real:: ddx(bd%is:bd%ie+1,bd%js:bd%je), ddy(bd%is:bd%ie,bd%js:bd%je+1)
    logical:: extm(bd%is-1:bd%ie+1)
@@ -566,12 +585,12 @@
    jsd = bd%jsd
    jed = bd%jed
 
-   if ( .not. nested ) then
-        is1 = max(3,is-1);  ie2 = min(npx-2,ie+2)
-        js1 = max(3,js-1);  je2 = min(npy-2,je+2)
-   else
+   if ( nested ) then
         is1 = is-1;         ie2 = ie+2
         js1 = js-1;         je2 = je+2
+   else
+        is1 = max(3,is-1);  ie2 = min(npx-2,ie+2)
+        js1 = max(3,js-1);  je2 = min(npy-2,je+2)
    end if
 
    if ( check_slope ) then
@@ -1545,6 +1564,8 @@ subroutine read_namelist
 
 !  read namelist
 
+   if (namelist_read) return
+
 #ifdef INTERNAL_FILE_NML
     read  (input_nml_file, nml=surf_map_nml, iostat=io)
     ierr = check_nml_error(io,'surf_map_nml')
@@ -1564,6 +1585,8 @@ subroutine read_namelist
      unit = stdlog()
      write (unit, nml=surf_map_nml)
    endif
+
+   namelist_read = .true.
 
 end subroutine read_namelist
 

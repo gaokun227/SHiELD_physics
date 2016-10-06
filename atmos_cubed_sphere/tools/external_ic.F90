@@ -47,7 +47,7 @@ module external_ic_mod
    use fv_io_mod,         only: fv_io_read_tracers 
    use fv_mapz_mod,       only: mappm
    use fv_mp_mod,         only: ng, is_master, fill_corners, YDir, mp_reduce_min, mp_reduce_max
-   use fv_surf_map_mod,   only: surfdrv
+   use fv_surf_map_mod,   only: surfdrv, FV3_zs_filter
    use fv_surf_map_mod,   only: sgh_g, oro_g
    use fv_surf_map_mod,   only: del2_cubed_sphere, del4_cubed_sphere
    use fv_timing_mod,     only: timing_on, timing_off
@@ -58,10 +58,11 @@ module external_ic_mod
                                 get_var3_r4, get_var1_real
    use fv_nwp_nudge_mod,  only: T_is_Tv
    use test_cases_mod,    only: checker_tracers
+
 ! The "T" field in NCEP analysis is actually virtual temperature (Larry H. post processing)
 ! BEFORE 20051201
 
-   use boundary_mod,      only: nested_grid_BC
+   use boundary_mod,      only: nested_grid_BC, extrapolation_BC
    use mpp_domains_mod,       only: mpp_get_data_domain, mpp_get_global_domain, mpp_get_compute_domain
 
    implicit none
@@ -555,7 +556,7 @@ contains
       type(domain2d),      intent(inout) :: fv_domain
 ! local:
       real, dimension(:), allocatable:: ak, bk
-      real, dimension(:,:), allocatable:: wk2, ps
+      real, dimension(:,:), allocatable:: wk2, ps, oro_g
       real, dimension(:,:,:), allocatable:: ud, vd, u_w, v_w, u_s, v_s, omga
       real, dimension(:,:,:), allocatable:: zh(:,:,:)  ! 3D height at 65 edges
       real, dimension(:,:,:,:), allocatable:: q
@@ -848,11 +849,21 @@ contains
           id_res = register_restart_field (ORO_restart, fn_oro_ics, 'orog_raw', Atm(n)%phis, domain=Atm(n)%domain)
         endif
 
+        if ( Atm(n)%flagstruct%full_zs_filter) then
+           allocate (oro_g(isd:ied,jsd:jed))
+          ! land-frac
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'land_frac', oro_g, domain=Atm(n)%domain)
+          call mpp_update_domains(oro_g, Atm(n)%domain)
+          if (Atm(n)%neststruct%nested) then
+             call extrapolation_BC(oro_g, 0, 0, Atm(n)%npx, Atm(n)%npy, Atm(n)%bd, .true.)
+          endif
+        endif
+     
         if ( Atm(n)%flagstruct%fv_land ) then
           ! stddev
-          id_res = register_restart_field (SFC_restart, fn_oro_ics, 'stddev', Atm(n)%sgh, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'stddev', Atm(n)%sgh, domain=Atm(n)%domain)
           ! land-frac
-          id_res = register_restart_field (SFC_restart, fn_oro_ics, 'land-frac', Atm(n)%oro, domain=Atm(n)%domain)
+          id_res = register_restart_field (ORO_restart, fn_oro_ics, 'land_frac', Atm(n)%oro, domain=Atm(n)%domain)
         endif
      
         ! surface pressure (Pa)
@@ -957,19 +968,39 @@ contains
         deallocate ( ud )
         deallocate ( vd )
    
-        !!! Perform terrain smoothing, if desired
-        if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
-          if (Atm(n)%neststruct%nested) then
-            if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
-            npx = Atm(n)%npx
-            npy = Atm(n)%npy
-            do j=jsd,jed
+        if (Atm(n)%neststruct%nested) then
+           if (is_master()) write(*,*) 'Blending nested and coarse grid topography'
+           npx = Atm(n)%npx
+           npy = Atm(n)%npy
+           do j=jsd,jed
               do i=isd,ied
-                wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
-                Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
+                 wt = max(0.,min(1.,real(5 - min(i,j,npx-i,npy-j,5))/5. ))
+                 Atm(n)%phis(i,j) = (1.-wt)*Atm(n)%phis(i,j) + wt*phis_coarse(i,j)
               enddo
-            enddo
-          endif
+           enddo
+        endif
+
+
+        !!! Perform terrain smoothing, if desired
+        if ( Atm(n)%flagstruct%full_zs_filter ) then
+               !!! DEBUG CODE
+           write(mpp_pe()+1000,*) lbound(Atm(n)%oro)
+           write(mpp_pe()+1000,*) ubound(Atm(n)%oro)
+               !!! END DEBUG CODE
+           
+
+
+           call FV3_zs_filter( Atm(n)%bd, isd, ied, jsd, jed, npx, npy, Atm(n)%neststruct%npx_global, &
+                Atm(n)%flagstruct%stretch_fac, Atm(n)%neststruct%nested, Atm(n)%domain, &
+                Atm(n)%gridstruct%area_64, Atm(n)%gridstruct%dxa, Atm(n)%gridstruct%dya, &
+                Atm(n)%gridstruct%dx, Atm(n)%gridstruct%dy, Atm(n)%gridstruct%dxc, &
+                Atm(n)%gridstruct%dyc, Atm(n)%gridstruct%grid_64, Atm(n)%gridstruct%agrid_64, &
+                Atm(n)%gridstruct%sin_sg, Atm(n)%phis, oro_g)
+           deallocate(oro_g)
+        endif
+
+
+        if ( Atm(n)%flagstruct%n_zs_filter > 0 ) then
 
           if ( Atm(n)%flagstruct%nord_zs_filter == 2 ) then
             call del2_cubed_sphere(Atm(n)%npx, Atm(n)%npy, Atm(n)%phis, &
@@ -991,7 +1022,7 @@ contains
 
         endif
 
-        if (Atm(n)%neststruct%nested) then
+        if ( Atm(n)%neststruct%nested .and. ( Atm(n)%flagstruct%n_zs_filter > 0 .or. Atm(n)%flagstruct%full_zs_filter ) ) then
           npx = Atm(n)%npx
           npy = Atm(n)%npy
           do j=jsd,jed

@@ -103,6 +103,7 @@ module fv_control_mod
    real    , pointer :: damp_k_k2 
    integer , pointer ::    n_zs_filter
    integer , pointer :: nord_zs_filter
+   logical , pointer :: full_zs_filter
 
    logical , pointer :: consv_am
    logical , pointer :: do_sat_adj
@@ -257,7 +258,7 @@ module fv_control_mod
                          consv_te, fill, filter_phys, fill_dp, fill_wz, consv_am, &
                          range_warn, dwind_2d, inline_q, z_tracer, reproduce_sum, adiabatic, do_vort_damp, no_dycore,   &
                          tau, tau_h2o, rf_cutoff, nf_omega, hydrostatic, fv_sg_adj, breed_vortex_inline,  &
-                         na_init, hybrid_z, Make_NH, n_zs_filter, nord_zs_filter, reset_eta,         &
+                         na_init, hybrid_z, Make_NH, n_zs_filter, nord_zs_filter, full_zs_filter, reset_eta,         &
                          pnats, dnats, a2b_ord, remap_t, p_ref, d2_bg_k1, d2_bg_k2,  &
                          c2l_ord, dx_const, dy_const, umax, deglat,      &
                          deglon_start, deglon_stop, deglat_start, deglat_stop, &
@@ -1060,6 +1061,7 @@ module fv_control_mod
      damp_k_k2                     => Atm%flagstruct%damp_k_k2
      n_zs_filter                   => Atm%flagstruct%n_zs_filter
      nord_zs_filter                => Atm%flagstruct%nord_zs_filter
+     full_zs_filter                => Atm%flagstruct%full_zs_filter
      consv_am                      => Atm%flagstruct%consv_am
      do_sat_adj                    => Atm%flagstruct%do_sat_adj
      do_f3d                        => Atm%flagstruct%do_f3d

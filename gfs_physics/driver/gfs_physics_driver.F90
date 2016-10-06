@@ -229,7 +229,7 @@ module gfs_physics_driver_mod
     real (kind=kind_phys) :: prslrd0 = 200.
     logical :: ras          = .false.
     logical :: pre_rad      = .false.
-    logical :: ldiag3d      = .false.
+    logical :: ldiag3d      = .false. 
     logical :: lgocart      = .false. 
     logical :: cplflx       = .false.  
     logical :: lssav_cpl    = .false.
@@ -305,7 +305,7 @@ module gfs_physics_driver_mod
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
-                              hybedmf,shal_cnv,ncld,ntoz,                        &
+                              hybedmf,shal_cnv,ncld,ntoz,ldiag3d,                &
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
         vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &
@@ -2584,8 +2584,9 @@ module gfs_physics_driver_mod
 
     idx = idx + 1
     Diag(idx)%axes = 3
+    !Requires lgocart = .T.
     Diag(idx)%name = 'dqdt_v'
-    Diag(idx)%desc = 'total moisture tendency'
+    Diag(idx)%desc = 'instantaneous total moisture tendency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
 

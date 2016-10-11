@@ -31,8 +31,8 @@ module fv_mapz_mod
   use mpp_mod,           only: FATAL, mpp_error, get_unit, mpp_root_pe, mpp_pe
   use fv_arrays_mod,     only: fv_grid_type
   use fv_timing_mod,     only: timing_on, timing_off
-  use lin_cld_microphys_mod, only: sat_adj2
   use fv_mp_mod,         only: is_master
+  use fv_cmp_mod,        only: qs_init, fv_sat_adj
 
   implicit none
   real, parameter:: consv_min= 0.001   ! below which no correction applies
@@ -42,8 +42,9 @@ module fv_mapz_mod
   real, parameter:: cv_air =  cp_air - rdgas ! = rdgas * (7/2-1) = 2.5*rdgas=717.68
   real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0.C
   real, parameter:: c_liq = 4.1855e+3    ! GFS
-!  real, parameter:: c_con = c_ice  ! Heat capacity of the GFS condensate
-  real, parameter:: c_con = cv_vap  ! Heat capacity of the GFS condensate; set to cv_vap (no condensate effect) 
+  real, parameter:: cp_vap = cp_vapor   ! 1846.
+  real, parameter:: tice = 273.16
+
   real(kind=4) :: E_Flux = 0.
   private
 
@@ -61,7 +62,7 @@ contains
                       nq, nwat, sphum, q_con, u, v, w, delz, pt, q, hs, r_vir, cp,  &
                       akap, cappa, kord_mt, kord_wz, kord_tr, kord_tm,  peln, te0_2d,        &
                       ng, ua, va, omga, te, ws, fill, reproduce_sum, out_dt, dtdt,      &
-                      ptop, ak, bk, gridstruct, domain, ze0, do_sat_adj, &
+                      ptop, ak, bk, pfull, gridstruct, domain, do_sat_adj, &
                       hydrostatic, hybrid_z, do_omega, adiabatic, do_adiabatic_init)
   logical, intent(in):: last_step
   real,    intent(in):: mdt                   ! remap time step
@@ -93,6 +94,7 @@ contains
   real, intent(in) :: ptop
   real, intent(in) :: ak(km+1)
   real, intent(in) :: bk(km+1)
+  real, intent(in):: pfull(km)
   type(fv_grid_type), intent(IN), target :: gridstruct
   type(domain2d), intent(INOUT) :: domain
 
@@ -102,7 +104,6 @@ contains
   real, intent(inout):: delp(isd:ied,jsd:jed,km) ! pressure thickness
   real, intent(inout)::  pe(is-1:ie+1,km+1,js-1:je+1) ! pressure at layer edges
   real, intent(inout):: ps(isd:ied,jsd:jed)      ! surface pressure
-  real, intent(inout):: ze0(is:,js:,1:)    ! Specified height at edges (m)
 
 ! u-wind will be ghosted one latitude to the north upon exit
   real, intent(inout)::  u(isd:ied  ,jsd:jed+1,km)   ! u-wind (m/s)
@@ -130,18 +131,15 @@ contains
 !
 !-----------------------------------------------------------------------
   integer :: i,j,k 
-! real q_source(is:ie,js:je,nq)    ! numerical tracer source from surface
-                                   ! in case fillz is not sufficient
-  real, dimension(is:ie,js:je):: te_2d, zsum0, zsum1, dpeln
-  real, dimension(is:ie,km)  :: q2, dp2, deng
-  real, dimension(is:ie,km+1):: ze1, ze2, pe1, pe2, pk1, pk2, pn2, phis
+  real, dimension(is:ie,js:je):: te_2d, zsum0, zsum1, dpln
+  real, dimension(is:ie,km)  :: q2, dp2
+  real, dimension(is:ie,km+1):: pe1, pe2, pk1, pk2, pn2, phis
      real  pe0(is:ie+1,km+1)
      real  pe3(is:ie+1,km+1)
      real, dimension(is:ie):: gz, cvm, qv
-     real dz1(km)
-     real rcp, rg, tmp, tpe, rrg, bkh, dtmp, dlnp, ztop, z_rat
+     real rcp, rg, tmp, tpe, rrg, bkh, dtmp
      real k1k
-     integer nt, liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kp, k_next
+     integer nt, liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kmp, kp, k_next
 
         k1k = rdgas/cv_air   ! akap / (1.-akap) = rg/Cv=0.4
          rg = rdgas
@@ -155,14 +153,22 @@ contains
            graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
            cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
 
+       if ( do_sat_adj ) then
+            do k=1,km
+               kmp = k
+               if ( pfull(k) > 30.E2 ) exit
+            enddo
+            call qs_init(kmp)
+       endif
+
 !$OMP parallel do default(none) shared(is,ie,js,je,km,pe,ptop,kord_tm,hydrostatic, &
 !$OMP                                  pt,pk,rg,peln,q,nwat,liq_wat,rainwat,ice_wat,snowwat,    &
 !$OMP                                  graupel,q_con,sphum,cappa,r_vir,rcp,k1k,delp, &
 !$OMP                                  delz,akap,pkz,te,u,v,ps, gridstruct, last_step, &
-!$OMP                                  ze0,ak,bk,nq,isd,ied,jsd,jed,kord_tr,fill, adiabatic, &
+!$OMP                                  ak,bk,nq,isd,ied,jsd,jed,kord_tr,fill, adiabatic, &
 !$OMP                                  hs,w,ws,kord_wz,do_omega,omga,rrg,kord_mt,ua)    &
-!$OMP                          private(qv,gz,cvm,dz1,z_rat,kp,k_next,bkh,deng,dp2,   &
-!$OMP                                  pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2,ze1,ze2,ztop)
+!$OMP                          private(qv,gz,cvm,kp,k_next,bkh,dp2,   &
+!$OMP                                  pe0,pe1,pe2,pe3,pk1,pk2,pn2,phis,q2)
   do 1000 j=js,je+1
 
      do k=1,km+1
@@ -499,14 +505,14 @@ contains
 
 1000  continue
 
-!$OMP parallel default(none) shared(is,ie,js,je,km,ptop,u,v,pe,ua,isd,ied,jsd,jed,kord_mt, &
+!$OMP parallel default(none) shared(is,ie,js,je,km,kmp,ptop,u,v,pe,ua,isd,ied,jsd,jed,kord_mt, &
 !$OMP                               te_2d,te,delp,hydrostatic,hs,rg,pt,peln, adiabatic, &
 !$OMP                               cp,delz,nwat,rainwat,liq_wat,ice_wat,snowwat,     &
 !$OMP                               graupel,q_con,r_vir,sphum,w,pk,pkz,last_step,consv, &
 !$OMP                               do_adiabatic_init,zsum1,zsum0,te0_2d,domain,   &
 !$OMP                               ng,gridstruct,E_Flux,pdt,dtmp,reproduce_sum,q, &
 !$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj,kord_tm) &
-!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dlnp,dpeln)
+!$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dpln)
 
 !$OMP do
   do k=2,km
@@ -647,34 +653,30 @@ endif        ! end last_step check
 
 ! Note: pt at this stage is T_v
   if ( .not. do_adiabatic_init ) then
-#ifdef FAST_LIN_MP
-! Notes: must set consv=0
-                                           call timing_on('FAST_LIN_MP')
-       call lin_fast_mp(u, v, w, pt, q, sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, cld_amt,  & 
-                        delp, delz, gridstruct, mdt, lprec, fprec, f_land,      &
-                        hydrostatic, phys_hydrostatic, time)
-                                           call timing_off('FAST_LIN_MP')
-#else
-#ifndef GFS_PHYS
        if ( do_sat_adj ) then
                                            call timing_on('sat_adj2')
 !$OMP do
-           do k=1,km
+           do k=kmp,km
               do j=js,je
                  do i=is,ie
-                    dpeln(i,j) = peln(i,k+1,j) - peln(i,k,j)
+                    dpln(i,j) = peln(i,k+1,j) - peln(i,k,j)
                  enddo
               enddo
-              call sat_adj2(mdt, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
-                            te(is,js,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
-                            q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
-                            q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel), q(isd,jsd,k,cld_amt), gridstruct%area(isd,jsd), &
-                            dpeln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k),           &
-                            q_con(isd:,jsd:,k), &
-#ifdef MOIST_CAPPA
-                            cappa(isd:,jsd:,k), &
-#endif
-                            dtdt(is,js,k), out_dt, last_step)
+if ( cld_amt > 0 ) then
+              call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
+                             te(is,js,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
+                             q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
+                             q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
+                             dpln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k), q_con(isd:,jsd:,k), &
+                             cappa(isd:,jsd:,k), gridstruct%area_64, dtdt(is,js,k), out_dt, last_step, q(isd,jsd,k,cld_amt))
+else
+              call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
+                             te(is,js,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
+                             q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
+                             q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
+                             dpln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k), q_con(isd:,jsd:,k), &
+                             cappa(isd:,jsd:,k), gridstruct%area_64, dtdt(is,js,k), out_dt, last_step)
+endif
               if ( .not. hydrostatic  ) then
                  do j=js,je
                     do i=is,ie
@@ -682,8 +684,6 @@ endif        ! end last_step check
                        pkz(i,j,k) = exp(cappa(i,j,k)*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
 #else
                        pkz(i,j,k) = exp(akap*log(rrg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)))
-! Using dry pressure for the definition of the virtual potential temperature
-!                      pkz(i,j,k) = exp(akap*log(rrg*(1.-q(i,j,k,sphum))*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)/(1.+r_vir*q(i,j,k,sphum))))
 #endif
                     enddo
                  enddo
@@ -693,7 +693,7 @@ endif        ! end last_step check
            if ( consv > consv_min ) then
 !$OMP do
                 do j=js,je
-                   do k=1,km
+                   do k=kmp,km
                       do i=is,ie
                          te0_2d(i,j) = te0_2d(i,j) + te(i,j,k)
                       enddo
@@ -702,8 +702,6 @@ endif        ! end last_step check
            endif
                                            call timing_off('sat_adj2')
        endif  ! do_sat_adj
-#endif
-#endif
   endif   ! .not. do_adiabatic_init
 
 
@@ -3115,7 +3113,6 @@ endif        ! end last_step check
   real, intent(out), dimension(is:ie):: cvm, qd
   real, intent(in), optional:: t1(is:ie)
 !
-  real, parameter:: tice = 273.16
   real, parameter:: t_i0 = 15.
   real, dimension(is:ie):: qv, ql, qs
   integer:: i
@@ -3186,7 +3183,6 @@ endif        ! end last_step check
   real, intent(out), dimension(is:ie):: cpm, qd
   real, intent(in), optional:: t1(is:ie)
 !
-  real, parameter:: tice = 273.16
   real, parameter:: t_i0 = 15.
   real, dimension(is:ie):: qv, ql, qs
   integer:: i

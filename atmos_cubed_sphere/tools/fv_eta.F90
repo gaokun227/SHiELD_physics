@@ -1381,8 +1381,8 @@ module fv_eta_mod
              call var_hi(km, ak, bk, ptop, ks, pint, 1.03)
 ! NGGPS_GFS
         case (95)
-             ptop = 50.
-             pint = 100.E2
+             ptop = 60.
+             pint = 100.E2   !  75.E2
              call var_gfs(km, ak, bk, ptop, ks, pint, 1.028)
         case default
 
@@ -1469,9 +1469,9 @@ module fv_eta_mod
       s_fac(6) = 1.15*s_fac(7)
       s_fac(5) = 1.2 *s_fac(6)
       s_fac(4) = 1.3 *s_fac(5)
-      s_fac(3) = 1.4 *s_fac(4)
-      s_fac(2) = 1.45 *s_fac(3)
-      s_fac(1) = 1.5 *s_fac(2)
+      s_fac(3) = 1.35*s_fac(4)
+      s_fac(2) = 1.35 *s_fac(3)
+      s_fac(1) = 1.2 *s_fac(2)
 
       sum1 = 0.
       do k=1,km
@@ -1506,7 +1506,7 @@ module fv_eta_mod
 !          enddo
       endif
 
-      call sm1_edge(1, 1, 1, 1, km, 1, 1, ze, 2)
+      call sm1_edge(1, 1, 1, 1, km, 1, 1, ze, 3)
 
 ! Given z --> p
       do k=1,km

@@ -99,6 +99,7 @@ contains
     real, intent(inout) :: q(   bd%isd:bd%ied  ,bd%jsd:bd%jed  ,npz, ncnst) ! specific humidity and constituents
     real, intent(inout) :: delz(bd%isd:,bd%jsd:,1:)   ! delta-height (m); non-hydrostatic only
     real, intent(inout) ::  ze0(bd%is:, bd%js: ,1:) ! height at edges (m); non-hydrostatic
+! ze0 no longer used
 
 !-----------------------------------------------------------------------
 ! Auxilliary pressure arrays:    
@@ -529,8 +530,8 @@ contains
                      zvir, cp_air, akap, cappa, flagstruct%kord_mt, flagstruct%kord_wz, &
                      kord_tracer, flagstruct%kord_tm, peln, te_2d,               &
                      ng, ua, va, omga, dp1, ws, fill, reproduce_sum,             &
-                     idiag%id_mdt>0, dtdt_m, ptop, ak, bk, gridstruct, domain, ze0,  &
-                     flagstruct%do_sat_adj, hydrostatic, hybrid_z, do_omega,         &
+                     idiag%id_mdt>0, dtdt_m, ptop, ak, bk, pfull, gridstruct, domain,   &
+                     flagstruct%do_sat_adj, hydrostatic, hybrid_z, do_omega,     &
                      flagstruct%adiabatic, do_adiabatic_init)
 
 #ifdef AVEC_TIMERS
@@ -572,10 +573,11 @@ contains
        do k=1,npz
           do j=js,je
              do i=is,ie
-                dtdt_m(i,j,k) = dtdt_m(i,j,k) / bdt
+                dtdt_m(i,j,k) = dtdt_m(i,j,k) / bdt * 86400.
              enddo
           enddo
        enddo
+!      call prt_mxm('Fast DTDT (deg/Day)', dtdt_m, is, ie, js, je, 0, npz, 1., gridstruct%area_64, domain)
        used = send_data(idiag%id_mdt, dtdt_m, fv_time)
        deallocate ( dtdt_m )
   endif

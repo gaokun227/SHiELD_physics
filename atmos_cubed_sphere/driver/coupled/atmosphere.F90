@@ -927,7 +927,7 @@ contains
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
    real, parameter:: wt = 1.  ! was 2.
-   real:: xt
+   real:: xt, p00, q00
    integer:: isc, iec, jsc, jec, npz
    integer:: m, n, i,j,k, ngc
 
@@ -1023,7 +1023,7 @@ contains
                      Atm(mytile)%domain)
 ! Nudging back to IC
 !$omp parallel do default (none) &
-!$omp             shared (npz, jsc, jec, isc, iec, n, sphum, Atm, u0, v0, t0, dp0, xt, zvir, mytile) &
+!$omp             shared (q00, p00,npz, jsc, jec, isc, iec, n, sphum, Atm, u0, v0, t0, dp0, xt, zvir, mytile) &
 !$omp            private (i, j, k)
        do k=1,npz
           do j=jsc,jec+1
@@ -1036,6 +1036,26 @@ contains
                 Atm(mytile)%v(i,j,k) = xt*(Atm(mytile)%v(i,j,k) + wt*v0(i,j,k))
              enddo
           enddo
+#ifdef NUDGE_QV
+          p00 = Atm(mytile)%pe(isc,k,jsc)
+          if ( p00 < 30.E2 ) then
+             if ( p00 <= 7. ) then
+                  q00 = 2.2E-6
+             elseif ( p00 <  1000. .and. p00 >=    7. ) then
+                  q00 = 3.8E-6
+             elseif ( p00 <2000. .and.  p00 >= 1000. ) then
+                  q00 = 3.1E-6
+             else
+                  q00 = 3.0E-6
+             endif
+             do j=jsc,jec
+                do i=isc,iec
+                   Atm(mytile)%q(i,j,k,sphum) = 0.5*Atm(mytile)%q(i,j,k,sphum) + 0.5*q00
+                   Atm(mytile)%q(i,j,k,sphum) = min(4.0E-6, Atm(mytile)%q(i,j,k,sphum))
+                enddo
+             enddo
+          endif
+#endif
           do j=jsc,jec
              do i=isc,iec
 #ifndef NUDGE_GZ

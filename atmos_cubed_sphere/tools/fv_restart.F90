@@ -262,6 +262,7 @@ contains
        jsd = Atm(n)%bd%jsd
        jed = Atm(n)%bd%jed
        ncnst = Atm(n)%ncnst
+       if( is_master() ) write(*,*) 'in fv_restart ncnst=', ncnst
        isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
 
     ! Init model data

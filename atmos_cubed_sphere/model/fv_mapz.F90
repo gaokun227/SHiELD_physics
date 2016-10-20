@@ -664,14 +664,14 @@ endif        ! end last_step check
               enddo
 if ( cld_amt > 0 ) then
               call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
-                             te(is,js,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
+                             te(isd,jsd,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
                              q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
                              q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
                              dpln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k), q_con(isd:,jsd:,k), &
                              cappa(isd:,jsd:,k), gridstruct%area_64, dtdt(is,js,k), out_dt, last_step, q(isd,jsd,k,cld_amt))
 else
               call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
-                             te(is,js,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
+                             te(isd,jsd,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
                              q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
                              q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
                              dpln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k), q_con(isd:,jsd:,k), &

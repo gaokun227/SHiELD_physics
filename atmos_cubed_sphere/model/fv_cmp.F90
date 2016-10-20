@@ -71,7 +71,7 @@ contains
  real, intent(inout), dimension(is-ng:,js-ng:):: q_con
  real, intent(inout), dimension(is-ng:,js-ng:):: cappa
  real, intent(inout)::dtdt(is:ie,js:je)
- real, intent(out):: te0(is:ie,js:je)
+ real, intent(out):: te0(is-ng:ie+ng,js-ng:je+ng)
 !---
  real, parameter:: tau_l2r = 300.
  real, dimension(is:ie):: wqsat, dq2dt, qpz, cpm, t0, pt1, icp2, lcp2, tcp2, tcp3,    &
@@ -479,8 +479,8 @@ if ( present(qa) .and. last_step ) then
                 qa(i,j) = 1.
            else
              if ( qstar<q_plus ) then
-!               qa(i,j) = (q_plus-qstar)/(dq+dq)        ! partial cloud cover:
-                qa(i,j) = sqrt( (q_plus-qstar)/(dq+dq) )
+                qa(i,j) = (q_plus-qstar)/(dq+dq)        ! partial cloud cover:
+!               qa(i,j) = sqrt( (q_plus-qstar)/(dq+dq) )
                                                         ! qa = 0 if qstar = q_plus 
                                                         ! qa = 1 if qstar = q_minus
              endif

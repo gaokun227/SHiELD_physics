@@ -1893,7 +1893,7 @@ contains
   real(kind=R_GRID):: pst
 !!! High-precision
   integer i,j,k, k2, l, iq
-  integer  sphum, o3mr, liq_wat, ice_wat, rainwat, snowwat, graupel
+  integer  sphum, o3mr, liq_wat, ice_wat, rainwat, snowwat, graupel, cld_amt
   integer :: is,  ie,  js,  je
 
   is  = Atm%bd%is
@@ -1905,11 +1905,14 @@ contains
   liq_wat = get_tracer_index(MODEL_ATMOS, 'liq_wat')
   o3mr    = get_tracer_index(MODEL_ATMOS, 'o3mr')
 
+  cld_amt = 0
+
   if ( Atm%flagstruct%nwat .eq. 6 ) then
     ice_wat = get_tracer_index(MODEL_ATMOS, 'ice_wat')
     rainwat = get_tracer_index(MODEL_ATMOS, 'rainwat')
     snowwat = get_tracer_index(MODEL_ATMOS, 'snowwat')
     graupel = get_tracer_index(MODEL_ATMOS, 'graupel')
+    cld_amt = get_tracer_index(MODEL_ATMOS, 'cld_amt')
   endif
 
   k2 = max(10, km/2)
@@ -2047,6 +2050,7 @@ contains
             Atm%q(i,j,k,rainwat) = 0.
             Atm%q(i,j,k,snowwat) = 0.
             Atm%q(i,j,k,graupel) = 0.
+            if (cld_amt .gt. 0) Atm%q(i,j,k,cld_amt) = 0.
             if ( Atm%pt(i,j,k) > 273.16 ) then       ! > 0C all liq_wat
                Atm%q(i,j,k,liq_wat) = qn1(i,k)
                Atm%q(i,j,k,ice_wat) = 0.

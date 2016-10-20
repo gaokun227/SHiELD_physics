@@ -214,8 +214,8 @@ module gfs_physics_driver_mod
     integer :: nrcm     = 2               ! when using ras, will be computed
     integer :: levozp   = 80              ! read from global_o3prdlos.f77
     integer :: jcap     = 1               ! should not matter it is used by spherical 
-    integer :: num_p3d  = 4               ! Ferrier:3  Zhao:4 
-    integer :: num_p2d  = 3               ! Ferrier:1  Zhao:3
+    integer :: num_p3d  = 4               ! Ferrier:3  Zhao:4  GFDL:4
+    integer :: num_p2d  = 3               ! Ferrier:1  Zhao:3  GFDL:1
     integer :: npdf3d   = 0               ! Zhao & pdfcld=.T.:3  -  else:0
     integer :: pl_coeff = 4
     integer :: ncw(2)   = (/20,120/)
@@ -259,8 +259,8 @@ module gfs_physics_driver_mod
     integer :: ntke       = 0
     logical :: do_shoc    = .false.
     logical :: shocaftcnv = .false.
-    integer :: ntot3d     = 4
-    integer :: ntot2d     = 3
+    integer :: ntot3d     = 4  ! Ferrier:3  Zhao:4  GFDL:4
+    integer :: ntot2d     = 3  ! Ferrier:1  Zhao:3  GFDL:1
     logical :: shoc_cld   = .false.
 !
 !--- Radiation option control parameters
@@ -305,7 +305,8 @@ module gfs_physics_driver_mod
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
-                              hybedmf,shal_cnv,ncld,ntoz,                        &
+                              hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
+                              num_p3d,                                           &
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
         vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &

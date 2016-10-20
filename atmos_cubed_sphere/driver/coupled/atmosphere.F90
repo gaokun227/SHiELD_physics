@@ -113,7 +113,7 @@ character(len=7)   :: mod_name = 'atmos'
 
   integer, dimension(:), allocatable :: id_tracerdt_dyn
   integer :: num_tracers = 0
-  integer :: sphum, liq_wat, rainwat, ice_wat, snowwat, graupel ! Lin Micro-physics
+  integer :: sphum, liq_wat, rainwat, ice_wat, snowwat, graupel, o3mr ! Lin Micro-physics
 
   integer :: mytile = 1
   integer :: p_split = 1
@@ -745,7 +745,7 @@ contains
    call timing_on('GFS_TENDENCIES')
 !--- put u/v tendencies into haloed arrays u_dt and v_dt
 !$OMP parallel do default (none) & 
-!$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block,sphum,liq_wat,rainwat,ice_wat,snowwat,graupel) &
+!$OMP              shared (rdt,n,nq,npz,ncnst, mytile, u_dt, v_dt, t_dt, Atm, Statein, Stateout, Atm_block,sphum,liq_wat,rainwat,ice_wat,snowwat,graupel,o3mr) &
 !$OMP             private (nb, ibs, ibe, jbs, jbe, i, j, k, k1, ix, q0, q1, q2, q3, q4, q5, q6, q7, qt)
    do nb = 1,Atm_block%nblks
      ibs = Atm_block%ibs(nb)
@@ -799,7 +799,7 @@ contains
          q4 = q0*Stateout(nb)%gq0(ix,k,ice_wat)
          q5 = q0*Stateout(nb)%gq0(ix,k,snowwat)
          q6 = q0*Stateout(nb)%gq0(ix,k,graupel)
-         q7 = q0*Stateout(nb)%gq0(ix,k,7)
+         q7 = q0*Stateout(nb)%gq0(ix,k,o3mr)
          qt = q1+q2+q3+q4+q5+q6
          q0 = Atm(n)%delp(i,j,k1)*(1.-(Atm(n)%q(i,j,k1,sphum)+Atm(n)%q(i,j,k1,liq_wat)+Atm(n)%q(i,j,k1,rainwat)+    &
               Atm(n)%q(i,j,k1,ice_wat)+Atm(n)%q(i,j,k1,snowwat)+Atm(n)%q(i,j,k1,graupel))) + qt
@@ -810,7 +810,7 @@ contains
          Atm(n)%q(i,j,k1,ice_wat) = q4 / q0
          Atm(n)%q(i,j,k1,snowwat) = q5 / q0
          Atm(n)%q(i,j,k1,graupel) = q6 / q0
-         Atm(n)%q(i,j,k1,      7) = q7 / q0     ! ozone
+         Atm(n)%q(i,j,k1,   o3mr) = q7 / q0     ! ozone
          endif
        enddo
       enddo
@@ -1202,6 +1202,7 @@ contains
       rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat' )
       snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat' )
       graupel = get_tracer_index (MODEL_ATMOS, 'graupel' )
+      o3mr    = get_tracer_index (MODEL_ATMOS, 'o3mr' )
    endif
 
    npz = Atm_block%npz
@@ -1210,7 +1211,7 @@ contains
 ! use most up to date atmospheric properties when running serially
 !---------------------------------------------------------------------
 !$OMP parallel do default (none) & 
-!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, ice_wat, rainwat, snowwat, graupel ,pk0inv, &
+!$OMP             shared  (Atm_block, Atm, Statein, npz, nq, ncnst, sphum, liq_wat, ice_wat, rainwat, snowwat, graupel, o3mr, pk0inv, &
 !$OMP                      ptop, pktop, zvir, mytile, diag_sounding) &
 !$OMP             private (dm, nb, ibs, ibe, jbs, jbe, i, j, ix, k1, rTv)
 

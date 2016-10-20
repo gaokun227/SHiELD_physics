@@ -46,8 +46,10 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: hlv0 = 2.501e6   ! Emanual Appendix-2
   real, parameter:: hlf0 = 3.337e5   ! Emanual
   real, parameter:: t_ice = 273.15
-  real, parameter:: ri_max = 2.
-  real, parameter:: ri_min = 1.
+! real, parameter:: ri_max = 2.
+! real, parameter:: ri_min = 1.
+  real, parameter:: ri_max = 1.
+  real, parameter:: ri_min = 0.25
   real, parameter:: t2_max = 315.
   real, parameter:: t3_max = 325.
   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.147782e6

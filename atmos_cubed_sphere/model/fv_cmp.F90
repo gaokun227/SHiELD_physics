@@ -25,19 +25,20 @@ module fv_cmp_mod
 ! Local:
  real:: ql_gen = 1.0e-3    ! max ql generation during remapping step if fast_sat_adj = .T.
  real:: qi_gen = 1.82E-6
- real:: qi_lim = 2.  ! 1.
+ real:: qi_lim = 2.  ! 2.
  real:: tau_i2s = 1000.
  real:: tau_v2l = 150.
  real:: tau_l2v = 300.
  real:: tau_r  = 600.       ! rain freezing time scale during fast_sat
  real:: tau_s  = 600.       ! snow melt
  real:: tau_mlt = 600.      ! ice melting time-scale
- real:: sat_adj0 = 0.95
+ real, parameter:: tau_l2r = 300.
+ real:: sat_adj0 = 0.9  !  0.95
  real:: qi0_max = 1.2e-4    ! Max: ice  --> snow autocon threshold
  real:: ql0_max = 2.0e-3    ! max ql value (auto converted to rain)
  real:: t_sub   = 184.  ! Min temp for sublimation of cloud ice
  real:: cld_min = 0.05
- real:: dw_ocean = 0.1
+ real:: dw_ocean = 0.12 ! 0.1
  real:: cracw = 3.272
  real:: crevp(5), lat2
  real, allocatable:: table(:), table2(:), tablew(:), des2(:), desw(:)
@@ -54,7 +55,7 @@ contains
 
  subroutine fv_sat_adj(mdt, zvir, is, ie, js, je, ng, hydrostatic, consv_te, &
                        te0, qv, ql, qi, qr, qs, qg, dpln, delz, pt, dp,  &
-                       q_con, cappa, area, dtdt, out_dt, last_step, qa)
+                       q_con, cappa, area, dtdt, out_dt, last_step, do_qa, qa)
 ! This is designed for 6-class micro-physics schemes; handles the heat release
 ! due to in situ phase changes
 ! input pt is T_vir
@@ -63,17 +64,17 @@ contains
  real, intent(in):: zvir
  logical, intent(in):: hydrostatic, consv_te, out_dt
  logical, intent(in):: last_step
+ logical, intent(in):: do_qa
  real, intent(in), dimension(is-ng:ie+ng,js-ng:je+ng):: dp, delz
  real, intent(in):: dpln(is:ie,js:je)
  real, intent(inout), dimension(is-ng:ie+ng,js-ng:je+ng):: pt, qv, ql, qi, qr, qs, qg
- real, optional, intent(out):: qa(is-ng:ie+ng,js-ng:je+ng)
+ real, intent(out):: qa(is-ng:ie+ng,js-ng:je+ng)
  real(kind=R_GRID), intent(in), dimension(is-ng:ie+ng,js-ng:je+ng):: area
  real, intent(inout), dimension(is-ng:,js-ng:):: q_con
  real, intent(inout), dimension(is-ng:,js-ng:):: cappa
  real, intent(inout)::dtdt(is:ie,js:je)
  real, intent(out):: te0(is-ng:ie+ng,js-ng:je+ng)
 !---
- real, parameter:: tau_l2r = 300.
  real, dimension(is:ie):: wqsat, dq2dt, qpz, cpm, t0, pt1, icp2, lcp2, tcp2, tcp3,    &
                           den, q_liq, q_sol, src, p1, hvar
  real:: sink, qsw, rh, fac_v2l, fac_l2v
@@ -96,7 +97,7 @@ contains
    fac_s = 1. - exp( -mdt/tau_s )
  fac_l2r = 1. - exp( -mdt/tau_l2r )
 
- hvar(:) = 0.02
+!!! hvar(:) = 0.02
 
  do j=js, je
 
@@ -135,20 +136,12 @@ contains
        tcp3(i) = lcp2(i) + icp2(i)*min(1., dim(tice,t0(i))/40.)
        src(i) = 0.
     enddo
+
     if ( consv_te ) then 
-       if ( hydrostatic ) then
          do i=is, ie
-            te0(i,j) = -cp_air*dp(i,j)*t0(i)*(1.+zvir*qv(i,j))
+! Convert to "liquid" form
+            te0(i,j) = dp(i,j)*(icp2(i)*q_sol(i) - lcp2(i)*qv(i,j))
          enddo
-       else
-         do i=is, ie
-#ifdef USE_COND
-            te0(i,j) = -cpm(i)*dp(i,j)*t0(i)
-#else
-            te0(i,j) = -cv_air*dp(i,j)*t0(i)
-#endif
-         enddo
-       endif
     endif
 
     do i=is, ie
@@ -406,20 +399,23 @@ contains
     if ( consv_te ) then 
        if ( hydrostatic ) then
          do i=is, ie
-            te0(i,j) = te0(i,j) + cp_air*dp(i,j)*pt1(i)*(1.+zvir*qv(i,j))
+            te0(i,j) = te0(i,j) + cp_air*dp(i,j)*(pt1(i)-t0(i))*(1.+zvir*qv(i,j))
          enddo
        else
          do i=is, ie
 #ifdef USE_COND
-            te0(i,j) = te0(i,j) + cpm(i)*dp(i,j)*pt1(i)
+            te0(i,j) = te0(i,j) + cpm(i)*dp(i,j)*(pt1(i)-t0(i))
 #else
-            te0(i,j) = te0(i,j) + cv_air*dp(i,j)*pt1(i)
+            te0(i,j) = te0(i,j) + cv_air*dp(i,j)*(pt1(i)-t0(i))
 #endif
          enddo
        endif
+         do i=is, ie
+            te0(i,j) = te0(i,j) + dp(i,j)*(lcp2(i)*qv(i,j)-icp2(i)*q_sol(i))
+         enddo
     endif
 
-if ( present(qa) .and. last_step ) then
+if ( do_qa .and. last_step ) then
 
     do i=is, ie
        qa(i,j) = 0.

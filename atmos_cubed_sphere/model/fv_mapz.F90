@@ -652,8 +652,7 @@ if( last_step .and. (.not.do_adiabatic_init)  ) then
 endif        ! end last_step check
 
 ! Note: pt at this stage is T_v
-  if ( .not. do_adiabatic_init ) then
-       if ( do_sat_adj ) then
+  if ( .not. do_adiabatic_init .and. do_sat_adj ) then
                                            call timing_on('sat_adj2')
 !$OMP do
            do k=kmp,km
@@ -662,21 +661,12 @@ endif        ! end last_step check
                     dpln(i,j) = peln(i,k+1,j) - peln(i,k,j)
                  enddo
               enddo
-if ( cld_amt > 0 ) then
               call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
                              te(isd,jsd,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
                              q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
                              q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
                              dpln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k), q_con(isd:,jsd:,k), &
-                             cappa(isd:,jsd:,k), gridstruct%area_64, dtdt(is,js,k), out_dt, last_step, q(isd,jsd,k,cld_amt))
-else
-              call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
-                             te(isd,jsd,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
-                             q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
-                             q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
-                             dpln, delz(isd:,jsd:,k), pt(isd,jsd,k), delp(isd,jsd,k), q_con(isd:,jsd:,k), &
-                             cappa(isd:,jsd:,k), gridstruct%area_64, dtdt(is,js,k), out_dt, last_step)
-endif
+              cappa(isd:,jsd:,k), gridstruct%area_64, dtdt(is,js,k), out_dt, last_step, cld_amt>0, q(isd,jsd,k,cld_amt))
               if ( .not. hydrostatic  ) then
                  do j=js,je
                     do i=is,ie
@@ -701,8 +691,7 @@ endif
                 enddo
            endif
                                            call timing_off('sat_adj2')
-       endif  ! do_sat_adj
-  endif   ! .not. do_adiabatic_init
+  endif   ! do_sat_adj
 
 
   if ( last_step ) then
@@ -868,7 +857,7 @@ endif
   enddo
 
 !-------------------------------------
-! Doganostics computation for moist TE
+! Diganostics computation for moist TE
 !-------------------------------------
   if( id_te>0 ) then
 !$OMP parallel do default(none) shared(is,ie,js,je,teq,te_2d,moist_phys,km,hlv,sphum,q,delp)

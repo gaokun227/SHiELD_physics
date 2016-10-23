@@ -1384,6 +1384,10 @@ module fv_eta_mod
              ptop = 60.
              pint = 100.E2   !  75.E2
              call var_gfs(km, ak, bk, ptop, ks, pint, 1.028)
+        case (127)
+             ptop = 1.
+             pint = 75.E2
+             call var_gfs(km, ak, bk, ptop, ks, pint, 1.026)
         case default
 
 #ifdef TEST_GWAVES

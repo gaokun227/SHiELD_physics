@@ -35,7 +35,7 @@ module fv_arrays_mod
 
 
   integer, parameter:: max_step = 1000
-  real, parameter:: real_big = 1.e30   ! big enough to cause blowup if used
+  real, parameter:: real_big = 1.e10   ! big enough to cause blowup if used (without bothering the debugger)
   type fv_diag_type
 
 

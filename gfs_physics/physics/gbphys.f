@@ -966,7 +966,9 @@
 !
 !GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
 !GFDL   nlons will contain the global number of columns for the blending function
-        if (coslat(i) .le. 0._kind_phys) then
+!GFDL   Set nlons (ncols in interface) to a negative number
+!GFDL     to get a uniform work function --- lmh 20oct16
+        if ( (coslat(i) .le. 0._kind_phys) .or. nlons(i) < 0 ) then
           work1(i) = 1._kind_phys
         else
           work1(i)   = (log(coslat(i) / nlons(i)) - dxmin) * dxinv

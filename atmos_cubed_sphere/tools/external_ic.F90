@@ -983,12 +983,8 @@ contains
 
         !!! Perform terrain smoothing, if desired
         if ( Atm(n)%flagstruct%full_zs_filter ) then
-               !!! DEBUG CODE
-           write(mpp_pe()+1000,*) lbound(Atm(n)%oro)
-           write(mpp_pe()+1000,*) ubound(Atm(n)%oro)
-               !!! END DEBUG CODE
-           
 
+           call mpp_update_domains(Atm(n)%phis, Atm(n)%domain)
 
            call FV3_zs_filter( Atm(n)%bd, isd, ied, jsd, jed, npx, npy, Atm(n)%neststruct%npx_global, &
                 Atm(n)%flagstruct%stretch_fac, Atm(n)%neststruct%nested, Atm(n)%domain, &

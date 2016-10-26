@@ -189,6 +189,7 @@ module fv_control_mod
    logical , pointer :: nudge_ic
    logical , pointer :: ncep_ic 
    logical , pointer :: nggps_ic 
+   logical , pointer :: ecmwf_ic 
    logical , pointer :: gfs_phil
    logical , pointer :: agrid_vel_rst
    logical , pointer :: use_new_ncep 
@@ -250,7 +251,7 @@ module fv_control_mod
                          use_logp, p_fac, a_imp, k_split, n_split, m_split, q_split, print_freq, do_schmidt,      &
                          hord_mt, hord_vt, hord_tm, hord_dp, hord_tr, shift_fac, stretch_fac, target_lat, target_lon, &
                          kord_mt, kord_wz, kord_tm, kord_tr, fv_debug, fv_land, nudge, do_sat_adj, do_f3d, &
-                         external_ic, ncep_ic, nggps_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
+                         external_ic, ncep_ic, nggps_ic, ecmwf_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
                          res_latlon_dynamics, res_latlon_tracers, scale_z, w_max, z_min, &
                          dddmp, d2_bg, d4_bg, vtdm4, trdm2, d_ext, beta, non_ortho, n_sponge, &
                          warm_start, adjust_dry_mass, mountain, d_con, ke_bg, nord, nord_tr, convert_ke, use_old_omega, &
@@ -1138,6 +1139,7 @@ module fv_control_mod
      nudge_ic                      => Atm%flagstruct%nudge_ic
      ncep_ic                       => Atm%flagstruct%ncep_ic
      nggps_ic                      => Atm%flagstruct%nggps_ic
+     ecmwf_ic                      => Atm%flagstruct%ecmwf_ic
      gfs_phil                      => Atm%flagstruct%gfs_phil
      agrid_vel_rst                 => Atm%flagstruct%agrid_vel_rst
      use_new_ncep                  => Atm%flagstruct%use_new_ncep

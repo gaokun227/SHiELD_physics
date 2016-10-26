@@ -2199,7 +2199,7 @@
 
          call rad_initialize                                             &
 !  ---  inputs:
-     &      ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
+     &      ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,num_p2d,        &
      &        num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
      &        sas_shal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
 !  ---  outputs: ( none )
@@ -2700,7 +2700,7 @@
 
          call grrad(statein%prsi, statein%prsl, statein%prslk, statein%tgrs, statein%qgrs_rad,   &
                     statein%tracer, statein%vvl, sfc_prop%slmsk, dyn_parm%xlon, dyn_parm%xlat,     &
-                    sfc_prop%tsfc, sfc_prop%snowd, sfc_prop%sncovr, sfc_prop%snoalb, sfc_prop%zorl,    &
+                    sfc_prop%tsfc, sfc_prop%weasd, sfc_prop%sncovr, sfc_prop%snoalb, sfc_prop%zorl,    &
                     sfc_prop%hprim, sfc_prop%alvsf, sfc_prop%alnsf, sfc_prop%alvwf, sfc_prop%alnwf,    &
                     sfc_prop%facsf, sfc_prop%facwf, sfc_prop%fice, sfc_prop%tisfc, dyn_parm%sinlat,    &
                     dyn_parm%coslat, dyn_parm%solhr, dyn_parm%jdate, dyn_parm%solcon, cld_prop%cv,     &

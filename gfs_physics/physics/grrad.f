@@ -194,7 +194,7 @@
      &                                     setemis
       use module_radiation_clouds,  only : NF_CLDS, cld_init,           &
      &                                     progcld1, progcld2, progcld3,&
-     &                                     diagcld1
+     &                                     progcld4, diagcld1
 
       use module_radsw_parameters,  only : topfsw_type, sfcfsw_type,    &
      &                                     profsw_type,cmpfsw_type,NBDSW
@@ -1391,6 +1391,17 @@
      &       xlat,xlon,slmsk,                                           &
      &       im, lmk, lmp,                                              &
      &       deltaq, sup,kdt,me,                                        &
+!  ---  outputs:
+     &       clouds,cldsa,mtopa,mbota                                   &
+     &      )
+
+        elseif (icmphys == 4) then           ! zhao/moorthi's prognostic cloud scheme
+
+          call progcld4                                                 &
+!  ---  inputs:
+     &     ( plyr,plvl,tlyr,tvly,qlyr,qstl,rhly,clw,                    &
+     &       xlat,xlon,slmsk,tracer1(1:im,1:lm,NTRAC),                  &
+     &       IM, LMK, LMP,                                              &
 !  ---  outputs:
      &       clouds,cldsa,mtopa,mbota                                   &
      &      )

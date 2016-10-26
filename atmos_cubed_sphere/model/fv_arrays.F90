@@ -438,6 +438,7 @@ module fv_arrays_mod
    logical :: nudge_ic = .false.      ! Perform nudging on IC
    logical :: ncep_ic = .false.       ! use NCEP ICs 
    logical :: nggps_ic = .false.      ! use NGGPS ICs 
+   logical :: ecmwf_ic = .false.      ! use ECMWF ICs 
    logical :: gfs_phil = .false.      ! if .T., compute geopotential inside of GFS physics
    logical :: agrid_vel_rst = .false. ! if .T., include ua/va (agrid winds) in the restarts
    logical :: use_new_ncep = .false.  ! use the NCEP ICs created after 2014/10/22, if want to read CWAT

@@ -1,3 +1,71 @@
+      module sascnvn_mod
+
+      use machine , only : kind_phys
+      implicit none
+
+      public
+
+c  model tunable parameters are all here
+c  values set in initialization routine
+      real(kind=kind_phys) mbdt    
+      real(kind=kind_phys) edtmaxl 
+      real(kind=kind_phys) edtmaxs 
+      real(kind=kind_phys) clam    ! c_e for deep convection (HP11, eq(6))
+      real(kind=kind_phys) aafac   
+      real(kind=kind_phys) betal   
+      real(kind=kind_phys) betas   
+      real(kind=kind_phys) evfact  
+      real(kind=kind_phys) evfactl 
+!
+      real(kind=kind_phys) crtlamu 
+      real(kind=kind_phys) crtlamd 
+!
+      real(kind=kind_phys) cxlamu  ! d_1 in Han and Pan (2011, eq (8))
+      real(kind=kind_phys) cxlamd  ! not used in this version
+      real(kind=kind_phys) xlamde  
+      real(kind=kind_phys) xlamdd  
+!
+      real(kind=kind_phys) pgcon   
+
+      real(kind=kind_phys) c0 
+      real(kind=kind_phys) c1 
+
+      data mbdt    / 10./
+      data edtmaxl / .3/
+      data edtmaxs / .3/
+      data clam    / .1/
+      data aafac   / .1/
+!     betal   / .15/
+!     betas   / .15/
+      data betal   / .05/
+      data betas   / .05/
+c     evef    / 0.07/
+      data evfact  / 0.3/
+      data evfactl / 0.3/
+!/
+      data crtlamu / 1.0e-4/
+      data crtlamd / 1.0e-4/
+!/
+      data cxlamu  / 1.0e-3/
+      data cxlamd  / 1.0e-4/
+      data xlamde  / 1.0e-4/
+      data xlamdd  / 1.0e-4/
+!/
+!     pgcon   / 0.7     ! Gregory et al. (1997, QJRMS)/
+      data pgcon   / 0.55 /    ! Zhang & Wu (2003,JAS)/
+      data c0 / 0.0015/
+      data c1 / 0.002/
+
+
+      namelist /sascnvn_nml/ mbdt, edtmaxl, edtmaxs, clam, aafac, betal,
+     $     betas, evfact, evfactl, crtlamu, crtlamd, cxlamu, cxlamd, 
+     $     xlamde, xlamdd, pgcon, c0, c1
+
+
+      contains
+
+
+
       subroutine sascnvn(im,ix,km,jcap,delt,delp,prslp,psp,phil,ql,
      &     q1,t1,u1,v1,cldwrk,rn,kbot,ktop,kcnv,islimsk,
      &     dot,ncloud,ud_mf,dd_mf,dt_mf,cnvw,cnvc)
@@ -31,13 +99,9 @@
       integer, dimension(im), intent(in) :: islimsk
 !     integer              latd,lond
 !
-      real(kind=kind_phys) clam, cxlamu, cxlamd, xlamde, xlamdd
-      real(kind=kind_phys) crtlamu, crtlamd
-! 
-!     real(kind=kind_phys) detad
-      real(kind=kind_phys) adw,     aup,     aafac,
-     &                     beta,    betal,   betas,
-     &                     c0,      dellat,  delta,
+      real(kind=kind_phys) adw,     aup,     
+     &                     beta,    
+     &                     dellat,  delta,
      &                     desdt,   dg,
      &                     dh,      dhh,     dp,
      &                     dq,      dqsdp,   dqsdt,   dt,
@@ -46,20 +110,20 @@
      &                     dv1v,    dv2u,    dv2v,    dv3q,
      &                     dv3h,    dv3u,    dv3v,
      &                     dz,      dz1,     e1,      edtmax,
-     &                     edtmaxl, edtmaxs, el2orc,  elocp,
+     &                     el2orc,  elocp,
      &                     es,      etah,    cthk,    dthk,
-     &                     evef,    evfact,  evfactl, fact1,
+     &                     evef,    fact1,
      &                     fact2,   factor,  fjcap,   fkm,
      &                     g,       gamma,   pprime,
-     &                     qlk,     qrch,    qs,      c1,
+     &                     qlk,     qrch,    qs,      
      &                     rain,    rfact,   shear,   tem1,
      &                     val,     val1,    val2,    wfac,
      &                     w1,      w1l,     w1s,     w2,
      &                     w2l,     w2s,     w3,      w3l,
      &                     w3s,     w4,      w4l,     w4s,
      &                     xdby,    xpw,     xpwd,
-     &                     xqrch,   mbdt,    tem,
-     &                     ptem,    ptem1,   pgcon
+     &                     xqrch,   tem,
+     &                     ptem,    ptem1
 !
       integer              kb(im), kbcon(im), kbcon1(im),
      &                     ktcon(im), ktcon1(im), ktconn(im),
@@ -94,7 +158,7 @@ c  physical parameters
       parameter(elocp=hvap/cp,
      &          el2orc=hvap*hvap/(rv*cp))
 !     parameter(c0=.002,c1=.002,delta=fv)
-      parameter(c0=.0015,c1=.002,delta=fv)
+      parameter(delta=fv)
       parameter(fact1=(cvap-cliq)/rv,fact2=hvap/rv-fact1*t0c)
       parameter(cthk=150.,wfac=-150.,dthk=25.)
       parameter(cinpcrmx=180.,cinpcrmn=120.)
@@ -217,30 +281,8 @@ c
       dtmin = max(dt2, val )
       val   =         5400.
       dtmax = max(dt2, val )
-c  model tunable parameters are all here
-      mbdt    = 10.
-      edtmaxl = .3
-      edtmaxs = .3
-      clam    = .1
-      aafac   = .1
-!     betal   = .15
-!     betas   = .15
-      betal   = .05
-      betas   = .05
+
 c     evef    = 0.07
-      evfact  = 0.3
-      evfactl = 0.3
-!
-      crtlamu = 1.0e-4
-      crtlamd = 1.0e-4
-!
-      cxlamu  = 1.0e-3
-      cxlamd  = 1.0e-4
-      xlamde  = 1.0e-4
-      xlamdd  = 1.0e-4
-!
-!     pgcon   = 0.7     ! Gregory et al. (1997, QJRMS)
-      pgcon   = 0.55    ! Zhang & Wu (2003,JAS)
       fjcap   = (float(jcap) / 126.) ** 2
       val     =           1.
       fjcap   = max(fjcap,val)
@@ -2128,3 +2170,6 @@ c
 !!
       return
       end
+
+
+      end module sascnvn_mod

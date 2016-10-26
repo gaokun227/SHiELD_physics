@@ -539,6 +539,7 @@
 !---GFDL addition
       use gfs_fv3_needs, only : get_prs_fv3, get_phi_fv3
       use lin_cld_microphys_mod, only: lin_cld_microphys_driver
+      use sascnvn_mod, only: sascnvn
 
       implicit none
 !

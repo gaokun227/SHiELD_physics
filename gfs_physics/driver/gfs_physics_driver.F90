@@ -307,8 +307,8 @@ module gfs_physics_driver_mod
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
-                              hybedmf,shal_cnv,ncld,ntoz,ldiag3d,ntot3d,num_p2d, &
-                              num_p3d,                                           &
+                              hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
+                              num_p3d,ldiag3d,                                   &
                               clam_deep, cxlamu_deep,                            & ! sascnvn (deep)
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &

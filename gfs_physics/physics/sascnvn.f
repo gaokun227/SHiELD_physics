@@ -53,8 +53,8 @@ c     evef    / 0.07/
 !/
 !     pgcon   / 0.7     ! Gregory et al. (1997, QJRMS)/
       data pgcon   / 0.55 /    ! Zhang & Wu (2003,JAS)/
-      data c0 / 0.0015/
-      data c1 / 0.002/
+      data c0 / 0.0015/        ! rain detrainment
+      data c1 / 0.002/         ! cloud water detrainment
 
 
       namelist /sascnvn_nml/ mbdt, edtmaxl, edtmaxs, clam, aafac, betal,

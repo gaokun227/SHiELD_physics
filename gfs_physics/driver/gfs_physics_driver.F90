@@ -93,7 +93,10 @@ module gfs_physics_driver_mod
         cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
         do_sedi_w, de_ice, mp_print
 
- use sascnvn_mod, only: cxlamu_deep => cxlamu, clam_deep => clam
+ use sascnvn_mod, only: cxlamu_deep => cxlamu, clam_deep => clam, &
+      crain_deep => c0, ccloud_deep => c1
+ use shalcnv_mod, only: clam_shal => clam, ccloud_shal => c1
+ use moninq_mod,  only: xkzminv_moninq => xkzminv, moninq_fac
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -309,7 +312,9 @@ module gfs_physics_driver_mod
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
                               hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
                               num_p3d,ldiag3d,                                   &
-                              clam_deep, cxlamu_deep,                            & ! sascnvn (deep)
+                              clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
+                              clam_shal, ccloud_shal,                            & ! shalcnv
+                              xkzminv_moninq, moninq_fac,                        & ! moninq
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
         vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &

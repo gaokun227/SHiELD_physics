@@ -57,9 +57,9 @@ implicit none
 	!Individual structures are allocated by nested_grid_BC_recv
    type(fv_nest_BC_type_3d) :: u_buf, v_buf, uc_buf, vc_buf, delp_buf, delz_buf, pt_buf, pkz_buf, w_buf, divg_buf
    type(fv_nest_BC_type_3d), allocatable:: q_buf(:)
-#ifdef USE_COND
+!#ifdef USE_COND
    real, dimension(:,:,:), allocatable, target :: dum_West, dum_East, dum_North, dum_South
-#endif
+!#endif
 
 private
 public :: twoway_nesting, setup_nested_grid_BCs
@@ -283,9 +283,9 @@ contains
                neststruct%delz_BC, delz_buf) !Need a negative-definite method? 
           
           call setup_pt_NH_BC(neststruct%pt_BC, neststruct%delp_BC, neststruct%delz_BC, &
-               neststruct%q_BC(sphum), &
+               neststruct%q_BC(sphum), neststruct%q_BC, ncnst, &
 #ifdef USE_COND
-               neststruct%q_BC, neststruct%q_con_BC, ncnst, &
+               neststruct%q_con_BC, &
 #ifdef MOIST_CAPPA
                neststruct%cappa_BC, &
 #endif
@@ -442,9 +442,9 @@ contains
    
  end subroutine setup_pt_BC
 
- subroutine setup_pt_NH_BC(pt_BC, delp_BC, delz_BC, sphum_BC, &
+ subroutine setup_pt_NH_BC(pt_BC, delp_BC, delz_BC, sphum_BC, q_BC, nq, &
 #ifdef USE_COND
-      q_BC, q_con_BC, nq, &
+      q_con_BC, &
 #ifdef MOIST_CAPPA
       cappa_BC, &
 #endif
@@ -454,10 +454,10 @@ contains
    type(fv_grid_bounds_type), intent(IN) :: bd
    type(fv_nest_BC_type_3d), intent(IN), target    :: delp_BC, delz_BC, sphum_BC
    type(fv_nest_BC_type_3d), intent(INOUT), target :: pt_BC
-#ifdef USE_COND
    integer, intent(IN) :: nq
-   type(fv_nest_BC_type_3d), intent(INOUT), target :: q_con_BC
    type(fv_nest_BC_type_3d), intent(IN), target :: q_BC(nq)
+#ifdef USE_COND
+   type(fv_nest_BC_type_3d), intent(INOUT), target :: q_con_BC
 #ifdef MOIST_CAPPA
    type(fv_nest_BC_type_3d), intent(INOUT), target :: cappa_BC
 #endif

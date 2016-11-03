@@ -1508,13 +1508,15 @@ contains
                  0.97771,       0.98608,       0.99347,  1./
 
       character(len=128) :: fname
-      real(kind=4), allocatable:: wk1(:), wk2(:,:), wk3(:,:,:)
+      real, allocatable:: wk2(:,:)
+      real(kind=4), allocatable:: wk2_r4(:,:)
       real, dimension(:,:,:), allocatable:: u_inc, v_inc, ud, vd
       real, allocatable:: wc(:,:,:)
-      real, allocatable:: uec(:,:,:), vec(:,:,:), tec(:,:,:), wec(:,:,:)
-      real, allocatable:: psec(:,:), zsec(:,:), zhec(:,:,:), qec(:,:,:,:)
-      real, allocatable:: psc(:,:), zsc(:,:), zhc(:,:,:), qc(:,:,:,:)
-      real, allocatable:: sphumec(:,:,:)
+      real(kind=4), allocatable:: uec(:,:,:), vec(:,:,:), tec(:,:,:), wec(:,:,:)
+      real(kind=4), allocatable:: psec(:,:), zsec(:,:), zhec(:,:,:), qec(:,:,:,:)
+      real(kind=4), allocatable:: psc(:,:), zsc(:,:)
+      real(kind=4), allocatable:: sphumec(:,:,:)
+      real, allocatable:: psc_r8(:,:), zhc(:,:,:), qc(:,:,:,:)
       real, allocatable:: lat(:), lon(:), ak0(:), bk0(:)
       real, allocatable:: pt_c(:,:,:), pt_d(:,:,:)
       real:: s2c(Atm(1)%bd%is:Atm(1)%bd%ie,Atm(1)%bd%js:Atm(1)%bd%je,4)
@@ -1713,21 +1715,21 @@ contains
 ! read in surface pressure and height:
       allocate ( psec(im,jbeg:jend) )
       allocate ( zsec(im,jbeg:jend) )
-      allocate ( wk2(im,jbeg:jend) )
+      allocate ( wk2_r4(im,jbeg:jend) )
 
-      call get_var2_r4( ncid, 'lnsp', 1,im, jbeg,jend, wk2 )
+      call get_var2_r4( ncid, 'lnsp', 1,im, jbeg,jend, wk2_r4 )
       call get_var_att_double ( ncid, 'lnsp', 'scale_factor', scale_value )
       call get_var_att_double ( ncid, 'lnsp', 'add_offset', offset )
-      psec(:,:) = exp(wk2(:,:)*scale_value + offset)
+      psec(:,:) = exp(wk2_r4(:,:)*scale_value + offset)
       if(is_master()) write(*,*) 'done reading psec'
 
-      call get_var2_r4( ncid, 'z', 1,im, jbeg,jend, wk2 )
+      call get_var2_r4( ncid, 'z', 1,im, jbeg,jend, wk2_r4 )
       call get_var_att_double ( ncid, 'z', 'scale_factor', scale_value )
       call get_var_att_double ( ncid, 'z', 'add_offset', offset )
-      zsec(:,:) = (wk2(:,:)*scale_value + offset)/grav
+      zsec(:,:) = (wk2_r4(:,:)*scale_value + offset)/grav
       if(is_master()) write(*,*) 'done reading zsec'
 
-      deallocate ( wk2 )
+      deallocate ( wk2_r4 )
 
 ! Read in temperature:
       allocate ( tec(1:im,jbeg:jend, 1:km) )
@@ -1795,6 +1797,7 @@ contains
 ! convert zhec, psec, zsec from EC grid to cubic grid
       allocate (psc(is:ie,js:je))
       allocate (zsc(is:ie,js:je))
+      allocate (psc_r8(is:ie,js:je))
       do j=js,je
          do i=is,ie
             i1 = id1(i,j)
@@ -1876,7 +1879,8 @@ contains
       if(is_master()) write(*,*) 'done reading and interpolate vertical wind (w) into cubic'
 
 ! remap tracers
-      call remap_scalar_ec(Atm(1), km, npz, 6, ak0, bk0, psc, qc, wc, zhc )
+      psc_r8 = psc
+      call remap_scalar_ec(Atm(1), km, npz, 6, ak0, bk0, psc_r8, qc, wc, zhc )
       if(is_master()) write(*,*) 'done remap_scalar_ec'
        
       deallocate ( zsc )
@@ -2024,12 +2028,13 @@ contains
       deallocate ( u_inc, v_inc )
       deallocate ( uec, vec )
 
-      call remap_dwinds(km, npz, ak0, bk0, psc, ud, vd, Atm(1))
+      call remap_dwinds(km, npz, ak0, bk0, psc_r8, ud, vd, Atm(1))
 
       deallocate ( ud, vd )
 
       deallocate ( ak0, bk0 )
       deallocate ( psc )
+      deallocate ( psc_r8 )
       deallocate ( lat, lon )
       deallocate ( pt_c, pt_d )
 
@@ -4044,10 +4049,10 @@ subroutine pmaxmn(qname, q, is, ie, js, je, km, fac, area, domain)
        implicit none
        integer, intent(in):: levp, im,jm, nq
        real,    intent(in), dimension(levp+1):: ak0, bk0
-       real,    intent(in), dimension(im,jm):: ps, zs
-       real,    intent(in), dimension(im,jm,levp):: t
-       real,    intent(in), dimension(im,jm,levp,nq):: q
-       real,    intent(out), dimension(im,jm,levp+1):: zh
+       real(kind=4),    intent(in), dimension(im,jm):: ps, zs
+       real(kind=4),    intent(in), dimension(im,jm,levp):: t
+       real(kind=4),    intent(in), dimension(im,jm,levp,nq):: q
+       real(kind=4),    intent(out), dimension(im,jm,levp+1):: zh
        ! Local:
        real,    dimension(im,jm,levp):: sphum
        real, dimension(im,levp+1):: pe0, pn0

@@ -575,6 +575,8 @@ contains
        idiag%id_maxdbz = register_diag_field ( trim(field), 'max_reflectivity', axes(1:2), time, &
                 'Stoelinga simulated maximum (composite) reflectivity', 'dBz', missing_value=missing_value)
        idiag%id_basedbz = register_diag_field ( trim(field), 'base_reflectivity', axes(1:2), time, &
+                'Stoelinga simulated base (1 km AGL) reflectivity', 'dBz', missing_value=missing_value)
+       idiag%id_dbz4km = register_diag_field ( trim(field), '4km_reflectivity', axes(1:2), time, &
                 'Stoelinga simulated base reflectivity', 'dBz', missing_value=missing_value)
             
 !--------------------
@@ -720,12 +722,12 @@ contains
 ! 5km:
 !--------------------------
        idiag%id_rain5km = register_diag_field ( trim(field), 'rain5km', axes(1:2), Time,       &
-                           '5-km liquid water', 'kg/kg', missing_value=missing_value )
+                           '5-km AGL liquid water', 'kg/kg', missing_value=missing_value )
        if( .not. Atm(n)%flagstruct%hydrostatic ) then
           idiag%id_w5km = register_diag_field ( trim(field), 'w5km', axes(1:2), Time,       &
-                           '5-km w-wind', '1/s', missing_value=missing_value )
+                           '5-km AGL w-wind', 'm/s', missing_value=missing_value )
           idiag%id_w2500m = register_diag_field ( trim(field), 'w2500m', axes(1:2), Time,       &
-                           '2.5-km w-wind', '1/s', missing_value=missing_value )
+                           '2.5-km AGL w-wind', 'm/s', missing_value=missing_value )
        endif
 
 ! helicity
@@ -744,12 +746,12 @@ contains
                            '1000-mb v-wind', 'm/s', missing_value=missing_value )
 ! TC test winds at 100 m
        idiag%id_u100m = register_diag_field ( trim(field), 'u100m', axes(1:2), Time,       &
-                        '100-m u-wind', '1/s', missing_value=missing_value )
+                        '100-m AGL u-wind', 'm/s', missing_value=missing_value )
        idiag%id_v100m = register_diag_field ( trim(field), 'v100m', axes(1:2), Time,       &
-                        '100-m v-wind', '1/s', missing_value=missing_value )
+                        '100-m AGL v-wind', 'm/s', missing_value=missing_value )
        if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
        idiag%id_w100m = register_diag_field ( trim(field), 'w100m', axes(1:2), Time,       &
-                        '100-m w-wind', '1/s', missing_value=missing_value )
+                        '100-m AGL w-wind', 'm/s', missing_value=missing_value )
 !--------------------------
 ! temperature:
 !--------------------------
@@ -2129,7 +2131,57 @@ contains
             used=send_data(idiag%id_pmaskv2, a2, Time)
        endif
 
-       if ( rainwat > 0 .and. (idiag%id_dbz>0 .or. idiag%id_maxdbz>0 .or. idiag%id_basedbz>0)) then
+       if ( idiag%id_u100m>0 .or. idiag%id_v100m>0 .or. idiag%id_w100m>0 .or. idiag%id_w5km>0 .or. idiag%id_w2500m>0 .or. idiag%id_basedbz .or. idiag%id_dbz4km) then
+          if (.not.allocated(wz)) allocate ( wz(isc:iec,jsc:jec,npz+1) )
+!$OMP parallel do default(none) shared(isc,iec,jsc,jec,wz,npz,Atm,n)
+            do j=jsc,jec
+               do i=isc,iec
+                  wz(i,j,npz+1) = 0.
+!                  wz(i,j,npz+1) = Atm(n)%phis(i,j)/grav
+               enddo
+               do k=npz,1,-1
+                  do i=isc,iec
+                     wz(i,j,k) = wz(i,j,k+1) - Atm(n)%delz(i,j,k)
+                  enddo
+               enddo
+            enddo
+            if( prt_minmax )   &
+            call prt_maxmin('ZTOP', wz(isc:iec,jsc:jec,1)+Atm(n)%phis(isc:iec,jsc:jec)/grav, isc, iec, jsc, jec, 0, 1, 1.E-3)
+       endif
+
+       if ( idiag%id_rain5km>0 ) then
+            rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+            call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%q(isc:iec,jsc:jec,:,rainwat), a2)
+            used=send_data(idiag%id_rain5km, a2, Time)
+            if(prt_minmax) call prt_maxmin('rain5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_w5km>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_w5km, a2, Time)
+            if(prt_minmax) call prt_maxmin('W5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_w2500m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 2.5e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_w2500m, a2, Time)
+            if(prt_minmax) call prt_maxmin('W2500m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_w100m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_w100m, a2, Time)
+            if(prt_minmax) call prt_maxmin('w100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_u100m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%ua(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_u100m, a2, Time)
+            if(prt_minmax) call prt_maxmin('u100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+       if ( idiag%id_v100m>0 ) then
+            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%va(isc:iec,jsc:jec,:), a2)
+            used=send_data(idiag%id_v100m, a2, Time)
+            if(prt_minmax) call prt_maxmin('v100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
+       endif
+
+       if ( rainwat > 0 .and. (idiag%id_dbz>0 .or. idiag%id_maxdbz>0 .or. idiag%id_basedbz>0 .or. idiag%id_dbz4km)) then
 
           if (.not. allocated(a3)) allocate(a3(isc:iec,jsc:jec,npz))
 
@@ -2145,13 +2197,13 @@ contains
           endif
           if (idiag%id_basedbz > 0) then
              !interpolate to 1km dbz
-             !Reusing maxdbz
-             do j=jsc,jec
-                do i=isc,iec
-                   a2(i,j) = a3(i,j,npz)
-                enddo
-             enddo
+             call interpolate_z(isc, iec, jsc, jec, npz, 1000., wz, a3, a2)
              used=send_data(idiag%id_basedbz, a2, time)
+          endif
+          if (idiag%id_dbz4km > 0) then
+             !interpolate to 1km dbz
+             call interpolate_z(isc, iec, jsc, jec, npz, 4000., wz, a3, a2)
+             used=send_data(idiag%id_dbz4km, a2, time)
           endif
 
           if (prt_minmax) then
@@ -2161,6 +2213,8 @@ contains
 
           deallocate(a3)
        endif
+       if( allocated(wz) ) deallocate (wz)
+
 
 !-------------------------------------------------------
 ! Applying cubic-spline as the intepolator for (u,v,T,q)
@@ -2403,55 +2457,6 @@ contains
             endif
        endif
 
-       if ( idiag%id_u100m>0 .or. idiag%id_v100m>0 .or. idiag%id_w100m>0 .or. idiag%id_w5km>0 .or. idiag%id_w2500m>0 ) then
-          if (.not.allocated(wz)) allocate ( wz(isc:iec,jsc:jec,npz+1) )
-!$OMP parallel do default(none) shared(isc,iec,jsc,jec,wz,npz,Atm,n)
-            do j=jsc,jec
-               do i=isc,iec
-                  wz(i,j,npz+1) = Atm(n)%phis(i,j)/grav
-               enddo
-               do k=npz,1,-1
-                  do i=isc,iec
-                     wz(i,j,k) = wz(i,j,k+1) - Atm(n)%delz(i,j,k)
-                  enddo
-               enddo
-            enddo
-            if( prt_minmax )   &
-            call prt_maxmin('ZTOP', wz(isc:iec,jsc:jec,1), isc, iec, jsc, jec, 0, 1, 1.E-3)
-       endif
-
-       if ( idiag%id_rain5km>0 ) then
-            rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
-            call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%q(isc:iec,jsc:jec,:,rainwat), a2)
-            used=send_data(idiag%id_rain5km, a2, Time)
-            if(prt_minmax) call prt_maxmin('rain5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
-       endif
-       if ( idiag%id_w5km>0 ) then
-            call interpolate_z(isc, iec, jsc, jec, npz, 5.e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
-            used=send_data(idiag%id_w5km, a2, Time)
-            if(prt_minmax) call prt_maxmin('W5km', a2, isc, iec, jsc, jec, 0, 1, 1.)
-       endif
-       if ( idiag%id_w2500m>0 ) then
-            call interpolate_z(isc, iec, jsc, jec, npz, 2.5e3, wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
-            used=send_data(idiag%id_w2500m, a2, Time)
-            if(prt_minmax) call prt_maxmin('W2500m', a2, isc, iec, jsc, jec, 0, 1, 1.)
-       endif
-       if ( idiag%id_w100m>0 ) then
-            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%w(isc:iec,jsc:jec,:), a2)
-            used=send_data(idiag%id_w100m, a2, Time)
-            if(prt_minmax) call prt_maxmin('w100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
-       endif
-       if ( idiag%id_u100m>0 ) then
-            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%ua(isc:iec,jsc:jec,:), a2)
-            used=send_data(idiag%id_u100m, a2, Time)
-            if(prt_minmax) call prt_maxmin('u100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
-       endif
-       if ( idiag%id_v100m>0 ) then
-            call interpolate_z(isc, iec, jsc, jec, npz, 100., wz, Atm(n)%va(isc:iec,jsc:jec,:), a2)
-            used=send_data(idiag%id_v100m, a2, Time)
-            if(prt_minmax) call prt_maxmin('v100m', a2, isc, iec, jsc, jec, 0, 1, 1.)
-       endif
-       if( allocated(wz) ) deallocate (wz)
 
        if ( .not.Atm(n)%flagstruct%hydrostatic .and. idiag%id_w>0  ) then
           used=send_data(idiag%id_w, Atm(n)%w(isc:iec,jsc:jec,:), Time)

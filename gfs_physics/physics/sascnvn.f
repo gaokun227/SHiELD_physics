@@ -37,11 +37,11 @@ c  values set in initialization routine
       data aafac   / .1/
 !     betal   / .15/
 !     betas   / .15/
-      data betal   / .05/
-      data betas   / .05/
+      data betal   / .05/ !downdraft heat flux contribution (land)
+      data betas   / .05/ ! ... (ocean)
 c     evef    / 0.07/
-      data evfact  / 0.3/
-      data evfactl / 0.3/
+      data evfact  / 0.3/ ! Evaporation factor
+      data evfactl / 0.3/ ! 
 !/
       data crtlamu / 1.0e-4/
       data crtlamd / 1.0e-4/
@@ -51,10 +51,12 @@ c     evef    / 0.07/
       data xlamde  / 1.0e-4/
       data xlamdd  / 1.0e-4/
 !/
-!     pgcon   / 0.7     ! Gregory et al. (1997, QJRMS)/
-      data pgcon   / 0.55 /    ! Zhang & Wu (2003,JAS)/
-      data c0 / 0.0015/        ! rain detrainment
-      data c1 / 0.002/         ! cloud water detrainment
+!     pgcon controls the reduction in momentum transport
+!     1 => no CMT
+!     pgcon   / 0.7     ! Gregory et al. (1997, QJRMS)
+      data pgcon   / 0.55 /    ! Zhang & Wu (2003,JAS)
+      data c0 / 0.0015/        ! cloud (?) detrainment
+      data c1 / 0.002/         ! rain water detrainment
 
 
       namelist /sascnvn_nml/ mbdt, edtmaxl, edtmaxs, clam, aafac, betal,

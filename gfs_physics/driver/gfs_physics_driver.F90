@@ -94,7 +94,9 @@ module gfs_physics_driver_mod
         do_sedi_w, de_ice, mp_print
 
  use sascnvn_mod, only: cxlamu_deep => cxlamu, clam_deep => clam, &
-      crain_deep => c0, ccloud_deep => c1
+      ccloud_deep => c0, crain_deep => c1, betal_deep => betal,   &
+      betas_deep => betas, evfact_deep => evfact, evfactl_deep => evfactl, &
+      pgcon_deep => pgcon
  use shalcnv_mod, only: clam_shal => clam, ccloud_shal => c1
  use moninq_mod,  only: xkzminv_moninq => xkzminv, moninq_fac
 !
@@ -313,6 +315,8 @@ module gfs_physics_driver_mod
                               hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
                               num_p3d,ldiag3d,                                   &
                               clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
+                              betal_deep, betas_deep, evfact_deep, evfactl_deep, &
+                              pgcon_deep,                                        &
                               clam_shal, ccloud_shal,                            & ! shalcnv
                               xkzminv_moninq, moninq_fac,                        & ! moninq
 !--- namelist for Lin cloud microphysics

@@ -140,7 +140,8 @@ contains
     if ( consv_te ) then 
          do i=is, ie
 ! Convert to "liquid" form
-            te0(i,j) = dp(i,j)*(icp2(i)*q_sol(i) - lcp2(i)*qv(i,j))
+            te0(i,j) = 0.
+!!!!!!!!!!!            te0(i,j) = dp(i,j)*cpm(i)*(icp2(i)*q_sol(i) - lcp2(i)*qv(i,j))
          enddo
     endif
 
@@ -410,9 +411,9 @@ contains
 #endif
          enddo
        endif
-         do i=is, ie
-            te0(i,j) = te0(i,j) + dp(i,j)*(lcp2(i)*qv(i,j)-icp2(i)*q_sol(i))
-         enddo
+!!!      do i=is, ie
+!!!         te0(i,j) = te0(i,j) + dp(i,j)*cpm(i)*(lcp2(i)*qv(i,j)-icp2(i)*q_sol(i))
+!!!      enddo
     endif
 
 if ( do_qa .and. last_step ) then

@@ -211,8 +211,8 @@ module gfs_physics_driver_mod
     integer :: ntoz     = 4
     logical :: ozcalc   = .false.
     logical :: nocnv    = .false.
-    integer :: levs     = 63
-    integer :: levr     = 63
+    integer :: levs     = 63              ! change to npz
+    integer :: levr     = 63              ! change to npz
     integer :: ncols    = 3538944         ! total number of 13km physics columns
     integer :: me                         ! set by call to mpp_pe
     integer :: lsoil    = 4
@@ -309,7 +309,7 @@ module gfs_physics_driver_mod
     logical :: nst_anl = .false.
 !
 !--- namelist definition ---
-   namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
+   namelist /gfs_physics_nml/ norad_precip,debug,fhswr,fhlwr,ntoz,ntcw,          &
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
                               hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
@@ -346,7 +346,7 @@ module gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
 !    constructor for gfs_physics_driver_mod
 !-------------------------------------------------------------------------      
-  subroutine phys_rad_driver_init (Time, Time_init, lon, lat, glon, glat, npz, axes, area,  &
+  subroutine phys_rad_driver_init (Time, Time_init, ak, bk, lon, lat, glon, glat, npz, axes, area,  &
                                    dt_phys, Atm_block, State_in, State_out, fv_domain)
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time, Time_init
@@ -355,6 +355,7 @@ module gfs_physics_driver_mod
     real(kind=kind_phys), dimension(Atm_block%isc:,Atm_block%jsc:), intent(in) :: lon, lat, area
     integer,                   intent(in) :: glon, glat, npz
     integer, dimension(4),     intent(in) :: axes
+    real(kind=kind_phys), dimension(npz+1), intent(in) :: ak, bk
     real (kind=kind_phys),     intent(in) :: dt_phys
     type (state_fields_in),    dimension(:), intent(inout) :: State_in
     type (state_fields_out),   dimension(:), intent(inout) :: State_out
@@ -370,29 +371,29 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: solhr = 0.0   
     real(kind=kind_phys) :: fhour = 0.
     logical :: sas_shal
-    real (kind=kind_phys) :: si(64)
-    data si  /1.000000,      0.984375,      0.968750,      &
-              0.953125,      0.937500,      0.921875,      &
-              0.906250,      0.890625,      0.875000,      &
-              0.859375,      0.843750,      0.828125,      &
-              0.812500,      0.796875,      0.781250,      &
-              0.765625,      0.750000,      0.734375,      &
-              0.718750,      0.703125,      0.687500,      &
-              0.671875,      0.656250,      0.640625,      &
-              0.625000,      0.609375,      0.593750,      &
-              0.578125,      0.562500,      0.546875,      &
-              0.531250,      0.515625,      0.500000,      &
-              0.484375,      0.468750,      0.453125,      &
-              0.437500,      0.421875,      0.406250,      &
-              0.390625,      0.375000,      0.359375,      &
-              0.343750,      0.328125,      0.312500,      &
-              0.296875,      0.281250,      0.265625,      &
-              0.250000,      0.234375,      0.218750,      &
-              0.203125,      0.187500,      0.171875,      &
-              0.156250,      0.140625,      0.125000,      &
-              0.109375,      9.375000E-002, 7.812500E-002, &
-              6.250000E-002, 4.687500E-002, 3.125000E-002, &
-              1.562500E-002  / 
+    real (kind=kind_phys) :: akm(npz), bkm(npz), si(npz)
+!    data si  /1.000000,      0.984375,      0.968750,      &
+!              0.953125,      0.937500,      0.921875,      &
+!              0.906250,      0.890625,      0.875000,      &
+!              0.859375,      0.843750,      0.828125,      &
+!              0.812500,      0.796875,      0.781250,      &
+!              0.765625,      0.750000,      0.734375,      &
+!              0.718750,      0.703125,      0.687500,      &
+!              0.671875,      0.656250,      0.640625,      &
+!              0.625000,      0.609375,      0.593750,      &
+!              0.578125,      0.562500,      0.546875,      &
+!              0.531250,      0.515625,      0.500000,      &
+!              0.484375,      0.468750,      0.453125,      &
+!              0.437500,      0.421875,      0.406250,      &
+!              0.390625,      0.375000,      0.359375,      &
+!              0.343750,      0.328125,      0.312500,      &
+!              0.296875,      0.281250,      0.265625,      &
+!              0.250000,      0.234375,      0.218750,      &
+!              0.203125,      0.187500,      0.171875,      &
+!              0.156250,      0.140625,      0.125000,      &
+!              0.109375,      9.375000E-002, 7.812500E-002, &
+!              6.250000E-002, 4.687500E-002, 3.125000E-002, &
+!              1.562500E-002  / 
 !
 !--- if routine has already been executed, return
     if (module_is_initialized) return
@@ -487,6 +488,15 @@ module gfs_physics_driver_mod
     dxmin = log(1.0_kind_phys/(min_lon*min_lat))
     dxmax = log(1.0_kind_phys/(max_lon*max_lat))
     dxinv = 1.0_kind_phys/(dxmax-dxmin)
+!
+!--- define sigma level
+!--- The formula converting hybrid sigma pressure coefficients to sigma coefficients follows Eckermann (2009, MWR)
+!--- ps is replaced with p0. The value of p0 uses that in http://www.emc.ncep.noaa.gov/officenotes/newernotes/on461.pdf
+    levs = npz
+    levr = npz
+    akm = (ak(1:npz) + ak(2:npz+1)) / 2.0
+    bkm = (bk(1:npz) + bk(2:npz+1)) / 2.0
+    si = (akm + bkm * 101325.0 - akm(1)) / (101325.0 - akm(1))
 !
 !--- initialize the physics/radiation using the nuopc interface
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &

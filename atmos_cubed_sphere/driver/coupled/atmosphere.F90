@@ -135,9 +135,10 @@ contains
 
 
 
- subroutine atmosphere_init (Time_init, Time, Time_step, Grid_box, dx, dy, area)
+ subroutine atmosphere_init (Time_init, Time, Time_step, Grid_box, ak, bk, dx, dy, area)
    type (time_type),    intent(in)    :: Time_init, Time, Time_step
    type(grid_box_type), intent(inout) :: Grid_box
+   real(kind=kind_phys), pointer, dimension(:), intent(inout) :: ak, bk
    real(kind=kind_phys), pointer, dimension(:,:), intent(inout) :: dx, dy, area
 
 !--- local variables ---
@@ -254,6 +255,10 @@ contains
     pref(npz+1,2) = ps2
     call get_eta_level ( npz, ps1, pref(1,1), dum1d, Atm(mytile)%ak, Atm(mytile)%bk )
     call get_eta_level ( npz, ps2, pref(1,2), dum1d, Atm(mytile)%ak, Atm(mytile)%bk )
+    allocate (ak(npz+1))
+    allocate (bk(npz+1))
+    ak(1:npz+1) = Atm(mytile)%ak(npz+1:1:-1)
+    bk(1:npz+1) = Atm(mytile)%bk(npz+1:1:-1)
 
 ! This call needs to be separate from the register nudging restarts after initialization
 !!!   call fv_io_register_nudge_restart ( Atm )

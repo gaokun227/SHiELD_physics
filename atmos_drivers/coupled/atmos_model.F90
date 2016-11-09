@@ -141,6 +141,8 @@ public atmos_model_restart
                                                          ! to calculate gradient on cubic sphere grid.
      real(kind=kind_phys)          :: dxmin
      real(kind=kind_phys)          :: dxmax
+     real(kind=kind_phys), pointer, dimension(:) :: ak
+     real(kind=kind_phys), pointer, dimension(:) :: bk
      real(kind=kind_phys), pointer, dimension(:,:) :: xlon
      real(kind=kind_phys), pointer, dimension(:,:) :: xlat
      real(kind=kind_phys), pointer, dimension(:,:) :: dx
@@ -372,7 +374,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 !---------- initialize atmospheric dynamics -------
    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
-                         Atmos%grid, Atmos%dx, Atmos%dy, Atmos%area)
+                         Atmos%grid, Atmos%ak, Atmos%bk, Atmos%dx, Atmos%dy, Atmos%area)
 
    IF ( file_exist('input.nml')) THEN
 #ifdef INTERNAL_FILE_NML
@@ -412,6 +414,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !---------- initialize physics -------
    call phys_rad_driver_init(Atmos%Time,        &
                              Atmos%Time_init,  &
+                             Atmos%ak(:),       &
+                             Atmos%bk(:),       &
                              Atmos%xlon(:,:),   &
                              Atmos%xlat(:,:),   &
                              mlon,              &

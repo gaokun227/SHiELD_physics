@@ -1040,7 +1040,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
              tz(k) = tz(k) - evap*lcpk
          endif
 
-         if ( qr(k)>qrmin .and. ql(k)>1.E-7  .and.  qsat<q_plus ) then
+!        if ( qr(k)>qrmin .and. ql(k)>1.E-7  .and.  qsat<q_plus ) then
+         if ( qr(k)>qrmin .and. ql(k)>1.E-6 .and. qsat<q_minus ) then
 !-------------------
 ! * Accretion: pracc
 !-------------------
@@ -1601,8 +1602,6 @@ endif   ! end ice-physics
 ! Minimum sublimation:
 !             pssub = max(pssub, min(qs(k), dim(0.35*qsi,qv(k))/(1.+tcpk(k)*dqsdt)) )
          else
-!             if ( tz(k)>tice .or. (ql(k)+qr(k))<1.e-6 ) then
-!!!!          if ( tz(k)>tice .or. tz(k)<t_wfr-dt_fr ) then
               if ( tz(k)>tice ) then
                    pssub = 0.  ! no deposition
               else

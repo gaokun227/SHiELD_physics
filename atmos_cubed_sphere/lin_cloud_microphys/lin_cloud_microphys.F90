@@ -1517,7 +1517,9 @@ endif   ! end ice-physics
    if ( dq0 > 0. ) then
         evap =  min( ql(k), fac_l2v*dq0/(1.+tcp3(k)*dwsdt) )
    else   ! condensate all excess vapor into cloud water
-        evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
+!       evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
+! 20161108
+        evap = dq0/(1.+tcp3(k)*dwsdt)
    endif
    qv(k) = qv(k) + evap
    ql(k) = ql(k) - evap

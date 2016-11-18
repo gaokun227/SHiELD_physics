@@ -2163,6 +2163,7 @@
 !  --- ...  calling convective parameterization
 !
 !GFDL --- following if-test added to turn off deep convection parameterization
+!      if (.not. nocnv .and. mod(fhour/dtp,2) .eq. 0) then ! call SAS every other time step, ljz
       if (.not. nocnv) then ! bypass convective parameterization
       if (.not. ras .and. .not. cscnv) then
 

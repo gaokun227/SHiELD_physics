@@ -23,6 +23,7 @@ module lin_cld_microphys_mod
  public  lin_cld_microphys_driver, lin_cld_microphys_init, lin_cld_microphys_end, wqs1, wqs2, qs_blend
  public  qsmith_init, qsmith, es2_table1d, es3_table1d, esw_table1d, wqsat_moist, wqsat2_moist
  public  setup_con, wet_bulb
+ public  cloud_diagnosis
  real             :: missing_value = -1.e10
  logical          :: module_is_initialized = .false.
  logical          :: qsmith_tables_initialized = .false.
@@ -3451,5 +3452,104 @@ endif   ! end ice-physics
  enddo
 
  end subroutine interpolate_z
+
+ subroutine cloud_diagnosis(is, ie, js, je, den, qw, qi, qr, qs, qg, T, qcw, qci, qcr, qcs, qcg, rew, rei, rer, res, reg)
+
+   implicit none
+
+   integer, intent(in) :: is, ie, js, je
+   real, dimension(is:ie,js:je), intent(in) :: den, T
+   real, dimension(is:ie,js:je), intent(in) :: qw, qi, qr, qs, qg        ! units: kg/kg
+   real, dimension(is:ie,js:je), intent(out) :: qcw, qci, qcr, qcs, qcg  ! units: kg/m^3
+   real, dimension(is:ie,js:je), intent(out) :: rew, rei, rer, res, reg  ! units: micron
+
+   integer :: i, j
+   real :: lambdar, lambdas, lambdag
+
+   real :: rhow = 1.0E3, rhor = 1.0E3, rhos = 1.0E2, rhog = 4.0E2
+   real :: n0r = 8.0E6, n0s = 3.0E6, n0g = 4.0E6
+   real :: alphar = 0.8, alphas = 0.25, alphag = 0.5
+   real :: gammar = 17.837789, gammas = 8.2850630, gammag = 11.631769
+   real :: qmin = 1.0E-5, ccn = 1.0E8, beta = 1.22
+
+!   real :: rewmin = 1.0, rewmax = 25.0
+!   real :: reimin = 10.0, reimax = 300.0
+!   real :: rermin = 25.0, rermax = 225.0
+!   real :: resmin = 300, resmax = 1000.0
+!   real :: regmin = 1000.0, regmax = 1.0E5
+   real :: rewmin = 5.0, rewmax = 10.0
+   real :: reimin = 10.0, reimax = 150.0
+   real :: rermin = 0.0, rermax = 10000.0
+   real :: resmin = 0.0, resmax = 10000.0
+   real :: regmin = 0.0, regmax = 10000.0
+
+   do j = js, je
+     do i = is, ie
+
+! cloud water (Martin et al., 1994)
+       if (qw(i,j) .gt. qmin) then
+         qcw(i,j) = den(i,j) * qw(i,j)
+         rew(i,j) = exp(1.0 / 3.0 * log((3 * qcw(i,j)) / (4 * pi * rhow * ccn))) * 1.0E6
+         rew(i,j) = max(rewmin, min(rewmax, rew(i,j)))
+       else
+         qcw(i,j) = 0.0
+         rew(i,j) = rewmin
+       end if
+
+! cloud ice (Heymsfield and McFarquhar, 1996)
+       if (qi(i,j) .gt. qmin) then
+         qci(i,j) = den(i,j) * qi(i,j)
+         if (T(i,j) - tice .lt. -50) then
+           rei(i,j) = beta / 9.917 * exp((1 - 0.891) * log(1.0E3 * qci(i,j))) * 1.0E3
+         elseif (T(i,j) - tice .lt. -40) then
+           rei(i,j) = beta / 9.337 * exp((1 - 0.920) * log(1.0E3 * qci(i,j))) * 1.0E3
+         elseif (T(i,j) - tice .lt. -30) then
+           rei(i,j) = beta / 9.208 * exp((1 - 0.945) * log(1.0E3 * qci(i,j))) * 1.0E3
+         else
+           rei(i,j) = beta / 9.387 * exp((1 - 0.969) * log(1.0E3 * qci(i,j))) * 1.0E3
+         end if
+         rei(i,j) = max(reimin, min(reimax, rei(i,j)))
+       else
+         qci(i,j) = 0.0
+         rei(i,j) = reimin
+       end if
+
+! rain (Lin et al., 1983)
+       if (qr(i,j) .gt. qmin) then
+         qcr(i,j) = den(i,j) * qr(i,j)
+         lambdar = exp(0.25 * log(pi * rhor * n0r / qcr(i,j)))
+         rer(i,j) = 0.5 * exp(log(gammar / 6) / alphar) / lambdar * 1.0E6
+         rer(i,j) = max(rermin, min(rermax, rer(i,j)))
+       else
+         qcr(i,j) = 0.0
+         rer(i,j) = rermin
+       end if
+
+! snow (Lin et al., 1983)
+       if (qs(i,j) .gt. qmin) then
+         qcs(i,j) = den(i,j) * qs(i,j)
+         lambdas = exp(0.25 * log(pi * rhos * n0s / qcs(i,j)))
+         res(i,j) = 0.5 * exp(log(gammas / 6) / alphas) / lambdas * 1.0E6
+         res(i,j) = max(resmin, min(resmax, res(i,j)))
+       else
+         qcs(i,j) = 0.0
+         res(i,j) = resmin
+       end if
+
+! graupel (Lin et al., 1983)
+       if (qg(i,j) .gt. qmin) then
+         qcg(i,j) = den(i,j) * qg(i,j)
+         lambdag = exp(0.25 * log(pi * rhog * n0g / qcg(i,j)))
+         reg(i,j) = 0.5 * exp(log(gammag / 6) / alphag) / lambdag * 1.0E6
+         reg(i,j) = max(regmin, min(regmax, reg(i,j)))
+       else
+         qcg(i,j) = 0.0
+         reg(i,j) = regmin
+       end if
+
+     end do
+   end do
+
+ end subroutine cloud_diagnosis
 
 end module lin_cld_microphys_mod

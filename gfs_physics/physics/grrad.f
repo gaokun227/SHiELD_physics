@@ -194,7 +194,7 @@
      &                                     setemis
       use module_radiation_clouds,  only : NF_CLDS, cld_init,           &
      &                                     progcld1, progcld2, progcld3,&
-     &                                     progcld4, diagcld1
+     &                                     progcld4, progcld5, diagcld1
 
       use module_radsw_parameters,  only : topfsw_type, sfcfsw_type,    &
      &                                     profsw_type,cmpfsw_type,NBDSW
@@ -1405,6 +1405,18 @@
 !  ---  outputs:
      &       clouds,cldsa,mtopa,mbota                                   &
      &      )
+
+!          call progcld5                                                 &
+!!  ---  inputs:
+!     &     ( plyr,plvl,tlyr,tvly,qlyr,qstl,rhly,clw,                    &
+!     &       xlat,xlon,slmsk,tracer1(1:im,1:lm,NTRAC),                  &
+!     &       IM, LMK, LMP,                                              &
+!     &       tracer1(1:im,1:lm,2), tracer1(1:im,1:lm,3),                &
+!     &       tracer1(1:im,1:lm,4), tracer1(1:im,1:lm,5),                &
+!     &       tracer1(1:im,1:lm,6),                                      &
+!!  ---  outputs:
+!     &       clouds,cldsa,mtopa,mbota                                   &
+!     &      )
 
         endif                            ! end if_icmphys
 

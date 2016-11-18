@@ -1425,7 +1425,10 @@ module fv_eta_mod
              call var_hi(km, ak, bk, ptop, ks, pint, 1.03)
 ! NGGPS_GFS
         case (95)
-             ptop = 60.
+! Mid-top settings:
+!            ptop = 60.
+! Hi-top settings:
+             ptop = 1.
              pint = 100.E2   !  75.E2
              call var_gfs(km, ak, bk, ptop, ks, pint, 1.028)
         case (127)

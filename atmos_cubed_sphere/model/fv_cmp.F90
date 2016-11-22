@@ -25,7 +25,7 @@ module fv_cmp_mod
 ! Local:
  real:: ql_gen = 1.0e-3    ! max ql generation during remapping step if fast_sat_adj = .T.
  real:: qi_gen = 1.82E-6
- real:: qi_lim = 1.  ! 2.
+ real:: qi_lim = 2.  ! 2.
  real:: tau_i2s = 1000.
  real:: tau_v2l = 150.
  real:: tau_l2v = 300.

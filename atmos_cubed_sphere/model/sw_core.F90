@@ -979,7 +979,8 @@
 
         call fv_tp_2d(pt, crx_adv,cry_adv, npx, npy, hord_tm, gx, gy,  &
                       xfx_adv,yfx_adv, gridstruct, bd, ra_x, ra_y,     &
-                      mfx=fx, mfy=fy, mass=delp, nord=nord_t, damp_c=damp_t)
+                      mfx=fx, mfy=fy, mass=delp, nord=nord_v, damp_c=damp_v)
+
 #endif
 
      if ( inline_q ) then

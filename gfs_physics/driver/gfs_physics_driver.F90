@@ -97,7 +97,7 @@ module gfs_physics_driver_mod
       ccloud_deep => c0, crain_deep => c1, betal_deep => betal,   &
       betas_deep => betas, evfact_deep => evfact, evfactl_deep => evfactl, &
       pgcon_deep => pgcon
- use shalcnv_mod, only: clam_shal => clam, ccloud_shal => c1
+ use shalcnv_mod, only: clam_shal => clam, crain_shal => c0, ccloud_shal => c1
  use moninq_mod,  only: xkzminv_moninq => xkzminv, moninq_fac
 !
 !-----------------------------------------------------------------------
@@ -317,7 +317,7 @@ module gfs_physics_driver_mod
                               clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
                               betal_deep, betas_deep, evfact_deep, evfactl_deep, &
                               pgcon_deep,                                        &
-                              clam_shal, ccloud_shal,                            & ! shalcnv
+                              clam_shal, crain_shal, ccloud_shal,                & ! shalcnv
                               xkzminv_moninq, moninq_fac,                        & ! moninq
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &

@@ -1500,16 +1500,16 @@ endif   ! end ice-physics
 
    tin = tz(k) - ( lcpk(k)*clouds + icpk(k)*iwt )  ! minimum  temperature
    if ( tin>t_sub+6. ) then
-   qpz = qv(k) + clouds
+      qpz = qv(k) + clouds
        rh = qpz / iqs1(tin, den(k))
 
-    if ( rh < rh_adj ) then  ! qpz / rh_adj < qs
+      if ( rh < rh_adj ) then  ! qpz / rh_adj < qs
          tz(k) = tin
          qv(k) = qpz
          ql(k) = 0.
          qi(k) = 0.
          goto 4000            ! cloud free
-    endif
+      endif
     endif
 
 ! cloud water <--> vapor adjustment:
@@ -1518,7 +1518,9 @@ endif   ! end ice-physics
    if ( dq0 > 0. ) then
         evap =  min( ql(k), fac_l2v*dq0/(1.+tcp3(k)*dwsdt) )
    else   ! condensate all excess vapor into cloud water
-        evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
+!       evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
+! 20161108
+        evap = dq0/(1.+tcp3(k)*dwsdt)
    endif
    qv(k) = qv(k) + evap
    ql(k) = ql(k) - evap
@@ -1606,7 +1608,8 @@ endif   ! end ice-physics
               if ( tz(k)>tice ) then
                    pssub = 0.  ! no deposition
               else
-                   pssub = max( pssub, 0.5*dq, (tz(k)-tice)/tcpk(k) )
+!                  pssub = max( pssub, 0.5*dq, (tz(k)-tice)/tcpk(k) )
+                   pssub = max( pssub,     dq, (tz(k)-tice)/tcpk(k) )
               endif
          endif
          qs(k) = qs(k) - pssub
@@ -1699,7 +1702,8 @@ endif   ! end ice-physics
        if ( qstar < q_minus ) then
             qa(k) = qa(k) + 1.       ! Air fully saturated; 100 % cloud cover
        elseif ( qstar<q_plus .and. clouds>qc_crt ) then
-            qa(k) = qa(k) + (q_plus-qstar)/(dq+dq)       ! partial cloud cover
+!           qa(k) = qa(k) + (q_plus-qstar)/(dq+dq)       ! partial cloud cover
+            qa(k) = sqrt( qa(k) + (q_plus-qstar)/(dq+dq) )
        endif
    endif
 

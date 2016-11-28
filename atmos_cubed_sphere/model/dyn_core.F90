@@ -19,7 +19,7 @@
 !***********************************************************************
 module dyn_core_mod
 
-  use constants_mod,      only: rdgas, radius, cp_air
+  use constants_mod,      only: rdgas, radius, cp_air, pi
   use mpp_mod,            only: mpp_pe 
   use mpp_domains_mod,    only: CGRID_NE, DGRID_NE, mpp_get_boundary, mpp_update_domains,  &
                                 domain2d
@@ -61,6 +61,10 @@ public :: dyn_core, del2_cubed, init_ijk_mem
   real, allocatable, dimension(:,:,:) ::  ut, vt, crx, cry, xfx, yfx, divgd, &
                                           zh, du, dv, pkc, delpc, pk3, ptc, gz
   real(kind=R_GRID), parameter :: cnst_0p20=0.20d0
+
+  real, allocatable ::  rf(:)
+  logical:: RFF_initialized = .false.
+  integer :: kmax=1
 
 !---- version number -----
   character(len=128) :: version = '$Id$'
@@ -318,7 +322,7 @@ contains
                              call timing_off('COMM_TOTAL')
 
       if ( it==1 ) then
-		if (gridstruct%nested) then
+         if (gridstruct%nested) then
 !$OMP parallel do default(none) shared(isd,ied,jsd,jed,npz,gz,zs,delz)
          do j=jsd,jed
             do i=isd,ied
@@ -330,7 +334,7 @@ contains
                enddo
             enddo
          enddo
-		else
+         else
 !$OMP parallel do default(none) shared(is,ie,js,je,npz,gz,zs,delz)
          do j=js,je
             do i=is,ie
@@ -342,7 +346,7 @@ contains
                enddo
             enddo
          enddo
-	    endif
+         endif
                              call timing_on('COMM_TOTAL')
          call start_group_halo_update(i_pack(5), gz,  domain)
                              call timing_off('COMM_TOTAL')
@@ -888,6 +892,12 @@ contains
 #endif
    endif
                                        call timing_off('PG_D')
+
+! Inline Rayleigh friction here?
+#ifndef USE_SUPER_RAY
+   if( flagstruct%tau > 0. )  &
+   call Rayleigh_fast(abs(dt), npx, npy, npz, pfull, flagstruct%tau, u, v, w, ptop, hydrostatic, flagstruct%rf_cutoff, bd)
+#endif
 
 !-------------------------------------------------------------------------------------------------------
     if ( flagstruct%breed_vortex_inline ) then
@@ -2183,6 +2193,86 @@ do 1000 j=jfirst,jlast
       enddo
 
  end subroutine init_ijk_mem
+
+
+ subroutine Rayleigh_fast(dt, npx, npy, npz, pfull, tau, u, v, w,  &
+                          ptop, hydrostatic, rf_cutoff, bd)
+! Simple "inline" version of the Rayleigh friction
+    real, intent(in):: dt
+    real, intent(in):: tau              ! time scale (days)
+    real, intent(in):: ptop, rf_cutoff
+    real, intent(in),  dimension(npz):: pfull
+    integer, intent(in):: npx, npy, npz
+    logical, intent(in):: hydrostatic
+    type(fv_grid_bounds_type), intent(IN) :: bd
+    real, intent(inout):: u(bd%isd:bd%ied  ,bd%jsd:bd%jed+1,npz) ! D grid zonal wind (m/s)
+    real, intent(inout):: v(bd%isd:bd%ied+1,bd%jsd:bd%jed,npz) ! D grid meridional wind (m/s)
+    real, intent(inout)::  w(bd%isd:      ,bd%jsd:      ,1: ) ! cell center vertical wind (m/s)
+!
+    real(kind=R_GRID):: rff(npz)
+    real, parameter:: sday = 86400.
+    real:: tau0
+    integer i, j, k
+
+    integer :: is,  ie,  js,  je
+    integer :: isd, ied, jsd, jed
+
+      is  = bd%is
+      ie  = bd%ie
+      js  = bd%js
+      je  = bd%je
+      isd = bd%isd
+      ied = bd%ied
+      jsd = bd%jsd
+      jed = bd%jed
+
+     if ( .not. RFF_initialized ) then
+          tau0 = tau * sday
+          allocate( rf(npz) )
+          rf(:) = 1.
+
+          if( is_master() ) write(6,*) 'Fast Rayleigh friction E-folding time (days):'
+          do k=1, npz
+             if ( pfull(k) < rf_cutoff ) then
+                  rff(k) = dt/tau0*sin(0.5*pi*log(rf_cutoff/pfull(k))/log(rf_cutoff/ptop))**2
+! Re-FACTOR rf
+                  if( is_master() ) write(6,*) k, 0.01*pfull(k), dt/(rff(k)*sday)
+                  kmax = k
+                  rff(k) = 1.d0 / (1.0d0+rff(k))
+                   rf(k) = rff(k)
+             else
+                  exit
+             endif
+          enddo
+          RFF_initialized = .true.
+     endif
+
+!$OMP parallel do default(none) shared(is,ie,js,je,kmax,pfull,rf_cutoff,w,rf,u,v,hydrostatic)
+     do k=1,kmax
+        if ( pfull(k) < rf_cutoff ) then
+             do j=js,je+1
+                do i=is,ie
+                   u(i,j,k) = rf(k)*u(i,j,k)
+                enddo
+             enddo
+             do j=js,je
+                do i=is,ie+1
+                   v(i,j,k) = rf(k)*v(i,j,k)
+                enddo
+             enddo
+!!!#ifndef NO_W_DRAG
+             if ( .not. hydrostatic ) then
+                do j=js,je
+                   do i=is,ie
+                      w(i,j,k) = rf(k)*w(i,j,k)
+                   enddo
+                enddo
+             endif
+!!!#endif
+        endif
+     enddo
+
+ end subroutine Rayleigh_fast
 
 
 end module dyn_core_mod

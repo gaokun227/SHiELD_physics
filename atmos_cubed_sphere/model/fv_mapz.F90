@@ -576,14 +576,14 @@ if( last_step .and. (.not.do_adiabatic_init)  ) then
 ! KE using 3D winds:
               q_con(i,j,k) = gz(i)
               te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cvm(i)*pt(i,j,k)/((1.+r_vir*q(i,j,k,sphum))*(1.-gz(i))) + &
-                              0.5*(phis(i,k)+phis(i,k+1) + w(i,j,k)**2 + 0.5*gridstruct%rsin2(i,j)*( &
+                           0.5*(phis(i,k)+phis(i,k+1) + w(i,j,k)**2 + 0.5*gridstruct%rsin2(i,j)*( &
                               u(i,j,k)**2+u(i,j+1,k)**2 + v(i,j,k)**2+v(i+1,j,k)**2 -  &
                              (u(i,j,k)+u(i,j+1,k))*(v(i,j,k)+v(i+1,j,k))*gridstruct%cosa_s(i,j))))
               enddo
 #else
               do i=is,ie
                  te_2d(i,j) = te_2d(i,j) + delp(i,j,k)*(cv_air*pt(i,j,k)/(1.+r_vir*q(i,j,k,sphum)) + &
-                                 0.5*(phis(i,k)+phis(i,k+1) + w(i,j,k)**2 + 0.5*gridstruct%rsin2(i,j)*( &
+                              0.5*(phis(i,k)+phis(i,k+1) + w(i,j,k)**2 + 0.5*gridstruct%rsin2(i,j)*( &
                                  u(i,j,k)**2+u(i,j+1,k)**2 + v(i,j,k)**2+v(i+1,j,k)**2 -  &
                                 (u(i,j,k)+u(i,j+1,k))*(v(i,j,k)+v(i+1,j,k))*gridstruct%cosa_s(i,j))))
               enddo
@@ -685,7 +685,7 @@ endif        ! end last_step check
                 do j=js,je
                    do k=kmp,km
                       do i=is,ie
-                         te0_2d(i,j) = te0_2d(i,j) + te(i,j,k)
+                         te0_2d(i,j) = te0_2d(i,j) + delp(i,j,k)*te(i,j,k)
                       enddo
                    enddo
                 enddo

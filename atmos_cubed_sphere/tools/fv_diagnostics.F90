@@ -1216,9 +1216,9 @@ contains
          call range_check('DELP', Atm(n)%delp, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,    &
                            0.01*ptop, 200.E2, bad_range)
          call range_check('UA', Atm(n)%ua, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
-                           -220., 250., bad_range)
+                           -250., 250., bad_range)
          call range_check('VA', Atm(n)%va, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
-                           -220., 220., bad_range)
+                           -250., 250., bad_range)
 #ifndef SW_DYNAMICS
          call range_check('TA', Atm(n)%pt, isc, iec, jsc, jec, ngc, npz, Atm(n)%gridstruct%agrid,   &
 #ifdef HIWPP

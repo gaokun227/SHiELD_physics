@@ -341,6 +341,7 @@ contains
                            ptop, ua, va, u, v, delp, teq, ps2, m_fac)
       endif
 
+#ifdef USE_SUPER_RAY
       if( flagstruct%tau > 0. ) then
         if ( gridstruct%grid_type<4 ) then
              call Rayleigh_Super(abs(bdt), npx, npy, npz, ks, pfull, phis, flagstruct%tau, u, v, w, pt,  &
@@ -350,6 +351,7 @@ contains
                   ua, va, delz, cp_air, rdgas, ptop, hydrostatic, .true., flagstruct%rf_cutoff, gridstruct, domain, bd)
         endif
       endif
+#endif
 
 #endif
 
@@ -685,9 +687,9 @@ contains
 
   if ( flagstruct%range_warn ) then
        call range_check('UA_dyn', ua, is, ie, js, je, ng, npz, gridstruct%agrid,   &
-                         -220., 260., bad_range)
+                         -280., 280., bad_range)
        call range_check('VA_dyn', ua, is, ie, js, je, ng, npz, gridstruct%agrid,   &
-                         -220., 260., bad_range)
+                         -280., 280., bad_range)
 #ifndef SW_DYNAMICS
        call range_check('TA_dyn', pt, is, ie, js, je, ng, npz, gridstruct%agrid,   &
 #ifdef HIWPP
@@ -790,63 +792,15 @@ contains
 
     allocate( u2f(isd:ied,jsd:jed,kmax) )
 
-    if (gridstruct%nested) then
 !$OMP parallel do default(none) shared(is,ie,js,je,kmax,pm,rf_cutoff,hydrostatic,ua,va,agrid, &
 !$OMP                                  u2f,rf,w)
     do k=1,kmax
        if ( pm(k) < rf_cutoff ) then
-          do j=js-1,je+1
-             if ( hydrostatic ) then
-                do i=is-1,ie+1
-                   if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) )  then
-                      u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2)/u0)
-                   else
-                      u2f(i,j,k) = 1.
-                   endif
-                enddo
-             else
-                do i=is-1,ie+1
-                   if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
-                      !!! DEBUG CODE
-                      !print*, i,j,k, ua(i,j,k), va(i,j,k), w(i,j,k)
-                      !!! END DEBUG CODE
-                      u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
-                   else
-                      u2f(i,j,k) = 1.
-                   endif
-                enddo
-             endif
-          enddo
-       endif ! p check
+          u2f(:,:,k) = 1. / (1.+rf(k))
+       else
+          u2f(:,:,k) = 1.
+       endif
     enddo
-
-    else
-!$OMP parallel do default(none) shared(is,ie,js,je,kmax,pm,rf_cutoff,hydrostatic,ua,va,agrid, &
-!$OMP                                  u2f,rf,w)
-    do k=1,kmax
-       if ( pm(k) < rf_cutoff ) then
-       do j=js,je
-        if ( hydrostatic ) then
-          do i=is,ie
-             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) )  then
-                  u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2)/u0)
-             else
-                  u2f(i,j,k) = 1.
-             endif
-          enddo
-        else
-          do i=is,ie
-             if ( sqrt(ua(i,j,1)**2+va(i,j,1)**2)>25.*cos(agrid(i,j,2)) .or. abs(w(i,j,1))>0.05 )  then
-                  u2f(i,j,k) = 1./(1.+rf(k)*sqrt(ua(i,j,k)**2+va(i,j,k)**2+w(i,j,k)**2)/u0)
-             else
-                  u2f(i,j,k) = 1.
-             endif
-          enddo
-        endif
-       enddo
-       endif ! p check
-    enddo
-    endif
                                         call timing_on('COMM_TOTAL')
     call mpp_update_domains(u2f, domain)
                                         call timing_off('COMM_TOTAL')
@@ -893,6 +847,7 @@ contains
                enddo
              endif
           endif
+
              do j=js,je+1
                 do i=is,ie
                    u(i,j,k) = 0.5*(u2f(i,j-1,k)+u2f(i,j,k))*u(i,j,k)

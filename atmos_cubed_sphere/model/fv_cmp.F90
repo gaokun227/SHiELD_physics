@@ -25,7 +25,7 @@ module fv_cmp_mod
 ! Local:
  real:: ql_gen = 1.0e-3    ! max ql generation during remapping step if fast_sat_adj = .T.
  real:: qi_gen = 1.82E-6
- real:: qi_lim = 2.  ! 2.
+ real:: qi_lim = 1.  ! 2.
  real:: tau_i2s = 1000.
  real:: tau_v2l = 150.
  real:: tau_l2v = 300.
@@ -34,7 +34,7 @@ module fv_cmp_mod
  real:: tau_mlt = 600.      ! ice melting time-scale
  real, parameter:: tau_l2r = 300.
  real:: sat_adj0 = 0.9  !  0.95
- real:: qi0_max = 1.2e-4    ! Max: ice  --> snow autocon threshold
+ real:: qi0_max = 1.0e-4    ! Max: ice  --> snow autocon threshold
  real:: ql0_max = 2.0e-3    ! max ql value (auto converted to rain)
  real:: t_sub   = 184.  ! Min temp for sublimation of cloud ice
  real:: cld_min = 0.05
@@ -134,14 +134,13 @@ contains
        tcp2(i) = lcp2(i) + icp2(i)
 ! Compute special heat capacity for qv --> ql (dqsdt term)
        tcp3(i) = lcp2(i) + icp2(i)*min(1., dim(tice,t0(i))/40.)
-       src(i) = 0.
     enddo
 
     if ( consv_te ) then 
          do i=is, ie
 ! Convert to "liquid" form
-            te0(i,j) = 0.
-!!!!!!!!!!!            te0(i,j) = dp(i,j)*cpm(i)*(icp2(i)*q_sol(i) - lcp2(i)*qv(i,j))
+!           te0(i,j) = 0.
+            te0(i,j) = cpm(i)*(icp2(i)*q_sol(i) - lcp2(i)*qv(i,j))
          enddo
     endif
 
@@ -205,41 +204,64 @@ contains
        endif
     enddo
 
- call wqs2_vect(is, ie, pt1, den, wqsat, dq2dt)
- if ( last_step ) then
+    call wqs2_vect(is, ie, pt1, den, wqsat, dq2dt)
+
+    adj_fac = sat_adj0
+    do i=is, ie
+       dq0 = qv(i,j) - wqsat(i)
+       if ( dq0 > 0. ) then ! whole grid-box saturated
+               tmp = dq0/(1.+tcp3(i)*dq2dt(i))
+            src(i) = min(adj_fac*tmp, max(ql_gen-ql(i,j), fac_v2l*tmp))
+       else
+!                                                     Evaporation of ql
+            src(i) = -min( ql(i,j), -fac_l2v*dq0/(1.+tcp3(i)*dq2dt(i)) )
+       endif
+    enddo
+
+    do i=is, ie
+         qv(i,j) = qv(i,j) - src(i)
+         ql(i,j) = ql(i,j) + src(i)
+         pt1(i) =  pt1(i) + src(i)*lcp2(i)
+       q_liq(i) = max(0., ql(i,j) + qr(i,j))
+       q_sol(i) = max(0., qi(i,j) + qs(i,j) + qg(i,j))
+    enddo
+
+    if ( hydrostatic ) then
+        do i=is, ie
+           cpm(i) = (1.-qpz(i))*cp_air + qv(i,j)*cp_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+        enddo
+    else
+        do i=is, ie
+           cpm(i) = (1.-qpz(i))*cv_air + qv(i,j)*cv_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+        enddo
+    endif
+
+    do i=is, ie
+       lcp2(i) = (Lv0 +dc_vap*t0(i)) / cpm(i)
+       icp2(i) = (li00+dc_ice*t0(i)) / cpm(i)
+       tcp2(i) = lcp2(i) + icp2(i)
+! Compute special heat capacity for qv --> ql (dqsdt term)
+       tcp3(i) = lcp2(i) + icp2(i)*min(1., dim(tice,t0(i))/40.)
+    enddo
+
+    if ( last_step ) then
 ! Enforce upper (no super_sat) & lower (critical RH) bounds
+      call wqs2_vect(is, ie, pt1, den, wqsat, dq2dt)
       do i=is, ie
          dq0 = qv(i,j) - wqsat(i)
          if ( dq0 > 0. ) then ! remove super-saturation
 ! Prevent super saturation over water:
-             src(i) = dq0/(1.+tcp3(i)*dq2dt(i))
+            sink = dq0/(1.+tcp3(i)*dq2dt(i))
          else
 ! Evaporation of ql
-            src(i) = -min( ql(i,j), -dq0/(1.+tcp3(i)*dq2dt(i)) )
+            sink = -min( ql(i,j), -dq0/(1.+tcp3(i)*dq2dt(i)) )
          endif
+         qv(i,j) = qv(i,j) - sink
+         ql(i,j) = ql(i,j) + sink
+         pt1(i) =  pt1(i)  + sink*lcp2(i)
       enddo
       adj_fac = 1.
- else
-      adj_fac = sat_adj0
-      do i=is, ie
-         dq0 = qv(i,j) - wqsat(i)
-         if ( dq0 > 0. ) then ! whole grid-box saturated
-               tmp = dq0/(1.+tcp3(i)*dq2dt(i))
-            src(i) = min(adj_fac*tmp, max(ql_gen-ql(i,j), fac_v2l*tmp))
-         else
-!                                                     Evaporation of ql
-            src(i) = -min( ql(i,j), -fac_l2v*dq0/(1.+tcp3(i)*dq2dt(i)) )
-         endif
-      enddo
- endif
-! Cooling: qi -> (qv, ql, qr); ql -> qv; qr -> qv
-! Warming: ql -> (qi, qs); qv -> (ql, qi); qr -> qg
-
-    do i=is, ie
-       qv(i,j) = qv(i,j) - src(i)
-       ql(i,j) = ql(i,j) + src(i)
-        pt1(i) =  pt1(i) + src(i)*lcp2(i)
-    enddo
+    endif
 
 ! *********** freezing of cloud water ********
 ! Enforce complete freezing below -48 C
@@ -256,7 +278,7 @@ contains
 ! Bigg mechanism (done only here)
     do i=is, ie
        tc = tice0 - pt1(i)
-       if( ql(i,j)>1.E-8 .and. tc > 0. ) then
+       if( ql(i,j)>0.0 .and. tc > 0. ) then
            sink = dt_Bigg*(exp(0.66*tc)-1.)*den(i)*ql(i,j)**2
            sink = min(ql(i,j), tc/icp2(i), sink)
            ql(i,j) = ql(i,j) - sink
@@ -400,20 +422,20 @@ contains
     if ( consv_te ) then 
        if ( hydrostatic ) then
          do i=is, ie
-            te0(i,j) = te0(i,j) + cp_air*dp(i,j)*(pt1(i)-t0(i))*(1.+zvir*qv(i,j))
+            te0(i,j) = te0(i,j) + cp_air*(pt1(i)-t0(i))*(1.+zvir*qv(i,j))
          enddo
        else
          do i=is, ie
 #ifdef USE_COND
-            te0(i,j) = te0(i,j) + cpm(i)*dp(i,j)*(pt1(i)-t0(i))
+            te0(i,j) = te0(i,j) + cpm(i)*(pt1(i)-t0(i))
 #else
-            te0(i,j) = te0(i,j) + cv_air*dp(i,j)*(pt1(i)-t0(i))
+            te0(i,j) = te0(i,j) + cv_air*(pt1(i)-t0(i))
 #endif
          enddo
        endif
-!!!      do i=is, ie
-!!!         te0(i,j) = te0(i,j) + dp(i,j)*cpm(i)*(lcp2(i)*qv(i,j)-icp2(i)*q_sol(i))
-!!!      enddo
+         do i=is, ie
+            te0(i,j) = te0(i,j) + cpm(i)*(lcp2(i)*qv(i,j)-icp2(i)*q_sol(i))
+         enddo
     endif
 
 if ( do_qa .and. last_step ) then
@@ -476,8 +498,8 @@ if ( do_qa .and. last_step ) then
                 qa(i,j) = 1.
            else
              if ( qstar<q_plus ) then
-                qa(i,j) = (q_plus-qstar)/(dq+dq)        ! partial cloud cover:
-!               qa(i,j) = sqrt( (q_plus-qstar)/(dq+dq) )
+!               qa(i,j) = (q_plus-qstar)/(dq+dq)        ! partial cloud cover:
+                qa(i,j) = sqrt( (q_plus-qstar)/(dq+dq) )
                                                         ! qa = 0 if qstar = q_plus 
                                                         ! qa = 1 if qstar = q_minus
              endif

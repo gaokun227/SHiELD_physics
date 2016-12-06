@@ -610,6 +610,10 @@ contains
                                         'Skin temperature', 'K' )
        idiag%id_tb = register_diag_field ( trim(field), 'tb', axes(1:2), Time,  &
                                         'lowest layer temperature', 'K' )
+       idiag%id_ctt = register_diag_field( trim(field), 'ctt', axes(1:2), Time,  &
+                                        'cloud_top temperature', 'K' )
+       idiag%id_ctp = register_diag_field( trim(field), 'ctp', axes(1:2), Time,  &
+                                        'cloud_top pressure', 'hPa' )
 #ifdef HIWPP
        idiag%id_acl = register_diag_field ( trim(field), 'acl', axes(1:2), Time,        &
             'Column-averaged Cl mixing ratio', 'kg/kg', missing_value=missing_value )
@@ -1902,6 +1906,38 @@ contains
           endif
           used = send_data(idiag%id_lw, a2*ginv, Time)
        endif
+
+! Cloud top temperature & cloud top press:
+       if ( (idiag%id_ctt>0 .or. idiag%id_ctp>0).and. Atm(n)%flagstruct%nwat==6) then
+            allocate ( var1(isc:iec,jsc:jec) )
+!$OMP parallel do default(shared) private(tmp)
+            do j=jsc,jec
+               do i=isc,iec
+                  do k=2,npz
+                     tmp = atm(n)%q(i,j,k,liq_wat)+atm(n)%q(i,j,k,rainwat)+atm(n)%q(i,j,k,ice_wat)+  &
+                           atm(n)%q(i,j,k,snowwat)+atm(n)%q(i,j,k,graupel) 
+                     if( tmp>1.e-5 ) then
+                         a2(i,j) = Atm(n)%pt(i,j,k)
+                         var1(i,j) = 0.01*Atm(n)%pe(i,k,j)
+                         exit
+                     elseif( k==npz ) then
+                           a2(i,j) = Atm(n)%pt(i,j,k)
+                         var1(i,j) = 0.01*Atm(n)%pe(i,k+1,j)   ! surface pressure
+                     endif
+                  enddo
+               enddo
+            enddo
+          if ( idiag%id_ctt>0 ) then
+               used = send_data(idiag%id_ctt, a2, Time)
+               if(prt_minmax) call prt_maxmin('Cloud_top_T (K)', a2, isc, iec, jsc, jec, 0, 1, 1.)
+          endif
+          if ( idiag%id_ctp>0 ) then
+               used = send_data(idiag%id_ctp, var1, Time)
+               if(prt_minmax) call prt_maxmin('Cloud_top_P (mb)', var1, isc, iec, jsc, jec, 0, 1, 1.)
+          endif
+          deallocate ( var1 )
+       endif
+
 ! Condensates:
        if ( idiag%id_qn>0 .or. idiag%id_qn200>0 .or. idiag%id_qn500>0 .or. idiag%id_qn850>0 ) then
 !$OMP parallel do default(shared)

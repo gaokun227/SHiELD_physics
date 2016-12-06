@@ -130,33 +130,33 @@ contains
 ! SJL 03.11.04: Initial version for partial remapping
 !
 !-----------------------------------------------------------------------
-  integer :: i,j,k 
   real, dimension(is:ie,js:je):: te_2d, zsum0, zsum1, dpln
   real, dimension(is:ie,km)  :: q2, dp2
   real, dimension(is:ie,km+1):: pe1, pe2, pk1, pk2, pn2, phis
-     real  pe0(is:ie+1,km+1)
-     real  pe3(is:ie+1,km+1)
-     real, dimension(is:ie):: gz, cvm, qv
-     real rcp, rg, tmp, tpe, rrg, bkh, dtmp
-     real k1k
-     integer nt, liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kmp, kp, k_next
+  real, dimension(is:ie+1,km+1):: pe0, pe3
+  real, dimension(is:ie):: gz, cvm, qv
+  real rcp, rg, tmp, tpe, rrg, bkh, dtmp, k1k
+  logical:: fast_mp_consv
+  integer:: i,j,k 
+  integer:: nt, liq_wat, ice_wat, rainwat, snowwat, cld_amt, graupel, iq, n, kmp, kp, k_next
 
-        k1k = rdgas/cv_air   ! akap / (1.-akap) = rg/Cv=0.4
-         rg = rdgas
-        rcp = 1./ cp
-        rrg = -rdgas/grav
+       k1k = rdgas/cv_air   ! akap / (1.-akap) = rg/Cv=0.4
+        rg = rdgas
+       rcp = 1./ cp
+       rrg = -rdgas/grav
 
-           liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
-           ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
-           rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
-           snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-           graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
-           cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
+       liq_wat = get_tracer_index (MODEL_ATMOS, 'liq_wat')
+       ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
+       rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
+       snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
+       graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+       cld_amt = get_tracer_index (MODEL_ATMOS, 'cld_amt')
 
        if ( do_sat_adj ) then
+            fast_mp_consv = (.not.do_adiabatic_init) .and. consv>consv_min
             do k=1,km
                kmp = k
-               if ( pfull(k) > 30.E2 ) exit
+               if ( pfull(k) > 40.E2 ) exit
             enddo
             call qs_init(kmp)
        endif
@@ -511,7 +511,7 @@ contains
 !$OMP                               graupel,q_con,r_vir,sphum,w,pk,pkz,last_step,consv, &
 !$OMP                               do_adiabatic_init,zsum1,zsum0,te0_2d,domain,   &
 !$OMP                               ng,gridstruct,E_Flux,pdt,dtmp,reproduce_sum,q, &
-!$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj,kord_tm) &
+!$OMP                               mdt,cld_amt,cappa,dtdt,out_dt,rrg,akap,do_sat_adj,fast_mp_consv,kord_tm) &
 !$OMP                       private(pe0,pe1,pe2,pe3,qv,cvm,gz,phis,tpe,tmp, dpln)
 
 !$OMP do
@@ -652,7 +652,7 @@ if( last_step .and. (.not.do_adiabatic_init)  ) then
 endif        ! end last_step check
 
 ! Note: pt at this stage is T_v
-  if ( .not. do_adiabatic_init .and. do_sat_adj ) then
+  if ( do_sat_adj ) then
                                            call timing_on('sat_adj2')
 !$OMP do
            do k=kmp,km
@@ -661,7 +661,7 @@ endif        ! end last_step check
                     dpln(i,j) = peln(i,k+1,j) - peln(i,k,j)
                  enddo
               enddo
-              call fv_sat_adj(mdt, r_vir, is, ie, js, je, ng, hydrostatic, consv>consv_min, &
+              call fv_sat_adj(abs(mdt), r_vir, is, ie, js, je, ng, hydrostatic, fast_mp_consv, &
                              te(isd,jsd,k), q(isd,jsd,k,sphum), q(isd,jsd,k,liq_wat),   &
                              q(isd,jsd,k,ice_wat), q(isd,jsd,k,rainwat),    &
                              q(isd,jsd,k,snowwat), q(isd,jsd,k,graupel),    &
@@ -680,7 +680,7 @@ endif        ! end last_step check
               endif
            enddo    ! OpenMP k-loop
 
-           if ( consv > consv_min ) then
+           if ( fast_mp_consv ) then
 !$OMP do
                 do j=js,je
                    do k=kmp,km

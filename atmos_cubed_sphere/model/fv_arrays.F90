@@ -43,8 +43,8 @@ module fv_arrays_mod
            id_tm, id_pv, id_zsurf, id_oro, id_sgh, id_divg, id_w, &
            id_ke, id_te, id_zs, id_ze, id_mq, id_vorts, id_us, id_vs,    &
            id_tq, id_rh, id_c15, id_c25, id_c35, id_c45,          &
-                         id_f15, id_f25, id_f35, id_f45,          &
-           id_ppt, id_ts, id_tb, id_pmask, id_pmaskv2,            &
+                         id_f15, id_f25, id_f35, id_f45, id_ctp,  &
+           id_ppt, id_ts, id_tb, id_ctt, id_pmask, id_pmaskv2,    &
            id_delp, id_delz, id_zratio, id_ws, id_iw, id_lw,      &
            id_pfhy, id_pfnh,                                      &
            id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt, &
@@ -461,6 +461,7 @@ module fv_arrays_mod
    logical :: hybrid_z    = .false.      ! use hybrid_z for remapping
    logical :: Make_NH     = .false.      ! Initialize (w, delz) from hydro restart file 
    logical :: make_hybrid_z  = .false.   ! transform hydrostatic eta-coord IC into non-hydrostatic hybrid_z
+   logical :: nudge_qv  = .false.        ! Nudge the water vapor (during na_init) above 30 mb towards HALOE climatology
    real    :: add_noise = -1.            !Amplitude of random noise added upon model startup; <=0 means no noise added
 
    integer :: a2b_ord = 4    ! order for interpolation from A to B Grid (corners)

@@ -46,8 +46,6 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: hlv0 = 2.501e6   ! Emanual Appendix-2
   real, parameter:: hlf0 = 3.337e5   ! Emanual
   real, parameter:: t_ice = 273.15
-! real, parameter:: ri_max = 2.
-! real, parameter:: ri_min = 1.
   real, parameter:: ri_max = 1.
   real, parameter:: ri_min = 0.25
   real, parameter:: t2_max = 315.
@@ -305,8 +303,8 @@ contains
 ! Adjustment for K-H instability:
 ! Compute equivalent mass flux: mc
 ! Add moist 2-dz instability consideration:
-            ri_ref = min(ri_max, ri_min + (ri_max-ri_min)*dim(500.e2,pm(i,k))/250.e2 )
-
+!!!         ri_ref = min(ri_max, ri_min + (ri_max-ri_min)*dim(500.e2,pm(i,k))/250.e2 )
+            ri_ref = min(ri_max, ri_min + (ri_max-ri_min)*dim(400.e2,pm(i,k))/200.e2 )
 ! Enhancing mixing at the model top
             if ( k==2 ) then
                  ri_ref = 4.*ri_ref

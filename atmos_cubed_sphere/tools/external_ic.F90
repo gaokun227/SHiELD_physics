@@ -2708,6 +2708,7 @@ contains
             if ( Atm%pt(i,j,k) > 273.16 ) then       ! > 0C all liq_wat
                Atm%q(i,j,k,liq_wat) = qn1(i,k)
                Atm%q(i,j,k,ice_wat) = 0.
+#ifdef ORIG_CLOUDS_PART
             else if ( Atm%pt(i,j,k) < 258.16 ) then  ! < -15C all ice_wat
                Atm%q(i,j,k,liq_wat) = 0.
                Atm%q(i,j,k,ice_wat) = qn1(i,k)
@@ -2715,6 +2716,20 @@ contains
                Atm%q(i,j,k,liq_wat) = qn1(i,k)*((Atm%pt(i,j,k)-258.16)/15.)
                Atm%q(i,j,k,ice_wat) = qn1(i,k) - Atm%q(i,j,k,liq_wat)
             endif
+#else
+            else if ( Atm%pt(i,j,k) < 233.16 ) then  ! < -40C all ice_wat
+               Atm%q(i,j,k,liq_wat) = 0.
+               Atm%q(i,j,k,ice_wat) = qn1(i,k)
+            else
+               if ( k.ne.1 .and. Atm%pt(i,j,k)<258.16 .and. Atm%q(i,j,k-1,ice_wat)>1.e-5 ) then
+                  Atm%q(i,j,k,liq_wat) = 0.
+                  Atm%q(i,j,k,ice_wat) = qn1(i,k)
+               else  ! between [-40,0]: linear interpolation
+                  Atm%q(i,j,k,liq_wat) = qn1(i,k)*((Atm%pt(i,j,k)-233.16)/40.)
+                  Atm%q(i,j,k,ice_wat) = qn1(i,k) - Atm%q(i,j,k,liq_wat)
+               endif
+            endif
+#endif
             call mp_auto_conversion(Atm%q(i,j,k,liq_wat), Atm%q(i,j,k,rainwat),  &
                                     Atm%q(i,j,k,ice_wat), Atm%q(i,j,k,snowwat) )
          enddo

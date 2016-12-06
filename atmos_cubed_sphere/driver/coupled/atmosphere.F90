@@ -932,6 +932,15 @@ contains
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
    real, parameter:: wt = 1.  ! was 2.
+!***********
+! Haloe Data
+!***********
+   real, parameter::    q1_h2o = 2.2E-6
+   real, parameter::    q7_h2o = 3.8E-6
+   real, parameter::  q100_h2o = 3.8E-6
+   real, parameter:: q1000_h2o = 3.1E-6
+   real, parameter:: q2000_h2o = 2.8E-6
+   real, parameter:: q3000_h2o = 3.0E-6
    real:: xt, p00, q00
    integer:: isc, iec, jsc, jec, npz
    integer:: m, n, i,j,k, ngc
@@ -1028,7 +1037,7 @@ contains
                      Atm(mytile)%domain)
 ! Nudging back to IC
 !$omp parallel do default (none) &
-!$omp             shared (q00, p00,npz, jsc, jec, isc, iec, n, sphum, Atm, u0, v0, t0, dp0, xt, zvir, mytile) &
+!$omp             shared (pref, q00, p00,npz, jsc, jec, isc, iec, n, sphum, Atm, u0, v0, t0, dp0, xt, zvir, mytile) &
 !$omp            private (i, j, k)
        do k=1,npz
           do j=jsc,jec+1
@@ -1041,26 +1050,31 @@ contains
                 Atm(mytile)%v(i,j,k) = xt*(Atm(mytile)%v(i,j,k) + wt*v0(i,j,k))
              enddo
           enddo
-#ifdef NUDGE_QV
+      if( Atm(mytile)%flagstruct%nudge_qv ) then
+! SJL note: Nudging qater vaport towards HALOE climatology:
+! In case of better IC (IFS) this step may not be necessary
           p00 = Atm(mytile)%pe(isc,k,jsc)
           if ( p00 < 30.E2 ) then
-             if ( p00 <= 7. ) then
-                  q00 = 2.2E-6
-             elseif ( p00 <  1000. .and. p00 >=    7. ) then
-                  q00 = 3.8E-6
-             elseif ( p00 <2000. .and.  p00 >= 1000. ) then
-                  q00 = 3.1E-6
+             if ( p00 < 1. ) then
+                  q00 = q1_h2o
+             elseif ( p00 <= 7. .and. p00 >= 1. ) then
+                  q00 = q1_h2o + (q7_h2o-q1_h2o)*log(pref(k,1)/1.)/log(7.)
+             elseif ( p00 < 100. .and. p00 >= 7. ) then
+                  q00 = q7_h2o + (q100_h2o-q7_h2o)*log(pref(k,1)/7.)/log(100./7.)
+             elseif ( p00 < 1000. .and. p00 >= 100. ) then
+                  q00 = q100_h2o + (q1000_h2o-q100_h2o)*log(pref(k,1)/1.E2)/log(10.)
+             elseif ( p00 < 2000. .and. p00 >= 1000. ) then
+                  q00 = q1000_h2o + (q2000_h2o-q1000_h2o)*log(pref(k,1)/1.E3)/log(2.)
              else
-                  q00 = 3.0E-6
+                  q00 = q2000_h2o + (q3000_h2o-q2000_h2o)*log(pref(k,1)/2.E3)/log(1.5)
              endif
              do j=jsc,jec
                 do i=isc,iec
                    Atm(mytile)%q(i,j,k,sphum) = 0.5*Atm(mytile)%q(i,j,k,sphum) + 0.5*q00
-                   Atm(mytile)%q(i,j,k,sphum) = min(4.0E-6, Atm(mytile)%q(i,j,k,sphum))
                 enddo
              enddo
           endif
-#endif
+      endif
           do j=jsc,jec
              do i=isc,iec
 #ifndef NUDGE_GZ

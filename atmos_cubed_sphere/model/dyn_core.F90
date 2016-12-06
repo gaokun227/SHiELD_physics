@@ -2260,7 +2260,6 @@ do 1000 j=jfirst,jlast
                    v(i,j,k) = rf(k)*v(i,j,k)
                 enddo
              enddo
-!!!#ifndef NO_W_DRAG
              if ( .not. hydrostatic ) then
                 do j=js,je
                    do i=is,ie
@@ -2268,7 +2267,6 @@ do 1000 j=jfirst,jlast
                    enddo
                 enddo
              endif
-!!!#endif
         endif
      enddo
 

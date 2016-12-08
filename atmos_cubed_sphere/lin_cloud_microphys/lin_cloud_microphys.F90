@@ -1702,8 +1702,8 @@ endif   ! end ice-physics
        if ( qstar < q_minus ) then
             qa(k) = qa(k) + 1.       ! Air fully saturated; 100 % cloud cover
        elseif ( qstar<q_plus .and. clouds>qc_crt ) then
-!           qa(k) = qa(k) + (q_plus-qstar)/(dq+dq)       ! partial cloud cover
-            qa(k) = sqrt( qa(k) + (q_plus-qstar)/(dq+dq) )
+            qa(k) = qa(k) + (q_plus-qstar)/(dq+dq)       ! partial cloud cover
+!           qa(k) = sqrt( qa(k) + (q_plus-qstar)/(dq+dq) )
        endif
    endif
 

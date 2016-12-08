@@ -931,7 +931,8 @@ contains
  subroutine adiabatic_init(zvir)
    real, allocatable, dimension(:,:,:):: u0, v0, t0, dp0
    real, intent(in):: zvir
-   real, parameter:: wt = 1.  ! was 2.
+!  real, parameter:: wt = 1.  ! was 2.
+   real, parameter:: wt = 2.
 !***********
 ! Haloe Data
 !***********
@@ -1070,7 +1071,7 @@ contains
              endif
              do j=jsc,jec
                 do i=isc,iec
-                   Atm(mytile)%q(i,j,k,sphum) = 0.5*Atm(mytile)%q(i,j,k,sphum) + 0.5*q00
+                   Atm(mytile)%q(i,j,k,sphum) = xt*(Atm(mytile)%q(i,j,k,sphum) + wt*q00)
                 enddo
              enddo
           endif

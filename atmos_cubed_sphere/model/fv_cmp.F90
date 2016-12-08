@@ -498,8 +498,8 @@ if ( do_qa .and. last_step ) then
                 qa(i,j) = 1.
            else
              if ( qstar<q_plus ) then
-!               qa(i,j) = (q_plus-qstar)/(dq+dq)        ! partial cloud cover:
-                qa(i,j) = sqrt( (q_plus-qstar)/(dq+dq) )
+                qa(i,j) = (q_plus-qstar)/(dq+dq)        ! partial cloud cover:
+!               qa(i,j) = sqrt( (q_plus-qstar)/(dq+dq) )
                                                         ! qa = 0 if qstar = q_plus 
                                                         ! qa = 1 if qstar = q_minus
              endif

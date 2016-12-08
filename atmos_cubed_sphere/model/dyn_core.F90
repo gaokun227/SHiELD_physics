@@ -894,7 +894,7 @@ contains
                                        call timing_off('PG_D')
 
 ! Inline Rayleigh friction here?
-#ifndef USE_SUPER_RAY
+#ifdef USE_SUPER_RAY
    if( flagstruct%tau > 0. )  &
    call Rayleigh_fast(abs(dt), npx, npy, npz, pfull, flagstruct%tau, u, v, w, ptop, hydrostatic, flagstruct%rf_cutoff, bd)
 #endif

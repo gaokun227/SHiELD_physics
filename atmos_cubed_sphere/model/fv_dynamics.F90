@@ -341,7 +341,6 @@ contains
                            ptop, ua, va, u, v, delp, teq, ps2, m_fac)
       endif
 
-#ifdef USE_SUPER_RAY
       if( flagstruct%tau > 0. ) then
         if ( gridstruct%grid_type<4 ) then
              call Rayleigh_Super(abs(bdt), npx, npy, npz, ks, pfull, phis, flagstruct%tau, u, v, w, pt,  &
@@ -351,7 +350,6 @@ contains
                   ua, va, delz, cp_air, rdgas, ptop, hydrostatic, .true., flagstruct%rf_cutoff, gridstruct, domain, bd)
         endif
       endif
-#endif
 
 #endif
 

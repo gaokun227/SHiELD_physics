@@ -154,8 +154,8 @@
       integer, save :: ialbflg = 0      ! surface albedo scheme control flag
       integer, save :: iemsflg = 0      ! surface emissivity scheme control flag
 
-      character, save :: semis_file*26  ! external sfc emissivity data table
-      data semis_file   / 'sfc_emissivity_idx.txt    ' /
+      character, save :: semis_file*32  ! external sfc emissivity data table
+      data semis_file   / 'INPUT/sfc_emissivity_idx.txt    ' /
 
 ! ............................................. !
 !  -2.6- general purpose                        !

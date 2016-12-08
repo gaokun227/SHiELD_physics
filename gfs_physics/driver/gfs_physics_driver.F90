@@ -316,7 +316,7 @@ module gfs_physics_driver_mod
                               num_p3d,ldiag3d,                                   &
                               clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
                               betal_deep, betas_deep, evfact_deep, evfactl_deep, &
-                              pgcon_deep,                                        &
+                              pgcon_deep, iems,                                  &
                               clam_shal, crain_shal, ccloud_shal,                & ! shalcnv
                               xkzminv_moninq, moninq_fac,                        & ! moninq
 !--- namelist for Lin cloud microphysics

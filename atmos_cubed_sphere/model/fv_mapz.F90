@@ -652,8 +652,8 @@ if( last_step .and. (.not.do_adiabatic_init)  ) then
 endif        ! end last_step check
 
 ! Note: pt at this stage is T_v
-! if ( (.not.do_adiabatic_init) .and. do_sat_adj ) then
-  if ( do_sat_adj ) then
+  if ( (.not.do_adiabatic_init) .and. do_sat_adj ) then
+! if ( do_sat_adj ) then
                                            call timing_on('sat_adj2')
 !$OMP do
            do k=kmp,km
@@ -684,9 +684,9 @@ endif        ! end last_step check
            if ( fast_mp_consv ) then
 !$OMP do
                 do j=js,je
-                   do k=kmp,km
-                      do i=is,ie
-                         te0_2d(i,j) = te0_2d(i,j) + delp(i,j,k)*te(i,j,k)
+                   do i=is,ie
+                      do k=kmp,km
+                         te0_2d(i,j) = te0_2d(i,j) + te(i,j,k)
                       enddo
                    enddo
                 enddo

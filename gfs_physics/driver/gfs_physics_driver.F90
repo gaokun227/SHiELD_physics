@@ -97,7 +97,7 @@ module gfs_physics_driver_mod
       ccloud_deep => c0, crain_deep => c1, betal_deep => betal,   &
       betas_deep => betas, evfact_deep => evfact, evfactl_deep => evfactl, &
       pgcon_deep => pgcon
- use shalcnv_mod, only: clam_shal => clam, crain_shal => c0, ccloud_shal => c1
+ use shalcnv_mod, only: clam_shal => clam, crain_shal => c0, ccloud_shal => c1, pgcon_shal => pgcon
  use moninq_mod,  only: xkzminv_moninq => xkzminv, moninq_fac
 !
 !-----------------------------------------------------------------------
@@ -313,11 +313,11 @@ module gfs_physics_driver_mod
                               ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
                               hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
-                              num_p3d,ldiag3d,                                   &
+                              num_p3d,ldiag3d,iems,                              &
                               clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
                               betal_deep, betas_deep, evfact_deep, evfactl_deep, &
-                              pgcon_deep, iems,                                  &
-                              clam_shal, crain_shal, ccloud_shal,                & ! shalcnv
+                              pgcon_deep,                                        &
+                              clam_shal, crain_shal, ccloud_shal, pgcon_shal,    & ! shalcnv
                               xkzminv_moninq, moninq_fac,                        & ! moninq
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &

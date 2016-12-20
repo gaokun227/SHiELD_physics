@@ -894,9 +894,9 @@ contains
 ! 3D Condensate
 !--------------------
        idiag%id_qn = register_diag_field ( trim(field), 'qn', axes(1:3), Time,       &
-               'cloud condensate', 'g/g', missing_value=missing_value )
+               'cloud condensate', 'kg/m/s^2', missing_value=missing_value )
        idiag%id_qp = register_diag_field ( trim(field), 'qp', axes(1:3), Time,       &
-               'precip condensate', 'g/g', missing_value=missing_value )
+               'precip condensate', 'kg/m/s^2', missing_value=missing_value )
 ! fast moist phys tendencies:
        idiag%id_mdt = register_diag_field ( trim(field), 'mdt', axes(1:3), Time,       &
                'DT/Dt: fast moist phys', 'deg/sec', missing_value=missing_value )
@@ -978,11 +978,11 @@ contains
                            '13th L wind_speed', 'm/s', missing_value=missing_value )
 ! Selceted (HIWPP) levels of non-precip condensates:
        idiag%id_qn200 = register_diag_field ( trim(field), 'qn200', axes(1:2), Time,       &
-               '200mb condensate', 'g/g', missing_value=missing_value )
+               '200mb condensate', 'kg/m/s^2', missing_value=missing_value )
        idiag%id_qn500 = register_diag_field ( trim(field), 'qn500', axes(1:2), Time,       &
-               '500mb condensate', 'g/g', missing_value=missing_value )
+               '500mb condensate', 'kg/m/s^2', missing_value=missing_value )
        idiag%id_qn850 = register_diag_field ( trim(field), 'qn850', axes(1:2), Time,       &
-               '850mb condensate', 'g/g', missing_value=missing_value )
+               '850mb condensate', 'kg/m/s^2', missing_value=missing_value )
 
        if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
           idiag%id_w500 = register_diag_field ( trim(field), 'w500', axes(1:2), Time,       &
@@ -1959,8 +1959,106 @@ contains
             deallocate( a3 )
           endif
 
-         deallocate ( wz )
+!        deallocate ( wz )
       endif
+
+! Temperature:
+       idg(1) = idiag%id_t1
+       idg(2) = idiag%id_t2
+       idg(3) = idiag%id_t3
+       idg(4) = idiag%id_t5
+       idg(5) = idiag%id_t7
+       idg(6) = idiag%id_t10
+       idg(7) = idiag%id_t20
+       idg(8) = idiag%id_t30
+       idg(9) = idiag%id_t50
+       idg(10) = idiag%id_t70
+       idg(11) = idiag%id_t100
+       idg(12) = idiag%id_t150
+       idg(13) = idiag%id_t200
+       idg(14) = idiag%id_t250
+       idg(15) = idiag%id_t300
+       idg(16) = idiag%id_t350
+       idg(17) = idiag%id_t400
+       idg(18) = idiag%id_t450
+       idg(19) = idiag%id_t500
+       idg(20) = idiag%id_t550
+       idg(21) = idiag%id_t600
+       idg(22) = idiag%id_t650
+       idg(23) = idiag%id_t700
+       idg(24) = idiag%id_t750
+       idg(25) = idiag%id_t800
+       idg(26) = idiag%id_t850
+       idg(27) = idiag%id_t900
+       idg(28) = idiag%id_t925
+       idg(29) = idiag%id_t950
+       idg(30) = idiag%id_t975
+       idg(31) = idiag%id_t1000
+
+       do_cs_intp = .false.
+       do i=1,nplev
+          if ( idg(i)>0 ) then
+               do_cs_intp = .true.
+               exit
+          endif
+       enddo
+
+       if ( do_cs_intp ) then  ! log(pe) as the coordinaite for temp re-construction
+          if(.not. allocated (a3) ) allocate( a3(isc:iec,jsc:jec,nplev) )
+          call pt_interpolator(isc,iec,jsc,jec,npz, Atm(n)%pt(isc:iec,jsc:jec,:), nplev,    &
+                               plevs, wz, Atm(n)%peln, idg, a3)
+          do i=1,nplev
+             if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
+          enddo
+          if ( idiag%id_t100>0 .and. prt_minmax ) then
+             call prt_mxm('T100:', a3(isc:iec,jsc:jec,11), isc, iec, jsc, jec, 0, 1, 1.,   &
+                          Atm(n)%gridstruct%area_64, Atm(n)%domain)
+             if (.not. Atm(n)%neststruct%nested)  then
+                tmp = 0.
+                sar = 0.
+                !            Compute mean temp at 100 mb near EQ
+                do j=jsc,jec
+                   do i=isc,iec
+                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                      if( (slat>-10.0 .and. slat<10.) ) then
+                         sar = sar + Atm(n)%gridstruct%area(i,j)
+                         tmp = tmp + a3(i,j,11)*Atm(n)%gridstruct%area(i,j)
+                      endif
+                   enddo
+                enddo
+                call mp_reduce_sum(sar)
+                call mp_reduce_sum(tmp)
+                if ( sar > 0. ) then
+                   if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
+                else
+                   if (master) write(*,*) 'Warning: problem computing tropical mean T100'
+                endif
+             endif
+          endif
+          if ( idiag%id_t200>0 .and. prt_minmax ) then
+             call prt_mxm('T200:', a3(isc:iec,jsc:jec,13), isc, iec, jsc, jec, 0, 1, 1.,   &
+                          Atm(n)%gridstruct%area_64, Atm(n)%domain)
+             if (.not. Atm(n)%neststruct%nested) then
+                tmp = 0.
+                sar = 0.
+                do j=jsc,jec
+                   do i=isc,iec
+                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
+                      if( (slat>-20 .and. slat<20) ) then
+                         sar = sar + Atm(n)%gridstruct%area(i,j)
+                         tmp = tmp + a3(i,j,13)*Atm(n)%gridstruct%area(i,j)
+                      endif
+                   enddo
+                enddo
+                call mp_reduce_sum(sar)
+                call mp_reduce_sum(tmp)
+                if ( sar > 0. ) then
+                   if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
+                endif
+             endif
+          endif
+          deallocate( a3 )
+       endif
 
 
        if(idiag%id_mq > 0)  then
@@ -2540,7 +2638,7 @@ contains
 
        if ( do_cs_intp ) then
           call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%ua(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3, -1)
+                               plevs, Atm(n)%peln, idg, a3)
 !                              pout, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
@@ -2590,7 +2688,7 @@ contains
 
        if ( do_cs_intp ) then
           call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%va(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3, -1)
+                               plevs, Atm(n)%peln, idg, a3)
 !                              pout, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
@@ -2640,7 +2738,7 @@ contains
 
        if ( do_cs_intp ) then
           call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%q(isc:iec,jsc:jec,:,sphum), nplev, &
-                               plevs, Atm(n)%peln, idg, a3, -1)
+                               plevs, Atm(n)%peln, idg, a3)
 !                              pout, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, 0)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
@@ -2689,106 +2787,10 @@ contains
        enddo
        if ( do_cs_intp ) then
           call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%omga(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3, -1)
+                               plevs, Atm(n)%peln, idg, a3)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
           enddo
-       endif
-
-! Temperature:
-       idg(1) = idiag%id_t1
-       idg(2) = idiag%id_t2
-       idg(3) = idiag%id_t3
-       idg(4) = idiag%id_t5
-       idg(5) = idiag%id_t7
-       idg(6) = idiag%id_t10
-       idg(7) = idiag%id_t20
-       idg(8) = idiag%id_t30
-       idg(9) = idiag%id_t50
-       idg(10) = idiag%id_t70
-       idg(11) = idiag%id_t100
-       idg(12) = idiag%id_t150
-       idg(13) = idiag%id_t200
-       idg(14) = idiag%id_t250
-       idg(15) = idiag%id_t300
-       idg(16) = idiag%id_t350
-       idg(17) = idiag%id_t400
-       idg(18) = idiag%id_t450
-       idg(19) = idiag%id_t500
-       idg(20) = idiag%id_t550
-       idg(21) = idiag%id_t600
-       idg(22) = idiag%id_t650
-       idg(23) = idiag%id_t700
-       idg(24) = idiag%id_t750
-       idg(25) = idiag%id_t800
-       idg(26) = idiag%id_t850
-       idg(27) = idiag%id_t900
-       idg(28) = idiag%id_t925
-       idg(29) = idiag%id_t950
-       idg(30) = idiag%id_t975
-       idg(31) = idiag%id_t1000
-
-       do_cs_intp = .false.
-       do i=1,nplev
-          if ( idg(i)>0 ) then
-               do_cs_intp = .true.
-               exit
-          endif
-       enddo
-
-       if ( do_cs_intp ) then  ! log(pe) as the coordinaite for temp re-construction
-          call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%pt(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3, 2)
-          do i=1,nplev
-             if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
-          enddo
-          if ( idiag%id_t100>0 .and. prt_minmax ) then
-             call prt_mxm('T100:', a3(isc:iec,jsc:jec,11), isc, iec, jsc, jec, 0, 1, 1.,   &
-                          Atm(n)%gridstruct%area_64, Atm(n)%domain)
-             if (.not. Atm(n)%neststruct%nested)  then
-                tmp = 0.
-                sar = 0.
-                !            Compute mean temp at 100 mb near EQ
-                do j=jsc,jec
-                   do i=isc,iec
-                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                      if( (slat>-10.0 .and. slat<10.) ) then
-                         sar = sar + Atm(n)%gridstruct%area(i,j)
-                         tmp = tmp + a3(i,j,11)*Atm(n)%gridstruct%area(i,j)
-                      endif
-                   enddo
-                enddo
-                call mp_reduce_sum(sar)
-                call mp_reduce_sum(tmp)
-                if ( sar > 0. ) then
-                   if (master) write(*,*) 'Tropical [10s,10n] mean T100 =', tmp/sar
-                else
-                   if (master) write(*,*) 'Warning: problem computing tropical mean T100'
-                endif
-             endif
-          endif
-          if ( idiag%id_t200>0 .and. prt_minmax ) then
-             call prt_mxm('T200:', a3(isc:iec,jsc:jec,13), isc, iec, jsc, jec, 0, 1, 1.,   &
-                          Atm(n)%gridstruct%area_64, Atm(n)%domain)
-             if (.not. Atm(n)%neststruct%nested) then
-                tmp = 0.
-                sar = 0.
-                do j=jsc,jec
-                   do i=isc,iec
-                      slat = Atm(n)%gridstruct%agrid(i,j,2)*rad2deg
-                      if( (slat>-20 .and. slat<20) ) then
-                         sar = sar + Atm(n)%gridstruct%area(i,j)
-                         tmp = tmp + a3(i,j,13)*Atm(n)%gridstruct%area(i,j)
-                      endif
-                   enddo
-                enddo
-                call mp_reduce_sum(sar)
-                call mp_reduce_sum(tmp)
-                if ( sar > 0. ) then
-                   if (master) write(*,*) 'Tropical [-20.,20.] mean T200 =', tmp/sar
-                endif
-             endif
-          endif
        endif
 
        if( allocated(a3) ) deallocate (a3)
@@ -3460,9 +3462,9 @@ contains
              endif
           enddo
 !         a2(i,j,n) = missing_value
-! Extrapolation into ground: use lowest 5-layer mean
-          a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-4)) *   &
-                    (log_p(n)-peln(i,km+1,j)) / (peln(i,km+1,j)-peln(i,km-4,j) )
+! Extrapolation into ground: use lowest 4-layer mean
+          a2(i,j,n) = wz(i,j,km+1) + (wz(i,j,km+1) - wz(i,j,km-3)) *   &
+                    (log_p(n)-peln(i,km+1,j)) / (peln(i,km+1,j)-peln(i,km-3,j) )
           k1 = km
 1000   continue
     enddo
@@ -3470,9 +3472,68 @@ contains
 
  end subroutine get_height_given_pressure
 
- subroutine cs_interpolator(is, ie, js, je, km, qin, kd, pout, pe, id, qout, iv)
+ subroutine pt_interpolator(is, ie, js, je, km, qin, kd, pout, wz, pe, id, qout)
 ! This is the old-style linear in log-p interpolation
- integer,  intent(in):: is, ie, js, je, km, iv
+ integer,  intent(in):: is, ie, js, je, km
+ integer,  intent(in):: kd      ! vertical dimension of the ouput height
+ integer,  intent(in):: id(kd)
+ real, intent(in):: pout(kd)    ! must be monotonically increasing with increasing k
+ real, intent(in):: pe(is:ie,km+1,js:je)
+ real, intent(in):: wz(is:ie,js:je,km+1)
+ real, intent(in)::   qin(is:ie,js:je,km)
+ real, intent(out):: qout(is:ie,js:je,kd)
+! local:
+ real:: pm(km)
+ real:: gcp
+ integer i,j,k, n, k1
+
+ gcp = grav / cp_air
+
+!$OMP parallel do default(none) shared(gcp,id,is,ie,js,je,km,kd,pout,qin,qout,wz,pe) & 
+!$OMP             private(k1,pm)
+ do j=js,je
+    do i=is,ie
+       do k=1,km
+! consider using true log(p) here for non-hydro?
+          pm(k) = 0.5*(pe(i,k,j)+pe(i,k+1,j))
+       enddo
+
+       k1 = 1
+       do n=1,kd
+          if ( id(n) < 0 ) go to 500
+          if( pout(n) <= pm(1) ) then
+! Higher than the top: using constant value
+              qout(i,j,n) = qin(i,j,1)
+          elseif ( pout(n) >= pm(km) ) then
+            if ( pout(n) .le. pe(i,km+1,j) ) then   ! within the lowest layer
+              qout(i,j,n) = gcp*exp(kappa*pout(n)) * (wz(i,j,km)-wz(i,j,km+1))  /   &
+                           ( exp(kappa*pe(i,km+1,j))-exp(kappa*pe(i,km,j)) ) 
+            else
+! lower than the bottom surface:
+! mean (hydro) potential temp based on lowest 2-3 layers (NCEP method)
+! temp = ptm * p**cappa = ptm * exp(cappa*log(pout))
+              qout(i,j,n) = gcp*exp(kappa*pout(n)) * (wz(i,j,km-2) - wz(i,j,km))  /   &
+                           ( exp(kappa*pe(i,km,j)) - exp(kappa*pe(i,km-2,j)) )
+            endif
+          else 
+            do k=k1,km-1
+               if ( pout(n)>=pm(k) .and. pout(n) <= pm(k+1) ) then
+                   qout(i,j,n) = qin(i,j,k) + (qin(i,j,k+1)-qin(i,j,k))*(pout(n)-pm(k))/(pm(k+1)-pm(k))
+                   k1 = k     ! next level
+                   go to 500
+               endif
+            enddo
+          endif
+500       continue
+       enddo
+    enddo
+ enddo
+
+ end subroutine pt_interpolator
+
+ subroutine cs_interpolator(is, ie, js, je, km, qin, kd, pout, pe, id, qout)
+! This is the old-style linear in log-p interpolation
+ integer,  intent(in):: is, ie, js, je, km
  integer,  intent(in):: kd      ! vertical dimension of the ouput height
  integer,  intent(in):: id(kd)
  real, intent(in):: pout(kd)    ! must be monotonically increasing with increasing k

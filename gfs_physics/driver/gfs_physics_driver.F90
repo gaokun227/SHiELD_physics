@@ -53,7 +53,7 @@ module gfs_physics_driver_mod
   use time_manager_mod,   only: time_type, get_date, get_time, operator(-)
   use tracer_manager_mod, only: get_number_tracers
 
-  use machine,            only: kind_phys
+  use machine,            only: kind_phys, kind_evod
 !
 !--- NUOPC GFS Physics module routines ---
   use nuopc_physics,      only: nuopc_phys_init, nuopc_phys_run, &
@@ -141,6 +141,7 @@ module gfs_physics_driver_mod
     private
     integer :: id
     integer :: axes
+    logical :: time_avg
     character(len=64)  :: mod_name
     character(len=64)  :: name
     character(len=128) :: desc
@@ -148,6 +149,7 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: cnvfac
     type(diag_data_type), dimension(:), allocatable  :: data
    end type gfdl_diag_type
+   real(kind=kind_phys) :: zhour
 !
    integer :: tot_diag_idx = 0 
    integer, parameter :: DIAG_SIZE = 250
@@ -287,10 +289,14 @@ module gfs_physics_driver_mod
     logical :: nst_anl = .false.
 !
 !--- namelist definition ---
+   namelist /nggps_diag_nml/  fdiag
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
-                              ozcalc,cdmbgwd,fdiag,fhzero,fhcyc,use_ufo,nst_anl, &
+                              ozcalc,cdmbgwd,fhzero,fhcyc,use_ufo,nst_anl, &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
                               hybedmf,shal_cnv
+!
+!--- needed for random number stream for gbphys::calpreciptype
+      integer :: seed0
 !-----------------------------------------------------------------------
 
   CONTAINS
@@ -326,10 +332,10 @@ module gfs_physics_driver_mod
     integer :: id1, id2
     integer :: jdate(8) = (/1, 1, 1, 0, 0, 0, 0, 0/)
     integer :: idate(4) = (/0, 1, 1, 1/)
-    real(kind=kind_phys) :: dt_diag
     real(kind=kind_phys) :: solhr = 0.0   
     real(kind=kind_phys) :: fhour = 0.
     logical :: sas_shal
+    real(kind=kind_evod) :: wrk(1)
     real (kind=kind_phys) :: si(64)
     data si  /1.000000,      0.984375,      0.968750,      &
               0.953125,      0.937500,      0.921875,      &
@@ -364,6 +370,7 @@ module gfs_physics_driver_mod
 !--- set up various time/date related control variables
     call get_time(Time - Time_init, sec, days=days)
     fhour = real(days)*24.d0 + real(sec)/3600.d0
+    zhour = fhour
     kdt = fhour*3600.d0/dt_phys
     nnp = kdt
     jdate = 0 
@@ -385,23 +392,25 @@ module gfs_physics_driver_mod
 #ifdef INTERNAL_FILE_NML
     read (input_nml_file, nml=gfs_physics_nml, iostat=io)
     ierr = check_nml_error(io,"gfs_physics_nml")
+    read (input_nml_file, nml=nggps_diag_nml, iostat=io)
+    ierr = check_nml_error(io,"nggps_diag_nml")
 #else
     if ( file_exist('input.nml')) then
       unit = open_namelist_file ()
-      ierr=1; do while (ierr /= 0)
-      read  (unit, nml=gfs_physics_nml, iostat=io, end=10)
+      rewind(unit)
+      read  (unit, nml=gfs_physics_nml, iostat=io)
       ierr = check_nml_error(io, 'gfs_physics_nml')
-      enddo
- 10   call close_file (unit)
+      rewind(unit)
+      read  (unit, nml=nggps_diag_nml, iostat=io)
+      ierr = check_nml_error(io, 'nggps_diag_nml')
+      call close_file (unit)
     endif
 #endif
 !
 !--- check fdiag to see if it is an interval or a list
     if (nint(fdiag(2)) == 0) then
-      dt_diag = fdiag(1)
-      fdiag(1) = fhour
       do i = 2, size(fdiag,1)
-        fdiag(i) = fdiag(i-1) + dt_diag
+        fdiag(i) = fdiag(i-1) + fdiag(1)
       enddo
     endif
 !
@@ -423,6 +432,7 @@ module gfs_physics_driver_mod
     call write_version_number ('vers 1', 'gfs_physics_driver_mod')
     logunit = stdlog()
     if (mpp_pe() == mpp_root_pe() ) write(logunit, nml=gfs_physics_nml)
+    if (mpp_pe() == mpp_root_pe() ) write(logunit, nml=nggps_diag_nml)
 !
 !--- set some configurational switches/parameters that are derived from inputs
     nsswr = nint(fhswr/dt_phys)
@@ -447,6 +457,14 @@ module gfs_physics_driver_mod
     dxmin = log(1.0_kind_phys/(min_lon*min_lat))
     dxmax = log(1.0_kind_phys/(max_lon*max_lat))
     dxinv = 1.0_kind_phys/(dxmax-dxmin)
+!
+!--- set up random number stream needed for RAS and old SAS and when cal_pre=.true.
+    if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
+      seed0 = idate(1) + idate(2) + idate(3) + idate(4)
+      call random_setseed(seed0)
+      call random_number(wrk)
+      seed0 = seed0 + nint(wrk(1)*1000.0d0)
+    endif
 !
 !--- initialize the physics/radiation using the nuopc interface
     call nuopc_phys_init (Mdl_parms, ntcw, ncld, ntoz, ntrac, npz, me, lsoil, lsm, nmtvr, nrcm, levozp,  &
@@ -663,6 +681,10 @@ module gfs_physics_driver_mod
     integer :: numrdm(lon_cs*lat_cs*2)
     logical :: lsswr, lslwr
     type (random_stat) :: stat
+    integer :: iseed
+    real(kind=kind_phys) :: wrk(1)
+    real(kind=kind_phys) :: rannie(lat_cs)
+    real(kind=kind_phys) :: rndval(lon_cs*lat_cs*Mdl_parms%nrcm)
     real(kind=kind_phys) :: phour, fhour
     real(kind=kind_phys) :: work1, work2
 !
@@ -697,12 +719,26 @@ module gfs_physics_driver_mod
         call random_index (ipsdlim, numrdm, stat)
       endif
     endif
+!
+!--- random number needed for RAS and old SAS and when cal_pre=.true.
+    if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
+      iseed = mod(100.0*sqrt(fhour*3600),1.0d9) + seed0
+      call random_setseed(iseed)
+      call random_number(wrk)
+      do i = 1,lon_cs*Mdl_parms%nrcm 
+        iseed = iseed + nint(wrk(1)) * i
+        call random_setseed(iseed)
+        call random_number(rannie)
+        rndval(1+(i-1)*lat_cs:i*lat_cs) = rannie(1:lat_cs)
+      enddo
+    endif
 
 !$OMP PARALLEL DO default(none) &
 !$OMP              shared(Atm_block,Dyn_parms,fhour,fms_date,phour,Mdl_parms,nsswr,  &
 !$OMP                     nslwr,isubc_lw,isubc_sw,numrdm,lon_cs,lat_cs,dxmin,dxinv,  &
-!$OMP                     Cld_props,flgmin,ozcalc,O3dat,ozplin,Tbd_data,lsswr,lslwr) &
-!$OMP             private(nb,ibs,ibe,jbs,jbe,nx,ny,ngptc,ix,j,i,work1)
+!$OMP                     Cld_props,flgmin,ozcalc,O3dat,ozplin,Tbd_data,lsswr,lslwr, &
+!$OMP                     rndval)                                                    &
+!$OMP             private(nb,ibs,ibe,jbs,jbe,nx,ny,ngptc,ix,k,j,i,work1)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
       ibe = Atm_block%ibe(nb)
@@ -756,6 +792,19 @@ module gfs_physics_driver_mod
             else
               Cld_props(nb)%flgmin(ix) = 0.0
             endif
+          enddo
+        enddo
+      endif
+!
+!--- random number needed for RAS and old SAS and when cal_pre=.true.
+      if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
+        do k = 1,Mdl_parms%nrcm
+          ix = 0 
+          do j = 1,ny
+            do i = 1,nx
+              ix = ix + 1
+              Tbd_data(nb)%rann(ix,k) = rndval(i+ibs-1 + (j+jbs-2)*lon_cs + (k-1)*lat_cs*lon_cs)
+            enddo
           enddo
         enddo
       endif
@@ -894,17 +943,18 @@ module gfs_physics_driver_mod
     type(state_fields_out),    dimension(:), intent(inout) :: Stateout
 !--- local variables
     integer :: nb, nx, ny
-    real(kind=kind_phys) :: fhour
+    real(kind=kind_phys) :: fhour, time_int
     integer :: yr, mo, dy, hr, min, sc
 
     fhour = Dyn_parms(1)%fhour
+    time_int = fhour - zhour
 !
 !--- call the nuopc physics loop---
 !$OMP parallel do default (none) &
 !$OMP          schedule (dynamic,1) & 
 !$OMP          shared  (Atm_block, Dyn_parms, Statein, Sfc_props, &
 !$OMP                   Gfs_diags, Intr_flds, Cld_props, Rad_tends, Tbd_data, &
-!$OMP                   Stateout, fdiag, fhzero, levs) &
+!$OMP                   Stateout, fdiag, fhzero, levs, time_int, zhour) &
 !$OMP          firstprivate (Mdl_parms, fhour, Time_diag)  &
 !$OMP          private (nb, nx, ny)
     do nb = 1, Atm_block%nblks
@@ -924,12 +974,12 @@ module gfs_physics_driver_mod
 !
 !--- check the diagnostics output trigger
       if (ANY(fdiag == fhour)) then
-        if (mpp_pe() == mpp_root_pe().and.nb==1) write(6,*) 'DIAG STEP', fhour
+        if (mpp_pe() == mpp_root_pe().and.nb==1) write(6,*) 'NGGPS:GFS DIAG STEP', fhour, time_int
         nx = Atm_block%ibe(nb) - Atm_block%ibs(nb) + 1
         ny = Atm_block%jbe(nb) - Atm_block%jbs(nb) + 1
         call gfs_diag_output (Time_diag, Gfs_diags(nb), Statein(nb), Stateout(nb), &
                               Atm_block, nb, nx, ny, levs,                         &
-                              Mdl_parms%ntcw, Mdl_parms%ntoz, Dyn_parms(nb)%dtp)
+                              Mdl_parms%ntcw, Mdl_parms%ntoz, Dyn_parms(nb)%dtp, time_int)
       endif
     enddo
 !
@@ -948,6 +998,8 @@ module gfs_physics_driver_mod
         call Gfs_diags(nb)%setrad ()
         call Gfs_diags(nb)%setphys ()
       enddo
+      !--- reset zhour
+      zhour = fhour
     endif
 !
 !--- debug statements
@@ -1394,6 +1446,7 @@ module gfs_physics_driver_mod
     Diag(:)%id = -99
     Diag(:)%axes = -99
     Diag(:)%cnvfac = 1.0_kind_phys
+    Diag(:)%time_avg = .FALSE.
 
     do idx = 1,DIAG_SIZE
       allocate(Diag(idx)%data(nblks))
@@ -1426,7 +1479,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface downward longwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1440,7 +1494,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface upward longwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1451,10 +1506,11 @@ module gfs_physics_driver_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'DSWRFsfc'
-    Diag(idx)%desc = 'surface downward showrtwave flux [W/m**2]'
+    Diag(idx)%desc = 'surface downward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1468,7 +1524,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface upward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1482,7 +1539,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'top of atmos downward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1496,7 +1554,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'top of atmos upward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1510,7 +1569,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'top of atmos upward longwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1524,7 +1584,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'atmos column total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1538,7 +1599,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'high cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1552,7 +1614,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'low cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1566,7 +1629,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'mid cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1829,7 +1893,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface zonal momentum flux [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1843,7 +1908,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface meridional momentum flux [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1857,7 +1923,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface sensible heat flux [W/m**2]'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1871,7 +1938,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface latent heat flux [W/m**2]'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1885,7 +1953,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1899,7 +1968,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface ground heat flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -1992,7 +2062,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface zonal gravity wave stress [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2006,7 +2077,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface meridional gravity wave stress [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2033,7 +2105,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface convective precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -3054,7 +3127,7 @@ module gfs_physics_driver_mod
 !    calls:  send_data
 !-------------------------------------------------------------------------      
   subroutine gfs_diag_output(Time, Gfs_diags, Statein, Stateout, Atm_block, &
-                             nb, nx, ny, levs, ntcw, ntoz, dt)
+                             nb, nx, ny, levs, ntcw, ntoz, dt, time_int)
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
     type(diagnostics),         intent(in) :: Gfs_diags
@@ -3063,42 +3136,48 @@ module gfs_physics_driver_mod
     type (block_control_type), intent(in) :: Atm_block
     integer,                   intent(in) :: nb, nx, ny, levs, ntcw, ntoz
     real(kind=kind_phys),      intent(in) :: dt
+    real(kind=kind_phys),      intent(in) :: time_int
 !--- local variables
     integer :: i, j, ngptc, idx, num
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx,ny) :: var2
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
+    real(kind=kind_phys) :: rdt, rtime_int, lcnvfac
     logical :: used
 
      ngptc = nx*ny
+     rdt = 1.0d0/dt
+     rtime_int = 1.0d0/time_int
 
      do idx = 1,tot_diag_idx
        if (Diag(idx)%id > 0) then
+         lcnvfac = Diag(idx)%cnvfac
+         if (Diag(idx)%time_avg) lcnvfac = lcnvfac*rtime_int
          if (Diag(idx)%axes == 2) then
            if (trim(Diag(idx)%name) == 'ALBDOsfc') then
              !--- albedos are actually a ratio of two radiation surface properties
              var2 = 0._kind_phys
              where (Diag(idx)%data(nb)%var21 > 0._kind_phys) &
-                   var2 = max(0._kind_phys,Diag(idx)%data(nb)%var2/Diag(idx)%data(nb)%var21)*Diag(idx)%cnvfac
+                   var2 = max(0._kind_phys,Diag(idx)%data(nb)%var2/Diag(idx)%data(nb)%var21)*lcnvfac
              used=send_data(Diag(idx)%id, var2, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
            elseif (trim(Diag(idx)%name) == 'gflux') then
              !--- need to "mask" gflux to output valid data over land/ice only
              var2(1:nx,1:ny) = missing_value
-             where (Diag(idx)%data(nb)%var21 /= 0) var2 = Diag(idx)%data(nb)%var2*Diag(idx)%cnvfac
+             where (Diag(idx)%data(nb)%var21 /= 0) var2 = Diag(idx)%data(nb)%var2*lcnvfac
              used=send_data(Diag(idx)%id, var2, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
            elseif (trim(Diag(idx)%name) == 'soilm') then
              !--- need to "mask" soilm to have value only over land
              var2(1:nx,1:ny) = missing_value
-             where (Diag(idx)%data(nb)%var21 == 1) var2 = Diag(idx)%data(nb)%var2*Diag(idx)%cnvfac
+             where (Diag(idx)%data(nb)%var21 == 1) var2 = Diag(idx)%data(nb)%var2*lcnvfac
              used=send_data(Diag(idx)%id, var2, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
            else
-             used=send_data(Diag(idx)%id, Diag(idx)%data(nb)%var2*Diag(idx)%cnvfac, Time, &
+             used=send_data(Diag(idx)%id, Diag(idx)%data(nb)%var2*lcnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
            endif
@@ -3154,7 +3233,7 @@ module gfs_physics_driver_mod
            if (trim(Diag(idx)%name) == 'dtemp_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%tgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gt0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))/dt
+                                        - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js, &
@@ -3164,7 +3243,7 @@ module gfs_physics_driver_mod
            if (trim(Diag(idx)%name) == 'du_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%ugrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gu0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))/dt
+                                        - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js, &
@@ -3174,7 +3253,7 @@ module gfs_physics_driver_mod
            if (trim(Diag(idx)%name) == 'dv_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%vgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gv0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))/dt
+                                        - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js, &
@@ -3184,7 +3263,7 @@ module gfs_physics_driver_mod
            if (trim(Diag(idx)%name) == 'dsphum_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))/dt
+                                        - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js, &
@@ -3194,7 +3273,7 @@ module gfs_physics_driver_mod
            if (trim(Diag(idx)%name) == 'dclwmr_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))/dt
+                                        - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js, &
@@ -3204,7 +3283,7 @@ module gfs_physics_driver_mod
            if (trim(Diag(idx)%name) == 'do3mr_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))/dt
+                                        - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time,    &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js, &

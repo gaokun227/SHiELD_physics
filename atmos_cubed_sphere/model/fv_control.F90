@@ -103,6 +103,7 @@ module fv_control_mod
    real    , pointer :: damp_k_k2 
    integer , pointer ::    n_zs_filter
    integer , pointer :: nord_zs_filter
+   logical , pointer :: full_zs_filter
 
    logical , pointer :: consv_am
    logical , pointer :: do_sat_adj
@@ -188,6 +189,7 @@ module fv_control_mod
    logical , pointer :: nudge_ic
    logical , pointer :: ncep_ic 
    logical , pointer :: nggps_ic 
+   logical , pointer :: ecmwf_ic 
    logical , pointer :: gfs_phil
    logical , pointer :: agrid_vel_rst
    logical , pointer :: use_new_ncep 
@@ -253,7 +255,7 @@ module fv_control_mod
                          use_logp, p_fac, a_imp, k_split, n_split, m_split, q_split, print_freq, do_schmidt,      &
                          hord_mt, hord_vt, hord_tm, hord_dp, hord_tr, shift_fac, stretch_fac, target_lat, target_lon, &
                          kord_mt, kord_wz, kord_tm, kord_tr, fv_debug, fv_land, nudge, do_sat_adj, do_f3d, &
-                         external_ic, ncep_ic, nggps_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
+                         external_ic, ncep_ic, nggps_ic, ecmwf_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
                          res_latlon_dynamics, res_latlon_tracers, scale_z, w_max, z_min, &
                          dddmp, d2_bg, d4_bg, vtdm4, trdm2, d_ext, beta, non_ortho, n_sponge, &
                          warm_start, adjust_dry_mass, mountain, d_con, ke_bg, nord, nord_tr, convert_ke, use_old_omega, &
@@ -261,7 +263,7 @@ module fv_control_mod
                          consv_te, fill, filter_phys, fill_dp, fill_wz, consv_am, &
                          range_warn, dwind_2d, inline_q, z_tracer, reproduce_sum, adiabatic, do_vort_damp, no_dycore,   &
                          tau, tau_h2o, rf_cutoff, nf_omega, hydrostatic, fv_sg_adj, breed_vortex_inline,  &
-                         na_init, hybrid_z, Make_NH, n_zs_filter, nord_zs_filter, reset_eta,         &
+                         na_init, hybrid_z, Make_NH, n_zs_filter, nord_zs_filter, full_zs_filter, reset_eta,         &
                          pnats, dnats, a2b_ord, remap_t, p_ref, d2_bg_k1, d2_bg_k2,  &
                          c2l_ord, dx_const, dy_const, umax, deglat,      &
                          deglon_start, deglon_stop, deglat_start, deglat_stop, &
@@ -1098,6 +1100,7 @@ module fv_control_mod
      damp_k_k2                     => Atm%flagstruct%damp_k_k2
      n_zs_filter                   => Atm%flagstruct%n_zs_filter
      nord_zs_filter                => Atm%flagstruct%nord_zs_filter
+     full_zs_filter                => Atm%flagstruct%full_zs_filter
      consv_am                      => Atm%flagstruct%consv_am
      do_sat_adj                    => Atm%flagstruct%do_sat_adj
      do_f3d                        => Atm%flagstruct%do_f3d
@@ -1174,6 +1177,7 @@ module fv_control_mod
      nudge_ic                      => Atm%flagstruct%nudge_ic
      ncep_ic                       => Atm%flagstruct%ncep_ic
      nggps_ic                      => Atm%flagstruct%nggps_ic
+     ecmwf_ic                      => Atm%flagstruct%ecmwf_ic
      gfs_phil                      => Atm%flagstruct%gfs_phil
      agrid_vel_rst                 => Atm%flagstruct%agrid_vel_rst
      use_new_ncep                  => Atm%flagstruct%use_new_ncep

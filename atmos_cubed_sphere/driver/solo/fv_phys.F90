@@ -22,7 +22,7 @@ module fv_phys_mod
 
 use constants_mod,         only: grav, rdgas, rvgas, pi, cp_air, cp_vapor, hlv, radius, kappa, OMEGA
 use time_manager_mod,      only: time_type, get_time
-use lin_cld_microphys_mod, only: lin_cld_microphys_driver, sg_conv, qsmith, wet_bulb
+use lin_cld_microphys_mod, only: lin_cld_microphys_driver, qsmith, wet_bulb
 use hswf_mod,              only: Held_Suarez_Tend
 use fv_sg_mod,             only: fv_subgrid_z
 use fv_update_phys_mod,    only: fv_update_phys
@@ -100,7 +100,6 @@ public :: fv_phys, fv_nudge
   logical:: do_lin_microphys = .false.
   logical:: do_K_warm_rain = .false.
   logical:: do_strat_forcing = .true.
-  logical:: do_sg_conv       = .false.
   logical:: prog_cloud       = .true.
   logical:: zero_winds       = .false.  ! use this only for the doubly periodic domain
   logical:: do_reed_phys     = .false.
@@ -135,13 +134,15 @@ public :: fv_phys, fv_nudge
   integer:: seconds, days
   logical :: print_diag
 
-  integer :: id_vr_k, id_rain, id_rain_k, id_dqdt, id_dTdt, id_dudt, id_dvdt, id_pblh
+  integer :: id_vr_k, id_rain, id_rain_k, id_pblh
+  integer :: id_dqdt, id_dTdt, id_dudt, id_dvdt
+  integer :: id_qflux, id_hflux
   real, allocatable:: prec_total(:,:)
   real    :: missing_value = -1.e10
 
 namelist /sim_phys_nml/mixed_layer, gray_rad, strat_rad, do_lin_microphys,   &
                        heating_rate, cooling_rate, uniform_sst, sst0, c0,    &
-                       sw_abs, prog_cloud, low_c, do_sg_conv, diurnal_cycle, &
+                       sw_abs, prog_cloud, low_c, diurnal_cycle, &
                        do_mon_obkv, do_t_strat, p_strat, t_strat, tau_strat, &
                        do_abl, t_fac, tau_difz, do_strat_forcing, s_fac,     &
                        shift_n, print_freq, zero_winds, tau_zero, tau_winds, &
@@ -674,7 +675,8 @@ contains
    rrg  = rdgas / grav
    sday  = 24.*3600.*fac_sm
 
-
+   qflux = 0.
+   rflux = 0.
 
 
 
@@ -971,7 +973,7 @@ endif
                                   u_dt(is:ie,js:je,1:km),v_dt(is:ie,js:je,1:km), dz,      &
                                   delp(is:ie,js:je,1:km), gridstruct%area(is:ie,js:je),  &
                                   pdt, land, rain, snow, ice, graup, hydrostatic, phys_hydrostatic, &
-                                  1,ie-is+1, 1,je-js+1, 1,km, k_mp,npz, Time )
+                                  1,ie-is+1, 1,je-js+1, 1,km, k_mp,npz, seconds ) !Time )
 #else
 !$omp parallel do default(shared)
    do j=js,je
@@ -984,7 +986,7 @@ endif
                                   u_dt(is:ie,j:j,1:km),         v_dt(is:ie,j:j,1:km), dz(is:ie,j:j,1:km),      &
                                   delp(is:ie,j:j,1:km), gridstruct%area(is:ie,j:j),  &
                                   pdt, land(is:ie,j:j), rain(is:ie,j:j), snow(is:ie,j:j), ice(is:ie,j:j), graup(is:ie,j:j), hydrostatic, phys_hydrostatic, &
-                                  1,ie-is+1, 1,1, 1,km, k_mp,npz, Time )
+                                  1,ie-is+1, 1,1, 1,km, k_mp,npz, seconds ) ! Time )
    enddo
 #endif
                                                                                           call timing_off('lin_cld_mp')
@@ -1061,6 +1063,10 @@ endif
       endif
 
   endif
+
+  if (id_qflux) used=send_data(id_qflux, qflux, time)
+  if (id_hflux) used=send_data(id_hflux, flux_t, time)
+
 
  end subroutine sim_phys
 
@@ -1598,6 +1604,21 @@ endif
        prec_total(:,:) = 0.
     endif
 
+    if (do_sim_phys > 0) then
+       id_qflux = register_diag_field(mod_name, 'qflux', axes(1:3), time, &
+            'Physics latent heat flux', 'J/m**2/s', missing_value=missing_value)
+       id_hflux = register_diag_field(mod_name, 'hflux', axes(1:3), time, &
+            'Physics sensible heat flux', 'J/m**2/s', missing_value=missing_value)
+    endif
+
+    id_dudt = register_diag_field( mod_name, 'dudt', axes(1:3), time, &
+         'Physics U tendency', 'm/s/s', missing_value=missing_value)
+    id_dvdt = register_diag_field( mod_name, 'dvdt', axes(1:3), time, &
+         'Physics V tendency', 'm/s/s', missing_value=missing_value)
+    id_dtdt = register_diag_field( mod_name, 'dtdt', axes(1:3), time, &
+         'Physics T tendency', 'K/s', missing_value=missing_value)
+    id_dqdt = register_diag_field( mod_name, 'dqdt', axes(1:3), time, &
+         'Physics Q tendency', 'kg/kg/s', missing_value=missing_value)
 
 ! Initialize mixed layer ocean model
     if( .not. allocated ( ts0) ) allocate ( ts0(is:ie,js:je) )

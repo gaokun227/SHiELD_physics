@@ -35,11 +35,13 @@ module fv_arrays_mod
 
 
   integer, parameter:: max_step = 1000
-#ifdef OVERLOAD_R4
-  real, parameter:: real_big = 1.e8    ! big enough to cause blowup if used
-#else
-  real, parameter:: real_big = 1.e30   ! big enough to cause blowup if used
-#endif
+!--- MAY NEED TO TEST THIS
+!RAB#ifdef OVERLOAD_R4
+!RAB  real, parameter:: real_big = 1.e8    ! big enough to cause blowup if used
+!RAB#else
+!RAB  real, parameter:: real_big = 1.e30   ! big enough to cause blowup if used
+!RAB#endif
+  real, parameter:: real_big = 1.e10   ! big enough to cause blowup if used (without bothering the debugger)
   type fv_diag_type
 
 
@@ -52,7 +54,7 @@ module fv_arrays_mod
            id_delp, id_delz, id_zratio, id_ws, id_iw, id_lw,      &
            id_pfhy, id_pfnh,                                      &
            id_qn, id_qn200, id_qn500, id_qn850, id_qp, id_mdt, id_qdt, id_aam, id_amdt, &
-           id_acly, id_acl, id_acl2
+           id_acly, id_acl, id_acl2, id_dbz, id_maxdbz, id_basedbz, id_dbz4km
 
 ! Selected p-level fields from 3D variables:
  integer :: id_vort200, id_vort500, id_w500, id_w700
@@ -76,9 +78,7 @@ module fv_arrays_mod
 
      ! For initial conditions:
      integer ic_ps, ic_ua, ic_va, ic_ppt
-#ifdef LASPRAT
      integer ic_sphum
-#endif
      integer, allocatable :: id_tracer(:)
 ! ESM requested diagnostics  -  dry mass/volume mixing ratios
  integer, allocatable :: id_tracer_dmmr(:)
@@ -295,6 +295,7 @@ module fv_arrays_mod
 ! Additional (after the fact) terrain filter (to further smooth the terrain after cold start)
    integer ::    n_zs_filter=0      !  number of application of the terrain filter
    integer :: nord_zs_filter=4      !  use del-2 (2) OR del-4 (4)
+   logical :: full_zs_filter=.false.! perform full filtering of topography (in external_ic only )
 
    logical :: consv_am  = .false.   ! Apply Angular Momentum Correction (to zonal wind component)
    logical :: do_sat_adj= .false.   ! 
@@ -443,6 +444,7 @@ module fv_arrays_mod
    logical :: nudge_ic = .false.      ! Perform nudging on IC
    logical :: ncep_ic = .false.       ! use NCEP ICs 
    logical :: nggps_ic = .false.      ! use NGGPS ICs 
+   logical :: ecmwf_ic = .false.      ! use ECMWF ICs 
    logical :: gfs_phil = .false.      ! if .T., compute geopotential inside of GFS physics
    logical :: agrid_vel_rst = .false. ! if .T., include ua/va (agrid winds) in the restarts
    logical :: use_new_ncep = .false.  ! use the NCEP ICs created after 2014/10/22, if want to read CWAT

@@ -156,7 +156,7 @@ contains
            Atm(n)%flagstruct%moist_phys = .true.
            if ( grids_on_this_pe(n)) then
               call fv_phys_init(isc,iec,jsc,jec,Atm(n)%flagstruct%nwat, Atm(n)%ts, Time, axes, Atm(n)%gridstruct%agrid(isc:iec,jsc:jec,2))
-              if ( Atm(n)%flagstruct%nwat==6) call lin_cld_microphys_init(iec-isc+1, jec-jsc+1, Atm(n)%npz, axes, Time)
+              if ( Atm(n)%flagstruct%nwat==6) call lin_cld_microphys_init
            endif
         endif
 

@@ -1,3 +1,28 @@
+      module shalcnv_mod
+
+      use machine , only : kind_phys
+      implicit none
+
+      public
+
+      real(kind=kind_phys) c0 
+      real(kind=kind_phys) c1 
+
+      data c0/0.     /!rain autoconversion
+      data c1/5.e-4  /!cloud autoconversion
+
+      real(kind=kind_phys) clam
+      real(kind=kind_phys) pgcon
+
+ ! c_e for shallow convection (EP11, eq(6))
+      data clam/.3/
+! Gregory et al. (1997, QJRMS)
+!     data pgcon/0.7/     
+! Zhang & Wu (2003,JAS)
+      data pgcon/0.55/    
+
+      contains
+
 !     subroutine shalcnv(im,ix,km,jcap,delt,delp,prslp,psp,phil,ql,
       subroutine shalcnv(im,ix,km,delt,delp,prslp,psp,phil,ql,
 !    &     q1,t1,u1,v1,rn,kbot,ktop,kcnv,islimsk,
@@ -35,7 +60,7 @@
       integer              kpbl(im)
       integer, dimension(im), intent(in) :: islimsk
 !
-      real(kind=kind_phys) c0,      dellat,  delta,
+      real(kind=kind_phys) dellat,  delta,
      &                     desdt,   
      &                     dp,
      &                     dq,      dqsdp,   dqsdt,   dt,
@@ -43,7 +68,7 @@
      &                     dt2,     dv1h,
      &                     dv1q,    dv2h,    dv2q,    dv1u,
      &                     dv1v,    dv2u,    dv2v,    dv3q,
-     &                     dv3h,    dv3u,    dv3v,    clam,
+     &                     dv3h,    dv3u,    dv3v,    
      &                     dz,      dz1,     e1,
      &                     el2orc,  elocp,   aafac,
      &                     es,      etah,    h1,
@@ -52,15 +77,14 @@
 !    &                     fact2,   factor,  fjcap,   dthk,
      &                     fact2,   factor,  dthk,
      &                     g,       gamma,   pprime,  betaw,
-     &                     qlk,     qrch,    qs,      c1,
+     &                     qlk,     qrch,    qs,      
 !    &                     rfact,   shear,   tem1,
      &                     rfact,   tem1,
      &                     val,     val1,    val2,    wfac,
      &                     w1,      w1l,     w1s,     w2,
      &                     w2l,     w2s,     w3,      w3l,
      &                     w3s,     w4,      w4l,     w4s,
-     &                     tem,     ptem,    ptem1,
-     &                     pgcon
+     &                     tem,     ptem,    ptem1
 !
       integer              kb(im), kbcon(im), kbcon1(im),
      &                     ktcon(im), ktcon1(im), ktconn(im),
@@ -95,7 +119,7 @@ c  physical parameters
       parameter(elocp=hvap/cp,
      &          el2orc=hvap*hvap/(rv*cp))
 !     parameter(c0=.002,c1=5.e-4,delta=fv)
-      parameter(c0=0.,c1=5.e-4,delta=fv)
+      parameter(delta=fv)
       parameter(fact1=(cvap-cliq)/rv,fact2=hvap/rv-fact1*t0c)
       parameter(wfac=-150.,dthk=25.)
       parameter(cinpcrmx=180.,cinpcrmn=120.)
@@ -201,14 +225,11 @@ c
 !     val   =         5400.
 !     dtmax = max(dt2, val )
 c  model tunable parameters are all here
-      clam    = .3
       aafac   = .1
 c     evef    = 0.07
 !     evfact  = 0.3
 !     evfactl = 0.3
 !
-!     pgcon   = 0.7     ! Gregory et al. (1997, QJRMS)
-      pgcon   = 0.55    ! Zhang & Wu (2003,JAS)
 !     fjcap   = (float(jcap) / 126.) ** 2
 !     val     =           1.
 !     fjcap   = max(fjcap,val)
@@ -1408,3 +1429,5 @@ c
 !!
       return
       end
+
+      end module shalcnv_mod

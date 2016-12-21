@@ -328,7 +328,11 @@ contains
        ! call mpp_domains_set_stack_size(10000)
        ! call mpp_domains_set_stack_size(900000)
        !  call mpp_domains_set_stack_size(1500000)
+#ifdef SMALL_PE
+         call mpp_domains_set_stack_size(6000000)
+#else
          call mpp_domains_set_stack_size(3000000)
+#endif
 
          select case(nregions)
          case ( 1 )  ! Lat-Lon "cyclic"

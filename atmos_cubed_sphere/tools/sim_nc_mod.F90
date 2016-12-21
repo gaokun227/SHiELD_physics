@@ -38,7 +38,7 @@ module sim_nc_mod
  private
  public  open_ncfile, close_ncfile, get_ncdim1, get_var1_double, get_var2_double,   &
          get_var3_real, get_var3_double, get_var3_r4, get_var2_real, get_var2_r4,   &
-         handle_err, check_var, get_var1_real
+         handle_err, check_var, get_var1_real, get_var_att_double
 
 !---- version number -----
  character(len=128) :: version = '$Id$'
@@ -382,6 +382,22 @@ module sim_nc_mod
       if (status .ne. NF_NOERR) call handle_err(status)
 
       end subroutine get_var_att_str
+
+      subroutine get_var_att_double(ncid, var_name, att_name, value)
+      implicit none
+#include <netcdf.inc>
+      integer, intent(in):: ncid
+      character*(*), intent(in)::  var_name, att_name
+      real(kind=8), intent(out)::  value
+
+      integer::  status, varid
+
+      status = nf_inq_varid (ncid, var_name, varid)
+      status = nf_get_att(ncid, varid, att_name, value)
+
+      if (status .ne. NF_NOERR) call handle_err(status)
+
+      end subroutine get_var_att_double
 
 
       subroutine handle_err(status)

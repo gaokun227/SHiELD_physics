@@ -262,6 +262,7 @@ contains
        jsd = Atm(n)%bd%jsd
        jed = Atm(n)%bd%jed
        ncnst = Atm(n)%ncnst
+       if( is_master() ) write(*,*) 'in fv_restart ncnst=', ncnst
        isc = Atm(n)%bd%isc; iec = Atm(n)%bd%iec; jsc = Atm(n)%bd%jsc; jec = Atm(n)%bd%jec
 
     ! Init model data
@@ -543,7 +544,7 @@ contains
            write(unit,*) 'fv_restart q(prog) nq  ', trim(gn),' =',ntprog, mpp_chksum(Atm(n)%q(isc:iec,jsc:jec,:,:))
       if (ntdiag>0) &
            write(unit,*) 'fv_restart q(diag) nq  ', trim(gn),' =',ntdiag, mpp_chksum(Atm(n)%qdiag(isc:iec,jsc:jec,:,:))
-      do iq=1,min(7, ntprog)     ! Check up to 7 tracers
+      do iq=1,min(17, ntprog)     ! Check up to 17 tracers
         call get_tracer_names(MODEL_ATMOS, iq, tracer_name)
         write(unit,*) 'fv_restart '//trim(tracer_name)//' = ', mpp_chksum(Atm(n)%q(isc:iec,jsc:jec,:,iq))
       enddo
@@ -1373,7 +1374,7 @@ contains
            write(unit,*) 'fv_restart_end q(prog) nq  ', trim(gn),' =',ntprog, mpp_chksum(Atm(n)%q(isc:iec,jsc:jec,:,:))
       if (ntdiag>0) &
            write(unit,*) 'fv_restart_end q(diag) nq  ', trim(gn),' =',ntdiag, mpp_chksum(Atm(n)%qdiag(isc:iec,jsc:jec,:,:))
-      do iq=1,min(7, ntprog)     ! Check up to 7 tracers
+      do iq=1,min(17, ntprog)     ! Check up to 17 tracers
         call get_tracer_names(MODEL_ATMOS, iq, tracer_name)
         write(unit,*) 'fv_restart_end '//trim(tracer_name)// trim(gn),' = ', mpp_chksum(Atm(n)%q(isc:iec,jsc:jec,:,iq))
       enddo

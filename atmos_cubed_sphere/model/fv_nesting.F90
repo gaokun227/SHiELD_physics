@@ -57,6 +57,10 @@ implicit none
 	!Individual structures are allocated by nested_grid_BC_recv
    type(fv_nest_BC_type_3d) :: u_buf, v_buf, uc_buf, vc_buf, delp_buf, delz_buf, pt_buf, pkz_buf, w_buf, divg_buf
    type(fv_nest_BC_type_3d), allocatable:: q_buf(:)
+!#ifdef USE_COND
+   real, dimension(:,:,:), allocatable, target :: dum_West, dum_East, dum_North, dum_South
+!#endif
+
 private
 public :: twoway_nesting, setup_nested_grid_BCs
 
@@ -279,9 +283,9 @@ contains
                neststruct%delz_BC, delz_buf) !Need a negative-definite method? 
           
           call setup_pt_NH_BC(neststruct%pt_BC, neststruct%delp_BC, neststruct%delz_BC, &
-               neststruct%q_BC(sphum), &
+               neststruct%q_BC(sphum), neststruct%q_BC, ncnst, &
 #ifdef USE_COND
-               neststruct%q_BC, neststruct%q_con_BC, ncnst, &
+               neststruct%q_con_BC, &
 #ifdef MOIST_CAPPA
                neststruct%cappa_BC, &
 #endif
@@ -438,9 +442,9 @@ contains
    
  end subroutine setup_pt_BC
 
- subroutine setup_pt_NH_BC(pt_BC, delp_BC, delz_BC, sphum_BC, &
+ subroutine setup_pt_NH_BC(pt_BC, delp_BC, delz_BC, sphum_BC, q_BC, nq, &
 #ifdef USE_COND
-      q_BC, q_con_BC, nq, &
+      q_con_BC, &
 #ifdef MOIST_CAPPA
       cappa_BC, &
 #endif
@@ -450,10 +454,10 @@ contains
    type(fv_grid_bounds_type), intent(IN) :: bd
    type(fv_nest_BC_type_3d), intent(IN), target    :: delp_BC, delz_BC, sphum_BC
    type(fv_nest_BC_type_3d), intent(INOUT), target :: pt_BC
-#ifdef USE_COND
    integer, intent(IN) :: nq
-   type(fv_nest_BC_type_3d), intent(INOUT), target :: q_con_BC
    type(fv_nest_BC_type_3d), intent(IN), target :: q_BC(nq)
+#ifdef USE_COND
+   type(fv_nest_BC_type_3d), intent(INOUT), target :: q_con_BC
 #ifdef MOIST_CAPPA
    type(fv_nest_BC_type_3d), intent(INOUT), target :: cappa_BC
 #endif
@@ -466,7 +470,10 @@ contains
     real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
 
    real, dimension(:,:,:), pointer :: ptBC, sphumBC, qconBC, delpBC, delzBC, cappaBC
-   real, dimension(:,:,:), pointer :: liq_watBC, ice_watBC, rainwatBC, snowwatBC, graupelBC
+   real, dimension(:,:,:), pointer :: liq_watBC_west, ice_watBC_west, rainwatBC_west, snowwatBC_west, graupelBC_west
+   real, dimension(:,:,:), pointer :: liq_watBC_east, ice_watBC_east, rainwatBC_east, snowwatBC_east, graupelBC_east
+   real, dimension(:,:,:), pointer :: liq_watBC_north, ice_watBC_north, rainwatBC_north, snowwatBC_north, graupelBC_north
+   real, dimension(:,:,:), pointer :: liq_watBC_south, ice_watBC_south, rainwatBC_south, snowwatBC_south, graupelBC_south
 
    real :: dp1, q_liq, q_sol, q_con = 0., cvm, pkz, rdg, cv_air
 
@@ -494,20 +501,122 @@ contains
    ice_wat = get_tracer_index (MODEL_ATMOS, 'ice_wat')
    rainwat = get_tracer_index (MODEL_ATMOS, 'rainwat')
    snowwat = get_tracer_index (MODEL_ATMOS, 'snowwat')
-   graupel = get_tracer_index (MODEL_ATMOS, 'graupel')
+   graupel = get_tracer_index (MODEL_ATMOS, 'graupel')   
+
+   if (is == 1) then
+      if (.not. allocated(dum_West)) then
+         allocate(dum_West(isd:0,jsd:jed,npz))
+!$OMP parallel do default(none) shared(npz,isd,jsd,jed,dum_West)
+         do k=1,npz
+         do j=jsd,jed
+         do i=isd,0
+            dum_West(i,j,k) = 0.
+         enddo
+         enddo
+         enddo
+      endif
+   endif
+   if (js == 1) then
+      if (.not. allocated(dum_South)) then
+         allocate(dum_South(isd:ied,jsd:0,npz))
+!$OMP parallel do default(none) shared(npz,isd,ied,jsd,dum_South)
+         do k=1,npz
+         do j=jsd,0
+         do i=isd,ied
+            dum_South(i,j,k) = 0.
+         enddo
+         enddo
+         enddo
+      endif
+   endif
+   if (ie == npx-1) then
+      if (.not. allocated(dum_East)) then
+         allocate(dum_East(npx:ied,jsd:jed,npz))
+!$OMP parallel do default(none) shared(npx,npz,ied,jsd,jed,dum_East)
+         do k=1,npz
+         do j=jsd,jed
+         do i=npx,ied
+            dum_East(i,j,k) = 0.
+         enddo
+         enddo
+         enddo
+      endif
+   endif
+   if (je == npy-1) then
+      if (.not. allocated(dum_North)) then
+         allocate(dum_North(isd:ied,npy:jed,npz))
+!$OMP parallel do default(none) shared(npy,npz,isd,ied,jed,dum_North)
+         do k=1,npz
+         do j=npy,jed
+         do i=isd,ied
+            dum_North(i,j,k) = 0.
+         enddo
+         enddo
+         enddo
+      endif
+   endif
+
+   if (liq_wat > 0) then
+      liq_watBC_west  => q_BC(liq_wat)%west_t1
+      liq_watBC_east  => q_BC(liq_wat)%east_t1
+      liq_watBC_north => q_BC(liq_wat)%north_t1
+      liq_watBC_south => q_BC(liq_wat)%south_t1
+   else
+      liq_watBC_west  => dum_west
+      liq_watBC_east  => dum_east
+      liq_watBC_north => dum_north
+      liq_watBC_south => dum_south
+   endif
+   if (ice_wat > 0) then
+      ice_watBC_west  => q_BC(ice_wat)%west_t1
+      ice_watBC_east  => q_BC(ice_wat)%east_t1
+      ice_watBC_north => q_BC(ice_wat)%north_t1
+      ice_watBC_south => q_BC(ice_wat)%south_t1
+   else
+      ice_watBC_west  => dum_west
+      ice_watBC_east  => dum_east
+      ice_watBC_north => dum_north
+      ice_watBC_south => dum_south
+   endif
+   if (rainwat > 0) then
+      rainwatBC_west  => q_BC(rainwat)%west_t1
+      rainwatBC_east  => q_BC(rainwat)%east_t1
+      rainwatBC_north => q_BC(rainwat)%north_t1
+      rainwatBC_south => q_BC(rainwat)%south_t1
+   else
+      rainwatBC_west  => dum_west
+      rainwatBC_east  => dum_east
+      rainwatBC_north => dum_north
+      rainwatBC_south => dum_south
+   endif
+   if (snowwat > 0) then
+      snowwatBC_west  => q_BC(snowwat)%west_t1
+      snowwatBC_east  => q_BC(snowwat)%east_t1
+      snowwatBC_north => q_BC(snowwat)%north_t1
+      snowwatBC_south => q_BC(snowwat)%south_t1
+   else
+      snowwatBC_west  => dum_west
+      snowwatBC_east  => dum_east
+      snowwatBC_north => dum_north
+      snowwatBC_south => dum_south
+   endif
+   if (graupel > 0) then
+      graupelBC_west  => q_BC(graupel)%west_t1
+      graupelBC_east  => q_BC(graupel)%east_t1
+      graupelBC_north => q_BC(graupel)%north_t1
+      graupelBC_south => q_BC(graupel)%south_t1
+   else
+      graupelBC_west  => dum_west
+      graupelBC_east  => dum_east
+      graupelBC_north => dum_north
+      graupelBC_south => dum_south
+   endif
 
    if (is == 1) then
       ptBC    =>    pt_BC%west_t1
       sphumBC => sphum_BC%west_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%west_t1
-      liq_watBC => q_BC(liq_wat)%west_t1
-#ifndef GFS_PHYS
-      ice_watBC => q_BC(ice_wat)%west_t1
-      rainwatBC => q_BC(rainwat)%west_t1
-      snowwatBC => q_BC(snowwat)%west_t1
-      graupelBC => q_BC(graupel)%west_t1
-#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%west_t1
 #endif
@@ -515,7 +624,7 @@ contains
       delpBC  =>  delp_BC%west_t1
       delzBC  =>  delz_BC%west_t1
 
-!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC,rainwatBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
+!$OMP parallel do default(none) shared(npz,jsd,jed,isd,zvir,sphumBC,liq_watBC_west,rainwatBC_west,ice_watBC_west,snowwatBC_west,graupelBC_west,qconBC,cappaBC, &
 !$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -524,12 +633,12 @@ contains
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
 #ifdef GFS_PHYS
-         q_con = liq_watBC(i,j,k)
+         q_con = liq_watBC_west(i,j,k)
          q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
          q_liq = q_con - q_sol
 #else
-         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
-         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_liq = liq_watBC_west(i,j,k) + rainwatBC_west(i,j,k)
+         q_sol = ice_watBC_west(i,j,k) + snowwatBC_west(i,j,k) + graupelBC_west(i,j,k)
          q_con = q_liq + q_sol
 #endif 
          qconBC(i,j,k) = q_con
@@ -559,13 +668,6 @@ contains
       sphumBC => sphum_BC%south_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%south_t1
-      liq_watBC => q_BC(liq_wat)%south_t1
-#ifndef GFS_PHYS
-      ice_watBC => q_BC(ice_wat)%south_t1
-      rainwatBC => q_BC(rainwat)%south_t1
-      snowwatBC => q_BC(snowwat)%south_t1
-      graupelBC => q_BC(graupel)%south_t1
-#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%south_t1
 #endif
@@ -583,7 +685,9 @@ contains
          iend = ied
       end if
 
-!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC,liq_watBC,rainwatBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
+!$OMP parallel do default(none) shared(npz,jsd,istart,iend,zvir,sphumBC, &
+!$OMP      liq_watBC_south,rainwatBC_south,ice_watBC_south,&
+!$OMP      snowwatBC_south,graupelBC_south,qconBC,cappaBC, &
 !$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
 !$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
@@ -592,12 +696,12 @@ contains
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
 #ifdef GFS_PHYS
-         q_con = liq_watBC(i,j,k)
+         q_con = liq_watBC_south(i,j,k)
          q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
          q_liq = q_con - q_sol
 #else
-         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
-         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_liq = liq_watBC_south(i,j,k) + rainwatBC_south(i,j,k)
+         q_sol = ice_watBC_south(i,j,k) + snowwatBC_south(i,j,k) + graupelBC_south(i,j,k)
          q_con = q_liq + q_sol
 #endif 
          qconBC(i,j,k) = q_con
@@ -627,34 +731,28 @@ contains
       sphumBC => sphum_BC%east_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%east_t1
-      liq_watBC => q_BC(liq_wat)%east_t1
-#ifndef GFS_PHYS
-      ice_watBC => q_BC(ice_wat)%east_t1
-      rainwatBC => q_BC(rainwat)%east_t1
-      snowwatBC => q_BC(snowwat)%east_t1
-      graupelBC => q_BC(graupel)%east_t1
-#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%east_t1
 #endif
 #endif
       delpBC  =>  delp_BC%east_t1
       delzBC  =>  delz_BC%east_t1
-!OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC,liq_watBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
-!OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
-!OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
+!$OMP parallel do default(none) shared(npz,jsd,jed,npx,ied,zvir,sphumBC, &
+!$OMP      liq_watBC_east,rainwatBC_east,ice_watBC_east,snowwatBC_east,graupelBC_east,qconBC,cappaBC, &
+!$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=jsd,jed
       do i=npx,ied
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
 #ifdef GFS_PHYS
-         q_con = liq_watBC(i,j,k)
+         q_con = liq_watBC_east(i,j,k)
          q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
          q_liq = q_con - q_sol
 #else
-         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
-         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_liq = liq_watBC_east(i,j,k) + rainwatBC_east(i,j,k)
+         q_sol = ice_watBC_east(i,j,k) + snowwatBC_east(i,j,k) + graupelBC_east(i,j,k)
          q_con = q_liq + q_sol
 #endif 
          qconBC(i,j,k) = q_con
@@ -683,13 +781,6 @@ contains
       sphumBC => sphum_BC%north_t1
 #ifdef USE_COND
       qconBC  => q_con_BC%north_t1
-      liq_watBC => q_BC(liq_wat)%north_t1
-#ifndef GFS_PHYS
-      ice_watBC => q_BC(ice_wat)%north_t1
-      rainwatBC => q_BC(rainwat)%north_t1
-      snowwatBC => q_BC(snowwat)%north_t1
-      graupelBC => q_BC(graupel)%north_t1
-#endif
 #ifdef MOIST_CAPPA
       cappaBC =>  cappa_BC%north_t1
 #endif
@@ -707,21 +798,22 @@ contains
          iend = ied
       end if
 
-!OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir,sphumBC,liq_watBC,ice_watBC,snowwatBC,graupelBC,qconBC,cappaBC, &
-!OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
-!OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
+!$OMP parallel do default(none) shared(npz,npy,jed,istart,iend,zvir, &
+!$OMP      sphumBC,liq_watBC_north,rainwatBC_north,ice_watBC_north,snowwatBC_north,graupelBC_north,qconBC,cappaBC, &
+!$OMP      rdg,cv_air,delpBC,delzBC,ptBC) &
+!$OMP      private(dp1,q_con,q_liq,q_sol,cvm,pkz)
       do k=1,npz
       do j=npy,jed
       do i=istart,iend
          dp1 = zvir*sphumBC(i,j,k)
 #ifdef USE_COND
 #ifdef GFS_PHYS
-         q_con = liq_watBC(i,j,k)
+         q_con = liq_watBC_north(i,j,k)
          q_sol = q_con*max(min((tice-ptBC(i,j,k))/t_i0,1.),0.)
          q_liq = q_con - q_sol
 #else
-         q_liq = liq_watBC(i,j,k) + rainwatBC(i,j,k)
-         q_sol = ice_watBC(i,j,k) + snowwatBC(i,j,k) + graupelBC(i,j,k)
+         q_liq = liq_watBC_north(i,j,k) + rainwatBC_north(i,j,k)
+         q_sol = ice_watBC_north(i,j,k) + snowwatBC_north(i,j,k) + graupelBC_north(i,j,k)
          q_con = q_liq + q_sol
 #endif 
          qconBC(i,j,k) = q_con

@@ -57,7 +57,8 @@ module gfs_physics_driver_mod
 !
 !--- NUOPC GFS Physics module routines ---
   use nuopc_physics,      only: nuopc_phys_init, nuopc_phys_run, &
-                                nuopc_rad_run, nuopc_rad_update
+                                nuopc_rad_run, nuopc_rad_update, &
+                                nuopc_phys_end
 !
 !--- NUOPC GFS Physics module datatypes ---
   use nuopc_physics,      only: state_fields_in, state_fields_out,      &
@@ -77,6 +78,27 @@ module gfs_physics_driver_mod
 !
 !--- variables needed for calculating 'sncovr'
   use namelist_soilveg,   only: salp_data, snupx
+!
+!
+!--- tuning variable in Lin Cloud Microphysics
+ use lin_cld_microphys_mod, only: mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
+        vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &
+        vi_max, vs_max, vg_max, vr_max,        &
+        qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
+        rh_inc, rh_ins, rh_inr, const_vi, const_vs, const_vg, const_vr,    &
+        use_ccn, rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
+        c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
+        c_paut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
+        c_cracw, alin, clin, tice, rad_snow, rad_graupel, rad_rain,   &
+        cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
+        do_sedi_w, de_ice, mp_print
+
+ use sascnvn_mod, only: cxlamu_deep => cxlamu, clam_deep => clam, &
+      ccloud_deep => c0, crain_deep => c1, betal_deep => betal,   &
+      betas_deep => betas, evfact_deep => evfact, evfactl_deep => evfactl, &
+      pgcon_deep => pgcon
+ use shalcnv_mod, only: clam_shal => clam, ccloud_shal => c1
+ use moninq_mod,  only: xkzminv_moninq => xkzminv, moninq_fac
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -201,8 +223,8 @@ module gfs_physics_driver_mod
     integer :: nrcm     = 2               ! when using ras, will be computed
     integer :: levozp   = 80              ! read from global_o3prdlos.f77
     integer :: jcap     = 1               ! should not matter it is used by spherical 
-    integer :: num_p3d  = 4               ! Ferrier:3  Zhao:4 
-    integer :: num_p2d  = 3               ! Ferrier:1  Zhao:3
+    integer :: num_p3d  = 4               ! Ferrier:3  Zhao:4  GFDL:4
+    integer :: num_p2d  = 3               ! Ferrier:1  Zhao:3  GFDL:1
     integer :: npdf3d   = 0               ! Zhao & pdfcld=.T.:3  -  else:0
     integer :: pl_coeff = 4
     integer :: ncw(2)   = (/20,120/)
@@ -216,7 +238,7 @@ module gfs_physics_driver_mod
     real (kind=kind_phys) :: prslrd0 = 200.
     logical :: ras          = .false.
     logical :: pre_rad      = .false.
-    logical :: ldiag3d      = .false.
+    logical :: ldiag3d      = .false. 
     logical :: lgocart      = .false. 
     logical :: cplflx       = .false.  
     logical :: lssav_cpl    = .false.
@@ -246,8 +268,8 @@ module gfs_physics_driver_mod
     integer :: ntke       = 0
     logical :: do_shoc    = .false.
     logical :: shocaftcnv = .false.
-    integer :: ntot3d     = 4
-    integer :: ntot2d     = 3
+    integer :: ntot3d     = 4  ! Ferrier:3  Zhao:4  GFDL:4
+    integer :: ntot2d     = 3  ! Ferrier:1  Zhao:3  GFDL:1
     logical :: shoc_cld   = .false.
 !
 !--- Radiation option control parameters
@@ -264,6 +286,7 @@ module gfs_physics_driver_mod
     logical :: crick_proof  = .false.
     logical :: ccnorm       = .false.
     logical :: norad_precip = .false.     ! This is effective only for Ferrier/Moorthi
+    logical :: random_clds  = .true.
 !
 !--- rad_save
     integer :: iflip = 1                  ! surface to toa
@@ -291,9 +314,28 @@ module gfs_physics_driver_mod
 !--- namelist definition ---
    namelist /nggps_diag_nml/  fdiag
    namelist /gfs_physics_nml/ norad_precip,debug,levs,fhswr,fhlwr,ntoz,ntcw,     &
-                              ozcalc,cdmbgwd,fhzero,fhcyc,use_ufo,nst_anl, &
+                              ozcalc,cdmbgwd,fhzero,fhcyc,use_ufo,nst_anl,       &
                               prslrd0,xkzm_m,xkzm_h,xkzm_s,nocnv,ncols,dspheat,  &
-                              hybedmf,shal_cnv
+                              hybedmf,shal_cnv,ncld,ntoz,ntot2d,ntot3d,num_p2d,  &
+                              num_p3d,ldiag3d,                                   &
+                              clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
+                              betal_deep, betas_deep, evfact_deep, evfactl_deep, &
+                              pgcon_deep,                                        &
+                              clam_shal, ccloud_shal,                            & ! shalcnv
+                              xkzminv_moninq, moninq_fac,                        & ! moninq
+                              random_clds,                                       & ! cal_pre rann
+!--- namelist for Lin cloud microphysics
+        mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
+        vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &
+        vi_max, vs_max, vg_max, vr_max,        &
+        qs0_crt, qi_gen, ql0_max, qi0_max, qi0_crt, qr0_crt, fast_sat_adj, &
+        rh_inc, rh_ins, rh_inr, const_vi, const_vs, const_vg, const_vr,    &
+        use_ccn, rthresh, ccn_l, ccn_o, qc_crt, tau_g2v, tau_v2g, sat_adj0,    &
+        c_piacr, tau_mlt, tau_v2l, tau_l2v, tau_i2s, qi_lim, ql_gen,  &
+        c_paut, c_psaci, c_pgacs, z_slope_liq, z_slope_ice, prog_ccn,  &
+        c_cracw, alin, clin, tice, rad_snow, rad_graupel, rad_rain,   &
+        cld_min, use_ppm, mono_prof, do_sedi_heat, sedi_transport,   &
+        do_sedi_w, de_ice, mp_print
 !
 !--- needed for random number stream for gbphys::calpreciptype
       integer :: seed0
@@ -460,10 +502,12 @@ module gfs_physics_driver_mod
 !
 !--- set up random number stream needed for RAS and old SAS and when cal_pre=.true.
     if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
-      seed0 = idate(1) + idate(2) + idate(3) + idate(4)
-      call random_setseed(seed0)
-      call random_number(wrk)
-      seed0 = seed0 + nint(wrk(1)*1000.0d0)
+      if (random_clds) then
+        seed0 = idate(1) + idate(2) + idate(3) + idate(4)
+        call random_setseed(seed0)
+        call random_number(wrk)
+        seed0 = seed0 + nint(wrk(1)*1000.0d0)
+      endif
     endif
 !
 !--- initialize the physics/radiation using the nuopc interface
@@ -605,6 +649,7 @@ module gfs_physics_driver_mod
          print *, "sashal           : ", Mdl_parms%sashal
          print *, "newsas           : ", Mdl_parms%newsas
          print *, "cal_pre          : ", Mdl_parms%cal_pre
+         print *, "random_clds      : ", random_clds
          print *, "mom4ice          : ", Mdl_parms%mom4ice
          print *, "mstrat           : ", Mdl_parms%mstrat
          print *, "trans_trac       : ", Mdl_parms%trans_trac
@@ -722,22 +767,24 @@ module gfs_physics_driver_mod
 !
 !--- random number needed for RAS and old SAS and when cal_pre=.true.
     if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
-      iseed = mod(100.0*sqrt(fhour*3600),1.0d9) + seed0
-      call random_setseed(iseed)
-      call random_number(wrk)
-      do i = 1,lon_cs*Mdl_parms%nrcm 
-        iseed = iseed + nint(wrk(1)) * i
+      if (random_clds) then
+        iseed = mod(100.0*sqrt(fhour*3600),1.0d9) + seed0
         call random_setseed(iseed)
-        call random_number(rannie)
-        rndval(1+(i-1)*lat_cs:i*lat_cs) = rannie(1:lat_cs)
-      enddo
+        call random_number(wrk)
+        do i = 1,lon_cs*Mdl_parms%nrcm 
+          iseed = iseed + nint(wrk(1)) * i
+          call random_setseed(iseed)
+          call random_number(rannie)
+          rndval(1+(i-1)*lat_cs:i*lat_cs) = rannie(1:lat_cs)
+        enddo
+      endif
     endif
 
 !$OMP PARALLEL DO default(none) &
 !$OMP              shared(Atm_block,Dyn_parms,fhour,fms_date,phour,Mdl_parms,nsswr,  &
 !$OMP                     nslwr,isubc_lw,isubc_sw,numrdm,lon_cs,lat_cs,dxmin,dxinv,  &
 !$OMP                     Cld_props,flgmin,ozcalc,O3dat,ozplin,Tbd_data,lsswr,lslwr, &
-!$OMP                     rndval)                                                    &
+!$OMP                     random_clds,rndval)                                        &
 !$OMP             private(nb,ibs,ibe,jbs,jbe,nx,ny,ngptc,ix,k,j,i,work1)
     do nb = 1, Atm_block%nblks
       ibs = Atm_block%ibs(nb)
@@ -798,15 +845,17 @@ module gfs_physics_driver_mod
 !
 !--- random number needed for RAS and old SAS and when cal_pre=.true.
       if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
-        do k = 1,Mdl_parms%nrcm
-          ix = 0 
-          do j = 1,ny
-            do i = 1,nx
-              ix = ix + 1
-              Tbd_data(nb)%rann(ix,k) = rndval(i+ibs-1 + (j+jbs-2)*lon_cs + (k-1)*lat_cs*lon_cs)
+        if (random_clds) then
+          do k = 1,Mdl_parms%nrcm
+            ix = 0 
+            do j = 1,ny
+              do i = 1,nx
+                ix = ix + 1
+                Tbd_data(nb)%rann(ix,k) = rndval(i+ibs-1 + (j+jbs-2)*lon_cs + (k-1)*lat_cs*lon_cs)
+              enddo
             enddo
           enddo
-        enddo
+        endif
       endif
 !
 !--- interpolate coefficients for prognostic ozone calculation
@@ -1038,6 +1087,7 @@ module gfs_physics_driver_mod
     type (block_control_type),   intent(in) :: Atm_block
     type (domain2d),             intent(in) :: fv_domain
 
+    call nuopc_phys_end
     call surface_props_output (Atm_block, fv_domain)
   end subroutine phys_rad_driver_end
 !-------------------------------------------------------------------------      
@@ -2166,6 +2216,87 @@ module gfs_physics_driver_mod
       Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%rainc(1:ngptc)
     enddo
 
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ice'
+    Diag(idx)%desc = 'ice fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%ice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'snow'
+    Diag(idx)%desc = 'snow fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%snow(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'graupel'
+    Diag(idx)%desc = 'graupel fall at this time step'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%graupel(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totice'
+    Diag(idx)%desc = 'surface ice precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totice(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totsnw'
+    Diag(idx)%desc = 'surface snow precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totsnw(1:ngptc)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totgrp'
+    Diag(idx)%desc = 'surface graupel precipitation rate [kg/m**2/s]'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    do nb = 1,nblks
+      nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
+      ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
+      ngptc = nx*ny
+      Diag(idx)%data(nb)%var2(1:nx,1:ny) => Gfs_diags(nb)%totgrp(1:ngptc)
+    enddo
+
 !--- physics instantaneous diagnostics ---
     idx = idx + 1
     Diag(idx)%axes = 2
@@ -2548,8 +2679,9 @@ module gfs_physics_driver_mod
 
     idx = idx + 1
     Diag(idx)%axes = 3
+    !Requires lgocart = .T.
     Diag(idx)%name = 'dqdt_v'
-    Diag(idx)%desc = 'total moisture tendency'
+    Diag(idx)%desc = 'instantaneous total moisture tendency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
 

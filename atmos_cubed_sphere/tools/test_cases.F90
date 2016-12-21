@@ -1546,9 +1546,8 @@
        endif
 
       else if (test_case==11) then
-
-       call surfdrv(npx, npy, grid, agrid,   &
-                    gridstruct%area_64, dx, dy, dxc, dyc, &
+       call surfdrv(npx, npy, gridstruct%grid_64, gridstruct%agrid_64,   &
+                    gridstruct%area_64, dx, dy, dxa, dya, dxc, dyc, &
                     gridstruct%sin_sg, phis, &
                     flagstruct%stretch_fac, gridstruct%nested, &
                     npx_global, domain, flagstruct%grid_number, bd)
@@ -7054,6 +7053,12 @@ end subroutine terminator_tracers
  real:: dz0, zvir, fac_z, pk0, temp1, p2
  integer:: k, n, kk
 
+#ifdef GFS_PHYS
+
+ call mpp_error(FATAL, 'SuperCell sounding cannot perform with GFS Physics.')
+
+#else
+
  zvir = rvgas/rdgas - 1.
  pk0 = p00**kappa
  pp(ns) = ps
@@ -7151,6 +7156,8 @@ end subroutine terminator_tracers
     tp(k) = tp(k)*pk1(k)    ! temperature
     tp(k) = max(Tmin, tp(k))
  enddo
+
+#endif
 
  end subroutine SuperCell_Sounding
 

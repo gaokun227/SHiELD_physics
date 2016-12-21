@@ -2,7 +2,7 @@
       subroutine rad_initialize                                         &
 !...................................
 !  ---  inputs:
-     &     ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,                &
+     &     ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw,num_p2d,        &
      &       num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
      &       sashal,crick_proof,ccnorm,norad_precip,idate,iflip,me )
 !  ---  outputs: ( none )
@@ -114,7 +114,7 @@
       implicit   none
 
 !  ---  input:
-      integer,  intent(in) :: levr, ictm, isol, ico2, iaer,             &
+      integer,  intent(in) :: levr, ictm, isol, ico2, iaer, num_p2d,    &
      &       ntcw, ialb, iems, num_p3d, npdf3d, ntoz, iovr_sw, iovr_lw, &  
      &       isubc_sw, isubc_lw, iflip, me, idate(4)
 
@@ -157,10 +157,14 @@
         icldflg = 0                     ! diagnostic cloud optical prop scheme
       endif
       if ( num_p3d == 4 ) then
-        if (npdf3d /= 3) then
-          icmphys = 1                   ! zhao/moorthi's prognostic cloud scheme
-        else
-          icmphys = 3                   ! zhao+ pdf cloud & cnvc and cnvw
+        if ( num_p2d == 3 ) then
+          if (npdf3d /= 3) then
+            icmphys = 1                   ! zhao/moorthi's prognostic cloud scheme
+          else
+            icmphys = 3                   ! zhao+ pdf cloud & cnvc and cnvw
+          endif
+        elseif ( num_p2d == 1 ) then
+          icmphys = 4                   ! lin's microphysics
         endif
       elseif ( num_p3d == 3 ) then
         icmphys = 2                     ! ferrier's microphysics

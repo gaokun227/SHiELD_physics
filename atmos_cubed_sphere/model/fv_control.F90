@@ -226,7 +226,11 @@ module fv_control_mod
 
    integer :: ntilesMe                ! Number of tiles on this process =1 for now
 
+#ifdef OVERLOAD_R4
+   real    :: too_big  = 1.E8
+#else
    real    :: too_big  = 1.E35
+#endif
    public :: fv_init, fv_end
 
    integer, public :: ngrids = 1
@@ -270,6 +274,11 @@ module fv_control_mod
                          ioffset, joffset, check_negative, nudge_ic, halo_update_type, gfs_phil, agrid_vel_rst
 
    namelist /test_case_nml/test_case,alpha, nsolitons, soliton_Umax, soliton_size
+
+#ifdef GFS_PHYS
+   real, dimension(2048) :: fdiag = 0.
+   namelist /nggps_diag_nml/ fdiag
+#endif
 
  contains
 
@@ -609,6 +618,20 @@ module fv_control_mod
    ! Read Test_Case namelist
       read (input_nml_file,test_case_nml,iostat=ios)
       ierr = check_nml_error(ios,'test_case_nml')
+#ifdef GFS_PHYS
+   ! Read NGGPS_DIAG namelist
+      read (input_nml_file,nggps_diag_nml,iostat=ios)
+      ierr = check_nml_error(ios,'nggps_diag_nml')
+!--- check fdiag to see if it is an interval or a list
+      if (nint(fdiag(2)) == 0) then
+        Atm(n)%fdiag(1) = fdiag(1)
+        do i = 2, size(fdiag,1)
+          Atm(n)%fdiag(i) = Atm(n)%fdiag(i-1) + fdiag(1)
+        enddo
+      else
+        atm(n)%fdiag = fdiag
+      endif
+#endif
 #else
       if (size(Atm) == 1) then
          f_unit = open_namelist_file()
@@ -627,7 +650,21 @@ module fv_control_mod
       rewind (f_unit)
       read (f_unit,test_case_nml,iostat=ios)
       ierr = check_nml_error(ios,'test_case_nml')
-
+#ifdef GFS_PHYS
+   ! Read NGGPS_DIAG namelist
+      rewind (f_unit)
+      read (f_unit,nggps_diag_nml,iostat=ios)
+      ierr = check_nml_error(ios,'nggps_diag_nml')
+!--- check fdiag to see if it is an interval or a list
+      if (nint(fdiag(2)) == 0) then
+        Atm(n)%fdiag(1) = fdiag(1)
+        do i = 2, size(fdiag,1)
+          Atm(n)%fdiag(i) = Atm(n)%fdiag(i-1) + fdiag(1)
+        enddo
+      else
+        atm(n)%fdiag = fdiag
+      endif
+#endif
       call close_file(f_unit)
 #endif         
           if (len_trim(grid_file) /= 0) Atm(n)%flagstruct%grid_file = grid_file
@@ -637,6 +674,7 @@ module fv_control_mod
 
          write(unit, nml=fv_core_nml)
          write(unit, nml=test_case_nml)
+         write(unit, nml=nggps_diag_nml)
 
          !*** single tile for Cartesian grids
          if (grid_type>3) then

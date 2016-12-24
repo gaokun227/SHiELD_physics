@@ -35,6 +35,12 @@ module fv_arrays_mod
 
 
   integer, parameter:: max_step = 1000
+!--- MAY NEED TO TEST THIS
+!RAB#ifdef OVERLOAD_R4
+!RAB  real, parameter:: real_big = 1.e8    ! big enough to cause blowup if used
+!RAB#else
+!RAB  real, parameter:: real_big = 1.e30   ! big enough to cause blowup if used
+!RAB#endif
   real, parameter:: real_big = 1.e10   ! big enough to cause blowup if used (without bothering the debugger)
   type fv_diag_type
 
@@ -613,6 +619,11 @@ module fv_arrays_mod
      !Timestep-related variables.
 
      type(time_type) :: Time_init, Time, Run_length, Time_end, Time_step_atmos
+
+#ifdef GFS_PHYS
+     !--- used for GFS PHYSICS only
+     real, dimension(2048) :: fdiag = 0.
+#endif
 
      logical :: grid_active = .true. !Always active for now
 

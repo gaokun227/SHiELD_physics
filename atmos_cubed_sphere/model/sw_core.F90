@@ -35,7 +35,11 @@
   real, parameter:: t11=27./28., t12=-13./28., t13=3./7., t14=6./7., t15=3./28.
   real, parameter:: s11=11./14., s13=-13./14., s14=4./7., s15=3./14.
   real, parameter:: near_zero = 1.E-9     ! for KE limiter
+#ifdef OVERLOAD_R4
+  real, parameter:: big_number = 1.E8
+#else
   real, parameter:: big_number = 1.E30
+#endif
 !----------------------
 ! PPM volume mean form:
 !----------------------
@@ -976,11 +980,9 @@
 !          enddo
 !       enddo
 !    endif
-
         call fv_tp_2d(pt, crx_adv,cry_adv, npx, npy, hord_tm, gx, gy,  &
                       xfx_adv,yfx_adv, gridstruct, bd, ra_x, ra_y,     &
-                      mfx=fx, mfy=fy, mass=delp, nord=nord_v, damp_c=damp_v)
-
+                      mfx=fx, mfy=fy, mass=delp, nord=nord_t, damp_c=damp_t)
 #endif
 
      if ( inline_q ) then
@@ -3125,14 +3127,13 @@ end subroutine ytp_v
 ! Local 
   real, dimension(bd%isd:bd%ied,bd%jsd:bd%jed):: utmp, vtmp
   integer npt, i, j, ifirst, ilast, id
+  integer :: is,  ie,  js,  je
+  integer :: isd, ied, jsd, jed
 
   real, pointer, dimension(:,:,:) :: sin_sg
   real, pointer, dimension(:,:)   :: cosa_u, cosa_v, cosa_s
   real, pointer, dimension(:,:)   :: rsin_u, rsin_v, rsin2
-  real, pointer, dimension(:,:)   ::  dxa,dya
-
-      integer :: is,  ie,  js,  je
-      integer :: isd, ied, jsd, jed
+  real, pointer, dimension(:,:)   :: dxa,dya
 
       is  = bd%is
       ie  = bd%ie
@@ -3159,7 +3160,6 @@ end subroutine ytp_v
        id = 0
   endif
 
-
   if (grid_type < 3 .and. .not. nested) then
      npt = 4
   else
@@ -3167,10 +3167,10 @@ end subroutine ytp_v
   endif
 
 ! Initialize the non-existing corner regions
-  utmp = big_number
-  vtmp = big_number 
+  utmp(:,:) = big_number
+  vtmp(:,:) = big_number 
 
-  if ( nested) then  
+ if ( nested) then  
 
      do j=jsd+1,jed-1
         do i=isd,ied
@@ -3201,12 +3201,10 @@ end subroutine ytp_v
         enddo
      enddo
 
-  else
-
+ else
      !----------
      ! Interior:
      !----------
-
      do j=max(npt,js-1),min(npy-npt,je+1)
         do i=max(npt,isd),min(npx-npt,ied)
            utmp(i,j) = a2*(u(i,j-1)+u(i,j+2)) + a1*(u(i,j)+u(i,j+1))
@@ -3218,11 +3216,6 @@ end subroutine ytp_v
         enddo
      enddo
 
-#ifdef EDGE_TEST
-                                                     call timing_on('COMM_TOTAL')
-  call mpp_update_domains(utmp, vtmp, domain)
-                                                     call timing_off('COMM_TOTAL')
-#else
      !----------
      ! edges:
      !----------
@@ -3236,7 +3229,6 @@ end subroutine ytp_v
               enddo
            enddo
         endif
-
         if ( (je+1)==npy .or. jed>=(npy-npt)) then
            do j=npy-npt+1,jed
               do i=isd,ied
@@ -3254,7 +3246,6 @@ end subroutine ytp_v
               enddo
            enddo
         endif
-
         if ( (ie+1)==npx .or. ied>=(npx-npt)) then
            do j=max(npt,jsd),min(npy-npt,jed)
               do i=npx-npt+1,ied
@@ -3265,7 +3256,8 @@ end subroutine ytp_v
         endif
 
      endif
-#endif
+
+! Contra-variant components at cell center:
      do j=js-1-id,je+1+id
         do i=is-1-id,ie+1+id
            ua(i,j) = (utmp(i,j)-vtmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
@@ -3273,7 +3265,7 @@ end subroutine ytp_v
         enddo
      enddo
 
-  end if
+ end if
 
 ! A -> C
 !--------------
@@ -3313,13 +3305,12 @@ end subroutine ytp_v
 !---------------------------------------------
      do j=js-1,je+1
         do i=ifirst,ilast
-           uc(i,j) = a1*(utmp(i-1,j)+utmp(i,j))+a2*(utmp(i-2,j)+utmp(i+1,j))
+           uc(i,j) = a2*(utmp(i-2,j)+utmp(i+1,j)) + a1*(utmp(i-1,j)+utmp(i,j))
            ut(i,j) = (uc(i,j) - v(i,j)*cosa_u(i,j))*rsin_u(i,j)
         enddo
      enddo
 
-     if (grid_type < 3) then
-#ifndef TEST_NEW
+ if (grid_type < 3) then
 ! Xdir:
      if( gridstruct%sw_corner ) then
          ua(-1,0) = -va(0,2)
@@ -3337,14 +3328,10 @@ end subroutine ytp_v
          ua(-1,npy) = va(0,npy-2)
          ua( 0,npy) = va(0,npy-1) 
      endif
-#endif
 
      if( is==1 .and. .not. nested  ) then
         do j=js-1,je+1
            uc(0,j) = c1*utmp(-2,j) + c2*utmp(-1,j) + c3*utmp(0,j) 
-#ifndef TEST_NEW
-           !ut(1,j) = 0.25*(-ua(-1,j) + 3.*(ua(0,j)+ua(1,j)) - ua(2,j))
-!           uc(1,j) = 0.25*(-utmp(-1,j) + 3.*(utmp(0,j)+utmp(1,j)) - utmp(2,j))
            ut(1,j) = edge_interpolate4(ua(-1:2,j), dxa(-1:2,j))
            !Want to use the UPSTREAM value
            if (ut(1,j) > 0.) then
@@ -3352,14 +3339,6 @@ end subroutine ytp_v
            else
               uc(1,j) = ut(1,j)*sin_sg(1,j,1)
            end if
-#else
-! 3-pt extrapolation: grid symmetry assumed --------------------------------
-           uc(1,j) = ( t14*(utmp( 0,j)+utmp(1,j))    &
-                     + t12*(utmp(-1,j)+utmp(2,j))    &
-                     + t15*(utmp(-2,j)+utmp(3,j)) )*rsin_u(1,j)
-           ut(1,j) =  uc(1,j) * rsin_u(1,j)
-! 3-pt extrapolation: grid symmetry assumed --------------------------------
-#endif
            uc(2,j) = c1*utmp(3,j) + c2*utmp(2,j) + c3*utmp(1,j)
            ut(0,j) = (uc(0,j) - v(0,j)*cosa_u(0,j))*rsin_u(0,j)
            ut(2,j) = (uc(2,j) - v(2,j)*cosa_u(2,j))*rsin_u(2,j)
@@ -3369,30 +3348,19 @@ end subroutine ytp_v
      if( (ie+1)==npx  .and. .not. nested ) then
         do j=js-1,je+1
            uc(npx-1,j) = c1*utmp(npx-3,j)+c2*utmp(npx-2,j)+c3*utmp(npx-1,j) 
-#ifndef TEST_NEW
-        i=npx
-                   ut(i,j) = 0.25*(-ua(i-2,j) + 3.*(ua(i-1,j)+ua(i,j)) - ua(i+1,j))
-        ut(i,j) = edge_interpolate4(ua(i-2:i+1,j), dxa(i-2:i+1,j))
-        if (ut(i,j) > 0.) then
-           uc(i,j) = ut(i,j)*sin_sg(i-1,j,3)
-        else
-           uc(i,j) = ut(i,j)*sin_sg(i,j,1)
-        end if
-#else
-! 3-pt extrapolation --------------------------------------------------------
-           uc(npx,j) = (t14*(utmp(npx-1,j)+utmp(npx,j))+      &
-                        t12*(utmp(npx-2,j)+utmp(npx+1,j))     &
-                      + t15*(utmp(npx-3,j)+utmp(npx+2,j)))*rsin_u(npx,j)
-           ut(npx,  j) =  uc(npx,j) * rsin_u(npx,j)
-! 3-pt extrapolation --------------------------------------------------------
-#endif
-           uc(npx+1,j) = c3*utmp(npx,j)+c2*utmp(npx+1,j)+c1*utmp(npx+2,j) 
+           ut(npx,  j) = edge_interpolate4(ua(npx-2:npx+1,j), dxa(npx-2:npx+1,j))
+           if (ut(npx,j) > 0.) then
+               uc(npx,j) = ut(npx,j)*sin_sg(npx-1,j,3)
+           else
+               uc(npx,j) = ut(npx,j)*sin_sg(npx,j,1)
+           end if
+           uc(npx+1,j) = c3*utmp(npx,j) + c2*utmp(npx+1,j) + c1*utmp(npx+2,j) 
            ut(npx-1,j) = (uc(npx-1,j)-v(npx-1,j)*cosa_u(npx-1,j))*rsin_u(npx-1,j)
            ut(npx+1,j) = (uc(npx+1,j)-v(npx+1,j)*cosa_u(npx+1,j))*rsin_u(npx+1,j)
         enddo
      endif
 
-     endif
+ endif
 
 !------
 ! Ydir:
@@ -3417,7 +3385,6 @@ end subroutine ytp_v
             vtmp(npx,npy+j) = -utmp(ie-j,npy)
          enddo
      endif
-#ifndef TEST_NEW
      if( gridstruct%sw_corner ) then
          va(0,-1) = -ua(2,0)
          va(0, 0) = -ua(1,0)
@@ -3434,30 +3401,18 @@ end subroutine ytp_v
          va(0,npy)   = ua(1,npy)
          va(0,npy+1) = ua(2,npy)
      endif
-#endif
 
-     if (grid_type < 3) then
+ if (grid_type < 3) then
 
      do j=js-1,je+2
       if ( j==1 .and. .not. nested  ) then
         do i=is-1,ie+1
-#ifndef TEST_NEW
-           !vt(i,j) = 0.25*(-va(i,j-2) + 3.*(va(i,j-1)+va(i,j)) - va(i,j+1))
-!           vc(i,j) = 0.25*(-vtmp(i,j-2) + 3.*(vtmp(i,j-1)+vtmp(i,j)) - vtmp(i,j+1))
            vt(i,j) = edge_interpolate4(va(i,-1:2), dya(i,-1:2))
            if (vt(i,j) > 0.) then
               vc(i,j) = vt(i,j)*sin_sg(i,j-1,4)
            else
               vc(i,j) = vt(i,j)*sin_sg(i,j,2)
            end if
-#else
-! 3-pt extrapolation -----------------------------------------
-           vc(i,1) = (t14*(vtmp(i, 0)+vtmp(i,1))    &
-                    + t12*(vtmp(i,-1)+vtmp(i,2))    &
-                    + t15*(vtmp(i,-2)+vtmp(i,3)))*rsin_v(i,1)
-           vt(i,1) = vc(i,1) * rsin_v(i,1)
-! 3-pt extrapolation -----------------------------------------
-#endif
         enddo
       elseif ( j==0 .or. j==(npy-1) .and. .not. nested  ) then
         do i=is-1,ie+1
@@ -3471,41 +3426,30 @@ end subroutine ytp_v
         enddo
       elseif ( j==npy .and. .not. nested  ) then
         do i=is-1,ie+1
-#ifndef TEST_NEW
-           vt(i,j) = 0.25*(-va(i,j-2) + 3.*(va(i,j-1)+va(i,j)) - va(i,j+1))
-!           vc(i,j) = 0.25*(-vtmp(i,j-2) + 3.*(vtmp(i,j-1)+vtmp(i,j)) - vtmp(i,j+1))
            vt(i,j) = edge_interpolate4(va(i,j-2:j+1), dya(i,j-2:j+1))
            if (vt(i,j) > 0.) then
               vc(i,j) = vt(i,j)*sin_sg(i,j-1,4)
            else
               vc(i,j) = vt(i,j)*sin_sg(i,j,2)
            end if
-#else
-! 3-pt extrapolation --------------------------------------------------------
-           vc(i,npy) = (t14*(vtmp(i,npy-1)+vtmp(i,npy))    &
-                      + t12*(vtmp(i,npy-2)+vtmp(i,npy+1))  &
-                      + t15*(vtmp(i,npy-3)+vtmp(i,npy+2)))*rsin_v(i,npy)
-           vt(i,npy) = vc(i,npy) * rsin_v(i,npy)
-! 3-pt extrapolation -----------------------------------------
-#endif
         enddo
       else
 ! 4th order interpolation for interior points:
         do i=is-1,ie+1
-           vc(i,j) = a2*(vtmp(i,j-2)+vtmp(i,j+1))+a1*(vtmp(i,j-1)+vtmp(i,j))
+           vc(i,j) = a2*(vtmp(i,j-2)+vtmp(i,j+1)) + a1*(vtmp(i,j-1)+vtmp(i,j))
            vt(i,j) = (vc(i,j) - u(i,j)*cosa_v(i,j))*rsin_v(i,j)
         enddo
       endif
      enddo
-    else
+ else
 ! 4th order interpolation:
        do j=js-1,je+2
           do i=is-1,ie+1
-             vc(i,j) = a2*(vtmp(i,j-2)+vtmp(i,j+1))+a1*(vtmp(i,j-1)+vtmp(i,j))
+             vc(i,j) = a2*(vtmp(i,j-2)+vtmp(i,j+1)) + a1*(vtmp(i,j-1)+vtmp(i,j))
              vt(i,j) = vc(i,j)
           enddo
        enddo
-    endif
+ endif
 
  end subroutine d2a2c_vect
 
@@ -3514,23 +3458,15 @@ end subroutine ytp_v
 
    real, intent(in) :: ua(4)
    real, intent(in) :: dxa(4)
+   real:: t1, t2
 
-   real u0L, u0R
-
-   u0L = 0.5*((2.*dxa(2)+dxa(1))*ua(2) - dxa(2)*ua(1)) / ( dxa(1)+dxa(2) )
-   u0R = 0.5*((2.*dxa(3)+dxa(4))*ua(3) - dxa(3)*ua(4)) / ( dxa(3)+dxa(4) )
-   edge_interpolate4 = u0L + u0R
-
-   !This is the original edge-interpolation code, which makes
-   ! a relatively small increase in the error in unstretched case 2.
-
-   !   edge_interpolate4 = 0.25*( 3*(ua(2)+ua(3)) - (ua(1)+ua(4))  )
+   t1 = dxa(1) + dxa(2)
+   t2 = dxa(3) + dxa(4)
+   edge_interpolate4 = 0.5*( ((t1+dxa(2))*ua(2)-dxa(2)*ua(1)) / t1 + &
+                             ((t2+dxa(3))*ua(3)-dxa(3)*ua(4)) / t2 )
 
  end function edge_interpolate4
 
-
-!Subroutines d2a2c and d2a2c_vect_v? have been deleted. Look at older code versions if you are interested.
-      
 
  subroutine fill3_4corners(q1, q2, q3, dir, bd, npx, npy, sw_corner, se_corner, ne_corner, nw_corner)
   type(fv_grid_bounds_type), intent(IN) :: bd

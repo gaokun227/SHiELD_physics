@@ -746,7 +746,7 @@ contains
 #endif
 
       unit = stdlog()
-      call write_version_number ( 'NGGPS_release', 'get_nggps_ics' )
+      call write_version_number ( 'NGGPS_release', 'get_nggps_ic' )
       write(unit, nml=external_ic_nml)
 
       remap = .true.
@@ -3198,7 +3198,6 @@ contains
   jsd = Atm%bd%jsd
   jed = Atm%bd%jed
 
-!RAB - NEED TO FIX PSD & PS FOR IN HALO REGION FOR NESTED GRIDS
   if (Atm%neststruct%nested) then
      do j=jsd,jed
      do i=isd,ied

@@ -31,7 +31,7 @@ module atmosphere_mod
 !-----------------
 use block_control_mod,      only: block_control_type
 use constants_mod,          only: cp_air, rdgas, grav, rvgas, kappa, pstd_mks, R_GRID
-use time_manager_mod,       only: time_type, get_time, set_time, operator(+) 
+use time_manager_mod,       only: time_type, get_time, set_time, operator(+), operator(-)
 use fms_mod,                only: file_exist, open_namelist_file,    &
                                   close_file, error_mesg, FATAL,     &
                                   check_nml_error, stdlog,           &
@@ -62,6 +62,9 @@ use fv_io_mod,          only: fv_io_register_nudge_restart
 use fv_dynamics_mod,    only: fv_dynamics
 use fv_nesting_mod,     only: twoway_nesting
 use fv_diagnostics_mod, only: fv_diag_init, fv_diag, fv_time, prt_maxmin
+#ifdef GFS_PHYS
+use fv_nggps_diags_mod, only: fv_nggps_diag_init, fv_nggps_diag
+#endif
 use fv_restart_mod,     only: fv_restart, fv_write_restart
 use fv_timing_mod,      only: timing_on, timing_off
 use fv_mp_mod,          only: switch_current_Atm 
@@ -174,6 +177,8 @@ contains
       if (grids_on_this_pe(n)) mytile = n
    enddo
 
+   Atm(mytile)%Time_init = Time_init
+
 !----- write version and namelist to log file -----
    call write_version_number ( version, tagname )
 
@@ -247,6 +252,9 @@ contains
 !----- initialize atmos_axes and fv_dynamics diagnostics
        !I've had trouble getting this to work with multiple grids at a time; worth revisiting?
    call fv_diag_init(Atm(mytile:mytile), Atm(mytile)%atmos_axes, Time, npx, npy, npz, Atm(mytile)%flagstruct%p_ref)
+#ifdef GFS_PHYS
+   call fv_nggps_diag_init(Atm(mytile:mytile), Atm(mytile)%atmos_axes, Time)
+#endif
 
 !---------- reference profile -----------
     ps1 = 101325.
@@ -445,6 +453,9 @@ contains
    if (first_diag) then
       call timing_on('FV_DIAG')
       call fv_diag(Atm(mytile:mytile), zvir, fv_time, Atm(mytile)%flagstruct%print_freq)
+#ifdef GFS_PHYS
+      call fv_nggps_diag(Atm(mytile:mytile), zvir, fv_time)
+#endif
       first_diag = .false.
       call timing_off('FV_DIAG')
    endif
@@ -920,6 +931,16 @@ contains
      call timing_on('FV_DIAG')
      call fv_diag(Atm(mytile:mytile), zvir, fv_time, Atm(mytile)%flagstruct%print_freq)
      first_diag = .false.
+
+#ifdef GFS_PHYS
+     fv_time = Time_next - Atm(n)%Time_init
+     call get_time (fv_time, seconds,  days)
+    !--- perform diagnostics on GFS fdiag schedule
+     if (ANY(Atm(mytile)%fdiag(:) == (real(days)*24. + real(seconds)/3600.))) then
+       if (mpp_pe() == mpp_root_pe()) write(6,*) 'NGGPS:FV3 DIAG STEP', (real(days)*24. + real(seconds)/3600.)
+       call fv_nggps_diag(Atm(mytile:mytile), zvir, Time_next)
+     endif
+#endif
      call timing_off('FV_DIAG')
 
      call mpp_clock_end(id_fv_diag)

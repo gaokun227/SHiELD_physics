@@ -1849,8 +1849,8 @@
       integer :: i, j, k
       logical :: file_exist
 
-      character :: cline*80, volcano_file*32
-      data volcano_file / 'volcanic_aerosols_1850-1859.txt ' /
+      character :: cline*80, volcano_file*38
+      data volcano_file / 'INPUT/volcanic_aerosols_1850-1859.txt ' /
 !
 !===>  ...  begin here
 !
@@ -1878,7 +1878,7 @@
      &              ' optical depth set to lowest value'
           endif
         else
-          write(volcano_file(19:27),60) kyrstr,kyrend
+          write(volcano_file(25:33),60) kyrstr,kyrend
   60      format(i4.4,'-',i4.4)
 
           inquire (file=volcano_file, exist=file_exist)

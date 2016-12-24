@@ -119,7 +119,11 @@ contains
 !-----------------------------------------------------------------------
 ! Others:
     real,    parameter:: near0 = 1.E-8
+#ifdef OVERLOAD_R4
+    real,    parameter:: huge_r = 1.E8
+#else
     real,    parameter:: huge_r = 1.E40
+#endif
 !-----------------------------------------------------------------------
     real, intent(out  ):: ws(bd%is:bd%ie,bd%js:bd%je)        ! w at surface
     real, intent(inout):: omga(bd%isd:bd%ied,bd%jsd:bd%jed,npz)    ! Vertical pressure velocity (pa/s)

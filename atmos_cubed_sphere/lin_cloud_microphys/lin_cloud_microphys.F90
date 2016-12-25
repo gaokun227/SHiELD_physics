@@ -1038,7 +1038,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
               evap = max( evap, sink )
              qr(k) = qr(k) - evap
              qv(k) = qv(k) + evap
-             tz(k) = tz(k) - evap*lcpk
+             tz(k) = tz(k) - evap*(lv00+dc_vap*tz(k)) / (c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + &
+                                                                         (qi(k)+qs(k)+qg(k))*c_ice)
          endif
 
 !        if ( qr(k)>qrmin .and. ql(k)>1.E-7  .and.  qsat<q_plus ) then
@@ -1115,7 +1116,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real, intent(inout), dimension(ktop:kbot):: tzk, qvk, qlk, qrk, qik, qsk, qgk, qak
  real, intent(in) :: rh_adj, rh_rain, dts, h_var
 ! local:
- real, dimension(ktop:kbot) :: lcpk, icpk, tcpk, di
+ real, dimension(ktop:kbot) :: lcpk, icpk, tcpk, di, lhl, lhi
  real:: rdts, fac_g2v, fac_v2g, fac_i2s, fac_mlt
  real:: tz, qv, ql, qr, qi, qs, qg, melt
  real:: pracs, psacw, pgacw, pgmlt,    &
@@ -1136,8 +1137,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  rdts = 1./dts
 
  do k=ktop,kbot
-    icpk(k) = (li00+dc_ice*tzk(k)) /        &
-              (c_air+qvk(k)*c_vap+(qlk(k)+qrk(k))*c_liq+(qik(k)+qsk(k)+qgk(k))*c_ice)
+     lhi(k) = li00 + dc_ice*tzk(k)
+    icpk(k) = lhi(k)/(c_air+qvk(k)*c_vap+(qlk(k)+qrk(k))*c_liq+(qik(k)+qsk(k)+qgk(k))*c_ice)
  enddo
 
 ! Sources of cloud ice: pihom, cold rain, and the sat_adj
@@ -1156,7 +1157,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
         qlk(k) = qlk(k) + tmp1
         qrk(k) = qrk(k) + melt - tmp1
         qik(k) = qik(k) - melt
-        tzk(k) = tzk(k) - melt*icpk(k)
+        tzk(k) = tzk(k) - melt*lhi(k)/(c_air+qvk(k)*c_vap+(qlk(k)+qrk(k))*c_liq+(qik(k)+qsk(k)+qgk(k))*c_ice)
     elseif (tzk(k) < t_wfr .and. qlk(k) > qcmin ) then
 !--------------------------------------------------------------
 ! * pihom * homogeneous Freezing of cloud water into cloud ice:
@@ -1168,10 +1169,10 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 ! DE_ICE_GFS: prevent large ice build-up from SAS
           qi_crt = qi_gen*min(qi_lim, 0.1*(tice-tzk(k))) / den(k)
           tmp1 = min(sink, dim(qi_crt, qik(k)))
-            qlk(k) = qlk(k) - sink
-            qsk(k) = qsk(k) + sink - tmp1
-            qik(k) = qik(k) + tmp1
-            tzk(k) = tzk(k) + sink*icpk(k)
+          qlk(k) = qlk(k) - sink
+          qsk(k) = qsk(k) + sink - tmp1
+          qik(k) = qik(k) + tmp1
+        tzk(k) = tzk(k) + sink*lhi(k)/(c_air+qvk(k)*c_vap+(qlk(k)+qrk(k))*c_liq+(qik(k)+qsk(k)+qgk(k))*c_ice)
     endif
  enddo
 
@@ -1179,8 +1180,10 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 
  do k=ktop,kbot
     cvm = c_air + qvk(k)*c_vap + (qlk(k)+qrk(k))*c_liq + (qik(k)+qsk(k)+qgk(k))*c_ice
-    lcpk(k) = (lv00+dc_vap*tzk(k)) / cvm
-    icpk(k) = (li00+dc_ice*tzk(k)) / cvm
+     lhl(k) = lv00 + dc_vap*tzk(k)
+     lhi(k) = li00 + dc_ice*tzk(k)
+    lcpk(k) = lhl(k) / cvm
+    icpk(k) = lhi(k) / cvm
     tcpk(k) = lcpk(k) + icpk(k)
  enddo
 
@@ -1235,7 +1238,8 @@ if ( tc .ge. 0. ) then
 
         qs = qs - sink
         qr = qr + sink
-        tz = tz - sink*icpk(k)    ! cooling due to snow melting
+! cooling due to snow melting
+        tz = tz - sink*lhi(k)/(c_air+qv*c_vap+(ql+qr)*c_liq+(qi+qs+qg)*c_ice)
         tc = tz-tice
      endif
 
@@ -1257,7 +1261,7 @@ if ( tc .ge. 0. ) then
          pgmlt = min( max(0., pgmlt), qg, tc/icpk(k) )
             qg = qg - pgmlt
             qr = qr + pgmlt
-            tz = tz - pgmlt*icpk(k)
+            tz = tz - pgmlt*(li00+dc_ice*tz)/(c_air+qv*c_vap+(ql+qr)*c_liq+(qi+qs+qg)*c_ice)
      endif   ! graupel existed
 
 else
@@ -1360,10 +1364,10 @@ else
       pgfr  = factor * pgfr
 
       sink = psacr + pgfr
-        tz = tz + sink*icpk(k)
         qr = qr - sink
         qs = qs + psacr
         qg = qg + pgfr
+        tz = tz + sink*lhi(k)/(c_air+qv*c_vap+(ql+qr)*c_liq+(qi+qs+qg)*c_ice)
   endif  ! qr existed
 
 !--------------------------
@@ -1414,10 +1418,10 @@ else
       pgacw = factor * pgacw
 
      sink = pgacr + pgacw
-       tz = tz + sink*icpk(k)
        qg = qg + sink
        qr = qr - pgacr
        ql = ql - pgacw
+       tz = tz + sink*(li00+dc_ice*tz)/(c_air+qv*c_vap+(ql+qr)*c_liq+(qi+qs+qg)*c_ice)
   endif    ! graupel existed
 
 endif   ! end ice-physics
@@ -1446,7 +1450,7 @@ endif   ! end ice-physics
  real, intent(in)                         :: dts, rh_adj, h_var, rh_rain
  real, intent(inout), dimension(ktop:kbot):: tz, qv, ql, qr, qi, qs, qg, qa
 ! local:
- real, dimension(ktop:kbot):: lcpk, icpk, tcpk, tcp3
+ real, dimension(ktop:kbot):: lcpk, icpk, tcpk, tcp3, lhl, lhi
  real:: fac_v2l, fac_l2v
  real:: pidep, qi_crt
 ! qstar over water may be accurate only down to -80 C with ~10% uncertainty
@@ -1474,9 +1478,11 @@ endif   ! end ice-physics
 
  do k=ktop, kbot
 ! Moist heat capacity
-    cvm = c_air + qv(k)*c_vap + (ql(k)+qr(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
-    lcpk(k) = (lv00+dc_vap*tz(k)) / cvm
-    icpk(k) = (li00+dc_ice*tz(k)) / cvm
+     cvm = c_air + qv(k)*c_vap + (ql(k)+qr(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
+     lhl(k) = lv00+dc_vap*tz(k)
+     lhi(k) = li00+dc_ice*tz(k)
+    lcpk(k) = lhl(k) / cvm
+    icpk(k) = lhi(k) / cvm
     tcpk(k) = lcpk(k) + icpk(k)
     tcp3(k) = lcpk(k) + icpk(k)*min(1., dim(tice,tz(k))/(tice-t_wfr))
  enddo
@@ -1489,25 +1495,25 @@ endif   ! end ice-physics
         sink = dim(qv(k), 1.e-7)
         qv(k) = qv(k) - sink
         qi(k) = qi(k) + sink
-        tz(k) = tz(k) + sink*tcpk(k)
+        tz(k) = tz(k) + sink*(lhl(k)+lhi(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
         if ( .not.do_qa ) qa(k) = qa(k) + 1.  ! Air fully saturated; 100 % cloud cover
         goto 4000
     endif
 
 ! Instant evaporation/sublimation of all clouds if RH<rh_adj --> cloud free
-      iwt = qi(k)
-   clouds = ql(k) + iwt
-
-   tin = tz(k) - ( lcpk(k)*clouds + icpk(k)*iwt )  ! minimum  temperature
-   if ( tin>t_sub+6. ) then
+      iwt = qi(k) + qs(k)
+   clouds = ql(k) + qr(k) + iwt
       qpz = qv(k) + clouds
+   tin = tz(k) - (lhl(k)*clouds+lhi(k)*iwt)/(c_air+qpz*c_vap)  ! minimum  temperature
+   if ( tin>t_sub+6. ) then
        rh = qpz / iqs1(tin, den(k))
-
       if ( rh < rh_adj ) then  ! qpz / rh_adj < qs
          tz(k) = tin
          qv(k) = qpz
          ql(k) = 0.
+         qr(k) = 0.
          qi(k) = 0.
+         qs(k) = 0.
          goto 4000            ! cloud free
       endif
     endif
@@ -1518,13 +1524,13 @@ endif   ! end ice-physics
    if ( dq0 > 0. ) then
         evap =  min( ql(k), fac_l2v*dq0/(1.+tcp3(k)*dwsdt) )
    else   ! condensate all excess vapor into cloud water
-!       evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
+        evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
 ! 20161108
-        evap = dq0/(1.+tcp3(k)*dwsdt)
+!       evap = dq0/(1.+tcp3(k)*dwsdt)
    endif
    qv(k) = qv(k) + evap
    ql(k) = ql(k) - evap
-   tz(k) = tz(k) - evap*lcpk(k)
+   tz(k) = tz(k) - evap*lhl(k)/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
 
 ! Enforce complete freezing below -48 C
    dtmp = t_wfr - tz(k)   ! [-40,-48]
@@ -1532,7 +1538,7 @@ endif   ! end ice-physics
        sink = min( ql(k),  ql(k)*dtmp*0.125, dtmp/icpk(k) )
       ql(k) = ql(k) - sink
       qi(k) = qi(k) + sink
-      tz(k) = tz(k) + sink*icpk(k)
+      tz(k) = tz(k) + sink*(li00+dc_ice*tz(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
    endif
 
   if ( fast_sat_adj ) then
@@ -1546,13 +1552,15 @@ endif   ! end ice-physics
          sink = min(ql(k), tc/icpk(k), sink)
          ql(k) = ql(k) - sink
          qi(k) = qi(k) + sink
-         tz(k) = tz(k) + sink*icpk(k)
+         tz(k) = tz(k) + sink*(li00+dc_ice*tz(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
       endif ! significant ql existed
   endif
 
    cvm = c_air + qv(k)*c_vap + (ql(k)+qr(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
-   lcpk(k) = (lv00+dc_vap*tz(k)) / cvm
-   icpk(k) = (li00+dc_ice*tz(k)) / cvm
+    lhl(k) = lv00+dc_vap*tz(k)
+    lhi(k) = li00+dc_ice*tz(k)
+   lcpk(k) = lhl(k) / cvm
+   icpk(k) = lhi(k) / cvm
    tcpk(k) = lcpk(k) + icpk(k)
 
 !------------------------------------------
@@ -1584,7 +1592,7 @@ endif   ! end ice-physics
         endif
         qv(k) = qv(k) - sink
         qi(k) = qi(k) + sink
-        tz(k) = tz(k) + sink*tcpk(k)
+        tz(k) = tz(k) + sink*(lhl(k)+lhi(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
     endif
 
 !----------------------------------
@@ -1602,19 +1610,17 @@ endif   ! end ice-physics
          pssub = (qsi-qv(k))*dts*pssub
          if ( pssub > 0. ) then     ! qs --> qv,  sublimation
               pssub = min(pssub*min(1.,dim(tz(k),t_sub)*0.2), qs(k))
-! Minimum sublimation:
-!             pssub = max(pssub, min(qs(k), dim(0.35*qsi,qv(k))/(1.+tcpk(k)*dqsdt)) )
          else
               if ( tz(k)>tice ) then
                    pssub = 0.  ! no deposition
               else
-!                  pssub = max( pssub, 0.5*dq, (tz(k)-tice)/tcpk(k) )
-                   pssub = max( pssub,     dq, (tz(k)-tice)/tcpk(k) )
+                   pssub = max( pssub, dq, (tz(k)-tice)/tcpk(k) )
               endif
          endif
          qs(k) = qs(k) - pssub
          qv(k) = qv(k) + pssub
-         tz(k) = tz(k) - pssub*tcpk(k)
+         tz(k) = tz(k) - pssub*(lv00+li00+(dc_vap+dc_ice)*tz(k)) /     &
+              (c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
   endif
 
 !------------------------------------------------------------
@@ -1632,12 +1638,11 @@ endif   ! end ice-physics
             endif
        else                   ! submilation
             pgsub = max( fac_g2v*pgsub, dq )*min(1.,dim(tz(k),t_sub)*0.1)
-! Minimum sublimation:
-!           pgsub = min(pgsub, -min(qg(k), dim(0.3*qsi,qv(k))/(1.+tcpk(k)*dqsdt)) )
        endif
        qg(k) = qg(k) + pgsub
        qv(k) = qv(k) - pgsub
-       tz(k) = tz(k) + pgsub*tcpk(k)
+       tz(k) = tz(k) + pgsub*(lv00+li00+(dc_vap+dc_ice)*tz(k)) /     &
+            (c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
   endif
 
 !------------------------------------------------
@@ -1648,7 +1653,7 @@ endif   ! end ice-physics
      sink = min(qr(k), dim(rh_rain*qsw, qv(k))/(1.+lcpk(k)*dqsdt))
       qv(k) = qv(k) + sink
       qr(k) = qr(k) - sink
-      tz(k) = tz(k) - sink*lcpk(k)
+      tz(k) = tz(k) - sink*(lv00+dc_vap*tz(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
   endif
 
    if ( do_qa ) goto 4000

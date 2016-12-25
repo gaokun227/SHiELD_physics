@@ -19,6 +19,7 @@ module fv_cmp_mod
 ! Latent heat at absolute zero:
  real, parameter:: Lv0  = hlv0 - dc_vap*tice   ! = 3.141264e6
  real, parameter:: Li00 = hlf0 - dc_ice*tice   ! = -2.355446e5
+! Li (T=113) ~ 0.
  real(kind=R_GRID), parameter:: e00 = 610.71  ! saturation vapor pressure at T0
  real(kind=R_GRID), parameter:: d2ice  = cp_vap - c_ice
  real(kind=R_GRID), parameter:: Li2 = hlv0+hlf0 - d2ice*tice
@@ -32,11 +33,11 @@ module fv_cmp_mod
  real:: tau_r  = 600.       ! rain freezing time scale during fast_sat
  real:: tau_s  = 600.       ! snow melt
  real:: tau_mlt = 600.      ! ice melting time-scale
- real, parameter:: tau_l2r = 300.
+ real, parameter:: tau_l2r = 900.
  real:: sat_adj0 = 0.9  !  0.95
  real:: qi0_max = 1.0e-4    ! Max: ice  --> snow autocon threshold
- real:: ql0_max = 2.0e-3    ! max ql value (auto converted to rain)
- real:: t_sub   = 184.  ! Min temp for sublimation of cloud ice
+ real:: ql0_max = 2.2e-3    ! max ql value (auto converted to rain)
+ real:: t_sub   = 180.  ! Min temp for sublimation of cloud ice
  real:: cld_min = 0.05
  real:: dw_ocean = 0.12 ! 0.1
  real:: cracw = 3.272
@@ -77,6 +78,7 @@ contains
 !---
  real, dimension(is:ie):: wqsat, dq2dt, qpz, cvm, t0, pt1, icp2, lcp2, tcp2, tcp3,    &
                           den, q_liq, q_sol, src, hvar
+ real, dimension(is:ie):: mc_air, lhl, lhi  ! latent heat
  real:: sink, qsw, rh, fac_v2l, fac_l2v
  real:: tc, qsi, dqsdt, dq, dq0, pidep, qi_crt, tmp, dtmp
  real:: condensates, tin, qstar, rqi, q_plus, q_minus
@@ -118,7 +120,7 @@ contains
 #endif
         t0(i) = pt1(i)     ! true temperature
         hvar(i) = min(0.2, max(0.01, dw_ocean*sqrt(sqrt(area(i,j)/1.E10))) )
-        qpz(i) = qpz(i) + qv(i,j)    ! conserved in this routine
+         qpz(i) = qpz(i) + qv(i,j)    ! conserved in this routine
     enddo
 
     if ( hydrostatic ) then
@@ -131,8 +133,10 @@ contains
         enddo
     endif
     do i=is, ie
-       cvm(i) = (1.-qpz(i))*c_air + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-       icp2(i) = (Li00+dc_ice*t0(i)) / cvm(i)
+       mc_air(i) = (1.-qpz(i))*c_air   ! constant
+       cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+       lhi(i) = Li00 + dc_ice*t0(i)
+      icp2(i) = lhi(i) / cvm(i)
     enddo
 
     if ( consv_te ) then 
@@ -160,11 +164,14 @@ contains
 ! Melting of cloud ice into cloud water ********
            sink = min( qi(i,j), fac_mlt*(pt1(i)-tice)/icp2(i) )
            qi(i,j) = qi(i,j) - sink
-            pt1(i) =  pt1(i) - sink*icp2(i)
 ! Maximum amount of melted ice converted to ql
             tmp = min( sink, dim(ql0_max, ql(i,j)) )   ! max ql amount
            ql(i,j) = ql(i,j) + tmp
            qr(i,j) = qr(i,j) + sink - tmp
+           q_liq(i) = q_liq(i) + sink
+           q_sol(i) = q_sol(i) - sink
+            cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+            pt1(i) = pt1(i) - sink*lhi(i)/cvm(i)
        endif
     enddo
 
@@ -207,16 +214,19 @@ contains
            sink = min( ql(i,j),  dtmp/icp2(i) )
            ql(i,j) = ql(i,j) - sink
            qi(i,j) = qi(i,j) + sink
-            pt1(i) =  pt1(i) + sink*icp2(i)
+          q_liq(i) = q_liq(i) - sink
+          q_sol(i) = q_sol(i) + sink
+            cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+            lhi(i) = Li00 + dc_ice*pt1(i)
+            pt1(i) = pt1(i) + sink*lhi(i)/cvm(i)
        endif
     enddo
 
     do i=is, ie
-       q_liq(i) = ql(i,j) + qr(i,j)
-       q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
-       cvm(i) = (1.-qpz(i))*c_air + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-       lcp2(i) = (Lv0 +dc_vap*pt1(i)) / cvm(i)
-       icp2(i) = (Li00+dc_ice*pt1(i)) / cvm(i)
+        lhl(i) = Lv0  + dc_vap*pt1(i)
+        lhi(i) = Li00 + dc_ice*pt1(i)
+       lcp2(i) = lhl(i) / cvm(i)
+       icp2(i) = lhi(i) / cvm(i)
        tcp3(i) = lcp2(i) + icp2(i)*min(1., dim(tice,pt1(i))/48.)
     enddo
 
@@ -228,8 +238,7 @@ contains
        if ( dq0 > 0. ) then ! whole grid-box saturated
                tmp = dq0/(1.+tcp3(i)*dq2dt(i))
             src(i) = min(adj_fac*tmp, max(ql_gen-ql(i,j), fac_v2l*tmp))
-       else
-!                                                     Evaporation of ql
+       else   ! Evaporation of ql
             src(i) = -min( ql(i,j), -fac_l2v*dq0/(1.+tcp3(i)*dq2dt(i)) )
        endif
     enddo
@@ -237,13 +246,13 @@ contains
     do i=is, ie
          qv(i,j) = qv(i,j) - src(i)
          ql(i,j) = ql(i,j) + src(i)
-         pt1(i) =  pt1(i) + src(i)*lcp2(i)
-!
        q_liq(i) = ql(i,j) + qr(i,j)
-       q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
-       cvm(i) = (1.-qpz(i))*c_air + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-       lcp2(i) = (Lv0 +dc_vap*pt1(i)) / cvm(i)
-       icp2(i) = (Li00+dc_ice*pt1(i)) / cvm(i)
+       cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+         pt1(i) = pt1(i) + src(i)*lhl(i)/cvm(i)
+        lhl(i) = Lv0 + dc_vap*pt1(i)
+       lcp2(i) = lhl(i) / cvm(i)
+        lhi(i) = Li00 + dc_ice*pt1(i)
+       icp2(i) = lhi(i) / cvm(i)
 ! Compute special heat capacity for qv --> ql (dqsdt term)
        tcp3(i) = lcp2(i) + icp2(i)*min(1., dim(tice,pt1(i))/48.)
     enddo
@@ -255,21 +264,23 @@ contains
          dq0 = qv(i,j) - wqsat(i)
          if ( dq0 > 0. ) then ! remove super-saturation
 ! Prevent super saturation over water:
-            sink = dq0/(1.+tcp3(i)*dq2dt(i))
+            src(i) = fac_v2l*dq0/(1.+tcp3(i)*dq2dt(i))
          else
 ! Evaporation of ql
-            sink = -min( ql(i,j), -dq0/(1.+tcp3(i)*dq2dt(i)) )
+            src(i) = -min( ql(i,j), -fac_l2v*dq0/(1.+tcp3(i)*dq2dt(i)) )
          endif
-         qv(i,j) = qv(i,j) - sink
-         ql(i,j) = ql(i,j) + sink
-         pt1(i) =  pt1(i)  + sink*lcp2(i)
       enddo
       adj_fac = 1.
-
       do i=is, ie
+         qv(i,j) = qv(i,j) - src(i)
+         ql(i,j) = ql(i,j) + src(i)
          q_liq(i) = ql(i,j) + qr(i,j)
-          cvm(i) = (1.-qpz(i))*c_air + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-         icp2(i) = (Li00+dc_ice*pt1(i)) / cvm(i)
+         cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+         pt1(i) = pt1(i) + src(i)*lhl(i)/cvm(i)
+          lhl(i) = Lv0 + dc_vap*pt1(i)
+         lcp2(i) = lhl(i) / cvm(i)
+          lhi(i) = Li00 + dc_ice*pt1(i)
+         icp2(i) = lhi(i) / cvm(i)
       enddo
 
     endif
@@ -282,12 +293,12 @@ contains
            sink = min( ql(i,j),  ql(i,j)*dtmp*0.125, dtmp/icp2(i) )
            ql(i,j) = ql(i,j) - sink
            qi(i,j) = qi(i,j) + sink
-            pt1(i) =  pt1(i) + sink*icp2(i)
-!
-          q_liq(i) = ql(i,j) + qr(i,j)
-          q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
-           cvm(i) = (1.-qpz(i))*c_air + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-          icp2(i) = (Li00+dc_ice*pt1(i)) / cvm(i)
+          q_liq(i) = q_liq(i) - sink
+          q_sol(i) = q_sol(i) + sink
+           cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+           pt1(i) = pt1(i) + sink*lhi(i)/cvm(i)
+           lhi(i) = Li00 + dc_ice*pt1(i)
+          icp2(i) = lhi(i) / cvm(i)
        endif
     enddo
 
@@ -299,7 +310,12 @@ contains
            sink = min(ql(i,j), tc/icp2(i), sink)
            ql(i,j) = ql(i,j) - sink
            qi(i,j) = qi(i,j) + sink
-            pt1(i) =  pt1(i) + sink*icp2(i)
+          q_liq(i) = q_liq(i) - sink
+          q_sol(i) = q_sol(i) + sink
+           cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+           pt1(i) = pt1(i) + sink*lhi(i)/cvm(i)
+           lhi(i) = Li00 + dc_ice*pt1(i)
+          icp2(i) = lhi(i) / cvm(i)
        endif
     enddo
 
@@ -312,7 +328,12 @@ contains
            sink = min( tmp, fac_r*dtmp/icp2(i) )
            qr(i,j) = qr(i,j) - sink
            qg(i,j) = qg(i,j) + sink
-            pt1(i) =  pt1(i) + sink*icp2(i)
+          q_liq(i) = ql(i,j) + qr(i,j)
+          q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
+           cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+           pt1(i) = pt1(i) + sink*lhi(i)/cvm(i)
+           lhi(i) = Li00 + dc_ice*pt1(i)
+          icp2(i) = lhi(i) / cvm(i)
        endif
     enddo
 
@@ -325,17 +346,19 @@ contains
            sink = min( tmp,  fac_s*dtmp/icp2(i) )
            qs(i,j) = qs(i,j) - sink
            qr(i,j) = qr(i,j) + sink
-            pt1(i) =  pt1(i) - sink*icp2(i)
+          q_liq(i) = ql(i,j) + qr(i,j)
+          q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
+           cvm(i) = mc_air(i) + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+           pt1(i) = pt1(i) - sink*lhi(i)/cvm(i)
        endif
     enddo
 
 ! Update after freezing & before ice-phase adjustment
     do i=is, ie
-       q_liq(i) = ql(i,j) + qr(i,j)
-       q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
-       cvm(i) = (1.-qpz(i))*c_air + qv(i,j)*c_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-       lcp2(i) = (Lv0 +dc_vap*pt1(i)) / cvm(i)
-       icp2(i) = (Li00+dc_ice*pt1(i)) / cvm(i)
+       lhi(i) = Li00 + dc_ice*pt1(i)
+       lhl(i) = Lv0 + dc_vap*pt1(i)
+       lcp2(i) = lhl(i) / cvm(i)
+       icp2(i) = lhi(i) / cvm(i)
        tcp2(i) = lcp2(i) + icp2(i)
        src(i) = 0.
     enddo
@@ -377,10 +400,21 @@ contains
          endif
        endif
     enddo
+
     do i=is, ie
        qv(i,j) = qv(i,j) - src(i)
        qi(i,j) = qi(i,j) + src(i)
-        pt1(i) =  pt1(i) + src(i)*tcp2(i)
+       q_sol(i) = q_sol(i) + src(i)
+       cvm(i) = mc_air(i) + qv(i,j)*cv_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
+       pt1(i) =  pt1(i) + src(i)*(lhl(i)+lhi(i))/cvm(i)
+! Virtual temp updated !!!
+#ifdef USE_COND
+       q_con(i,j) = q_liq(i) + q_sol(i)
+       pt(i,j) = pt1(i)*(1.+zvir*qv(i,j))*(1.-q_con(i,j))
+       cappa(i,j) = rdgas/(rdgas + cvm(i)/(1.+zvir*qv(i,j)))
+#else
+       pt(i,j) = pt1(i)*(1.+zvir*qv(i,j))
+#endif
     enddo
 
     do i=is, ie
@@ -400,22 +434,6 @@ contains
             qi(i,j) = qi(i,j) - sink
             qs(i,j) = qs(i,j) + sink
        endif
-    enddo
-! At this point cloud ice & snow are positive definite
-!!! call revap_rac1(hydrostatic, is, ie, sdt, pt1, qv(is,j), ql(is,j), qr(is,j), qi(is,j), qs(is,j), qg(is,j), den, hvar)
-
-! Virtual temp updated !!!
-    do i=is, ie
-#ifdef USE_COND
-       q_liq(i) = ql(i,j) + qr(i,j)
-       q_sol(i) = qi(i,j) + qs(i,j) + qg(i,j)
-       q_con(i,j) = q_liq(i) + q_sol(i)
-       pt(i,j) = pt1(i)*(1.+zvir*qv(i,j))*(1.-q_con(i,j))
-       cvm(i) = (1.-qpz(i))*cv_air + qv(i,j)*cv_vap + q_liq(i)*c_liq + q_sol(i)*c_ice
-       cappa(i,j) = rdgas/(rdgas + cvm(i)/(1.+zvir*qv(i,j)))
-#else
-       pt(i,j) = pt1(i)*(1.+zvir*qv(i,j))
-#endif
     enddo
 
     if ( out_dt ) then

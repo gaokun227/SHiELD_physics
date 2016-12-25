@@ -570,11 +570,13 @@ contains
        hord_v = flagstruct%hord_vt
        hord_p = flagstruct%hord_dp
        nord_k = flagstruct%nord
-       if ( k==npz ) then
+
+!      if ( k==npz ) then
           kgb = flagstruct%ke_bg
-       else
-          kgb = 0.
-       endif
+!      else
+!         kgb = 0.
+!      endif
+
        nord_v(k) = min(2, flagstruct%nord)
 !      d2_divg = min(0.20, flagstruct%d2_bg*(1.-3.*tanh(0.1*log(pfull(k)/pfull(npz)))))
        d2_divg = min(0.20, flagstruct%d2_bg)

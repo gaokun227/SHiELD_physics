@@ -827,7 +827,7 @@ module fv_control_mod
       endif
 
       if(is_master()) then
-         if (n_sponge >= 0) write(*,199) 'Using n_sponge : ', n_sponge
+         if (n_sponge >= 0) write(*,199) 'n_sponge=', n_sponge
          write(*,197) 'Using non_ortho : ', non_ortho
       endif
 

@@ -1956,7 +1956,7 @@ contains
 
             if(idiag%id_slp>0 )  deallocate( slp )
 
-            deallocate( a3 )
+!           deallocate( a3 )
           endif
 
 !        deallocate ( wz )
@@ -2005,8 +2005,8 @@ contains
 
        if ( do_cs_intp ) then  ! log(pe) as the coordinaite for temp re-construction
           if(.not. allocated (a3) ) allocate( a3(isc:iec,jsc:jec,nplev) )
-          call pt_interpolator(isc,iec,jsc,jec,npz, Atm(n)%pt(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, wz, Atm(n)%peln, idg, a3)
+          call cs3_interpolator(isc,iec,jsc,jec,npz, Atm(n)%pt(isc:iec,jsc:jec,:), nplev,    &
+                                plevs, wz, Atm(n)%peln, idg, a3, 1)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
           enddo
@@ -2637,9 +2637,9 @@ contains
        enddo
 
        if ( do_cs_intp ) then
-          call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%ua(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3)
-!                              pout, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
+          call cs3_interpolator(isc,iec,jsc,jec,npz, Atm(n)%ua(isc:iec,jsc:jec,:), nplev,    &
+                               pout, wz, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
+!                              plevs, Atm(n)%peln, idg, a3, -1)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
           enddo
@@ -2687,9 +2687,9 @@ contains
        enddo
 
        if ( do_cs_intp ) then
-          call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%va(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3)
-!                              pout, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
+          call cs3_interpolator(isc,iec,jsc,jec,npz, Atm(n)%va(isc:iec,jsc:jec,:), nplev,    &
+                               pout, wz, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
+!                              plevs, Atm(n)%peln, idg, a3, -1)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
           enddo
@@ -2737,9 +2737,9 @@ contains
        enddo
 
        if ( do_cs_intp ) then
-          call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%q(isc:iec,jsc:jec,:,sphum), nplev, &
-                               plevs, Atm(n)%peln, idg, a3)
-!                              pout, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, 0)
+          call cs3_interpolator(isc,iec,jsc,jec,npz, Atm(n)%q(isc:iec,jsc:jec,:,sphum), nplev, &
+                               pout, wz, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, 0)
+!                              plevs, Atm(n)%peln, idg, a3, 0)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
           enddo
@@ -2786,8 +2786,9 @@ contains
           endif
        enddo
        if ( do_cs_intp ) then
-          call cs_interpolator(isc,iec,jsc,jec,npz, Atm(n)%omga(isc:iec,jsc:jec,:), nplev,    &
-                               plevs, Atm(n)%peln, idg, a3)
+          call cs3_interpolator(isc,iec,jsc,jec,npz, Atm(n)%omga(isc:iec,jsc:jec,:), nplev,    &
+                               pout, wz, Atm(n)%pe(isc:iec,1:npz+1,jsc:jec), idg, a3, -1)
+!                              plevs, Atm(n)%peln, idg, a3)
           do i=1,nplev
              if (idg(i)>0) used=send_data(idg(i), a3(isc:iec,jsc:jec,i), Time)
           enddo
@@ -3472,70 +3473,84 @@ contains
 
  end subroutine get_height_given_pressure
 
- subroutine pt_interpolator(is, ie, js, je, km, qin, kd, pout, wz, pe, id, qout)
-! This is the old-style linear in log-p interpolation
- integer,  intent(in):: is, ie, js, je, km
+ subroutine cs3_interpolator(is, ie, js, je, km, qin, kd, pout, wz, pe, id, qout, iv)
+! iv =-1: winds
+! iv = 0: positive definite scalars
+! iv = 1: temperature
+ integer,  intent(in):: is, ie, js, je, km, iv
  integer,  intent(in):: kd      ! vertical dimension of the ouput height
  integer,  intent(in):: id(kd)
  real, intent(in):: pout(kd)    ! must be monotonically increasing with increasing k
  real, intent(in):: pe(is:ie,km+1,js:je)
+ real, intent(in):: qin(is:ie,js:je,km)
  real, intent(in):: wz(is:ie,js:je,km+1)
- real, intent(in)::   qin(is:ie,js:je,km)
  real, intent(out):: qout(is:ie,js:je,kd)
 ! local:
- real:: pm(km)
- real:: gcp
- integer i,j,k, n, k1
+ real, parameter:: gcp = grav / cp_air
+ real:: qe(is:ie,km+1)
+ real, dimension(is:ie,km):: q2, dp
+ real:: s0, a6
+ integer:: i,j,k, n, k1
 
- gcp = grav / cp_air
-
-!$OMP parallel do default(none) shared(gcp,id,is,ie,js,je,km,kd,pout,qin,qout,wz,pe) & 
-!$OMP             private(k1,pm)
+!$OMP parallel do default(none) shared(iv,id,is,ie,js,je,km,kd,pout,qin,qout,pe,wz) & 
+!$OMP             private(k1,s0,a6,q2,dp,qe)
  do j=js,je
-    do i=is,ie
-       do k=1,km
-! consider using true log(p) here for non-hydro?
-          pm(k) = 0.5*(pe(i,k,j)+pe(i,k+1,j))
-       enddo
 
-       k1 = 1
-       do n=1,kd
-          if ( id(n) < 0 ) go to 500
-          if( pout(n) <= pm(1) ) then
-! Higher than the top: using constant value
-              qout(i,j,n) = qin(i,j,1)
-          elseif ( pout(n) >= pm(km) ) then
-            if ( pout(n) .le. pe(i,km+1,j) ) then   ! within the lowest layer
-              qout(i,j,n) = gcp*exp(kappa*pout(n)) * (wz(i,j,km)-wz(i,j,km+1))  /   &
-                           ( exp(kappa*pe(i,km+1,j))-exp(kappa*pe(i,km,j)) ) 
-            else
+   do i=is,ie
+      do k=1,km
+         dp(i,k) = pe(i,k+1,j) - pe(i,k,j)
+         q2(i,k) = qin(i,j,k)
+      enddo
+   enddo
+
+   call cs_prof(q2, dp, qe, km, is, ie, iv)
+
+   do i=is,ie
+     k1 = 1
+     do n=1,kd
+        if ( id(n) > 0 ) then
+          if( pout(n) <= pe(i,1,j) ) then
+! Higher than the top:
+              qout(i,j,n) = qe(i,1)
+          elseif ( pout(n) >= pe(i,km+1,j) ) then
+! lower than the bottom surface:
+            if ( iv==1 ) then    ! Temperature
 ! lower than the bottom surface:
 ! mean (hydro) potential temp based on lowest 2-3 layers (NCEP method)
 ! temp = ptm * p**cappa = ptm * exp(cappa*log(pout))
-              qout(i,j,n) = gcp*exp(kappa*pout(n)) * (wz(i,j,km-2) - wz(i,j,km))  /   &
-                           ( exp(kappa*pe(i,km,j)) - exp(kappa*pe(i,km-2,j)) )
+               qout(i,j,n) = gcp*exp(kappa*pout(n)) * (wz(i,j,km-2) - wz(i,j,km))  /   &
+                               ( exp(kappa*pe(i,km,j)) - exp(kappa*pe(i,km-2,j)) )
+            else
+               qout(i,j,n) = qe(i,km+1)
             endif
           else 
-            do k=k1,km-1
-               if ( pout(n)>=pm(k) .and. pout(n) <= pm(k+1) ) then
-                   qout(i,j,n) = qin(i,j,k) + (qin(i,j,k+1)-qin(i,j,k))*(pout(n)-pm(k))/(pm(k+1)-pm(k))
+            do k=k1,km
+               if ( pout(n)>=pe(i,k,j) .and. pout(n) <= pe(i,k+1,j) ) then
+! PPM distribution: f(s) = AL + s*[(AR-AL) + A6*(1-s)]         ( 0 <= s <= 1 )
+                   a6 = 3.*(2.*q2(i,k) - (qe(i,k)+qe(i,k+1)))
+                   s0 = (pout(n)-pe(i,k,j)) / dp(i,k)
+                   qout(i,j,n) = qe(i,k) + s0*(qe(i,k+1)-qe(i,k)+a6*(1.-s0))
                    k1 = k     ! next level
                    go to 500
                endif
             enddo
           endif
-500       continue
-       enddo
-    enddo
+500       if ( iv==0 ) qout(i,j,n) = max(0., qout(i,j,n))
+        endif
+     enddo
+   enddo
  enddo
 
- end subroutine pt_interpolator
+! Send_data here
 
- subroutine cs_interpolator(is, ie, js, je, km, qin, kd, pout, pe, id, qout)
+ end subroutine cs3_interpolator
+
+ subroutine cs_interpolator(is, ie, js, je, km, qin, kd, pout, pe, id, qout, iv)
 ! This is the old-style linear in log-p interpolation
  integer,  intent(in):: is, ie, js, je, km
  integer,  intent(in):: kd      ! vertical dimension of the ouput height
  integer,  intent(in):: id(kd)
+ integer, optional, intent(in):: iv
  real, intent(in):: pout(kd)    ! must be monotonically increasing with increasing k
  real, intent(in):: pe(is:ie,km+1,js:je)
  real, intent(in)::   qin(is:ie,js:je,km)
@@ -3577,75 +3592,6 @@ contains
  enddo
 
  end subroutine cs_interpolator
-
- subroutine cs3_interpolator(is, ie, js, je, km, qin, kd, pout, pe, id, qout, iv)
-! For some strange reason this more accurate version is less "accurate" as compared to 
-! re-analysis 
- integer,  intent(in):: is, ie, js, je, km, iv
- integer,  intent(in):: kd      ! vertical dimension of the ouput height
- integer,  intent(in):: id(kd)
- real, intent(in):: pout(kd)    ! must be monotonically increasing with increasing k
- real, intent(in):: pe(is:ie,km+1,js:je)
- real, intent(in)::   qin(is:ie,js:je,km)
- real, intent(out):: qout(is:ie,js:je,kd)
-! local:
- real:: qe(is:ie,km+1)
- real, dimension(is:ie,km):: q2, dp
- real s, a6
- integer i,j,k, n, k1
-
-!$OMP parallel do default(none) shared(iv,id,ptop,is,ie,js,je,km,kd,pout,qin,qout,pe) & 
-!$OMP             private(k1,s,a6,q2,dp,qe)
- do j=js,je
-
-    do i=is,ie
-       do k=1,km
-          dp(i,k) = pe(i,k+1,j) + pe(i,k,j)
-          q2(i,k) = qin(i,j,k)
-       enddo
-    enddo
-
-    call cs_prof(q2, dp, qe, km, is, ie, iv)
-
-    do i=is,ie
-
-       k1 = 1
-       do n=1,kd
-          if ( id(n) < 0 ) go to 500
-
-          if( pout(n) <= pe(i,1,j) ) then
-! Higher than the top: using constant value
-              qout(i,j,n) = q2(i,1)
-          elseif ( pout(n) >= pe(i,km+1,j) ) then
-! lower than the bottom surface:
-              qout(i,j,n) = q2(i,km)
-          else 
-            do k=k1,km
-               if ( pout(n)>=pe(i,k,j) .and. pout(n) <= pe(i,k+1,j) ) then
-#ifdef USE_PPM
-! PPM distribution: f(s) = AL + s*[(AR-AL) + A6*(1-s)]         ( 0 <= s <= 1 )
-                   a6 = 3.*(2.*q2(i,k) - (qe(i,k)+qe(i,k+1)))
-                   s = (pout(n)-pe(i,k,j)) / dp(i,k)
-                   qout(i,j,n) = qe(i,k) + s*(qe(i,k+1)-qe(i,k)+a6*(1.-s))
-                   if (iv==0) qout(i,j,n) = max(0.,qout(i,j,n))
-#else
-! Using linear version to prevent overshoots:
-                   qout(i,j,n) = qe(i,k) + (qe(i,k+1)-qe(i,k))*(pout(n)-pe(i,k,j))/dp(i,k)
-#endif
-! Alternative linear form:
-                   k1 = k     ! next level
-                   go to 500
-               endif
-            enddo
-          endif
-500    continue
-       enddo
-   enddo
- enddo
-
-! Send_data here
-
- end subroutine cs3_interpolator
 
  subroutine cs_prof(q2, delp, q, km, i1, i2, iv)
 ! Latest: Dec 2015 S.-J. Lin, NOAA/GFDL

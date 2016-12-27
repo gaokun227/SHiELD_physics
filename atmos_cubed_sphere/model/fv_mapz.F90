@@ -40,8 +40,10 @@ module fv_mapz_mod
   real, parameter:: r3 = 1./3., r23 = 2./3., r12 = 1./12.
   real, parameter:: cv_vap = 3.*rvgas  ! 1384.5
   real, parameter:: cv_air =  cp_air - rdgas ! = rdgas * (7/2-1) = 2.5*rdgas=717.68
-  real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0.C
-  real, parameter:: c_liq = 4.1855e+3    ! GFS
+! real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0.C
+  real, parameter:: c_ice = 1972.           ! heat capacity of ice at -15.C
+  real, parameter:: c_liq = 4.1855e+3    ! GFS: heat capacity of water at 0C
+! real, parameter:: c_liq = 4218.        ! ECMWF-IFS
   real, parameter:: cp_vap = cp_vapor   ! 1846.
   real, parameter:: tice = 273.16
 

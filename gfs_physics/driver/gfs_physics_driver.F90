@@ -175,6 +175,10 @@ module gfs_physics_driver_mod
 !
    integer :: tot_diag_idx = 0 
    integer, parameter :: DIAG_SIZE = 250
+! SJL:
+   integer:: tot_precip_id
+   integer:: con_precip_id
+! SJL
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag
    real(kind=kind_phys), parameter :: missing_value = 1.d30     ! netcdf missing value
 !
@@ -2014,6 +2018,10 @@ module gfs_physics_driver_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th/cn_hr
     Diag(idx)%time_avg = .TRUE.
+! SJL
+    tot_precip_id = idx
+    if (mpp_pe() == mpp_root_pe() ) write(6,*) 'Total Precip ID=', tot_precip_id
+
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2166,6 +2174,9 @@ module gfs_physics_driver_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th/cn_hr
     Diag(idx)%time_avg = .TRUE.
+! SJL
+    con_precip_id = idx
+    if (mpp_pe() == mpp_root_pe() ) write(6,*) 'Conv Precip ID=', con_precip_id
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -3321,6 +3332,11 @@ module gfs_physics_driver_mod
              used=send_data(Diag(idx)%id, Diag(idx)%data(nb)%var2*lcnvfac, Time, &
                             is_in=Diag(idx)%data(nb)%is, &
                             js_in=Diag(idx)%data(nb)%js) 
+           endif
+! SJL: check max/min/global_mean
+           if ( Diag(idx)%id == tot_precip_id ) then
+           endif
+           if ( Diag(idx)%id == con_precip_id ) then
            endif
          elseif (Diag(idx)%axes == 3) then
            !--- dt3dt variables

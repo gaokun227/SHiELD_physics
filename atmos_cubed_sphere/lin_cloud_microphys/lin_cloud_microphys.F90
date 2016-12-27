@@ -56,19 +56,18 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real, parameter :: zvir  = rvgas/rdgas-1.  ! = 0.607789855
  real, parameter :: table_ice  = 273.16  ! freezing point for qs table
  real, parameter :: cv_air =  cp_air - rdgas ! = rdgas * (7/2-1) = 2.5*rdgas=717.68
-
-   real, parameter:: e00 = 610.71  ! saturation vapor pressure at T0
-!   real, parameter:: c_liq = 4190.       ! heat capacity of water at 0C
-! GFS value
+! real, parameter:: e00 = 610.71  ! saturation vapor pressure at T0
+   real, parameter:: e00 = 611.21  ! IFS: saturation vapor pressure at T0
    real, parameter:: c_liq = 4.1855e+3       ! heat capacity of water at 0C
-   real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
+!  real, parameter:: c_liq = 4218.        ! ECMWF-IFS
+!  real, parameter:: c_ice = 2106.           ! heat capacity of ice at 0C: c=c_ice+7.3*(T-Tice) 
+   real, parameter:: c_ice = 1972.           ! heat capacity of ice at -15 C
    real, parameter:: cp_vap = cp_vapor   ! 1846.
 !  real, parameter:: cv_vap = 1410.0     ! Emanuel value
 ! For consistency, cv_vap derived FMS constants:
    real, parameter:: cv_vap = cp_vap - rvgas  ! 1384.5
-   real, parameter:: dc_vap = cp_vap - c_liq     ! = -2344.    isobaric heating/cooling
    real, parameter:: dc_ice =  c_liq - c_ice     ! =  2084
-
+   real, parameter:: dc_vap = cp_vap - c_liq     ! = -2344.    isobaric heating/cooling
 ! Values at 0 Deg C
 ! GFS value
    real, parameter:: hlv0 = 2.5e6
@@ -78,8 +77,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 !  real, parameter:: hlf0 = 3.337e5   ! Emanuel
    real, parameter:: t_ice = 273.16
 ! Latent heat at absolute zero:
-   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.141264e6
    real, parameter:: li00 = hlf0 - dc_ice*t_ice   ! = -2.355446e5
+   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.141264e6
 
    real, parameter:: d2ice = cp_vap - c_ice
    real, parameter:: Li2 = hlv0+hlf0 - d2ice*t_ice
@@ -98,7 +97,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
  real :: es0, ces0
  real :: pie, rgrav, fac_rc
  real :: lcp, icp, tcp
- real :: lv00, c_air, c_vap
+ real :: lv00, d0_vap, c_air, c_vap
 
  logical :: de_ice = .false.     !
  logical :: sedi_transport = .true.     !
@@ -309,16 +308,17 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 !  call mpp_clock_begin (lin_cld_mp_clock)
 
   if ( phys_hydrostatic .or. hydrostatic ) then
-        lv00 = Lv0
       c_air = cp_air
       c_vap = cp_vapor
       p_nonhydro = .false.
   else
-        lv00 = Lv0
       c_air = cv_air
       c_vap = cv_vap
       p_nonhydro = .true.
   endif
+  d0_vap = c_vap - c_liq
+  lv00 = hlv0 - d0_vap*t_ice 
+
   if ( hydrostatic ) do_sedi_w = .false.
   latv = hlv
   lati = hlf
@@ -756,7 +756,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
       qs_dt(i,j,k) = qs_dt(i,j,k) + rdt*(qsz(k)-qs0(k))*omq
       qg_dt(i,j,k) = qg_dt(i,j,k) + rdt*(qgz(k)-qg0(k))*omq
       cvm = c_air + qvz(k)*c_vap + (qrz(k)+qlz(k))*c_liq + (qiz(k)+qsz(k)+qgz(k))*c_ice
-           pt_dt(i,j,k) = pt_dt(i,j,k) + rdt*(tz(k)- t0(k))*cvm/cp_air
+      pt_dt(i,j,k) = pt_dt(i,j,k) + rdt*(tz(k)- t0(k))*cvm/cp_air
    enddo
 
    do k = ktop, kbot
@@ -1002,8 +1002,8 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
   do k=ktop,kbot
      if ( tz(k) > t_wfr .and. qr(k) > qrmin ) then
 
-      lcpk = (lv00+dc_vap*tz(k)) / (c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + &
-                (qi(k)+qs(k)+qg(k))*c_ice)
+      lcpk = (lv00+d0_vap*tz(k)) / (c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + &
+                                   (qi(k)+qs(k)+qg(k))*c_ice)
 
              tin = tz(k) - lcpk*ql(k) ! presence of clouds suppresses the rain evap
              qpz = qv(k) + ql(k)
@@ -1038,7 +1038,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
               evap = max( evap, sink )
              qr(k) = qr(k) - evap
              qv(k) = qv(k) + evap
-             tz(k) = tz(k) - evap*(lv00+dc_vap*tz(k)) / (c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + &
+             tz(k) = tz(k) - evap*(lv00+d0_vap*tz(k)) / (c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + &
                                                                          (qi(k)+qs(k)+qg(k))*c_ice)
          endif
 
@@ -1180,7 +1180,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 
  do k=ktop,kbot
     cvm = c_air + qvk(k)*c_vap + (qlk(k)+qrk(k))*c_liq + (qik(k)+qsk(k)+qgk(k))*c_ice
-     lhl(k) = lv00 + dc_vap*tzk(k)
+     lhl(k) = lv00 + d0_vap*tzk(k)
      lhi(k) = li00 + dc_ice*tzk(k)
     lcpk(k) = lhl(k) / cvm
     icpk(k) = lhi(k) / cvm
@@ -1479,7 +1479,7 @@ endif   ! end ice-physics
  do k=ktop, kbot
 ! Moist heat capacity
      cvm = c_air + qv(k)*c_vap + (ql(k)+qr(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
-     lhl(k) = lv00+dc_vap*tz(k)
+     lhl(k) = lv00+d0_vap*tz(k)
      lhi(k) = li00+dc_ice*tz(k)
     lcpk(k) = lhl(k) / cvm
     icpk(k) = lhi(k) / cvm
@@ -1501,19 +1501,17 @@ endif   ! end ice-physics
     endif
 
 ! Instant evaporation/sublimation of all clouds if RH<rh_adj --> cloud free
-      iwt = qi(k) + qs(k)
-   clouds = ql(k) + qr(k) + iwt
+      iwt = qi(k)
+   clouds = ql(k) + iwt
       qpz = qv(k) + clouds
-   tin = tz(k) - (lhl(k)*clouds+lhi(k)*iwt)/(c_air+qpz*c_vap)  ! minimum  temperature
+   tin = tz(k) - (lhl(k)*clouds+lhi(k)*iwt)/(c_air+qpz*c_vap+qr(k)*c_liq+(qs(k)+qg(k))*c_ice)
    if ( tin>t_sub+6. ) then
        rh = qpz / iqs1(tin, den(k))
       if ( rh < rh_adj ) then  ! qpz / rh_adj < qs
          tz(k) = tin
          qv(k) = qpz
          ql(k) = 0.
-         qr(k) = 0.
          qi(k) = 0.
-         qs(k) = 0.
          goto 4000            ! cloud free
       endif
     endif
@@ -1524,9 +1522,9 @@ endif   ! end ice-physics
    if ( dq0 > 0. ) then
         evap =  min( ql(k), fac_l2v*dq0/(1.+tcp3(k)*dwsdt) )
    else   ! condensate all excess vapor into cloud water
-        evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
+!       evap = fac_v2l*dq0/(1.+tcp3(k)*dwsdt)
 ! 20161108
-!       evap = dq0/(1.+tcp3(k)*dwsdt)
+        evap = dq0/(1.+tcp3(k)*dwsdt)
    endif
    qv(k) = qv(k) + evap
    ql(k) = ql(k) - evap
@@ -1557,7 +1555,7 @@ endif   ! end ice-physics
   endif
 
    cvm = c_air + qv(k)*c_vap + (ql(k)+qr(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
-    lhl(k) = lv00+dc_vap*tz(k)
+    lhl(k) = lv00+d0_vap*tz(k)
     lhi(k) = li00+dc_ice*tz(k)
    lcpk(k) = lhl(k) / cvm
    icpk(k) = lhi(k) / cvm
@@ -1619,7 +1617,7 @@ endif   ! end ice-physics
          endif
          qs(k) = qs(k) - pssub
          qv(k) = qv(k) + pssub
-         tz(k) = tz(k) - pssub*(lv00+li00+(dc_vap+dc_ice)*tz(k)) /     &
+         tz(k) = tz(k) - pssub*(lv00+li00+(d0_vap+dc_ice)*tz(k)) /     &
               (c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
   endif
 
@@ -1641,7 +1639,7 @@ endif   ! end ice-physics
        endif
        qg(k) = qg(k) + pgsub
        qv(k) = qv(k) - pgsub
-       tz(k) = tz(k) + pgsub*(lv00+li00+(dc_vap+dc_ice)*tz(k)) /     &
+       tz(k) = tz(k) + pgsub*(lv00+li00+(d0_vap+dc_ice)*tz(k)) /     &
             (c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
   endif
 
@@ -1653,7 +1651,7 @@ endif   ! end ice-physics
      sink = min(qr(k), dim(rh_rain*qsw, qv(k))/(1.+lcpk(k)*dqsdt))
       qv(k) = qv(k) + sink
       qr(k) = qr(k) - sink
-      tz(k) = tz(k) - sink*(lv00+dc_vap*tz(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
+      tz(k) = tz(k) - sink*(lv00+d0_vap*tz(k))/(c_air+qv(k)*c_vap+(ql(k)+qr(k))*c_liq+(qi(k)+qs(k)+qg(k))*c_ice)
   endif
 
    if ( do_qa ) goto 4000
@@ -1671,7 +1669,8 @@ endif   ! end ice-physics
 
    qpz = qv(k) + clouds     ! qpz is conserved
    tin = tz(k) - ( lcpk(k)*clouds + icpk(k)*iwt )  ! minimum  temperature
-
+!  tin = tz(k) - ((lv00+d0_vap*tz(k))*clouds + (li00+dc_ice*tz(k))*iwt) /   &
+!                                                       (c_air+qpz*c_vap)
 !--------------------
 ! * determine qstar
 !--------------------
@@ -1733,14 +1732,14 @@ endif   ! end ice-physics
   do i=is, ie
      q_liq = ql(i) + qr(i)
      q_sol = qi(i) + qs(i) + qg(i)
-     lcp2(i) = (Lv0+dc_vap*tz(i))/((1.-(qv(i)+q_liq+q_sol))*cp_air+qv(i)*cp_vap+q_liq*c_liq+q_sol*c_ice)
+     lcp2(i) = (lv00+d0_vap*tz(i))/((1.-(qv(i)+q_liq+q_sol))*cp_air+qv(i)*cp_vap+q_liq*c_liq+q_sol*c_ice)
 !    denfac(i) = sqrt(sfcrho/den(i))
   enddo
   else
   do i=is, ie
      q_liq = ql(i) + qr(i)
      q_sol = qi(i) + qs(i) + qg(i)
-     lcp2(i) = (Lv0+dc_vap*tz(i))/((1.-(qv(i)+q_liq+q_sol))*cv_air+qv(i)*cv_vap+q_liq*c_liq+q_sol*c_ice)
+     lcp2(i) = (lv00+d0_vap*tz(i))/((1.-(qv(i)+q_liq+q_sol))*cv_air+qv(i)*cv_vap+q_liq*c_liq+q_sol*c_ice)
 !    denfac(i) = sqrt(sfcrho/den(i))
   enddo
   endif
@@ -1820,7 +1819,7 @@ endif   ! end ice-physics
   do k=ktop,kbot
      m1_sol(k) = 0.
      cvm = c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
-     lcpk(k) = (lv00+dc_vap*tz(k)) / cvm
+     lcpk(k) = (lv00+d0_vap*tz(k)) / cvm
      icpk(k) = (li00+dc_ice*tz(k)) / cvm
   enddo
 
@@ -3326,7 +3325,7 @@ endif   ! end ice-physics
 
  do k=ktop,kbot
     cvm = c_air + qv(k)*c_vap + (qr(k)+ql(k))*c_liq + (qi(k)+qs(k)+qg(k))*c_ice
-    lcpk(k) = (lv00+dc_vap*pt(k)) / cvm
+    lcpk(k) = (lv00+d0_vap*pt(k)) / cvm
     icpk(k) = (li00+dc_ice*pt(k)) / cvm
  enddo
 

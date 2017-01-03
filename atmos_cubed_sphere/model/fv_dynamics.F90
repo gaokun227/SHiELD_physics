@@ -482,11 +482,10 @@ contains
        endif
                                              call timing_off('tracer_2d')
 
-     if ( flagstruct%moist_phys ) then
+     if ( nwat.ne.6 .and. flagstruct%moist_phys ) then
                                                   call timing_on('Fill2D')
-      if ( liq_wat > 0 )  &
+       if ( liq_wat > 0 )  &
        call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,liq_wat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      if ( nwat > 2 ) then       ! FV3_GFS nwat=2; nq=4
        if ( rainwat > 0 )  &
         call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,rainwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
        if ( ice_wat > 0  )  &
@@ -495,7 +494,6 @@ contains
         call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,snowwat), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
        if ( graupel > 0 )  &
         call fill2D(is, ie, js, je, ng, npz, q(isd,jsd,1,graupel), delp, gridstruct%area, domain, neststruct%nested, npx, npy)
-      endif
                                                   call timing_off('Fill2D')
      endif
 

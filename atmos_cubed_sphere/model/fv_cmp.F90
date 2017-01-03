@@ -111,10 +111,10 @@ contains
      c_air = cv_air
      c_vap = cv_vap
   endif
-! dc_vap = cp_vap - c_liq  ! = -2344.    isobaric heating/cooling
-! d0_vap = cv_vap - c_liq  ! = -2833.2
   d0_vap = c_vap - c_liq
     lv00 =  hlv0 - d0_vap*tice  !  lv00 = 2.5e6 + 2833.2*T_ice
+! dc_vap = cp_vap - c_liq  ! = -2344.    isobaric heating/cooling
+! d0_vap = cv_vap - c_liq  ! = -2833.2
 ! L_v2l = lv00 + d0_vap*T = 3.27e6 - 2833.2*T
 ! L_v2l = hlv0 - d0_vap*Tice + d0_vap*T = hlv0 + (T-Tice)*d0_vap
 

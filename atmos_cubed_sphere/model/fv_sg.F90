@@ -42,7 +42,8 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: cv_vap = cp_vapor - rvgas  ! 1384.5
   real, parameter:: c_con = c_ice
 
-  real, parameter:: dc_vap =  cp_vapor - c_liq   ! = -2368.
+! real, parameter:: dc_vap =  cp_vapor - c_liq   ! = -2368.
+  real, parameter:: dc_vap =  cv_vap - c_liq   ! = -2368.
   real, parameter:: dc_ice =  c_liq - c_ice      ! = 2112.
 ! Values at 0 Deg C
   real, parameter:: hlv0 = 2.5e6
@@ -59,6 +60,7 @@ public  fv_subgrid_z, qsmith, neg_adj3
 
   real, parameter:: zvir =  rvgas/rdgas - 1.     ! = 0.607789855
   real, allocatable:: table(:),des(:)
+  real:: lv00, d0_vap
 
 !---- version number -----
   character(len=128) :: version = '$Id: fv_sg.F90,v 17.0.2.4.2.3.2.6.2.10.4.1 2014/11/12 03:46:32 Lucas.Harris Exp $'
@@ -1142,8 +1144,15 @@ real, dimension(is:ie,js:je):: pt2, qv2, ql2, qi2, qs2, qr2, qg2, dp2, p2, icpk,
   endif
   endif
 
+     if ( hydrostatic ) then
+       d0_vap = cp_vapor - c_liq
+     else
+       d0_vap = cv_vap - c_liq
+     endif
+     lv00 = hlv0 - d0_vap*t_ice
+
 !$OMP parallel do default(none) shared(is,ie,js,je,kbot,qv,ql,qi,qs,qr,qg,dp,pt,       &
-!$OMP                                  hydrostatic,peln,delz,cv_air,sat_adj) &
+!$OMP                                  lv00, d0_vap,hydrostatic,peln,delz,cv_air,sat_adj) &
 !$OMP                          private(dq,dq1,qsum,dp2,p2,pt2,qv2,ql2,qi2,qs2,qg2,qr2, &
 !$OMP                                  lcpk,icpk,qsw,dwsdt,sink,q_liq,q_sol,cpm)
   do k=1, kbot
@@ -1178,7 +1187,7 @@ real, dimension(is:ie,js:je):: pt2, qv2, ql2, qi2, qs2, qr2, qg2, dp2, p2, icpk,
              q_liq = max(0., ql2(i,j) + qr2(i,j))
              q_sol = max(0., qi2(i,j) + qs2(i,j))
              cpm = (1.-(qv2(i,j)+q_liq+q_sol))*cv_air + qv2(i,j)*cv_vap + q_liq*c_liq + q_sol*c_ice
-             lcpk(i,j) = (Lv0+dc_vap*pt2(i,j)) / cpm
+             lcpk(i,j) = (lv00+d0_vap*pt2(i,j)) / cpm
              icpk(i,j) = (Li0+dc_ice*pt2(i,j)) / cpm
           enddo
        enddo

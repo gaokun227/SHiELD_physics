@@ -674,7 +674,9 @@ module fv_control_mod
 
          write(unit, nml=fv_core_nml)
          write(unit, nml=test_case_nml)
+#ifdef GFS_PHYS
          write(unit, nml=nggps_diag_nml)
+#endif         
 
          !*** single tile for Cartesian grids
          if (grid_type>3) then

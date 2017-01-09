@@ -327,7 +327,7 @@ module gfs_physics_driver_mod
                               pgcon_deep,                                        &
                               clam_shal, crain_shal, ccloud_shal, pgcon_shal,    & ! shalcnv
                               xkzminv_moninq, moninq_fac,                        & ! moninq
-                              random_clds,                                       & ! cal_pre rann
+                              random_clds,cal_pre,                               & ! cal_pre rann
 !--- namelist for Lin cloud microphysics
         mp_time, t_min, t_sub, tau_s, tau_g, dw_land, dw_ocean,  &
         vi_fac, vr_fac, vs_fac, vg_fac, ql_mlt, do_qa, fix_negative, &

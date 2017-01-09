@@ -774,7 +774,7 @@
 ! lin cloud microphysics
 
       integer :: iis, iie, jjs, jje, kks, kke, kt, kb, seconds
-      real(kind=kind_phys) :: dt_in
+      real(kind=kind_phys) :: dt_in, crain, csnow
       real(kind=kind_phys), dimension(im,1) :: area1, land, rain0,      &
      &           snow0, ice0, graupel0
       real(kind=kind_phys), dimension(im,1,levs) :: delp, dz, uin, vin, &
@@ -3128,8 +3128,24 @@
           tprcp(i) = rain(i)            ! clu: rain -> tprcp
           srflag(i) = 0.                ! clu: default srflag as 'rain' (i.e. 0)
 
-          if (t850(i) <= 273.16) then
-            srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
+          if (ncld == 5) then
+! determine convective rain/snow by surface temperature
+! determine large-scale rain/snow by rain/snow coming out directly from MP
+            if (tsea(i) .ge. 273.15) then
+              crain = rainc(i)
+              csnow = 0.0
+            else
+              crain = 0.0
+              csnow = rainc(i)
+            endif
+            if (snow0(i,1)+ice0(i,1)+graupel0(i,1)+csnow                &
+     &          .gt. rain0(i,1)+crain) then
+              srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
+            endif
+          else
+            if (t850(i) <= 273.16) then
+              srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
+            endif
           endif
         enddo
       endif

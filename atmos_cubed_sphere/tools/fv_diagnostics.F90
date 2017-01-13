@@ -984,6 +984,27 @@ contains
        idiag%id_qn850 = register_diag_field ( trim(field), 'qn850', axes(1:2), Time,       &
                '850mb condensate', 'kg/m/s^2', missing_value=missing_value )
 
+!--------------------------
+! 250-mb winds:
+!--------------------------
+       idiag%id_u250 = register_diag_field ( trim(field), 'u250', axes(1:2), Time,       &
+                           '250-mb u-wind', 'm/s', missing_value=missing_value )
+       idiag%id_v250 = register_diag_field ( trim(field), 'v250', axes(1:2), Time,       &
+                           '250-mb v-wind', 'm/s', missing_value=missing_value )
+!--------------------------
+! 300-mb winds:
+!--------------------------
+       idiag%id_u300 = register_diag_field ( trim(field), 'u300', axes(1:2), Time,       &
+                           '300-mb u-wind', 'm/s', missing_value=missing_value )
+       idiag%id_v300 = register_diag_field ( trim(field), 'v300', axes(1:2), Time,       &
+                           '300-mb v-wind', 'm/s', missing_value=missing_value )
+!--------------------------
+! 500-mb winds:
+!--------------------------
+       idiag%id_u500 = register_diag_field ( trim(field), 'u500', axes(1:2), Time,       &
+                           '500-mb u-wind', 'm/s', missing_value=missing_value )
+       idiag%id_v500 = register_diag_field ( trim(field), 'v500', axes(1:2), Time,       &
+                           '500-mb v-wind', 'm/s', missing_value=missing_value )
        if( .not. Atm(n)%flagstruct%hydrostatic )                                          &
           idiag%id_w500 = register_diag_field ( trim(field), 'w500', axes(1:2), Time,       &
                               '500-mb w-wind', 'm/s', missing_value=missing_value )
@@ -1011,6 +1032,10 @@ contains
 ! helicity
        idiag%id_x850 = register_diag_field ( trim(field), 'x850', axes(1:2), Time,       &
                            '850-mb vertical comp. of helicity', 'm/s**2', missing_value=missing_value )
+!       idiag%id_x03 = register_diag_field ( trim(field), 'x03', axes(1:2), Time,       &
+!                           '0-3 km vertical comp. of helicity', 'm**2/s**2', missing_value=missing_value )
+!       idiag%id_x25 = register_diag_field ( trim(field), 'x25', axes(1:2), Time,       &
+!                           '2-5 km vertical comp. of helicity', 'm**2/s**2', missing_value=missing_value )
 
 ! Storm Relative Helicity
        idiag%id_srh = register_diag_field ( trim(field), 'srh', axes(1:2), Time,       &

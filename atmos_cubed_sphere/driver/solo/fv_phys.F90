@@ -109,15 +109,18 @@ public :: fv_phys, fv_nudge
   logical:: do_LS_cond       = .false.
   logical:: do_sim_phys      = .false.
   logical:: do_surf_drag     = .false.
+  logical:: do_fixed_cd      = .false. ! NJ, fixed drag option
   logical:: do_terminator    = .false.
   logical:: term_fill_negative = .false.
   integer:: reed_test = 0   ! Constant SST
   integer:: K_cycle = 0   ! K_warm-Rain cycles
   real:: tau_zero  = 1.   ! time-scale to "zero" domain-averaged winds (days)
   real:: tau_drag  = 1.   ! time-scale for the surface drag
+  real:: u_mean    = 0.     ! NJ, mean wind for enthalpy fluxes
+  real:: cd       = 1.5e-3  ! NJ, fixed drag coefficient
   real:: s_fac  =  0.1
   real:: heating_rate =  0.5    ! deg K per day, stratosphere, for gray-radiation
-  real:: cooling_rate =  0.     ! deg K per day
+  real:: cooling_rate =  0.     ! deg K per day (note sign convention)
   real:: c0 = 6.285E7           ! Ocean heat capabicity 4190*depth*e3, depth = 15.
   real:: low_c = 0.3            ! global mean *low* cloud fraction
   real:: sw_abs = 0.            ! fraction of the solar absorbed/reflected by the atm
@@ -150,7 +153,7 @@ namelist /sim_phys_nml/mixed_layer, gray_rad, strat_rad, do_lin_microphys,   &
                        do_K_warm_rain, do_K_momentum, do_sedi_w, do_sim_phys,&
                        do_sedi_t, do_reed_phys, do_reed_cond, reed_cond_only,&
                        reed_alt_mxg, reed_test, do_LS_cond, do_surf_drag,    &
-                       tau_drag, do_terminator
+                       tau_drag, do_terminator, do_fixed_cd, cd, u_mean
 
 contains
 
@@ -631,7 +634,7 @@ contains
  real, INTENT(IN):: ua(is-ng:ie+ng,js-ng:je+ng,npz)
  real, INTENT(IN):: va(is-ng:ie+ng,js-ng:je+ng,npz)
 ! Local
- real, dimension(is:ie,js:je):: flux_t, flux_q, flux_u, flux_v, delm
+ real, dimension(is:ie,js:je):: flux_t, flux_q, flux_u, flux_v, delm, drag_t, drag_q
  logical:: phys_hydrostatic = .true.
  real, parameter:: f1 = 2./3.
  real, parameter:: f2 = 1./3.
@@ -818,7 +821,7 @@ contains
          do i=is, ie
             cooling = cooling_rate*(f1+f2*cos(agrid(i,j,2)))/sday
             if ( p3(i,j,k) >= 100.E2 ) then
-               t_dt(i,j,k) = t_dt(i,j,k) + cooling*min(1.0, (p3(i,j,k)-100.E2)/200.E2)
+               t_dt(i,j,k) = t_dt(i,j,k) - cooling*min(1.0, (p3(i,j,k)-100.E2)/200.E2)
             elseif ( do_t_strat ) then
                if ( p3(i,j,k) < p_strat) then
                     t_dt(i,j,k) = t_dt(i,j,k) + (t_strat - t3(i,j,k))*rate_t
@@ -877,8 +880,8 @@ if( do_mon_obkv ) then
 
                                                                              call timing_on('mon_obkv')
   call mon_obkv(zvir, ps, t3(is:ie,js:je, km), zfull(is:ie,js:je,km),     &
-                rho, p3(is:ie,js:je,km), u3(is:ie,js:je,km), v3(is:ie,js:je,km), sst, &
-                qs, q3(is:ie,js:je,km,sphum), flux_t, flux_q, flux_u, flux_v, u_star, &
+                rho, p3(is:ie,js:je,km), u3(is:ie,js:je,km), v3(is:ie,js:je,km), u_mean, do_fixed_cd, cd,  sst,  &
+                qs, q3(is:ie,js:je,km,sphum), drag_t, drag_q, flux_t, flux_q, flux_u, flux_v, u_star, &
                 delm, pdt, mu, t_fac, master)
                                                                              call timing_off('mon_obkv')
 !---------------------------------------------------
@@ -904,6 +907,22 @@ if( do_mon_obkv ) then
       enddo
    enddo
 endif
+
+!!$if (id_flux_t > 0) then
+!!$    used=send_data(id_flux_t, flux_t(:,:), Time)
+!!$endif
+!!$if (id_flux_q > 0) then
+!!$    used=send_data(id_flux_q, 2.5e6*flux_q(:,:), Time)
+!!$                                                                                                    
+!!$endif
+!!$
+!!$if (id_drag_t > 0) then
+!!$    used=send_data(id_drag_t, drag_t(:,:), Time)
+!!$endif
+!!$if (id_drag_q > 0) then
+!!$    used=send_data(id_drag_q, drag_q(:,:), Time)
+!!$
+!!$endif
 
 if ( zero_winds ) then
 

@@ -86,6 +86,7 @@ module fv_eta_mod
       real, intent(out):: ptop         ! model top (Pa)
       real pint, stretch_fac
       integer  k
+      real :: s_rate = -1.0 ! dummy value to not use var_les
 
       pint = 100.E2
 
@@ -216,6 +217,10 @@ module fv_eta_mod
         case (127)               ! N = 10, M=5
              ptop = 1.
              stretch_fac = 1.03
+        case (151)
+           ptop = 75.e2
+           pint = 500.E2
+           s_rate = 1.01
         case default
              ptop = 1.
              stretch_fac = 1.03
@@ -224,22 +229,26 @@ module fv_eta_mod
 #ifdef MOUNTAIN_WAVES
       call mount_waves(km, ak, bk, ptop, ks, pint)
 #else
-      if ( km > 79 ) then
-           call var_hi2(km, ak, bk, ptop, ks, pint, stretch_fac)
-      elseif (km==5 .or. km==10 ) then
-! Equivalent Shallow Water: for NGGPS, variable-resolution testing
-           ptop = 500.e2
-           ks = 0
-           do k=1,km+1
-              bk(k) = real(k-1) / real (km) 
-              ak(k) = ptop*(1.-bk(k))
-           enddo
+      if (s_rate > 0.) then
+           call var_les(km, ak, bk, ptop, ks, pint, s_rate)         
       else
+         if ( km > 79 ) then
+            call var_hi2(km, ak, bk, ptop, ks, pint, stretch_fac)
+         elseif (km==5 .or. km==10 ) then
+! Equivalent Shallow Water: for NGGPS, variable-resolution testing
+            ptop = 500.e2
+            ks = 0
+            do k=1,km+1
+               bk(k) = real(k-1) / real (km) 
+               ak(k) = ptop*(1.-bk(k))
+            enddo
+         else
 #ifndef GFSL60
-      call var_hi(km, ak, bk, ptop, ks, pint, stretch_fac)
+            call var_hi(km, ak, bk, ptop, ks, pint, stretch_fac)
 #endif
-      endif 
+         endif
 #endif
+      endif
 
       ptop = ak(1)
       pint = ak(ks+1)
@@ -1475,6 +1484,168 @@ module fv_eta_mod
 
  end subroutine set_eta
 #endif
+
+ subroutine var_les(km, ak, bk, ptop, ks, pint, s_rate)
+ implicit none
+  integer, intent(in):: km
+  real,    intent(in):: ptop
+  real,    intent(in):: s_rate        ! between [1. 1.1]
+  real,    intent(out):: ak(km+1), bk(km+1)
+  real,    intent(inout):: pint
+  integer, intent(out):: ks
+! Local
+  real, parameter:: p00 = 1.E5
+  real, dimension(km+1):: ze, pe1, peln, eta
+  real, dimension(km):: dz, s_fac, dlnp, pm, dp, dk
+  real ztop, t0, dz0, sum1, tmp1
+  real ep, es, alpha, beta, gama
+  real, parameter:: akap = 2./7.
+!---- Tunable parameters:
+  real:: k_inc = 10   ! # of layers from bottom up to near const dz region
+  real:: s0 = 0.8     ! lowest layer stretch factor
+!-----------------------
+  real:: s_inc
+  integer  k
+
+     pe1(1) = ptop
+     peln(1) = log(pe1(1))
+     pe1(km+1) = p00
+     peln(km+1) = log(pe1(km+1))
+
+     t0 = 273.
+     ztop = rdgas/grav*t0*(peln(km+1) - peln(1))
+
+      s_inc = (1.-s0) / real(k_inc)
+      s_fac(km)  = s0
+
+      do k=km-1, km-k_inc, -1
+         s_fac(k)  = s_fac(k+1) + s_inc
+      enddo
+
+      s_fac(km-k_inc-1) = 0.5*(s_fac(km-k_inc) + s_rate)
+          
+      do k=km-k_inc-2, 5, -1
+         s_fac(k) = s_rate * s_fac(k+1)
+      enddo
+
+      s_fac(4) = 0.5*(1.1+s_rate)*s_fac(5)
+      s_fac(3) = 1.1 *s_fac(4)
+      s_fac(2) = 1.1 *s_fac(3)
+      s_fac(1) = 1.1 *s_fac(2)
+
+      sum1 = 0.
+      do k=1,km
+         sum1 = sum1 + s_fac(k)
+      enddo
+
+      dz0 = ztop / sum1
+
+      do k=1,km
+         dz(k) = s_fac(k) * dz0
+      enddo
+
+      ze(km+1) = 0.
+      do k=km,1,-1
+         ze(k) = ze(k+1) + dz(k)
+      enddo
+
+! Re-scale dz with the stretched ztop
+      do k=1,km
+         dz(k) = dz(k) * (ztop/ze(1))
+      enddo
+
+      do k=km,1,-1
+         ze(k) = ze(k+1) + dz(k)
+      enddo
+!     ze(1) = ztop
+
+      if ( is_master() ) then
+           write(*,*) 'var_les: computed model top (m)=', ztop, ' bottom/top dz=', dz(km), dz(1)
+!           do k=1,km
+!              write(*,*) k, s_fac(k)
+!           enddo
+      endif
+
+      call sm1_edge(1, 1, 1, 1, km, 1, 1, ze, 2)
+
+! Given z --> p
+      do k=1,km
+          dz(k) = ze(k) - ze(k+1)
+        dlnp(k) = grav*dz(k) / (rdgas*t0)
+        !write(*,*) k, dz(k)
+      enddo
+      do k=2,km
+         peln(k) = peln(k-1) + dlnp(k-1)
+          pe1(k) = exp(peln(k))
+      enddo
+
+
+! Pe(k) = ak(k) + bk(k) * PS
+! Locate pint and KS
+      ks = 0
+      do k=2,km
+         if ( pint < pe1(k)) then
+              ks = k-1
+              exit
+         endif
+      enddo
+      if ( is_master() ) then
+         write(*,*) 'For (input) PINT=', 0.01*pint, ' KS=', ks, 'pint(computed)=', 0.01*pe1(ks+1)
+      endif
+      pint = pe1(ks+1)
+
+      do k=1,km+1
+         eta(k) = pe1(k) / pe1(km+1)
+      enddo
+
+      ep =  eta(ks+1) 
+      es =  eta(km) 
+!     es =  1.
+      alpha = (ep**2-2.*ep*es) / (es-ep)**2
+      beta  = 2.*ep*es**2 / (es-ep)**2
+      gama = -(ep*es)**2 / (es-ep)**2
+
+! Pure pressure:
+      do k=1,ks+1
+         ak(k) = eta(k)*1.e5
+         bk(k) = 0.
+      enddo
+
+      do k=ks+2, km
+         ak(k) = alpha*eta(k) + beta + gama/eta(k)
+         ak(k) = ak(k)*1.e5
+      enddo
+         ak(km+1) = 0.
+
+      do k=ks+2, km 
+         bk(k) = (pe1(k) - ak(k))/pe1(km+1)
+      enddo
+         bk(km+1) = 1.
+
+      if ( is_master() ) then
+ !         write(*,*) 'KS=', ks, 'PINT (mb)=', pint/100.
+ !         do k=1,km
+ !            pm(k) = 0.5*(pe1(k)+pe1(k+1))/100.  
+ !            write(*,*) k, pm(k), dz(k)
+ !         enddo
+          tmp1 = ak(ks+1)
+          do k=ks+1,km
+             tmp1 = max(tmp1, (ak(k)-ak(k+1))/max(1.E-5, (bk(k+1)-bk(k))) )
+          enddo
+          write(*,*) 'Hybrid Sigma-P: minimum allowable surface pressure (hpa)=', tmp1/100.
+          write(*,800) (pm(k), k=km,1,-1)
+      endif
+
+    do k=1,km
+       dp(k) = (pe1(k+1) - pe1(k))/100.
+       dk(k) =  pe1(k+1)**akap - pe1(k)**akap
+    enddo
+
+800 format(1x,5(1x,f9.4))
+
+ end subroutine var_les
+
+
 
  subroutine var_gfs(km, ak, bk, ptop, ks, pint, s_rate)
   integer, intent(in):: km

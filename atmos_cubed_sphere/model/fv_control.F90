@@ -52,7 +52,7 @@ module fv_control_mod
    use fv_mp_mod,           only: ng, switch_current_Atm
    use fv_mp_mod,           only: broadcast_domains, mp_barrier, is_master, setup_master
 !!! CLEANUP: should be replaced by a getter function?
-   use test_cases_mod,      only: test_case, alpha, nsolitons, soliton_Umax, soliton_size
+   use test_cases_mod,      only: test_case, bubble_do, alpha, nsolitons, soliton_Umax, soliton_size
    use fv_timing_mod,       only: timing_on, timing_off, timing_init, timing_prt
    use mpp_domains_mod,     only: domain2D
    use mpp_domains_mod,     only: mpp_define_nest_domains, nest_domain_type, mpp_get_global_domain
@@ -274,7 +274,7 @@ module fv_control_mod
                          refinement, nestbctype, nestupdate, nsponge, s_weight, &
                          ioffset, joffset, check_negative, nudge_ic, halo_update_type, gfs_phil, agrid_vel_rst
 
-   namelist /test_case_nml/test_case,alpha, nsolitons, soliton_Umax, soliton_size
+   namelist /test_case_nml/test_case, bubble_do, alpha, nsolitons, soliton_Umax, soliton_size
 
 #ifdef GFS_PHYS
    real, dimension(2048) :: fdiag = 0.
@@ -570,6 +570,7 @@ module fv_control_mod
 
 ! Make alpha = 0 the default:
       alpha = 0.
+      bubble_do = .false.
       test_case = 11   ! (USGS terrain)
 
       filename = "input.nml"

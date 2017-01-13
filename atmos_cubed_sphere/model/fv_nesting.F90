@@ -953,15 +953,14 @@ contains
 !!  on the two grids.
 !! Note: "conserving updates" do not guarantee global conservation
 !!  unless flux nested grid BCs are specified, or if a quantity is
-!!  not updated at all. For tracers this requires setting
-!!  nestbctype > 1; this is not implemented for air mass (delp)
+!!  not updated at all. This ability has not been implemented.
 
-subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir, dt_atmos)
+subroutine twoway_nesting(Atm, ngrids, grids_on_this_pe, zvir)
 
    type(fv_atmos_type), intent(INOUT) :: Atm(ngrids)
    integer, intent(IN) :: ngrids
    logical, intent(IN) :: grids_on_this_pe(ngrids)
-   real, intent(IN) :: zvir, dt_atmos
+   real, intent(IN) :: zvir
 
    integer :: n, p, sphum
 

@@ -97,7 +97,8 @@ module gfs_physics_driver_mod
       ccloud_deep => c0, crain_deep => c1, betal_deep => betal,   &
       betas_deep => betas, evfact_deep => evfact, evfactl_deep => evfactl, &
       pgcon_deep => pgcon
- use shalcnv_mod, only: clam_shal => clam, crain_shal => c0, ccloud_shal => c1, pgcon_shal => pgcon
+ use shalcnv_mod, only: clam_shal => clam, crain_shal => c1, &
+      ccloud_shal => c0, pgcon_shal => pgcon
  use moninq_mod,  only: xkzminv_moninq => xkzminv, moninq_fac
 !
 !-----------------------------------------------------------------------
@@ -282,7 +283,7 @@ module gfs_physics_driver_mod
     integer :: ico2     = 2 
     integer :: iaer     = 111
     integer :: ialb     = 0 
-    integer :: iems     = 0 
+    integer :: iems     = 0
     integer :: iovr_sw  = 1
     integer :: iovr_lw  = 1
     integer :: isubc_sw = 2
@@ -325,7 +326,7 @@ module gfs_physics_driver_mod
                               clam_deep, cxlamu_deep, crain_deep, ccloud_deep,   & ! sascnvn (deep)
                               betal_deep, betas_deep, evfact_deep, evfactl_deep, &
                               pgcon_deep,                                        &
-                              clam_shal, crain_shal, ccloud_shal, pgcon_shal,    & ! shalcnv
+                              clam_shal, ccloud_shal, crain_shal, pgcon_shal,    & ! shalcnv
                               xkzminv_moninq, moninq_fac,                        & ! moninq
                               random_clds,cal_pre,                               & ! cal_pre rann
 !--- namelist for Lin cloud microphysics

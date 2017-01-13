@@ -1400,7 +1400,7 @@
           call progcld4                                                 &
 !  ---  inputs:
      &     ( plyr,plvl,tlyr,tvly,qlyr,qstl,rhly,clw,                    &
-     &       xlat,xlon,slmsk,tracer1(1:im,1:lm,NTRAC),                  &
+     &       xlat,xlon,slmsk,tracer1(1:im,1:lmk,NTRAC),                 &
      &       IM, LMK, LMP,                                              &
 !  ---  outputs:
      &       clouds,cldsa,mtopa,mbota                                   &

@@ -996,12 +996,6 @@ contains
      allocate ( t0(isc:iec,jsc:jec, npz) )
      allocate (dp0(isc:iec,jsc:jec, npz) )
 
-#ifdef NUDGE_GZ
-     call p_adi(npz, Atm(mytile)%ng, isc, iec, jsc, jec, Atm(mytile)%ptop,  &
-                Atm(mytile)%delp, Atm(mytile)%pt, Atm(mytile)%ps, Atm(mytile)%pe,     &
-                Atm(mytile)%peln, Atm(mytile)%pk, Atm(mytile)%pkz, Atm(mytile)%flagstruct%hydrostatic)
-#endif
-
 !$omp parallel do default (none) & 
 !$omp              shared (npz, jsc, jec, isc, iec, n, sphum, u0, v0, t0, dp0, Atm, zvir, mytile) &
 !$omp             private (k, j, i) 
@@ -1018,11 +1012,7 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-#ifdef NUDGE_GZ
-                t0(i,j,k) = Atm(mytile)%pt(i,j,k)*(1.+zvir*Atm(mytile)%q(i,j,k,1))*(Atm(mytile)%peln(i,k+1,j)-Atm(mytile)%peln(i,k,j))
-#else
                 t0(i,j,k) = Atm(mytile)%pt(i,j,k)*(1.+zvir*Atm(mytile)%q(i,j,k,sphum))  ! virt T
-#endif
                dp0(i,j,k) = Atm(mytile)%delp(i,j,k)
              enddo
           enddo
@@ -1099,29 +1089,11 @@ contains
       endif
           do j=jsc,jec
              do i=isc,iec
-#ifndef NUDGE_GZ
                 Atm(mytile)%pt(i,j,k) = xt*(Atm(mytile)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(mytile)%q(i,j,k,sphum)))
-#endif
                 Atm(mytile)%delp(i,j,k) = xt*(Atm(mytile)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
        enddo
-
-#ifdef NUDGE_GZ
-     call p_adi(npz, Atm(mytile)%ng, isc, iec, jsc, jec, Atm(mytile)%ptop,  &
-                Atm(mytile)%delp, Atm(mytile)%pt, Atm(mytile)%ps, Atm(mytile)%pe,     &
-                Atm(mytile)%peln, Atm(mytile)%pk, Atm(mytile)%pkz, Atm(mytile)%flagstruct%hydrostatic)
-!$omp parallel do default (none) &
-!$omp             shared (npz, jsc, jec, isc, iec, Atm, t0, xt, zvir, mytile) &
-!$omp            private (i, j, k)
-       do k=1,npz
-          do j=jsc,jec
-             do i=isc,iec
-                Atm(mytile)%pt(i,j,k) = xt*(Atm(mytile)%pt(i,j,k)+wt*t0(i,j,k)/((1.+zvir*Atm(mytile)%q(i,j,k,1))*(Atm(mytile)%peln(i,k+1,j)-Atm(mytile)%peln(i,k,j))))
-             enddo
-          enddo
-       enddo
-#endif
 
 ! Backward
     call fv_dynamics(Atm(mytile)%npx, Atm(mytile)%npy, npz,  nq, Atm(mytile)%ng, -dt_atmos, 0.,      &
@@ -1168,29 +1140,11 @@ contains
           enddo
           do j=jsc,jec
              do i=isc,iec
-#ifndef NUDGE_GZ
                 Atm(mytile)%pt(i,j,k) = xt*(Atm(mytile)%pt(i,j,k) + wt*t0(i,j,k)/(1.+zvir*Atm(mytile)%q(i,j,k,sphum)))
-#endif
                 Atm(mytile)%delp(i,j,k) = xt*(Atm(mytile)%delp(i,j,k) + wt*dp0(i,j,k))
              enddo
           enddo
        enddo
-
-#ifdef NUDGE_GZ
-     call p_adi(npz, Atm(mytile)%ng, isc, iec, jsc, jec, Atm(mytile)%ptop,  &
-                Atm(mytile)%delp, Atm(mytile)%pt, Atm(mytile)%ps, Atm(mytile)%pe,     &
-                Atm(mytile)%peln, Atm(mytile)%pk, Atm(mytile)%pkz, Atm(mytile)%flagstruct%hydrostatic)
-!$omp parallel do default (none) &
-!$omp             shared (npz, jsc, jec, isc, iec, Atm, t0, xt, zvir, mytile) &
-!$omp            private (i, j, k)
-       do k=1,npz
-          do j=jsc,jec
-             do i=isc,iec
-                Atm(mytile)%pt(i,j,k) = xt*(Atm(mytile)%pt(i,j,k)+wt*t0(i,j,k)/((1.+zvir*Atm(mytile)%q(i,j,k,1))*(Atm(mytile)%peln(i,k+1,j)-Atm(mytile)%peln(i,k,j))))
-             enddo
-          enddo
-       enddo
-#endif
 
      enddo
 

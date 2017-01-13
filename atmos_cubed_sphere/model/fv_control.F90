@@ -156,6 +156,7 @@ module fv_control_mod
    integer , pointer :: nt_phys 
    real    , pointer :: tau_h2o 
 
+   real    , pointer :: delt_max
    real    , pointer :: d_con 
    real    , pointer :: ke_bg
    real    , pointer :: consv_te 
@@ -258,7 +259,7 @@ module fv_control_mod
                          kord_mt, kord_wz, kord_tm, kord_tr, fv_debug, fv_land, nudge, do_sat_adj, do_f3d, &
                          external_ic, ncep_ic, nggps_ic, ecmwf_ic, use_new_ncep, use_ncep_phy, fv_diag_ic, &
                          res_latlon_dynamics, res_latlon_tracers, scale_z, w_max, z_min, &
-                         dddmp, d2_bg, d4_bg, vtdm4, trdm2, d_ext, beta, non_ortho, n_sponge, &
+                         dddmp, d2_bg, d4_bg, vtdm4, trdm2, d_ext, delt_max, beta, non_ortho, n_sponge, &
                          warm_start, adjust_dry_mass, mountain, d_con, ke_bg, nord, nord_tr, convert_ke, use_old_omega, &
                          dry_mass, grid_type, do_Held_Suarez, do_reed_physics, reed_cond_only, &
                          consv_te, fill, filter_phys, fill_dp, fill_wz, consv_am, &
@@ -1148,6 +1149,7 @@ module fv_control_mod
      nt_prog                       => Atm%flagstruct%nt_prog
      nt_phys                       => Atm%flagstruct%nt_phys
      tau_h2o                       => Atm%flagstruct%tau_h2o
+     delt_max                      => Atm%flagstruct%delt_max
      d_con                         => Atm%flagstruct%d_con
      ke_bg                         => Atm%flagstruct%ke_bg
      consv_te                      => Atm%flagstruct%consv_te

@@ -1430,8 +1430,8 @@ contains
 
 #ifndef SW_DYNAMICS
         call prt_maxmin('TA', Atm(n)%pt,   isc, iec, jsc, jec, ngc, npz, 1.)
-        call prt_maxmin('Top: TA', Atm(n)%pt(isc:iec,jsc:jec,  1), isc, iec, jsc, jec, 0, 1, 1.)
-        call prt_maxmin('Bot: TA', Atm(n)%pt(isc:iec,jsc:jec,npz), isc, iec, jsc, jec, 0, 1, 1.)
+!       call prt_maxmin('Top: TA', Atm(n)%pt(isc:iec,jsc:jec,  1), isc, iec, jsc, jec, 0, 1, 1.)
+!       call prt_maxmin('Bot: TA', Atm(n)%pt(isc:iec,jsc:jec,npz), isc, iec, jsc, jec, 0, 1, 1.)
         call prt_maxmin('OM', Atm(n)%omga, isc, iec, jsc, jec, ngc, npz, 1.)
 #endif
 
@@ -3137,8 +3137,7 @@ contains
             do j=js,je
                do i=is,ie
                   if( q(i,j,k)<q_low .or. q(i,j,k)>q_hi ) then
-!                     write(*,*) 'gid=', gid, k,i,j, pos(i,j,1)*rad2deg, pos(i,j,2)*rad2deg, q(i,j,k)
-                      write(*,*) 'k=',k,' (i,j)=',i,j, pos(i,j,1)*rad2deg, pos(i,j,2)*rad2deg, q(i,j,k)
+                      write(*,*) 'Crash_K=',k,'(i,j)=',i,j, pos(i,j,1)*rad2deg, pos(i,j,2)*rad2deg, q(i,j,k)
                       if ( k/= 1 ) write(*,*) k-1, q(i,j,k-1)
                       if ( k/=km ) write(*,*) k+1, q(i,j,k+1)
                   endif

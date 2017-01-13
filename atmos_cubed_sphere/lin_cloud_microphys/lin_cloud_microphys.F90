@@ -1042,7 +1042,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
                                                                          (qi(k)+qs(k)+qg(k))*c_ice)
          endif
 
-!        if ( qr(k)>qrmin .and. ql(k)>1.E-7  .and.  qsat<q_plus ) then
+!        if ( qr(k)>qrmin .and. ql(k)>1.E-7 .and. qsat<q_plus ) then
          if ( qr(k)>qrmin .and. ql(k)>1.E-6 .and. qsat<q_minus ) then
 !-------------------
 ! * Accretion: pracc
@@ -1189,7 +1189,7 @@ real, parameter :: pi = 3.1415926535897931_R_GRID
 
  do 3000 k=ktop, kbot
 
-   if( tzk(k) < t_min .or. p1(k) < p_min ) goto 3000
+   if( p1(k) < p_min ) goto 3000
 
    tz = tzk(k)
    qv = qvk(k)
@@ -1310,8 +1310,8 @@ else
     else
          psaut = 0.
     endif
-! sink is no greater than 50% of qi
-    sink = min( 0.5*qi, psaci+psaut )
+! sink is no greater than 75% of qi
+    sink = min( 0.75*qi, psaci+psaut )
       qi = qi - sink
       qs = qs + sink
 

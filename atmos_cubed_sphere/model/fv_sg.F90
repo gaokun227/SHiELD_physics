@@ -53,6 +53,8 @@ public  fv_subgrid_z, qsmith, neg_adj3
   real, parameter:: t_ice = 273.16
   real, parameter:: ri_max = 1.
   real, parameter:: ri_min = 0.25
+  real, parameter:: t1_min = 160.
+  real, parameter:: t2_min = 165.
   real, parameter:: t2_max = 315.
   real, parameter:: t3_max = 325.
   real, parameter:: Lv0 =  hlv0 - dc_vap*t_ice   ! = 3.147782e6
@@ -101,7 +103,7 @@ contains
       real, dimension(is:ie):: gzh, lcp2, icp2, cvm, cpm, qs
       real ri_ref, ri, pt1, pt2, ratio, tv, cv, tmp, q_liq, q_sol
       real tv1, tv2, g2, h0, mc, fra, rk, rz, rdt, tvd, tv_surf
-      real dh, dq, qsw, dqsdt, tcp3, t_max
+      real dh, dq, qsw, dqsdt, tcp3, t_max, t_min
       integer i, j, k, kk, n, m, iq, km1, im, kbot
       real, parameter:: ustar2 = 1.E-4
       real:: cv_air, xvir
@@ -121,6 +123,11 @@ contains
            kbot = k_bot
       else
            kbot = km
+      endif
+      if ( pe(is,1,js) < 2. ) then
+           t_min = t1_min
+      else
+           t_min = t2_min
       endif
 
       if ( k_bot < min(km,24)  ) then
@@ -153,7 +160,7 @@ contains
 
 !$OMP parallel do default(none) shared(im,is,ie,js,je,nq,kbot,qa,ta,sphum,ua,va,delp,peln,     &
 !$OMP                                  hydrostatic,pe,delz,g2,w,liq_wat,rainwat,ice_wat,  &
-!$OMP                                  snowwat,cv_air,m,graupel,pkz,rk,rz,fra, t_max,    &
+!$OMP                                  snowwat,cv_air,m,graupel,pkz,rk,rz,fra, t_max, t_min,   &
 !$OMP                                  u_dt,rdt,v_dt,xvir,nwat)                 &
 !$OMP                          private(kk,lcp2,icp2,tcp3,dh,dq,den,qs,qsw,dqsdt,qcon,q0, &
 !$OMP                                  t0,u0,v0,w0,h0,pm,gzh,tvm,tmp,cpm,cvm,q_liq,q_sol, &
@@ -299,12 +306,14 @@ contains
             tv2 = t0(i,k  )*(1.+xvir*q0(i,k  ,sphum)-qcon(i,k))
             pt1 = tv1 / pkz(i,j,km1)
             pt2 = tv2 / pkz(i,j,k  )
+!
+            ri = (gz(i,km1)-gz(i,k))*(pt1-pt2)/( 0.5*(pt1+pt2)*        &
+                 ((u0(i,km1)-u0(i,k))**2+(v0(i,km1)-v0(i,k))**2+ustar2) )
             if ( tv1>t_max .and. tv1>tv2 ) then
 ! top layer unphysically warm
                ri = 0.
-            else
-               ri = (gz(i,km1)-gz(i,k))*(pt1-pt2)/( 0.5*(pt1+pt2)*        &
-                   ((u0(i,km1)-u0(i,k))**2+(v0(i,km1)-v0(i,k))**2+ustar2) )
+            elseif ( tv2<t_min ) then
+               ri = min(ri, 0.2)
             endif
 ! Adjustment for K-H instability:
 ! Compute equivalent mass flux: mc

@@ -60,6 +60,8 @@ public :: dyn_core, del2_cubed, init_ijk_mem
   real :: d3_damp
   real, allocatable, dimension(:,:,:) ::  ut, vt, crx, cry, xfx, yfx, divgd, &
                                           zh, du, dv, pkc, delpc, pk3, ptc, gz
+! real, parameter:: delt_max = 1.e-1   ! Max dissipative heating/cooling rate
+                                       ! 6 deg per 10-min
   real(kind=R_GRID), parameter :: cnst_0p20=0.20d0
 
   real, allocatable ::  rf(:)
@@ -174,7 +176,7 @@ contains
     real    :: beta, beta_d, d_con_k, damp_w, damp_t, kgb, cv_air
     real    :: dt, dt2, rdt
     real    :: d2_divg
-    real    :: k1k, rdg, mk1
+    real    :: k1k, rdg, dtmp, delt
     logical :: last_step, remap_step
     logical used
     real :: split_timestep_bc
@@ -270,7 +272,7 @@ contains
          call init_ijk_mem(isd, ied, jsd, jed, npz, heat_source, 0.)
     endif
 
-    if ( flagstruct%convert_ke .or. flagstruct%vtdm4> 1.E-3 ) then
+    if ( flagstruct%convert_ke .or. flagstruct%vtdm4> 1.E-4 ) then
          n_con = npz
     else
          if ( flagstruct%d2_bg_k1 < 1.E-3 ) then
@@ -1055,34 +1057,48 @@ contains
 !
 ! del(Cp*T) = - del(KE)
 !
-!$OMP parallel do default(none) shared(is,ie,js,je,n_con,pt,heat_source,delp,pkz)
+!$OMP parallel do default(none) shared(flagstruct,is,ie,js,je,n_con,pt,heat_source,delp,pkz,bdt) &
+!$OMP                          private(dtmp)
        do j=js,je
-          do k=1,n_con
-             do i=is,ie
-                pt(i,j,k) = pt(i,j,k) + heat_source(i,j,k)/(cp_air*delp(i,j,k)*pkz(i,j,k))
-             enddo
+          do k=1,n_con  ! n_con is usually less than 3;
+             if ( k<3 ) then
+                do i=is,ie
+                   pt(i,j,k) = pt(i,j,k) + heat_source(i,j,k)/(cp_air*delp(i,j,k)*pkz(i,j,k))
+                enddo
+             else
+                do i=is,ie
+                     dtmp = heat_source(i,j,k) / (cp_air*delp(i,j,k))
+                pt(i,j,k) = pt(i,j,k) + sign(min(abs(bdt)*flagstruct%delt_max,abs(dtmp)), dtmp)/pkz(i,j,k)
+                enddo
+             endif
           enddo
        enddo
     else
-!$OMP parallel do default(none) shared(is,ie,js,je,n_con,pkz,cappa,rdg,delp,delz,pt, &
-!$OMP                                  heat_source,k1k,akap,cv_air) &
-!$OMP                          private(mk1)
-       do j=js,je
-          do k=1,n_con    ! n_con is usually less than 3; not good as outer openMP loop
+!$OMP parallel do default(none) shared(flagstruct,is,ie,js,je,n_con,pkz,cappa,rdg,delp,delz,pt, &
+!$OMP                                  heat_source,k1k,cv_air,bdt) &
+!$OMP                          private(dtmp, delt)
+       do k=1,n_con
+          delt = abs(bdt*flagstruct%delt_max)
+! Sponge layers:
+          if ( k == 1 ) delt = 9.0*delt
+          if ( k == 2 ) delt = 3.0*delt
+          if ( k == 3 ) delt = 1.5*delt
+          do j=js,je
              do i=is,ie
 #ifdef MOIST_CAPPA
-                mk1 = cappa(i,j,k)/(1.-cappa(i,j,k))
-                pkz(i,j,k) = exp( mk1*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
+                pkz(i,j,k) = exp( cappa(i,j,k)/(1.-cappa(i,j,k))*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
 #else
                 pkz(i,j,k) = exp( k1k*log(rdg*delp(i,j,k)/delz(i,j,k)*pt(i,j,k)) )
 #endif
-                pt(i,j,k) = pt(i,j,k) + heat_source(i,j,k)/(cv_air*delp(i,j,k)*pkz(i,j,k))
+                     dtmp = heat_source(i,j,k) / (cv_air*delp(i,j,k))
+                pt(i,j,k) = pt(i,j,k) + sign(min(delt, abs(dtmp)),dtmp) / pkz(i,j,k)
              enddo
           enddo
        enddo
     endif
-    endif
-    if (allocated(heat_source)) deallocate( heat_source ) !If ncon == 0 but d_con > 1.e-5, this would not be deallocated in earlier versions of the code
+
+  endif
+  if (allocated(heat_source)) deallocate( heat_source ) !If ncon == 0 but d_con > 1.e-5, this would not be deallocated in earlier versions of the code
 
 
   if ( end_step ) then
@@ -1107,10 +1123,6 @@ contains
 
   endif
   if( allocated(pem) )   deallocate ( pem )
-
-if ( flagstruct%fv_debug ) then
-   if(is_master()) write(*,*) 'End of dyn_core'
-endif
 
 end subroutine dyn_core
 

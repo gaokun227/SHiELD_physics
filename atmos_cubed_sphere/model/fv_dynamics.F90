@@ -686,18 +686,11 @@ contains
                          -280., 280., bad_range)
        call range_check('VA_dyn', ua, is, ie, js, je, ng, npz, gridstruct%agrid,   &
                          -280., 280., bad_range)
-#ifndef SW_DYNAMICS
        call range_check('TA_dyn', pt, is, ie, js, je, ng, npz, gridstruct%agrid,   &
-#ifdef HIWPP
-                         130., 335., bad_range)
-#else
-                         160., 335., bad_range)
-#endif
+                         150., 335., bad_range)
        if ( .not. hydrostatic ) &
             call range_check('W_dyn', w, is, ie, js, je, ng, npz, gridstruct%agrid,   &
                          -50., 100., bad_range)
-#endif
-
   endif
 
   end subroutine fv_dynamics
@@ -771,6 +764,9 @@ contains
           allocate( rf(npz) )
           rf(:) = 0.
 
+          do k=1, ks+1
+             if( is_master() ) write(6,*) k, 0.01*pm(k)
+          enddo
           if( is_master() ) write(6,*) 'Rayleigh friction E-folding time (days):'
           do k=1, npz
              if ( pm(k) < rf_cutoff ) then

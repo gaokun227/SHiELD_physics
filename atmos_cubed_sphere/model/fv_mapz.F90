@@ -158,7 +158,7 @@ contains
             fast_mp_consv = (.not.do_adiabatic_init) .and. consv>consv_min
             do k=1,km
                kmp = k
-               if ( pfull(k) > 40.E2 ) exit
+               if ( pfull(k) > 10.E2 ) exit
             enddo
             call qs_init(kmp)
        endif
@@ -1635,7 +1635,7 @@ endif        ! end last_step check
                q(i,k) = max(q(i,k), min(a4(1,i,k-1),a4(1,i,k)))
           else
 ! There exists a local min
-                 q(i,k) = min(q(i,k), max(a4(1,i,k-1),a4(1,i,k)))
+               q(i,k) = min(q(i,k), max(a4(1,i,k-1),a4(1,i,k)))
                if ( iv==0 ) q(i,k) = max(0., q(i,k))
           endif
         endif
@@ -1655,14 +1655,16 @@ endif        ! end last_step check
      enddo
   enddo
 
-  do k=2,km-1
-     do i=i1,i2
-        if ( gam(i,k)*gam(i,k+1) > 0.0 ) then
-             extm(i,k) = .false. 
-        else
-             extm(i,k) = .true.
-        endif
-     enddo
+  do k=1,km
+     if ( k==1 .or. k==km ) then
+       do i=i1,i2
+          extm(i,k) = (a4(2,i,k)-a4(1,i,k)) * (a4(3,i,k)-a4(1,i,k)) > 0.
+       enddo
+     else
+       do i=i1,i2
+          extm(i,k) = gam(i,k)*gam(i,k+1) < 0.
+       enddo
+     endif
   enddo
 
 !---------------------------
@@ -1728,7 +1730,7 @@ endif        ! end last_step check
                a4(3,i,k) = a4(1,i,k)
                a4(4,i,k) = 0.
           else
-            a4(4,i,k) = 6.*a4(1,i,k) - 3.*(a4(2,i,k)+a4(3,i,k))
+            a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
 ! Check within the smooth region if subgrid profile is non-monotonic
             if( abs(a4(4,i,k)) > abs(a4(2,i,k)-a4(3,i,k)) ) then
                   pmp_1 = a4(1,i,k) - 2.*gam(i,k+1)
@@ -1739,7 +1741,7 @@ endif        ! end last_step check
                   lac_2 = pmp_2 - 1.5*gam(i,k-1)
               a4(3,i,k) = min(max(a4(3,i,k), min(a4(1,i,k), pmp_2, lac_2)),  &
                                              max(a4(1,i,k), pmp_2, lac_2) )
-              a4(4,i,k) = 6.*a4(1,i,k) - 3.*(a4(2,i,k)+a4(3,i,k))
+              a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
             endif
           endif
        enddo
@@ -1822,7 +1824,7 @@ endif        ! end last_step check
        do i=i1,i2
           a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
        enddo
-     else      ! kord = 11, 12, 13
+     else      ! kord = 11, 13
        do i=i1,i2
          if ( extm(i,k) .and. (extm(i,k-1).or.extm(i,k+1).or.a4(1,i,k)<qmin) ) then
 ! Noisy region:
@@ -2001,14 +2003,16 @@ endif        ! end last_step check
      enddo
   enddo
 
-  do k=2,km-1
-     do i=i1,i2
-        if ( gam(i,k)*gam(i,k+1) > 0.0 ) then
-             extm(i,k) = .false. 
-        else
-             extm(i,k) = .true.
-        endif
-     enddo
+  do k=1,km
+     if ( k==1 .or. k==km ) then
+       do i=i1,i2
+          extm(i,k) = (a4(2,i,k)-a4(1,i,k)) * (a4(3,i,k)-a4(1,i,k)) > 0.
+       enddo
+     else
+       do i=i1,i2
+          extm(i,k) = gam(i,k)*gam(i,k+1) < 0.
+       enddo
+     endif
   enddo
 
 !---------------------------
@@ -2169,7 +2173,7 @@ endif        ! end last_step check
        do i=i1,i2
           a4(4,i,k) = 3.*(2.*a4(1,i,k) - (a4(2,i,k)+a4(3,i,k)))
        enddo
-     else      ! kord = 11, 12, 13
+     else      ! kord = 11
        do i=i1,i2
          if ( extm(i,k) .and. (extm(i,k-1) .or. extm(i,k+1)) ) then
 ! Noisy region:

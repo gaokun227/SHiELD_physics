@@ -414,6 +414,8 @@ module fv_arrays_mod
    integer :: nt_phys = 0
    real    :: tau_h2o = 0.            ! Time scale (days) for ch4_chem
 
+   real    :: delt_max = 1.           ! limiter for dissipative heating rate
+                                      ! large value (~1) essentially imposes no limit
    real    :: d_con = 0.
    real    :: ke_bg = 0.              ! background KE production (m^2/s^3) over a small step
                                       ! Use this to conserve total energy if consv_te=0

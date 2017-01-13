@@ -383,7 +383,7 @@ module gfs_physics_driver_mod
     real(kind=kind_phys) :: fhour = 0.
     logical :: sas_shal
     real(kind=kind_evod) :: wrk(1)
-    real (kind=kind_phys) :: akm(npz), bkm(npz), si(npz)
+    real (kind=kind_phys) :: si(npz+1)
 !    data si  /1.000000,      0.984375,      0.968750,      &
 !              0.953125,      0.937500,      0.921875,      &
 !              0.906250,      0.890625,      0.875000,      &
@@ -510,9 +510,7 @@ module gfs_physics_driver_mod
 !--- ps is replaced with p0. The value of p0 uses that in http://www.emc.ncep.noaa.gov/officenotes/newernotes/on461.pdf
     levs = npz
     levr = npz
-    akm = (ak(1:npz) + ak(2:npz+1)) / 2.0
-    bkm = (bk(1:npz) + bk(2:npz+1)) / 2.0
-    si = (akm + bkm * 101325.0 - akm(1)) / (101325.0 - akm(1))
+    si = (ak + bk * 101325.0 - ak(npz+1)) / (101325.0 - ak(npz+1))
 !--- set up random number stream needed for RAS and old SAS and when cal_pre=.true.
     if (.not. Mdl_parms%newsas .or. Mdl_parms%cal_pre) then
       if (random_clds) then

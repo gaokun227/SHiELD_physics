@@ -2280,7 +2280,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface ice precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2294,7 +2295,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface snow precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1
@@ -2308,7 +2310,8 @@ module gfs_physics_driver_mod
     Diag(idx)%desc = 'surface graupel precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr/fhzero
+    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%time_avg = .TRUE.
     do nb = 1,nblks
       nx = Atm_block%ibe(nb)-Atm_block%ibs(nb)+1
       ny = Atm_block%jbe(nb)-Atm_block%jbs(nb)+1

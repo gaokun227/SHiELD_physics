@@ -1458,7 +1458,6 @@ module GFS_typedefs
                                ncld, zhao_mic, psautco, prautco, evpco, wminco,             &
                                fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,                     &
                           !--- land/surface model control
-                          !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &

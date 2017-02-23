@@ -318,49 +318,63 @@ module GFS_typedefs
 !----------------------------------------------------------------------------------
   type GFS_control_type
 
-    !--- BEGIN NAMELIST VARIABLES
+    integer              :: me              !< MPI rank designator
+    integer              :: master          !< MPI rank of master atmosphere processor
+    integer              :: nlunit          !< unit for namelist
+    character(len=64)    :: fn_nml          !< namelist filename for surface data cycling
     real(kind=kind_phys) :: fhzero          !< seconds between clearing of diagnostic buckets
     logical              :: ldiag3d         !< flag for 3d diagnostic fields
     logical              :: lssav           !< logical flag for storing diagnostics
     real(kind=kind_phys) :: fhcyc           !< frequency for surface data cycling (secs)
-    logical              :: use_ufo         !< flag for gcycle surface option
     logical              :: lgocart         !< flag for 3d diagnostic fields for gocart 1
     real(kind=kind_phys) :: fhgoc3d         !< seconds between calls to gocart
     integer              :: thermodyn_id    !< valid for GFS only for get_prs/phi
     integer              :: sfcpress_id     !< valid for GFS only for get_prs/phi
     logical              :: gen_coord_hybrid!< for Henry's gen coord
-    integer              :: jcap            !< number of spectral wave trancation used only by sascnv shalcnv
 
-    !--- microphysical parameters
-    integer              :: ncld            !< cnoice of cloud scheme
-    logical              :: zhao_mic        !< flag for Zhao-Carr microphysics
-    integer              :: fprcp           !< no prognostic rain and snow (MG)
-    real(kind=kind_phys) :: mg_dcs          !< Morrison-Gettleman microphysics parameters
-    real(kind=kind_phys) :: mg_qcvar      
-    real(kind=kind_phys) :: mg_ts_auto_ice  !< ice auto conversion time scale
-    real(kind=kind_phys) :: psautco(2)      !< [in] auto conversion coeff from ice to snow
-    real(kind=kind_phys) :: prautco(2)      !< [in] auto conversion coeff from cloud to rain
-    real(kind=kind_phys) :: evpco           !< [in] coeff for evaporation of largescale rain
-    real(kind=kind_phys) :: wminco(2)       !< [in] water and ice minimum threshold for Zhao
+    !--- set some grid extent parameters
+    integer              :: isc             !< starting i-index for this MPI-domain
+    integer              :: jsc             !< starting j-index for this MPI-domain
+    integer              :: nx              !< number of points in the i-dir for this MPI-domain
+    integer              :: ny              !< number of points in the j-dir for this MPI-domain
+    integer              :: levs            !< number of vertical levels
+    integer              :: cnx             !< number of points in the i-dir for this cubed-sphere face
+    integer              :: cny             !< number of points in the j-dir for this cubed-sphere face
+    integer              :: lonr            !< number of global points in x-dir (i) along the equator
+    integer              :: latr            !< number of global points in y-dir (j) along any meridian
 
-    !--- land/surface model parameters
-    integer              :: lsm             !< flag for land surface model lsm=1 for noah lsm
-    integer              :: lsoil           !< number of soil layers
-    integer              :: ivegsrc         !< ivegsrc = 0   => USGS, 
-                                            !< ivegsrc = 1   => IGBP (20 category)
-                                            !< ivegsrc = 2   => UMD  (13 category)
-    logical              :: mom4ice         !< flag controls mom4 sea ice
+    !--- coupling parameters
+    logical              :: cplflx          !< default no cplflx collection
+    logical              :: cplwav          !< default no cplwav collection
 
-    !--- radiation parameters
+    !--- integrated dynamics through earth's atmosphere
+    logical              :: lsidea         
+
+    !--- calendars and time parameters and activation triggers
+    real(kind=kind_phys) :: dtp             !< physics timestep in seconds
+    real(kind=kind_phys) :: dtf             !< dynamics timestep in seconds
+    integer              :: nscyc           !< trigger for surface data cycling
+    integer              :: nszero          !< trigger for zeroing diagnostic buckets
+    integer              :: idat(1:8)       !< initialization date and time
+                                            !< (yr, mon, day, t-zone, hr, min, sec, mil-sec)
+    integer              :: idate(4)        !< initial date with different size and ordering
+                                            !< (hr, mon, day, yr)
+    !--- radiation control parameters
     real(kind=kind_phys) :: fhswr           !< frequency for shortwave radiation (secs)
     real(kind=kind_phys) :: fhlwr           !< frequency for longwave radiation (secs)
+    integer              :: nsswr           !< integer trigger for shortwave radiation
+    integer              :: nslwr           !< integer trigger for longwave  radiation
+    integer              :: levr            !< number of vertical levels for radiation calculations
+    integer              :: nfxr            !< second dimension for fluxr diagnostic variable (radiation)
+    logical              :: aero_in         !< aerosol flag for gbphys
+    logical              :: lmfshal         !< parameter for radiation
+    logical              :: lmfdeep2        !< parameter for radiation
+    integer              :: nrcm            !< second dimension of random number stream for RAS
     integer              :: iflip           !< iflip - is not the same as flipv
     integer              :: isol            !< use prescribed solar constant
     integer              :: ico2            !< prescribed global mean value (old opernl)
     integer              :: ialb            !< use climatology alb, based on sfc type
                                             !< 1 => use modis based alb
-    integer              :: isot            !< isot = 0   => Zobler soil type  ( 9 category)
-                                            !< isot = 1   => STATSGO soil type (19 category)
     integer              :: iems            !< use fixed value of 1.0
     integer              :: iaer            !< default aerosol effect in sw only
     integer              :: iovr_sw         !< sw: max-random overlap clouds
@@ -388,8 +402,31 @@ module GFS_typedefs
     logical              :: lwhtr           !< flag to output lw heating rate (Radtend%lwhc)
     logical              :: swhtr           !< flag to output sw heating rate (Radtend%swhc)
 
-    !--- integrated dynamics through earth's atmosphere
-    logical              :: lsidea         
+    !--- microphysical switch
+    integer              :: ncld            !< cnoice of cloud scheme
+    !--- Z-C microphysical parameters
+    logical              :: zhao_mic        !< flag for Zhao-Carr microphysics
+    real(kind=kind_phys) :: psautco(2)      !< [in] auto conversion coeff from ice to snow
+    real(kind=kind_phys) :: prautco(2)      !< [in] auto conversion coeff from cloud to rain
+    real(kind=kind_phys) :: evpco           !< [in] coeff for evaporation of largescale rain
+    real(kind=kind_phys) :: wminco(2)       !< [in] water and ice minimum threshold for Zhao
+
+    !--- M-G microphysical parameters
+    integer              :: fprcp           !< no prognostic rain and snow (MG)
+    real(kind=kind_phys) :: mg_dcs          !< Morrison-Gettleman microphysics parameters
+    real(kind=kind_phys) :: mg_qcvar      
+    real(kind=kind_phys) :: mg_ts_auto_ice  !< ice auto conversion time scale
+
+    !--- land/surface model parameters
+    integer              :: lsm             !< flag for land surface model lsm=1 for noah lsm
+    integer              :: lsoil           !< number of soil layers
+    integer              :: ivegsrc         !< ivegsrc = 0   => USGS, 
+                                            !< ivegsrc = 1   => IGBP (20 category)
+                                            !< ivegsrc = 2   => UMD  (13 category)
+    integer              :: isot            !< isot = 0   => Zobler soil type  ( 9 category)
+                                            !< isot = 1   => STATSGO soil type (19 category)
+    logical              :: mom4ice         !< flag controls mom4 sea ice
+    logical              :: use_ufo         !< flag for gcycle surface option
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras             !< flag for ras convection scheme
@@ -415,7 +452,6 @@ module GFS_typedefs
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: cnvcld        
     logical              :: random_clds     !< flag controls whether clouds are random
-    logical              :: nocnv           !< flag to control whether any convection scheme is active
     logical              :: shal_cnv        !< flag for calling shallow convection
     integer              :: imfshalcnv      !< flag for mass-flux shallow convection scheme
                                             !<     1: July 2010 version of mass-flux shallow conv scheme
@@ -430,6 +466,7 @@ module GFS_typedefs
                                             !<     0: old SAS Convection scheme before July 2010
     integer              :: nmtvr           !< number of topographic variables such as variance etc
                                             !< used in the GWD parameterization
+    integer              :: jcap            !< number of spectral wave trancation used only by sascnv shalcnv
     real(kind=kind_phys) :: cs_parm(10)     !< tunable parameters for Chikira-Sugiyama convection
     real(kind=kind_phys) :: flgmin(2)       !< [in] ice fraction bounds
     real(kind=kind_phys) :: cgwf(2)         !< multiplication factor for convective GWD
@@ -443,6 +480,7 @@ module GFS_typedefs
                                             !< PBL top and at the top of the atmosphere
     real(kind=kind_phys) :: dlqf(2)         !< factor for cloud condensate detrainment 
                                             !< from cloud edges for RAS
+    integer              :: seed0           !< random seed for radiation
 
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0         !< pressure level from which Rayleigh Damping is applied
@@ -462,61 +500,16 @@ module GFS_typedefs
                                             !< nstf_name(4) : zsea1 in mm
                                             !< nstf_name(5) : zsea2 in mm
      
-    !--- coupling parameters
-    logical              :: cplflx          !< default no cplflx collection
-    logical              :: cplwav          !< default no cplwav collection
-    logical              :: a2oi_out        !< default no saving of restart file for Atm fields for Ocn/Ice
-     
-    !--- stochastic physics options
-    real(kind=kind_phys) :: sppt(5)         !< stochastic physics tendency amplitude
-    real(kind=kind_phys) :: shum(5)         !< stochastic boundary layer spf hum amp
-    real(kind=kind_phys) :: skeb(5)         !< stochastic KE backscatter amplitude
-    real(kind=kind_phys) :: vcamp(5)        !< stochastic vorticity confinment amp
-    real(kind=kind_phys) :: vc              !< deterministic vorticity confinement parameter.
-    !--- debug flag
-    logical              :: debug         
-    logical              :: pre_rad         !< flag for testing purpose
-    !--- END NAMELIST VARIABLES
-
-    !--- SHOC parameters
-    integer              :: nshoc_2d        !< number of 2d fields for SHOC
-    integer              :: nshoc_3d        !< number of 3d fields for SHOC
-
-    !--- convective clouds
-    integer              :: ncnvcld3d       !< number of convective 3d clouds fields
-
     !--- stochastic physics control parameters
     logical              :: do_sppt
     logical              :: do_shum
     logical              :: do_skeb
     logical              :: do_vc  
-
-    integer              :: me              !< MPI rank designator
-    integer              :: master          !< MPI rank of master atmosphere processor
-    integer              :: nlunit          !< unit for namelist
-    character(len=64)    :: fn_nml          !< namelist filename for surface data cycling
-
-    !--- set some grid extent parameters
-    integer              :: isc             !< starting i-index for this MPI-domain
-    integer              :: jsc             !< starting j-index for this MPI-domain
-    integer              :: nx              !< number of points in the i-dir for this MPI-domain
-    integer              :: ny              !< number of points in the j-dir for this MPI-domain
-    integer              :: levs            !< number of vertical levels
-    integer              :: cnx             !< number of points in the i-dir for this cubed-sphere face
-    integer              :: cny             !< number of points in the j-dir for this cubed-sphere face
-    integer              :: lonr            !< number of global points in x-dir (i) along the equator
-    integer              :: latr            !< number of global points in y-dir (j) along any meridian
-    integer              :: levr            !< number of vertical levels for radiation calculations
-
-    !--- calendars and time parameters and activation triggers
-    real(kind=kind_phys) :: dtp             !< physics timestep in seconds
-    real(kind=kind_phys) :: dtf             !< dynamics timestep in seconds
-    integer              :: nscyc           !< trigger for surface data cycling
-    integer              :: nszero          !< trigger for zeroing diagnostic buckets
-    integer              :: idat(1:8)       !< initialization date and time
-                                            !< (yr, mon, day, t-zone, hr, min, sec, mil-sec)
-    integer              :: idate(4)        !< initial date with different size and ordering
-                                            !< (hr, mon, day, yr)
+    real(kind=kind_phys) :: sppt(5)         !< stochastic physics tendency amplitude
+    real(kind=kind_phys) :: shum(5)         !< stochastic boundary layer spf hum amp
+    real(kind=kind_phys) :: skeb(5)         !< stochastic KE backscatter amplitude
+    real(kind=kind_phys) :: vcamp(5)        !< stochastic vorticity confinment amp
+    real(kind=kind_phys) :: vc              !< deterministic vorticity confinement parameter.
 
     !--- tracer handling
     character(len=32), pointer :: tracer_names(:) !< array of initialized tracers from dynamic core
@@ -534,32 +527,27 @@ module GFS_typedefs
     integer              :: ntke            !< tracer index for kinetic energy
     integer              :: nto             !< tracer index for oxygen ion
     integer              :: nto2            !< tracer index for oxygen
-
-    !--- radiation control parameters
-    integer              :: nfxr            !< second dimension for fluxr diagnostic variable (radiation)
-    integer              :: nsswr           !< integer trigger for shortwave radiation
-    integer              :: nslwr           !< integer trigger for longwave  radiation
-    logical              :: lsswr           !< logical flags for sw radiation calls
-    logical              :: lslwr           !< logical flags for lw radiation calls
-    integer              :: nctp            !< number of cloud types in Chikira-Sugiyama scheme
-
-    logical              :: aero_in         !< aerosol flag for gbphys
-    integer              :: nrcm            !< second dimension of random number stream for RAS
-
-    integer              :: num_p2d         !< number of 2D arrays needed for microphysics
-    integer              :: num_p3d         !< number of 3D arrays needed for microphysics
-    integer              :: npdf3d          !< number of 3d arrays associated with pdf based clouds/microphysics
  
     !--- derived totals for phy_f*d
     integer              :: ntot2d          !< total number of variables for phyf2d
     integer              :: ntot3d          !< total number of variables for phyf3d
-    integer              :: seed0           !< random seed for radiation
-    logical              :: lmfshal         !< parameter for radiation
-    logical              :: lmfdeep2        !< parameter for radiation
+    integer              :: num_p2d         !< number of 2D arrays needed for microphysics
+    integer              :: num_p3d         !< number of 3D arrays needed for microphysics
+    integer              :: nshoc_2d        !< number of 2d fields for SHOC
+    integer              :: nshoc_3d        !< number of 3d fields for SHOC
+    integer              :: ncnvcld3d       !< number of convective 3d clouds fields
+    integer              :: npdf3d          !< number of 3d arrays associated with pdf based clouds/microphysics
+    integer              :: nctp            !< number of cloud types in Chikira-Sugiyama scheme
+
+    !--- debug flag
+    logical              :: debug         
+    logical              :: pre_rad         !< flag for testing purpose
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
     logical              :: lprnt           !< control flag for diagnostic print out
+    logical              :: lsswr           !< logical flags for sw radiation calls
+    logical              :: lslwr           !< logical flags for lw radiation calls
     real(kind=kind_phys) :: solhr           !< hour time after 00z at the t-step
     real(kind=kind_phys) :: solcon          !< solar constant (sun-earth distant adjusted)  [set via radupdate]
     real(kind=kind_phys) :: slag            !< equation of time ( radian )                  [set via radupdate]
@@ -576,7 +564,7 @@ module GFS_typedefs
 
     contains
       procedure :: init  => control_initialize
-     !procedure :: print => control_print
+      procedure :: print => control_print
   end type GFS_control_type
 
 
@@ -1299,44 +1287,29 @@ module GFS_typedefs
     logical              :: ldiag3d        = .false.         !< flag for 3d diagnostic fields
     logical              :: lssav          = .false.         !< logical flag for storing diagnostics
     real(kind=kind_phys) :: fhcyc          = 0.              !< frequency for surface data cycling (secs)
-    logical              :: use_ufo        = .false.         !< flag for gcycle surface option
     logical              :: lgocart        = .false.         !< flag for 3d diagnostic fields for gocart 1
     real(kind=kind_phys) :: fhgoc3d        = 0.0             !< seconds between calls to gocart
     integer              :: thermodyn_id   =  1              !< valid for GFS only for get_prs/phi
     integer              :: sfcpress_id    =  1              !< valid for GFS only for get_prs/phi
-    integer              :: jcap           =  1              !< number of spectral wave trancation used only by sascnv shalcnv
-    integer              :: levr           = -99             !< number of vertical levels for radiation calculations
 
-    !--- microphysical parameters
-    integer              :: ncld           =  1                 !< cnoice of cloud scheme
-    logical              :: zhao_mic       = .false.            !< flag for Zhao-Carr microphysics
-    integer              :: fprcp          =  0                 !< no prognostic rain and snow (MG)
-    real(kind=kind_phys) :: mg_dcs         = 350.0              !< Morrison-Gettleman microphysics parameters
-    real(kind=kind_phys) :: mg_qcvar       = 2.0
-    real(kind=kind_phys) :: mg_ts_auto_ice = 3600.0             !< ice auto conversion time scale
-    real(kind=kind_phys) :: psautco(2)     = (/6.0d-4,3.0d-4/)  !< [in] auto conversion coeff from ice to snow
-    real(kind=kind_phys) :: prautco(2)     = (/1.0d-4,1.0d-4/)  !< [in] auto conversion coeff from cloud to rain
-    real(kind=kind_phys) :: evpco          = 2.0d-5             !< [in] coeff for evaporation of largescale rain
-    real(kind=kind_phys) :: wminco(2)      = (/1.0d-5,1.0d-5/)  !< [in] water and ice minimum threshold for Zhao
+    !--- coupling parameters
+    logical              :: cplflx         = .false.         !< default no cplflx collection
+    logical              :: cplwav         = .false.         !< default no cplwav collection
 
-    !--- land/surface model parameters
-    integer              :: lsm            =  1              !< flag for land surface model to use =0  for osu lsm; =1  for noah lsm
-    integer              :: lsoil          =  4              !< number of soil layers
-    integer              :: ivegsrc        =  2              !< ivegsrc = 0   => USGS,
-                                                             !< ivegsrc = 1   => IGBP (20 category)
-                                                             !< ivegsrc = 2   => UMD  (13 category)
-    logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
+    !--- integrated dynamics through earth's atmosphere
+    logical              :: lsidea         = .false.
 
     !--- radiation parameters
     real(kind=kind_phys) :: fhswr          = 3600.           !< frequency for shortwave radiation (secs)
     real(kind=kind_phys) :: fhlwr          = 3600.           !< frequency for longwave radiation (secs)
+    integer              :: levr           = -99             !< number of vertical levels for radiation calculations
+    integer              :: nfxr           = 39              !< second dimension of input/output array fluxr   
+    logical              :: aero_in        = .false.         !< flag for initializing aero data 
     integer              :: iflip          =  1              !< iflip - is not the same as flipv
     integer              :: isol           =  0              !< use prescribed solar constant
     integer              :: ico2           =  0              !< prescribed global mean value (old opernl)
     integer              :: ialb           =  0              !< use climatology alb, based on sfc type
                                                              !< 1 => use modis based alb
-    integer              :: isot           =  0              !< isot = 0   => Zobler soil type  ( 9 category)
-                                                             !< isot = 1   => STATSGO soil type (19 category)
     integer              :: iems           =  0              !< use fixed value of 1.0
     integer              :: iaer           =  1              !< default aerosol effect in sw only
     integer              :: iovr_sw        =  1              !< sw: max-random overlap clouds
@@ -1364,9 +1337,30 @@ module GFS_typedefs
     logical              :: lwhtr          = .true.          !< flag to output lw heating rate (Radtend%lwhc)
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
 
+    !--- Z-C microphysical parameters
+    integer              :: ncld           =  1                 !< cnoice of cloud scheme
+    logical              :: zhao_mic       = .false.            !< flag for Zhao-Carr microphysics
+    real(kind=kind_phys) :: psautco(2)     = (/6.0d-4,3.0d-4/)  !< [in] auto conversion coeff from ice to snow
+    real(kind=kind_phys) :: prautco(2)     = (/1.0d-4,1.0d-4/)  !< [in] auto conversion coeff from cloud to rain
+    real(kind=kind_phys) :: evpco          = 2.0d-5             !< [in] coeff for evaporation of largescale rain
+    real(kind=kind_phys) :: wminco(2)      = (/1.0d-5,1.0d-5/)  !< [in] water and ice minimum threshold for Zhao
 
-    !--- integrated dynamics through earth's atmosphere
-    logical              :: lsidea         = .false.
+    !--- M-G microphysical parameters
+    integer              :: fprcp          =  0                 !< no prognostic rain and snow (MG)
+    real(kind=kind_phys) :: mg_dcs         = 350.0              !< Morrison-Gettleman microphysics parameters
+    real(kind=kind_phys) :: mg_qcvar       = 2.0
+    real(kind=kind_phys) :: mg_ts_auto_ice = 3600.0             !< ice auto conversion time scale
+
+    !--- land/surface model parameters
+    integer              :: lsm            =  1              !< flag for land surface model to use =0  for osu lsm; =1  for noah lsm
+    integer              :: lsoil          =  4              !< number of soil layers
+    integer              :: ivegsrc        =  2              !< ivegsrc = 0   => USGS,
+                                                             !< ivegsrc = 1   => IGBP (20 category)
+                                                             !< ivegsrc = 2   => UMD  (13 category)
+    integer              :: isot           =  0              !< isot = 0   => Zobler soil type  ( 9 category)
+                                                             !< isot = 1   => STATSGO soil type (19 category)
+    logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
+    logical              :: use_ufo        = .false.         !< flag for gcycle surface option
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras            = .false.                  !< flag for ras convection scheme
@@ -1391,7 +1385,6 @@ module GFS_typedefs
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: cnvcld         = .false.
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
-    logical              :: nocnv          = .false.                  !< flag to control whether any convection scheme is active
     logical              :: shal_cnv       = .false.                  !< flag for calling shallow convection
     integer              :: imfshalcnv     =  1                       !< flag for mass-flux shallow convection scheme
                                                                       !<     1: July 2010 version of mass-flux shallow conv scheme
@@ -1405,7 +1398,8 @@ module GFS_typedefs
                                                                       !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
     integer              :: nmtvr          = 14                       !< number of topographic variables such as variance etc
                                                                       !< used in the GWD parameterization
-    real(kind=kind_phys) :: cs_parm(10)    = 0.0                      !< tunable parameters for Chikira-Sugiyama convection
+    integer              :: jcap           =  1              !< number of spectral wave trancation used only by sascnv shalcnv
+    real(kind=kind_phys) :: cs_parm(10) = (/5.0,2.5,1.0e3,3.0e3,20.0,-999.,-999.,0.,0.,0./)
     real(kind=kind_phys) :: flgmin(2)      = (/0.180,0.220/)          !< [in] ice fraction bounds
     real(kind=kind_phys) :: cgwf(2)        = (/0.5d0,0.05d0/)         !< multiplication factor for convective GWD
     real(kind=kind_phys) :: ccwf(2)        = (/1.0d0,1.0d0/)          !< multiplication factor for critical cloud
@@ -1437,11 +1431,6 @@ module GFS_typedefs
                                                              !< nstf_name(3) : 1 = NSSTM analysis on, 0 = NSSTM analysis off
                                                              !< nstf_name(4) : zsea1 in mm
                                                              !< nstf_name(5) : zsea2 in mm
-
-    !--- coupling parameters
-    logical              :: cplflx         = .false.         !< default no cplflx collection
-    logical              :: cplwav         = .false.         !< default no cplwav collection
-    logical              :: a2oi_out       = .false.         !< default no saving of restart file for Atm fields for Ocn/Ice
      
     !--- stochastic physics options
     real(kind=kind_phys) :: sppt(5)        = -999.           !< stochastic physics tendency amplitude
@@ -1455,27 +1444,41 @@ module GFS_typedefs
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     !--- END NAMELIST VARIABLES
 
-    NAMELIST /gfs_physics_nml/ fhzero, ldiag3d, fhcyc, use_ufo, lgocart, fhgoc3d,           &
-                               thermodyn_id, sfcpress_id, pre_rad, jcap, levr, ncld,        &
-                               zhao_mic, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice, psautco,  &
-                               prautco, evpco, wminco, lsm, lsoil, nmtvr, ivegsrc, mom4ice, &
-                               fhswr, fhlwr, iflip, isol, ico2, ialb, isot, iems,  iaer,    &
-                               iovr_sw, iovr_lw, ictm, isubc_sw, isubc_lw, crick_proof,     &
-                               ccnorm, lwhtr, swhtr, lsidea, ras, trans_trac, old_monin,    &
-                               cnvgwd, mstrat, moist_adj, cscnv, cal_pre, do_aw, do_shoc,   &
-                               shocaftcnv, shoc_cld, h2o_phys, pdfcld, shcnvcw, redrag,     &
-                               hybedmf, dspheat, cnvcld, random_clds, shal_cnv, imfshalcnv,   &
-                               imfdeepcnv, cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup,       &
-                               ctei_rm, crtrh, prslrd0, ral_ts, dlqf, nst_anl, lsea, xkzm_m,&
-                               xkzm_h, xkzm_s, nstf_name, cplflx, cplwav, sppt, shum, skeb, &
-                               vcamp, vc, debug, lssav, nocnv
+    NAMELIST /gfs_physics_nml/                                                              &
+                          !--- general parameters
+                               fhzero, ldiag3d, lssav, fhcyc, lgocart, fhgoc3d,             &
+                               thermodyn_id, sfcpress_id,                                   &
+                          !--- coupling parameters
+                               cplflx, cplwav, lsidea,                                      &
+                          !--- radiation parameters
+                               fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
+                               isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
+                               isubc_lw, crick_proof, ccnorm, lwhtr, swhtr,                 &
+                          !--- microphysical parameterizations
+                               ncld, zhao_mic, psautco, prautco, evpco, wminco,             &
+                               fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,                     &
+                          !--- land/surface model control
+                          !--- land/surface model control
+                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
+                          !--- physical parameterizations
+                               ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
+                               cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
+                               h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
+                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, jcap,         &
+                               cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
+                               dlqf,                                                        &
+                          !--- Rayleigh friction
+                               prslrd0, ral_ts, dlqf, nst_anl, lsea, xkzm_m,                &
+                          !--- near surface temperature model
+                               nst_anl, lsea, xkzm_m, xkzm_h, xkzm_s, nstf_name,            &
+                          !--- stochastic physics
+                               sppt, shum, skeb, vcamp, vc,                                 &
+                          !--- debug options
+                               debug, pre_rad
 
     !--- other parameters 
-    integer :: nfxr    = 39                !< second dimension of input/output array fluxr   
     integer :: nctp    =  0                !< number of cloud types in CS scheme
-    logical :: aero_in = .false.           !< flag for initializing aero data 
     logical :: gen_coord_hybrid = .false.  !< for Henry's gen coord
-
 
     !--- SHOC parameters
     integer :: nshoc_2d  = 0  !< number of 2d fields for SHOC
@@ -1483,7 +1486,6 @@ module GFS_typedefs
 
     !--- convective clouds
     integer :: ncnvcld3d = 0       !< number of convective 3d clouds fields
-    logical :: uni_cld   = .false.
 
     !--- stochastic physics control parameters
     logical :: do_sppt   = .false.
@@ -1510,10 +1512,15 @@ module GFS_typedefs
     Model%master           = master
     Model%nlunit           = nlunit
     Model%fn_nml           = fn_nml
-
-    !--- debug flag
-    Model%debug            = debug
-    Model%pre_rad          = pre_rad
+    Model%fhzero           = fhzero
+    Model%ldiag3d          = ldiag3d
+    Model%lssav            = lssav
+    Model%fhcyc            = fhcyc
+    Model%lgocart          = lgocart
+    Model%fhgoc3d          = fhgoc3d
+    Model%thermodyn_id     = thermodyn_id
+    Model%sfcpress_id      = sfcpress_id
+    Model%gen_coord_hybrid = gen_coord_hybrid
 
     !--- set some grid extent parameters
     Model%isc              = isc
@@ -1525,37 +1532,136 @@ module GFS_typedefs
     Model%cny              = cny
     Model%lonr             = gnx
     Model%latr             = gny
-    Model%jcap             = jcap
-    if (levr < 0) then
-      Model%levr           = levs    ! set to levs for now
-    else
-      Model%levr           = levr
-    endif
+
+    !--- coupling parameters
+    Model%cplflx           = cplflx
+    Model%cplwav           = cplwav
+
+    !--- integrated dynamics through earth's atmosphere
+    Model%lsidea           = lsidea
 
     !--- calendars and time parameters and activation triggers
     Model%dtp              = dt_phys
     Model%dtf              = dt_dycore
-    Model%fhzero           = fhzero
-    Model%fhgoc3d          = fhgoc3d
-    rinc(1:5)              = 0 
-    call w3difdat(jdat,idat,4,rinc)
-    Model%phour            = rinc(4)/con_hr
-    Model%fhour            = (rinc(4) + Model%dtp)/con_hr
-    Model%zhour            = mod(Model%phour,Model%fhzero)
+    Model%nscyc            = nint(fhcyc*3600./Model%dtp)
     Model%nszero           = nint(Model%fhzero*con_hr/Model%dtp)
-    Model%kdt              = 0                                     !< nint((rinc(4) + Model%dtp)/Model%dtp)
     Model%idat(1:8)        = idat(1:8)
-    Model%jdat(1:8)        = jdat(1:8)
     Model%idate            = 0
     Model%idate(1)         = Model%idat(5)
     Model%idate(2)         = Model%idat(2)
     Model%idate(3)         = Model%idat(3)
     Model%idate(4)         = Model%idat(1)
 
-    !--- surface data cycling
-    Model%fhcyc            = fhcyc
-    Model%nscyc            = nint(fhcyc*3600./Model%dtp)
+    !--- radiation control parameters
+    Model%fhswr            = fhswr
+    Model%fhlwr            = fhlwr
+    Model%nsswr            = nint(fhswr/Model%dtp)
+    Model%nslwr            = nint(fhlwr/Model%dtp)
+    if (levr < 0) then
+      Model%levr           = levs
+    else
+      Model%levr           = levr
+    endif
+    Model%nfxr             = nfxr
+    Model%aero_in          = aero_in
+    Model%iflip            = iflip
+    Model%isol             = isol
+    Model%ico2             = ico2
+    Model%ialb             = ialb
+    Model%iems             = iems
+    Model%iaer             = iaer
+    Model%iovr_sw          = iovr_sw
+    Model%iovr_lw          = iovr_lw
+    Model%ictm             = ictm
+    Model%isubc_sw         = isubc_sw
+    Model%isubc_lw         = isubc_lw
+    Model%crick_proof      = crick_proof
+    Model%ccnorm           = ccnorm
+    Model%lwhtr            = lwhtr
+    Model%swhtr            = swhtr
+
+    !--- microphysical switch
+    Model%ncld             = ncld
+    !--- Zhao-Carr MP parameters
+    Model%zhao_mic         = zhao_mic
+    Model%psautco          = psautco
+    Model%prautco          = prautco
+    Model%evpco            = evpco
+    Model%wminco           = wminco
+    !--- Morroson-Gettleman MP parameters
+    Model%fprcp            = fprcp
+    Model%mg_dcs           = mg_dcs
+    Model%mg_qcvar         = mg_qcvar
+    Model%mg_ts_auto_ice   = mg_ts_auto_ice
+
+    !--- land/surface model parameters
+    Model%lsm              = lsm
+    Model%lsoil            = lsoil
+    Model%ivegsrc          = ivegsrc
+    Model%isot             = isot
+    Model%mom4ice          = mom4ice
     Model%use_ufo          = use_ufo
+
+    !--- tuning parameters for physical parameterizations
+    Model%ras              = ras
+    Model%flipv            = flipv
+    Model%trans_trac       = trans_trac
+    Model%old_monin        = old_monin
+    Model%cnvgwd           = cnvgwd
+    Model%mstrat           = mstrat
+    Model%moist_adj        = moist_adj
+    Model%cscnv            = cscnv
+    Model%cal_pre          = cal_pre
+    Model%do_aw            = do_aw
+    Model%do_shoc          = do_shoc
+    Model%shocaftcnv       = shocaftcnv
+    Model%shoc_cld         = shoc_cld
+    Model%h2o_phys         = h2o_phys
+    Model%pdfcld           = pdfcld
+    Model%shcnvcw          = shcnvcw
+    Model%redrag           = redrag
+    Model%hybedmf          = hybedmf
+    Model%dspheat          = dspheat
+    Model%cnvcld           = cnvcld
+    Model%random_clds      = random_clds
+    Model%shal_cnv         = shal_cnv
+    Model%imfshalcnv       = imfshalcnv
+    Model%imfdeepcnv       = imfdeepcnv
+    Model%nmtvr            = nmtvr
+    Model%jcap             = jcap
+    Model%cs_parm          = cs_parm
+    Model%flgmin           = flgmin
+    Model%cs_parm          = cs_parm
+    Model%cgwf             = cgwf
+    Model%ccwf             = ccwf
+    Model%cdmbgwd          = cdmbgwd
+    Model%sup              = sup
+    Model%ctei_rm          = ctei_rm
+    Model%crtrh            = crtrh
+    Model%dlqf             = dlqf
+
+    !--- Rayleigh friction
+    Model%prslrd0          = prslrd0
+    Model%ral_ts           = ral_ts
+
+    !--- near surface temperature model
+    Model%nst_anl          = nst_anl
+    Model%lsea             = lsea
+    Model%xkzm_m           = xkzm_m
+    Model%xkzm_h           = xkzm_h
+    Model%xkzm_s           = xkzm_s
+    Model%nstf_name        = nstf_name
+
+    !--- stochastic physics options
+    Model%sppt             = sppt
+    Model%shum             = shum
+    Model%skeb             = skeb
+    Model%vcamp            = vcamp
+    Model%vc               = vc
+    Model%do_sppt          = do_sppt
+    Model%do_shum          = do_shum
+    Model%do_skeb          = do_skeb
+    Model%do_vc            = do_vc
 
     !--- tracer handling
     Model%ntrac            = size(tracer_names)
@@ -1573,155 +1679,40 @@ module GFS_typedefs
     Model%ntsnc            = get_tracer_index(Model%tracer_names, 'snow_nc',  Model%me, Model%master, Model%debug)
     Model%ntke             = get_tracer_index(Model%tracer_names, 'sgs_tke',  Model%me, Model%master, Model%debug)
 
-    !--- radiation control parameters
-    Model%nfxr             = nfxr
-    Model%fhswr            = fhswr
-    Model%fhlwr            = fhlwr
-    Model%nsswr            = nint(fhswr/Model%dtp)
-    Model%nslwr            = nint(fhlwr/Model%dtp)
-    Model%iflip            = iflip
-    Model%isol             = isol
-    Model%ico2             = ico2
-    Model%ialb             = ialb
-    Model%isot             = isot
-    Model%iems             = iems
-    Model%iaer             = iaer
-    Model%iovr_sw          = iovr_sw
-    Model%iovr_lw          = iovr_lw
-    Model%ictm             = ictm
-    Model%isubc_sw         = isubc_sw
-    Model%isubc_lw         = isubc_lw
-    Model%crick_proof      = crick_proof
-    Model%ccnorm           = ccnorm
-    Model%lwhtr            = lwhtr
-    Model%swhtr            = swhtr
-
-    !--- Zhao-Carr MP parameters
-    Model%ncld             = ncld
-    Model%zhao_mic         = zhao_mic
-    Model%psautco          = psautco
-    Model%prautco          = prautco
-    Model%evpco            = evpco
-    Model%wminco           = wminco
-    Model%fprcp            = fprcp
-
-    !--- Morroson-Gettleman MP parameters
-    Model%mg_dcs           = mg_dcs
-    Model%mg_qcvar         = mg_qcvar
-    Model%mg_ts_auto_ice   = mg_ts_auto_ice
-
-    !--- diagnostics
-    Model%ldiag3d          = ldiag3d
-    Model%lssav            = lssav
-
-    !--- pressure recalculation parameters
-    Model%thermodyn_id     = thermodyn_id
-    Model%sfcpress_id      = sfcpress_id
-    Model%gen_coord_hybrid = gen_coord_hybrid
-
-    !--- land/surface model parameters
-    Model%lsm              = lsm
-    Model%lsoil            = lsoil
-    Model%ivegsrc          = ivegsrc
-    Model%mom4ice          = mom4ice
-
-    !--- integrated dynamics through earth's atmosphere
-    Model%lsidea           = lsidea
-
-    !--- tuning parameters for physical parameterizations
-    Model%ras              = ras
-    Model%flipv            = flipv
-    Model%trans_trac       = trans_trac
-    Model%old_monin        = old_monin
-    Model%cnvgwd           = cnvgwd
-    Model%mstrat           = mstrat
-    Model%moist_adj        = moist_adj
-    Model%cscnv            = cscnv
-    Model%cal_pre          = cal_pre
-    Model%do_aw            = do_aw
-    Model%do_shoc          = do_shoc
-    Model%shocaftcnv       = shocaftcnv
-    Model%shoc_cld         = shoc_cld
-    Model%uni_cld          = uni_cld
-    Model%h2o_phys         = h2o_phys
-    Model%pdfcld           = pdfcld
-    Model%shcnvcw          = shcnvcw
-    Model%redrag           = redrag
-    Model%hybedmf          = hybedmf
-    Model%dspheat          = dspheat
-    Model%cnvcld           = cnvcld
-    Model%random_clds      = random_clds
-    Model%nocnv            = nocnv
-    Model%shal_cnv         = shal_cnv
-    Model%imfshalcnv       = imfshalcnv
-    Model%imfdeepcnv       = imfdeepcnv
-    Model%nmtvr            = nmtvr
-    Model%cs_parm          = cs_parm
-    Model%flgmin           = flgmin
-    Model%cgwf             = cgwf
-    Model%ccwf             = ccwf
-    Model%cdmbgwd          = cdmbgwd
-    Model%sup              = sup
-    Model%ctei_rm          = ctei_rm
-    Model%crtrh            = crtrh
-    Model%dlqf             = dlqf
-    Model%nctp             = nctp
+    !--- quantities to be used to derive phy_f*d totals
     Model%nshoc_2d         = nshoc_2d
     Model%nshoc_3d         = nshoc_3d
     Model%ncnvcld3d        = ncnvcld3d
+    Model%nctp             = nctp
 
-    !--- Rayleigh friction
-    Model%prslrd0          = prslrd0
-    Model%ral_ts           = ral_ts
+    !--- debug flag
+    Model%debug            = debug
+    Model%pre_rad          = pre_rad
 
-    !--- near surface temperature model
-    Model%nst_anl          = nst_anl
-    Model%lsea             = lsea
-    Model%xkzm_m           = xkzm_m
-    Model%xkzm_h           = xkzm_h
-    Model%xkzm_s           = xkzm_s
-    Model%nstf_name        = nstf_name
-
-    !--- coupling parameters
-    Model%cplflx           = cplflx
-    Model%cplwav           = cplwav
-    Model%a2oi_out         = a2oi_out
-    Model%aero_in          = aero_in
-    Model%lgocart          = lgocart
-
-    !--- stochastic physics options
-    Model%sppt             = sppt
-    Model%shum             = shum
-    Model%skeb             = skeb
-    Model%vcamp            = vcamp
-    Model%vc               = vc
-    Model%do_sppt          = do_sppt
-    Model%do_shum          = do_shum
-    Model%do_skeb          = do_skeb
-    Model%do_vc            = do_vc
+    !--- set initial values for time varying properties
+    Model%ipt              = 1
+    Model%lprnt            = .false.
+    Model%lsswr            = .false.
+    Model%lslwr            = .false.
+    Model%solhr            = -9999.
+    Model%solcon           = -9999.
+    Model%slag             = -9999.
+    Model%sdec             = -9999.
+    Model%cdec             = -9999.
+    Model%clstp            = -9999
+    rinc(1:5)              = 0 
+    call w3difdat(jdat,idat,4,rinc)
+    Model%phour            = rinc(4)/con_hr
+    Model%fhour            = (rinc(4) + Model%dtp)/con_hr
+    Model%zhour            = mod(Model%phour,Model%fhzero)
+    Model%kdt              = 0
+    Model%jdat(1:8)        = jdat(1:8)
 
     !--- stored in wam_f107_kp module
     f107_kp_size      = 56
     f107_kp_skip_size = 0
     f107_kp_data_size = 56
     f107_kp_interval  = 10800
-
-    !--- initialize Chikira-Sugiyama parametsr
-    Model%cs_parm(1)   = 5.0          ! wcbmax1 for cs convection
-    Model%cs_parm(2)   = 2.5          ! wcbmax2 for cs convection
-    Model%cs_parm(3)   = 1.0e3        ! precz0  for cs convection
-    Model%cs_parm(4)   = 3.0e3        ! preczh  for cs convection
-    Model%cs_parm(5)   = 20.0         ! nctp, num of cloud types in cs convection
-    Model%cs_parm(6)   = -999.0       ! do_awdd true if > 0
-    Model%cs_parm(7)   = -999.0       ! dynamic time step for cs convection
-
-    !--- set default values for properties initialized in radupdate
-    Model%solhr  = 9999.0d0
-    Model%solcon = 9999.0d0
-    Model%slag   = 9999.0d0
-    Model%sdec   = 9999.0d0
-    Model%cdec   = 9999.0d0
-
 
     !--- BEGIN CODE FROM GFS_PHYSICS_INITIALIZE
     !--- define physcons module variables
@@ -1730,7 +1721,7 @@ module GFS_typedefs
     dxinv = 1.0d0 / (dxmax-dxmin)
     if (Model%me == Model%master) write(0,*)' dxmax=',dxmax,' dxmin=',dxmin,' dxinv=',dxinv
 
-    !--- set ncrm 
+    !--- set nrcm 
     if (Model%ras) then
       Model%nrcm = min(nrcmax, Model%levs-1) * (Model%dtp/1200.d0) + 0.10001d0
     else
@@ -1878,6 +1869,7 @@ module GFS_typedefs
                                             ' mg_ts_auto_ice=',Model%mg_ts_auto_ice
     endif
 
+    Model%uni_cld = .false.
     if ((Model%shoc_cld) .or. (Model%ncld == 2)) then
       Model%uni_cld = .true.
     endif
@@ -1897,13 +1889,6 @@ module GFS_typedefs
                                     ' nshoc_2d=',Model%nshoc_2d,' shoc_cld=',Model%shoc_cld,& 
                                     ' ntot3d=',Model%ntot3d,' ntot2d=',Model%ntot2d,        &
                                     ' shocaftcnv=',Model%shocaftcnv
-
-    !--- check to see if deep convection parameterization active
-    if (Model%nocnv) then
-      if (Model%me == Model%master) write(6,*) 'DEEP CONVECTION is NOT being parameterized'
-    else
-      if (Model%me == Model%master) write(6,*) 'DEEP CONVECTION is being parameterized'
-    endif
 
     !--- stochastic physics
     if (Model%sppt(1) > 0 ) Model%do_sppt = .true.
@@ -1934,7 +1919,227 @@ module GFS_typedefs
     endif
     !--- END CODE FROM GLOOPB
 
+    call Model%print ()
+
   end subroutine control_initialize
+
+
+!------------------
+! GFS_control%print
+!------------------
+  subroutine control_print(Model)
+
+    implicit none
+
+    !--- interface variables
+    class(GFS_control_type) :: Model
+ 
+    if (Model%me == Model%master) then
+      print *, ' '
+      print *, 'basic control parameters'
+      print *, ' me                : ', Model%me
+      print *, ' master            : ', Model%master
+      print *, ' nlunit            : ', Model%nlunit
+      print *, ' fn_nml            : ', trim(Model%fn_nml)
+      print *, ' fhzero            : ', Model%fhzero
+      print *, ' ldiag3d           : ', Model%ldiag3d
+      print *, ' lssav             : ', Model%lssav
+      print *, ' fhcyc             : ', Model%fhcyc
+      print *, ' lgocart           : ', Model%lgocart
+      print *, ' fhgoc3d           : ', Model%fhgoc3d
+      print *, ' thermodyn_id      : ', Model%thermodyn_id
+      print *, ' sfcpress_id       : ', Model%sfcpress_id
+      print *, ' gen_coord_hybrid  : ', Model%gen_coord_hybrid
+      print *, ' '
+      print *, 'grid extent parameters'
+      print *, ' isc               : ', Model%isc
+      print *, ' jsc               : ', Model%jsc
+      print *, ' nx                : ', Model%nx
+      print *, ' ny                : ', Model%ny
+      print *, ' levs              : ', Model%levs
+      print *, ' cnx               : ', Model%cnx
+      print *, ' cny               : ', Model%cny
+      print *, ' lonr              : ', Model%lonr
+      print *, ' latr              : ', Model%latr
+      print *, ' '
+      print *, 'coupling parameters'
+      print *, ' cplflx            : ', Model%cplflx
+      print *, ' cplwav            : ', Model%cplwav
+      print *, ' '
+      print *, 'integrated dynamics through earth atmosphere'
+      print *, ' lsidea            : ', Model%lsidea
+      print *, ' '
+      print *, 'calendars and time parameters and activation triggers'
+      print *, ' dtp               : ', Model%dtp
+      print *, ' dtf               : ', Model%dtf
+      print *, ' nscyc             : ', Model%nscyc
+      print *, ' nszero            : ', Model%nszero
+      print *, ' idat              : ', Model%idat
+      print *, ' idate             : ', Model%idate
+      print *, ' '
+      print *, 'radiation control parameters'
+      print *, ' fhswr             : ', Model%fhswr
+      print *, ' fhlwr             : ', Model%fhlwr
+      print *, ' nsswr             : ', Model%nsswr
+      print *, ' nslwr             : ', Model%nslwr
+      print *, ' levr              : ', Model%levr
+      print *, ' nfxr              : ', Model%nfxr
+      print *, ' aero_in           : ', Model%aero_in
+      print *, ' lmfshal           : ', Model%lmfshal
+      print *, ' lmfdeep2          : ', Model%lmfdeep2
+      print *, ' nrcm              : ', Model%nrcm
+      print *, ' iflip             : ', Model%iflip
+      print *, ' isol              : ', Model%isol
+      print *, ' ico2              : ', Model%ico2
+      print *, ' ialb              : ', Model%ialb
+      print *, ' iems              : ', Model%iems
+      print *, ' iaer              : ', Model%iaer
+      print *, ' iovr_sw           : ', Model%iovr_sw
+      print *, ' iovr_lw           : ', Model%iovr_lw
+      print *, ' ictm              : ', Model%ictm
+      print *, ' isubc_sw          : ', Model%isubc_sw
+      print *, ' isubc_lw          : ', Model%isubc_lw
+      print *, ' crick_proof       : ', Model%crick_proof
+      print *, ' ccnorm            : ', Model%ccnorm
+      print *, ' norad_precip      : ', Model%norad_precip
+      print *, ' lwhtr             : ', Model%lwhtr
+      print *, ' swhtr             : ', Model%swhtr
+      print *, ' '
+      print *, 'microphysical switch'
+      print *, ' ncld              : ', Model%ncld
+      print *, ' Z-C microphysical parameters'
+      print *, ' zhao_mic          : ', Model%zhao_mic
+      print *, ' psautco           : ', Model%psautco
+      print *, ' prautco           : ', Model%prautco
+      print *, ' evpco             : ', Model%evpco
+      print *, ' wminco            : ', Model%wminco
+      print *, ' M-G microphysical parameters'
+      print *, ' fprcp             : ', Model%fprcp
+      print *, ' mg_dcs            : ', Model%mg_dcs
+      print *, ' mg_qcvar          : ', Model%mg_qcvar
+      print *, ' mg_ts_auto_ice    : ', Model%mg_ts_auto_ice
+      print *, ' '
+      print *, 'land/surface model parameters'
+      print *, ' lsm               : ', Model%lsm
+      print *, ' lsoil             : ', Model%lsoil
+      print *, ' ivegsrc           : ', Model%ivegsrc
+      print *, ' isot              : ', Model%isot
+      print *, ' mom4ice           : ', Model%mom4ice
+      print *, ' use_ufo           : ', Model%use_ufo
+      print *, ' '
+      print *, 'tuning parameters for physical parameterizations'
+      print *, ' ras               : ', Model%ras
+      print *, ' flipv             : ', Model%flipv
+      print *, ' trans_trac        : ', Model%trans_trac
+      print *, ' old_monin         : ', Model%old_monin
+      print *, ' cnvgwd            : ', Model%cnvgwd
+      print *, ' mstrat            : ', Model%mstrat
+      print *, ' moist_adj         : ', Model%moist_adj
+      print *, ' cscnv             : ', Model%cscnv
+      print *, ' cal_pre           : ', Model%cal_pre
+      print *, ' do_aw             : ', Model%do_aw
+      print *, ' do_shoc           : ', Model%do_shoc
+      print *, ' shocaftcnv        : ', Model%shocaftcnv
+      print *, ' shoc_cld          : ', Model%shoc_cld
+      print *, ' uni_cld           : ', Model%uni_cld
+      print *, ' h2o_phys          : ', Model%h2o_phys
+      print *, ' pdfcld            : ', Model%pdfcld
+      print *, ' shcnvcw           : ', Model%shcnvcw
+      print *, ' redrag            : ', Model%redrag
+      print *, ' hybedmf           : ', Model%hybedmf
+      print *, ' dspheat           : ', Model%dspheat
+      print *, ' cnvcld            : ', Model%cnvcld
+      print *, ' random_clds       : ', Model%random_clds
+      print *, ' shal_cnv          : ', Model%shal_cnv
+      print *, ' imfshalcnv        : ', Model%imfshalcnv
+      print *, ' imfdeepcnv        : ', Model%imfdeepcnv
+      print *, ' nmtvr             : ', Model%nmtvr
+      print *, ' jcap              : ', Model%jcap
+      print *, ' cs_parm           : ', Model%cs_parm
+      print *, ' flgmin            : ', Model%flgmin
+      print *, ' cgwf              : ', Model%cgwf
+      print *, ' ccwf              : ', Model%ccwf
+      print *, ' cdmbgwd           : ', Model%cdmbgwd
+      print *, ' sup               : ', Model%sup
+      print *, ' ctei_rm           : ', Model%ctei_rm
+      print *, ' crtrh             : ', Model%crtrh
+      print *, ' dlqf              : ', Model%dlqf
+      print *, ' seed0             : ', Model%seed0
+      print *, ' '
+      print *, 'Rayleigh friction'
+      print *, ' prslrd0           : ', Model%prslrd0
+      print *, ' ral_ts            : ', Model%ral_ts
+      print *, ' '
+      print *, 'near surface temperature model'
+      print *, ' nst_anl           : ', Model%nst_anl
+      print *, ' lsea              : ', Model%lsea
+      print *, ' xkzm_m            : ', Model%xkzm_m
+      print *, ' xkzm_h            : ', Model%xkzm_h
+      print *, ' xkzm_s            : ', Model%xkzm_s
+      print *, ' nstf_name         : ', Model%nstf_name
+      print *, ' '
+      print *, 'stochastic physics'
+      print *, ' do_sppt           : ', Model%do_sppt
+      print *, ' do_shum           : ', Model%do_shum
+      print *, ' do_skeb           : ', Model%do_skeb
+      print *, ' do_vc             : ', Model%do_vc
+      print *, ' sppt              : ', Model%sppt
+      print *, ' shum              : ', Model%shum
+      print *, ' skeb              : ', Model%skeb
+      print *, ' vcamp             : ', Model%vcamp
+      print *, ' vc                : ', Model%vc
+      print *, ' '
+      print *, 'tracers'
+      print *, ' tracer_names      : ', Model%tracer_names
+      print *, ' ntrac             : ', Model%ntrac
+      print *, ' ntoz              : ', Model%ntoz
+      print *, ' ntcw              : ', Model%ntcw
+      print *, ' ntiw              : ', Model%ntiw
+      print *, ' ntrw              : ', Model%ntrw
+      print *, ' ntsw              : ', Model%ntsw
+      print *, ' ntgl              : ', Model%ntgl
+      print *, ' ntlnc             : ', Model%ntlnc
+      print *, ' ntinc             : ', Model%ntinc
+      print *, ' ntrnc             : ', Model%ntrnc
+      print *, ' ntsnc             : ', Model%ntsnc
+      print *, ' ntke              : ', Model%ntke
+      print *, ' nto               : ', Model%nto
+      print *, ' nto2              : ', Model%nto2
+      print *, ' '
+      print *, 'derived totals for phy_f*d'
+      print *, ' ntot2d            : ', Model%ntot2d
+      print *, ' ntot3d            : ', Model%ntot3d
+      print *, ' num_p2d           : ', Model%num_p2d
+      print *, ' num_p3d           : ', Model%num_p3d
+      print *, ' nshoc_2d          : ', Model%nshoc_2d
+      print *, ' nshoc_3d          : ', Model%nshoc_3d
+      print *, ' ncnvcld3d         : ', Model%ncnvcld3d
+      print *, ' npdf3d            : ', Model%npdf3d
+      print *, ' nctp              : ', Model%nctp
+      print *, ' '
+      print *, 'debug flags'
+      print *, ' debug             : ', Model%debug 
+      print *, ' pre_rad           : ', Model%pre_rad
+      print *, ' '
+      print *, 'variables modified at each time step'
+      print *, ' ipt               : ', Model%ipt
+      print *, ' lprnt             : ', Model%lprnt
+      print *, ' lsswr             : ', Model%lsswr
+      print *, ' lslwr             : ', Model%lslwr
+      print *, ' solhr             : ', Model%solhr
+      print *, ' solcon            : ', Model%solcon
+      print *, ' slag              : ', Model%slag
+      print *, ' sdec              : ', Model%sdec
+      print *, ' cdec              : ', Model%cdec
+      print *, ' clstp             : ', Model%clstp
+      print *, ' phour             : ', Model%phour
+      print *, ' fhour             : ', Model%fhour
+      print *, ' zhour             : ', Model%zhour
+      print *, ' kdt               : ', Model%kdt
+      print *, ' jdat              : ', Model%jdat
+    endif
+
+  end subroutine control_print
 
 
 !----------------

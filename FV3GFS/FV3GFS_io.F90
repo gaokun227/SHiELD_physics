@@ -1005,7 +1005,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface downward longwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1018,7 +1018,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface upward longwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1031,7 +1031,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface downward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1044,7 +1044,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface upward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1057,7 +1057,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'top of atmos downward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1070,7 +1070,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'top of atmos upward shortwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1083,7 +1083,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'top of atmos upward longwave flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1096,7 +1096,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'atmos column total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1109,7 +1109,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'high cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1122,7 +1122,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'low cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1135,7 +1135,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'mid cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_100/cn_hr
+    Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1359,7 +1359,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface zonal momentum flux [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1372,7 +1372,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface meridional momentum flux [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1385,7 +1385,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface sensible heat flux [W/m**2]'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1398,7 +1398,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface latent heat flux [W/m**2]'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1411,7 +1411,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1424,7 +1424,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface ground heat flux [W/m**2]'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1504,7 +1504,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface zonal gravity wave stress [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1517,7 +1517,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface meridional gravity wave stress [N/m**2]'
     Diag(idx)%unit = 'N/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_one/cn_hr
+    Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1541,7 +1541,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface convective precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1631,7 +1631,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface ice precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1644,7 +1644,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface snow precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
@@ -1657,7 +1657,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface graupel precipitation rate [kg/m**2/s]'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
-    Diag(idx)%cnvfac = cn_th/cn_hr
+    Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks

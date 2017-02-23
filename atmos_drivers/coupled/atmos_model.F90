@@ -530,7 +530,7 @@ subroutine update_atmos_model_state (Atmos)
 !--- local variables
   integer :: isec
   real :: tmax, tmin
-  real(kind=kind_phys) :: hour
+  real(kind=kind_phys) :: time_int
 
     call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
@@ -544,10 +544,10 @@ subroutine update_atmos_model_state (Atmos)
 
     call get_time (Atmos%Time - diag_time, isec)
     if (mod(isec,3600) == 0) then
-      hour = real(isec)/3600.
-      if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty ', hour
+      time_int = real(isec)
+      if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &
-                            IPD_Control%levs, 1, 1, 1.d0, hour)
+                            IPD_Control%levs, 1, 1, 1.d0, time_int)
       if (mod(isec,3600*nint(IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
     call diag_send_complete_extra (Atmos%Time)

@@ -55,9 +55,10 @@ use fms_mod,            only: file_exist, error_mesg, field_size, FATAL, NOTE, W
 use fms_mod,            only: close_file,  write_version_number, stdlog, stdout
 use fms_mod,            only: clock_flag_default
 use fms_mod,            only: check_nml_error
-use time_manager_mod,   only: time_type, operator(+), get_time, operator(-)
+use diag_manager_mod,   only: diag_send_complete_extra
+use time_manager_mod,   only: time_type, operator(+), operator(-), get_time, get_date
 use field_manager_mod,  only: MODEL_ATMOS
-use tracer_manager_mod, only: get_number_tracers, get_tracer_index, NO_TRACER
+use tracer_manager_mod, only: get_number_tracers, get_tracer_index, get_tracer_names, NO_TRACER
 use xgrid_mod,          only: grid_box_type
 use atmosphere_mod,     only: atmosphere_init
 use atmosphere_mod,     only: atmosphere_end
@@ -71,13 +72,15 @@ use atmosphere_mod,     only: atmos_phys_driver_statein
 use atmosphere_mod,     only: atmosphere_control_data, atmosphere_pref
 use atmosphere_mod,     only: set_atmosphere_pelist
 use coupler_types_mod,  only: coupler_2d_bc_type
-use block_control_mod,  only: block_control_type, define_blocks
-use gfs_physics_driver_mod, only: state_fields_in, state_fields_out, &
-                                  kind_phys, phys_rad_driver_init, &
-                                  phys_rad_driver_restart, &
-                                  phys_rad_driver_end, &
-                                  phys_rad_setup_step, &
-                                  radiation_driver, physics_driver, skin_temp
+use block_control_mod,  only: block_control_type, define_blocks, &
+                              define_blocks_packed
+use IPD_typedefs,       only: IPD_init_type, IPD_control_type,    &
+                              IPD_data_type, IPD_diag_type,       &
+                              IPD_restart_type, kind_phys
+use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
+                              IPD_radiation_step, IPD_physics_step
+use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
+                              gfdl_diag_register, gfdl_diag_output
 
 !-----------------------------------------------------------------------
 
@@ -139,15 +142,13 @@ public atmos_model_restart
      type(coupler_2d_bc_type)      :: fields             ! array of fields used for additional tracers
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
                                                          ! to calculate gradient on cubic sphere grid.
-     real(kind=kind_phys)          :: dxmin
-     real(kind=kind_phys)          :: dxmax
-     real(kind=kind_phys), pointer, dimension(:) :: ak
-     real(kind=kind_phys), pointer, dimension(:) :: bk
-     real(kind=kind_phys), pointer, dimension(:,:) :: xlon
-     real(kind=kind_phys), pointer, dimension(:,:) :: xlat
+     real(kind=8), pointer, dimension(:) :: ak
+     real(kind=8), pointer, dimension(:) :: bk
+     real(kind=8), pointer, dimension(:,:) :: xlon
+     real(kind=8), pointer, dimension(:,:) :: xlat
      real(kind=kind_phys), pointer, dimension(:,:) :: dx
      real(kind=kind_phys), pointer, dimension(:,:) :: dy
-     real(kind=kind_phys), pointer, dimension(:,:) :: area
+     real(kind=8), pointer, dimension(:,:) :: area
  end type atmos_data_type
 !</PUBLICTYPE >
 
@@ -160,16 +161,23 @@ integer :: ivapor = NO_TRACER ! index of water vapor tracer
 !-----------------------------------------------------------------------
 integer :: nxblocks = 1
 integer :: nyblocks = 1
+integer :: blocksize = 1
 logical :: surface_debug = .false.
 logical :: dycore_only = .false.
 logical :: debug = .false.
 logical :: sync = .false.
-namelist /atmos_model_nml/ nxblocks, nyblocks, surface_debug, dycore_only, debug, sync
+namelist /atmos_model_nml/ nxblocks, nyblocks, blocksize, surface_debug, dycore_only, debug, sync
+type (time_type) :: diag_time
 
 !--- concurrent and decoupled radiation and physics variables
-type (state_fields_in),  dimension(:), allocatable :: Statein
-type (state_fields_out), dimension(:), allocatable :: Stateout
-type (block_control_type)    :: Atm_block
+!----------------
+!  IPD containers
+!----------------
+type(IPD_control_type)              :: IPD_Control
+type(IPD_data_type),    allocatable :: IPD_Data(:)  ! number of blocks
+type(IPD_diag_type)                 :: IPD_Diag(250)
+type(IPD_restart_type)              :: IPD_Restart
+type (block_control_type), target   :: Atm_block
 
 integer :: ntrace, ntprog
 
@@ -206,50 +214,65 @@ subroutine update_atmos_radiation_physics (Atmos)
 !-----------------------------------------------------------------------
   type (atmos_data_type), intent(in) :: Atmos
 !--- local variables---
-    type(time_type) :: Time_next
     real :: tmax, tmin
-    integer :: nb
-
-    Time_next = Atmos%Time + Atmos%Time_step
+    integer :: nb, jdat(8)
 
     if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "statein driver"
 !--- get atmospheric state from the dynamic core
     call set_atmosphere_pelist()
     call mpp_clock_begin(getClock)
-    call atmos_phys_driver_statein (Statein, Atm_block)
+    call atmos_phys_driver_statein (IPD_data, Atm_block)
     call mpp_clock_end(getClock)
 
     if (surface_debug) call check_data ('FV DYNAMICS')
 
     if (dycore_only) then
       do nb = 1,Atm_block%nblks
-        Stateout(nb)%gu0 = Statein(nb)%ugrs
-        Stateout(nb)%gv0 = Statein(nb)%vgrs
-        Stateout(nb)%gt0 = Statein(nb)%tgrs
-        Stateout(nb)%gq0 = Statein(nb)%qgrs
+        IPD_Data(nb)%Stateout%gu0 = IPD_Data(nb)%Statein%ugrs
+        IPD_Data(nb)%Stateout%gv0 = IPD_Data(nb)%Statein%vgrs
+        IPD_Data(nb)%Stateout%gt0 = IPD_Data(nb)%Statein%tgrs
+        IPD_Data(nb)%Stateout%gq0 = IPD_Data(nb)%Statein%qgrs
       enddo
     else
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "setup step"
+
+!--- update IPD_Control%jdat(8)
+      jdat(:) = 0
+      call get_date (Atmos%Time, jdat(1), jdat(2), jdat(3),  &
+                                 jdat(5), jdat(6), jdat(7))
+      IPD_Control%jdat(:) = jdat(:)
+!--- execute the IPD atmospheric setup step
       call mpp_clock_begin(setupClock)
-      call phys_rad_setup_step (Atmos%Time_init, Atmos%Time, Time_next, Atm_block)
+      call IPD_setup_step (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart)
       call mpp_clock_end(setupClock)
 
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "radiation driver"
-!--- execute the GFS atmospheric radiation subcomponent (RRTM)
+!--- execute the IPD atmospheric radiation subcomponent (RRTM)
       call mpp_clock_begin(radClock)
-      call radiation_driver (Atm_block, Statein)
+!$OMP parallel do default (none) &
+!$OMP            schedule (dynamic,1), &
+!$OMP            shared   (Atm_block, IPD_Control, IPD_Data, IPD_Diag, IPD_Restart) &
+!$OMP            private  (nb)
+      do nb = 1,Atm_block%nblks
+        call IPD_radiation_step (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
+      enddo
       call mpp_clock_end(radClock)
 
       if (surface_debug) call check_data ('RADIATION')
 
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "physics driver"
-!--- execute the GFS atmospheric physics subcomponent
+!--- execute the IPD atmospheric physics subcomponent
       call mpp_clock_begin(physClock)
-      call physics_driver (Time_next, Atmos%Time_init, Atm_block, Statein, Stateout)
+!$OMP parallel do default (none) &
+!$OMP            schedule (dynamic,1), &
+!$OMP            shared   (Atm_block, IPD_Control, IPD_Data, IPD_Diag, IPD_Restart) &
+!$OMP            private  (nb)
+      do nb = 1,Atm_block%nblks
+        call IPD_physics_step (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
+      enddo
       call mpp_clock_end(physClock)
 
       if (surface_debug) call check_data ('PHYSICS')
-
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "end of radiation and physics step"
     endif
 
@@ -273,22 +296,22 @@ subroutine update_atmos_radiation_physics (Atmos)
     plmax = -99999.0
     plmin = +99999.0
     do nb = 1,Atm_block%nblks
-      t1max_l = maxval(Statein(nb)%tgrs(:,1))
-      t1min_l = minval(Statein(nb)%tgrs(:,1))
+      t1max_l = maxval(IPD_Data(nb)%Statein%tgrs(:,1))
+      t1min_l = minval(IPD_Data(nb)%Statein%tgrs(:,1))
       t1max = max(t1max,t1max_l)
       t1min = min(t1min,t1min_l)
-      psmax_l = maxval(Statein(nb)%pgr(:))
-      psmin_l = minval(Statein(nb)%pgr(:))
+      psmax_l = maxval(IPD_Data(nb)%Statein%pgr(:))
+      psmin_l = minval(IPD_Data(nb)%Statein%pgr(:))
       psmax = max(psmax,psmax_l)
       psmin = min(psmin,psmin_l)
-      plmax_l = maxval(Statein(nb)%prsl(:,1))
-      plmin_l = minval(Statein(nb)%prsl(:,1))
+      plmax_l = maxval(IPD_Data(nb)%Statein%prsl(:,1))
+      plmin_l = minval(IPD_Data(nb)%Statein%prsl(:,1))
       plmax = max(plmax,plmax_l)
       plmin = min(plmin,plmin_l)
     enddo
 
     if (mpp_pe() == mpp_root_pe()) write(6,*) 'after ',trim(name_str),' component'
-    call skin_temp (tsmin,tsmax, timax, timin, Atm_block%nblks)
+!rab    call skin_temp (tsmin,tsmax, timax, timin, Atm_block%nblks)
     if (mpp_pe() == mpp_root_pe()) write(6,*) '     GFS TSFC  max: ',tsmax,'   min: ',tsmin
     call mpp_max(t1max)
     call mpp_min(t1min)
@@ -328,6 +351,10 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   character(len=132) :: text
   logical :: p_hydro, hydro
   logical, save :: block_message = .true.
+  type(IPD_init_type) :: Init_parm
+  integer :: bdat(8), cdat(8)
+  integer :: ntracers
+  character(len=32), allocatable, target :: tracer_names(:)
 !-----------------------------------------------------------------------
 
 !---- set the atmospheric model time ------
@@ -378,7 +405,6 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
    call atmosphere_domain (Atmos%domain)
    call get_atmosphere_axes (Atmos%axes)
-   call get_atmosphere_grid (Atmos%dxmax, Atmos%dxmin)
    call atmosphere_boundary (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
    allocate(Atmos%xlon(nlon, nlat))
    allocate(Atmos%xlat(nlon, nlat))
@@ -388,27 +414,64 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !--- before going any further check definitions for 'blocks'
 !-----------------------------------------------------------------------
    call atmosphere_control_data (isc, iec, jsc, jec, nlev, p_hydro, hydro)
-   call define_blocks ('atmos_model', Atm_block, isc, iec, jsc, jec, nlev, &
-                       nxblocks, nyblocks, block_message)
-   allocate(Statein (Atm_block%nblks))
-   allocate(Stateout(Atm_block%nblks))
+   call define_blocks_packed ('atmos_model', Atm_block, isc, iec, jsc, jec, nlev, &
+                              blocksize, block_message)
+   
+   allocate(IPD_Data(Atm_block%nblks))
 
-!---------- initialize physics -------
-   call phys_rad_driver_init(Atmos%Time,        &
-                             Atmos%Time_init,  &
-                             Atmos%ak(:),       &
-                             Atmos%bk(:),       &
-                             Atmos%xlon(:,:),   &
-                             Atmos%xlat(:,:),   &
-                             mlon,              &
-                             mlat,              &
-                             nlev,              &
-                             Atmos%axes,        &
-                             Atmos%area,        &
-                             dt_phys,           &
-                             Atm_block,         &
-                             Statein, Stateout, &
-                             Atmos%domain) 
+!--- update IPD_Control%jdat(8)
+   bdat(:) = 0
+   call get_date (Time_init, bdat(1), bdat(2), bdat(3),  &
+                             bdat(5), bdat(6), bdat(7))
+   cdat(:) = 0
+   call get_date (Time,      cdat(1), cdat(2), cdat(3),  &
+                             cdat(5), cdat(6), cdat(7))
+   call get_number_tracers(MODEL_ATMOS, num_tracers=ntracers)
+   allocate (tracer_names(ntracers))
+   do i = 1, ntracers
+     call get_tracer_names(MODEL_ATMOS, i, tracer_names(i))
+   enddo
+!--- setup IPD Init_parm
+   Init_parm%me              =  mpp_pe()
+   Init_parm%master          =  mpp_root_pe()
+   Init_parm%isc             =  isc
+   Init_parm%jsc             =  jsc
+   Init_parm%nx              =  nlon
+   Init_parm%ny              =  nlat
+   Init_parm%levs            =  nlev
+   Init_parm%cnx             =  mlon
+   Init_parm%cny             =  mlat
+   Init_parm%gnx             =  Init_parm%cnx*4
+   Init_parm%gny             =  Init_parm%cny*2
+   Init_parm%nlunit          =  9999
+   Init_parm%logunit         =  logunit
+   Init_parm%bdat(:)         =  bdat(:)
+   Init_parm%cdat(:)         =  cdat(:)
+   Init_parm%dt_dycore       =  dt_phys
+   Init_parm%dt_phys         =  dt_phys
+   Init_parm%blksz           => Atm_block%blksz
+   Init_parm%ak              => Atmos%ak
+   Init_parm%bk              => Atmos%bk
+   Init_parm%xlon            => Atmos%xlon
+   Init_parm%xlat            => Atmos%xlat
+   Init_parm%area            => Atmos%area
+   Init_parm%tracer_names    => tracer_names
+   Init_parm%fn_nml          =  'input.nml'
+
+   call IPD_initialize (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart, Init_parm)
+
+   Init_parm%blksz           => null()
+   Init_parm%ak              => null()
+   Init_parm%bk              => null()
+   Init_parm%xlon            => null()
+   Init_parm%xlat            => null()
+   Init_parm%area            => null()
+   Init_parm%tracer_names    => null()
+   deallocate (tracer_names)
+
+   call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, Atm_block, Atmos%axes, IPD_Control%nfxr)
+   call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
+   diag_time = Time
 
 !---- print version number to logfile ----
 
@@ -465,17 +528,29 @@ subroutine update_atmos_model_state (Atmos)
 ! to update the model state after all concurrency is completed
   type (atmos_data_type), intent(inout) :: Atmos
 !--- local variables
+  integer :: isec
   real :: tmax, tmin
+  real(kind=kind_phys) :: hour
 
     call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
     call mpp_clock_begin(updClock)
-    call atmosphere_state_update (Atmos%Time, Statein, Stateout, Atm_block)
+    call atmosphere_state_update (Atmos%Time, IPD_Data, Atm_block)
     call mpp_clock_end(updClock)
     call mpp_clock_end(fv3Clock)
 
 !------ advance time ------
     Atmos % Time = Atmos % Time + Atmos % Time_step
+
+    call get_time (Atmos%Time - diag_time, isec)
+    if (mod(isec,3600) == 0) then
+      hour = real(isec)/3600.
+      if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty ', hour
+      call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &
+                            IPD_Control%levs, 1, 1, 1.d0, hour)
+      if (mod(isec,3600*nint(IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
+    endif
+    call diag_send_complete_extra (Atmos%Time)
 
     if (surface_debug) call check_data ('STATE UPDATE')
 
@@ -514,25 +589,27 @@ subroutine atmos_model_end (Atmos)
 !---- termination routine for atmospheric model ----
                                               
     call atmosphere_end (Atmos % Time, Atmos%grid)
-    call phys_rad_driver_end (Atm_block, Atmos%domain)
+    call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
+                               IPD_Control, Atmos%domain)
 
 end subroutine atmos_model_end
 
 ! </SUBROUTINE>
-  !#######################################################################
-  ! <SUBROUTINE NAME="atmos_model_restart">
-  ! <DESCRIPTION>
-  !  Write out restart files registered through register_restart_file
-  ! </DESCRIPTION>
-  subroutine atmos_model_restart(Atmos, timestamp)
-    type (atmos_data_type),   intent(inout) :: Atmos
-    character(len=*),  intent(in)           :: timestamp
+!#######################################################################
+! <SUBROUTINE NAME="atmos_model_restart">
+! <DESCRIPTION>
+!  Write out restart files registered through register_restart_file
+! </DESCRIPTION>
+subroutine atmos_model_restart(Atmos, timestamp)
+  type (atmos_data_type),   intent(inout) :: Atmos
+  character(len=*),  intent(in)           :: timestamp
 
-     call atmosphere_restart(timestamp)
-     call phys_rad_driver_restart (Atm_block, Atmos%domain, timestamp)
+    call atmosphere_restart(timestamp)
+    call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
+                               IPD_Control, Atmos%domain, timestamp)
 
-  end subroutine atmos_model_restart
-  ! </SUBROUTINE>
+end subroutine atmos_model_restart
+! </SUBROUTINE>
 
 !#######################################################################
 !#######################################################################

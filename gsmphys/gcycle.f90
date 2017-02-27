@@ -1,24 +1,17 @@
-module gcycle_mod
-
+  SUBROUTINE GCYCLE (nblks, Model, Grid, Sfcprop, Cldprop)
+!
+!
     USE MACHINE,      only: kind_phys
     USE PHYSCONS,     only: PI => con_PI
     USE GFS_typedefs, only: GFS_control_type, GFS_grid_type, &
                             GFS_sfcprop_type, GFS_cldprop_type
     implicit none
 
-    private
-
-    public gcycle
-CONTAINS
-
-  SUBROUTINE GCYCLE (Model, blksz, Grid, Sfcprop, Cldprop)
-!
-!
+    integer :: nblks
     type(GFS_control_type),   intent(in)    :: Model
-    integer,                  intent(in)    :: blksz(:)
-    type(GFS_grid_type),      intent(in)    :: Grid(:)
-    type(GFS_sfcprop_type),   intent(inout) :: Sfcprop(:)
-    type(GFS_cldprop_type),   intent(inout) :: Cldprop(:)
+    type(GFS_grid_type),      intent(in)    :: Grid(nblks)
+    type(GFS_sfcprop_type),   intent(inout) :: Sfcprop(nblks)
+    type(GFS_cldprop_type),   intent(inout) :: Cldprop(nblks)
 
 !
 !     Local variables
@@ -58,7 +51,7 @@ CONTAINS
         SLCFC1 (Model%nx*Model%ny*Model%lsoil)
 
     real(kind=kind_phys)    :: sig1t, pifac
-    integer :: npts, nblks, len, nb, ix, ls, ios
+    integer :: npts, len, nb, ix, ls, ios
     logical :: exists
 !
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -68,15 +61,14 @@ CONTAINS
 
       sig1t = 0.0
       npts  = Model%nx*Model%ny
-      nblks = size(blksz)
 !
       pifac = 180.0 / pi
       len = 0
       do nb = 1,nblks
-        do ix = 1,blksz(nb)
+        do ix = 1,size(Grid(nb)%xlat,1)
           len = len + 1
           RLA     (len)          =    Grid(nb)%xlat   (ix) * pifac
-          RLO     (len)          =    Grid(nb)%xlat   (ix) * pifac
+          RLO     (len)          =    Grid(nb)%xlon   (ix) * pifac
           OROG    (len)          = Sfcprop(nb)%oro    (ix)
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
@@ -110,9 +102,9 @@ CONTAINS
           ALBFC1  (len + npts*3) = Sfcprop(nb)%alnwf  (ix)
 
           do ls = 1,Model%lsoil
-            SMCFC1  (len + (ls-1)*npts) = Sfcprop(nb)%SMC (ix,ls)
-            STCFC1  (len + (ls-1)*npts) = Sfcprop(nb)%STC (ix,ls)
-            SLCFC1  (len + (ls-1)*npts) = Sfcprop(nb)%SLC (ix,ls)
+            SMCFC1 (len + (ls-1)*npts) = Sfcprop(nb)%smc (ix,ls)
+            STCFC1 (len + (ls-1)*npts) = Sfcprop(nb)%stc (ix,ls)
+            SLCFC1 (len + (ls-1)*npts) = Sfcprop(nb)%slc (ix,ls)
           enddo
 
           IF (SLIFCS(len) .LT. 0.1 .OR. SLIFCS(len) .GT. 1.5) THEN
@@ -159,7 +151,7 @@ CONTAINS
 
       len = 0 
       do nb = 1,nblks
-        do ix = 1,blksz(nb)
+        do ix = 1,size(Grid(nb)%xlat,1)
           len = len + 1
           Sfcprop(nb)%slmsk  (ix) = SLIFCS  (len)
           Sfcprop(nb)%tsfc   (ix) = TSFFCS  (len)
@@ -191,9 +183,9 @@ CONTAINS
           Sfcprop(nb)%alnsf  (ix) = ALBFC1  (len + npts*2)
           Sfcprop(nb)%alnwf  (ix) = ALBFC1  (len + npts*3)
           do ls = 1,Model%lsoil
-            Sfcprop(nb)%SMC (ix,ls) = SMCFC1  (len + (ls-1)*npts)
-            Sfcprop(nb)%STC (ix,ls) = STCFC1  (len + (ls-1)*npts)
-            Sfcprop(nb)%SLC (ix,ls) = SLCFC1  (len + (ls-1)*npts)
+            Sfcprop(nb)%smc (ix,ls) = SMCFC1 (len + (ls-1)*npts)
+            Sfcprop(nb)%stc (ix,ls) = STCFC1 (len + (ls-1)*npts)
+            Sfcprop(nb)%slc (ix,ls) = SLCFC1 (len + (ls-1)*npts)
           enddo
         ENDDO                 !-----END BLOCK SIZE LOOP------------------------------
       ENDDO                   !-----END BLOCK LOOP-------------------------------
@@ -204,8 +196,4 @@ CONTAINS
 !     if (Model%me .eq. 0) print*,'executed gcycle during hour=',fhour
       
       RETURN
-!RAB      END
-
-end subroutine gcycle
-
-end module gcycle_mod
+      END

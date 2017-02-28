@@ -249,7 +249,6 @@ module GFS_driver
                              Grid, Tbd, Cldprop, Radtend, Diag, IPD_Diag,  &
                              IPD_Restart)
 
-    use gcycle_mod, only: gcycle
     implicit none
 
     !--- interface variables
@@ -266,10 +265,11 @@ module GFS_driver
     type(IPD_diag_type),      intent(inout) :: IPD_Diag(:)
     type(IPD_restart_type),   intent(inout) :: IPD_Restart
     !--- local variables
-    integer :: nb
+    integer :: nb, nblks
     real(kind=kind_phys) :: rinc(5)
     real(kind=kind_phys) :: sec
 
+    nblks = size(blksz)
     !--- Model%jdat is being updated directly inside of FV3GFS_cap.F90
     !--- update calendars and triggers
     rinc(1:5)   = 0
@@ -316,13 +316,13 @@ module GFS_driver
     !--- repopulate specific time-varying sfc properties for AMIP/forecast runs
     if (Model%nscyc >  0) then
       if (mod(Model%kdt,Model%nscyc) == 1) THEN
-        call gcycle (Model, blksz, Grid(:), Sfcprop(:), Cldprop(:))
+        call gcycle (nblks, Model, Grid(:), Sfcprop(:), Cldprop(:))
       endif
     endif
 
     !--- determine if diagnostics buckets need to be cleared
     if (mod(Model%kdt,Model%nszero) == 1) then
-      do nb = 1,size(blksz)
+      do nb = 1,nblks
         call Diag(nb)%rad_zero  (Model)
         call Diag(nb)%phys_zero (Model)
       enddo
@@ -595,7 +595,7 @@ module GFS_driver
         Grid(nb)%xlon(ix)   = xlon(i,j)
         Grid(nb)%xlat(ix)   = xlat(i,j)
         Grid(nb)%xlat_d(ix) = xlat(i,j) * 180.0_kind_phys/pi
-        Grid(nb)%sinlat(ix) = sin(xlat(i,j))
+        Grid(nb)%sinlat(ix) = sin(Grid(nb)%xlat(ix))
         Grid(nb)%coslat(ix) = sqrt(1.0_kind_phys - Grid(nb)%sinlat(ix)*Grid(nb)%sinlat(ix))
         Grid(nb)%area(ix)   = area(i,j)
         Grid(nb)%dx(ix)     = sqrt(area(i,j))

@@ -2544,7 +2544,7 @@
 
         if (Model%lssav) then
 !          update dqdt_v to include moisture tendency due to shallow convection
-          if (MOdel%lgocart) then
+          if (Model%lgocart) then
             do k = 1, levs
               do i = 1, im
                 tem  = (Stateout%gq0(i,k,1)-dqdt(i,k,1)) * frain
@@ -2851,7 +2851,7 @@
             qsnw(:,:)  = Stateout%gq0(:,:,Model%ntsw)       
             ncpr(:,:)  = Stateout%gq0(:,:,Model%ntrnc)       
             ncps(:,:)  = Stateout%gq0(:,:,Model%ntsnc)       
-            Tbd%phy_f3d(:,:,1) = min(1.0, Tbd%phy_f3d(:,:,1)+cnvc(i,k))
+            Tbd%phy_f3d(:,:,1) = min(1.0, Tbd%phy_f3d(:,:,1)+cnvc(:,:))
           endif
         endif
 !       notice clw ix instead of im

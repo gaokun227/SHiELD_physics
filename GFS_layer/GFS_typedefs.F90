@@ -32,7 +32,7 @@ module GFS_typedefs
 !    GFS_coupling_type       !< fields to/from coupling with other components (e.g. land/ice/ocean/etc.)
 !    !---GFS specific containers
 !    GFS_control_type        !< model control parameters 
-!    GFS_trid_type           !< grid and interpolation related data
+!    GFS_grid_type           !< grid and interpolation related data
 !    GFS_tbd_type            !< to be determined data that doesn't fit in any one container
 !    GFS_clprop_type         !< cloud fields needed by radiation from physics
 !    GFS_radtend_type        !< radiation tendencies needed in physics
@@ -117,9 +117,9 @@ module GFS_typedefs
   type GFS_stateout_type
 
     !-- Out (physics only)
-    real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  !< updated temperature
     real (kind=kind_phys), pointer :: gu0 (:,:)   => null()  !< updated zonal wind
     real (kind=kind_phys), pointer :: gv0 (:,:)   => null()  !< updated meridional wind
+    real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  !< updated temperature
     real (kind=kind_phys), pointer :: gq0 (:,:,:) => null()  !< updated tracers
 
     contains
@@ -667,8 +667,8 @@ module GFS_typedefs
                                                               !< [dim(im): created in grrad.f], components:        
                                                               !!     (check module_radsw_parameters for definition)   
                                                               !!\n   %upfxc - total sky upward sw flux at sfc (w/m**2)     
-                                                              !!\n   %dnfxc - total sky downward sw flux at sfc (w/m**2)   
                                                               !!\n   %upfx0 - clear sky upward sw flux at sfc (w/m**2)     
+                                                              !!\n   %dnfxc - total sky downward sw flux at sfc (w/m**2)   
                                                               !!\n   %dnfx0 - clear sky downward sw flux at sfc (w/m**2)   
 
     type (sfcflw_type),    pointer :: sfcflw(:)    => null()  !< lw radiation fluxes at sfc
@@ -873,15 +873,15 @@ module GFS_typedefs
     integer,                intent(in) :: IM
     type(GFS_control_type), intent(in) :: Model
 
-    allocate (Stateout%gt0 (IM,Model%levs))
-    allocate (Stateout%gq0 (IM,Model%levs,Model%ntrac))
     allocate (Stateout%gu0 (IM,Model%levs))
     allocate (Stateout%gv0 (IM,Model%levs))
+    allocate (Stateout%gt0 (IM,Model%levs))
+    allocate (Stateout%gq0 (IM,Model%levs,Model%ntrac))
 
-    Stateout%gt0 = clear_val
-    Stateout%gq0 = clear_val
     Stateout%gu0 = clear_val
     Stateout%gv0 = clear_val
+    Stateout%gt0 = clear_val
+    Stateout%gq0 = clear_val
 
  end subroutine stateout_create
 
@@ -2283,12 +2283,12 @@ module GFS_typedefs
     allocate (Radtend%sfcflw (IM))
 
     Radtend%sfcfsw%upfxc = clear_val
-    Radtend%sfcfsw%dnfxc = clear_val
     Radtend%sfcfsw%upfx0 = clear_val
+    Radtend%sfcfsw%dnfxc = clear_val
     Radtend%sfcfsw%dnfx0 = clear_val
     Radtend%sfcflw%upfxc = clear_val
-    Radtend%sfcflw%dnfxc = clear_val
     Radtend%sfcflw%upfx0 = clear_val
+    Radtend%sfcflw%dnfxc = clear_val
     Radtend%sfcflw%dnfx0 = clear_val
          
     allocate (Radtend%htrsw  (IM,Model%levs))

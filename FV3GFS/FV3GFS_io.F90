@@ -779,7 +779,7 @@ module FV3GFS_io_mod
     type(IPD_control_type),      intent(in) :: Model
     type(domain2d),              intent(in) :: fv_domain
     !--- local variables
-    integer :: i, j, k, nb, ix, num, ib
+    integer :: i, j, k, nb, ix, num
     integer :: isc, iec, jsc, jec, npz, nx, ny
     integer :: id_restart
     integer :: nvar2d, nvar3d
@@ -833,12 +833,10 @@ module FV3GFS_io_mod
     !--- phy_var* variables
     do num = 1,nvar2d
       do nb = 1,Atm_block%nblks
-        ix = 1 
-        do ib = 1, Atm_block%blksz(nb)            
-          i = Atm_block%index(nb)%ii(ib) - isc + 1
-          j = Atm_block%index(nb)%jj(ib) - jsc + 1
+        do ix = 1, Atm_block%blksz(nb)            
+          i = Atm_block%index(nb)%ii(ix) - isc + 1
+          j = Atm_block%index(nb)%jj(ix) - jsc + 1
           IPD_Restart%data(nb,num)%var2p(ix) = phy_var2(i,j,num)
-          ix = ix + 1
         enddo
       enddo
     enddo
@@ -875,7 +873,7 @@ module FV3GFS_io_mod
     type(domain2d),              intent(in) :: fv_domain
     character(len=32), optional, intent(in) :: timestamp
     !--- local variables
-    integer :: i, j, k, nb, ix, num, ib
+    integer :: i, j, k, nb, ix, num
     integer :: isc, iec, jsc, jec, npz, nx, ny
     integer :: id_restart
     integer :: nvar2d, nvar3d

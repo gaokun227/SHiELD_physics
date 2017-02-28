@@ -256,7 +256,7 @@ subroutine update_atmos_radiation_physics (Atmos)
       enddo
       call mpp_clock_end(radClock)
 
-      if (chksum_debug_ then
+      if (chksum_debug) then
         if (mpp_pe() == mpp_root_pe()) print *,'RADIATION   ', IPD_Control%kdt, IPD_Control%fhour
         call GFS_checksum(IPD_Control, IPD_Data)
       endif
@@ -273,7 +273,7 @@ subroutine update_atmos_radiation_physics (Atmos)
       enddo
       call mpp_clock_end(physClock)
 
-      if (chksum_debug_ then
+      if (chksum_debug) then
         if (mpp_pe() == mpp_root_pe()) print *,'PHYSICS   ', IPD_Control%kdt, IPD_Control%fhour
         call GFS_checksum(IPD_Control, IPD_Data)
       endif
@@ -500,7 +500,7 @@ subroutine update_atmos_model_state (Atmos)
     call mpp_clock_end(updClock)
     call mpp_clock_end(fv3Clock)
 
-    if (chksum_debug_ then
+    if (chksum_debug) then
       if (mpp_pe() == mpp_root_pe()) print *,'UPDATE STATE   ', IPD_Control%kdt, IPD_Control%fhour
       call GFS_checksum(IPD_Control, IPD_Data)
     endif

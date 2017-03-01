@@ -279,7 +279,7 @@ module GFS_driver
     !--- set current bucket hour
     Model%zhour = Model%phour
     Model%fhour = (sec + Model%dtp)/con_hr
-    Model%kdt   = (sec + Model%dtp)/Model%dtp
+    Model%kdt   = nint((sec + Model%dtp)/Model%dtp)
 
     Model%ipt    = 1
     Model%lprnt  = .false.
@@ -325,6 +325,7 @@ module GFS_driver
       do nb = 1,nblks
         call Diag(nb)%rad_zero  (Model)
         call Diag(nb)%phys_zero (Model)
+    !!!!  THIS IS THE POINT AT WHICH DIAG%ZHOUR NEEDS TO BE UPDATED
       enddo
     endif
 

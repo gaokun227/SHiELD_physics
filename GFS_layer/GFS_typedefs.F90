@@ -621,7 +621,7 @@ module GFS_typedefs
     !--- In/Out
     real (kind=kind_phys), pointer :: acv      (:)     => null()  !< array containing accumulated convective clouds
     real (kind=kind_phys), pointer :: acvb     (:)     => null()  !< arrays used by cnvc90 bottom
-    real (kind=kind_phys), pointer :: acvt     (:)     => null()  !< arrays used by cnvc9 top (cnvc90.f)
+    real (kind=kind_phys), pointer :: acvt     (:)     => null()  !< arrays used by cnvc90 top (cnvc90.f)
 
     !--- Stochastic physics properties calculated in physics_driver
     real (kind=kind_phys), pointer :: dtdtr     (:,:)   => null()  !< temperature change due to radiative heating per time step (K)
@@ -632,7 +632,7 @@ module GFS_typedefs
 
     !--- phy_f*d variables needed for seamless restarts and moving data between grrad and gbphys
     real (kind=kind_phys), pointer :: phy_fctd (:,:)   => null()  !< For CS convection
-    real (kind=kind_phys), pointer :: phy_f2d  (:,:)   => null()  !< 2d arrays save for restart
+    real (kind=kind_phys), pointer :: phy_f2d  (:,:)   => null()  !< 2d arrays saved for restart
     real (kind=kind_phys), pointer :: phy_f3d  (:,:,:) => null()  !< 3d arrays saved for restart
 
     contains

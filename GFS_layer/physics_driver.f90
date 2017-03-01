@@ -929,8 +929,8 @@
 #ifdef GFS_HYDRO
       call get_prs(im, ix, levs, ntrac, Statein%tgrs, Statein%qgrs,     &
                    Model%thermodyn_id, Model%sfcpress_id,               &
-                   Model%gen_coord_hybrid, Statein%prsi, Statein%prsik, & 
-                   Statein%prsl, Statein%prslk, Statein%phii, Statein%phil)
+                   Model%gen_coord_hybrid, Statein%prsi, Statein%prsik, &
+                   Statein%prsl, Statein%prslk, Statein%phii, Statein%phil, del)
 #else
 !GFDL   Adjust the geopotential height hydrostatically in a way consistent with FV3 discretization
       call get_prs_fv3 (ix, levs, ntrac, Statein%phii, Statein%prsi, &
@@ -1005,32 +1005,15 @@
         enddo
       endif
 
-
 !  --- ...  transfer soil moisture and temperature from global to local variables
-      do k = 1, Model%lsoil
-        do i = 1, im
-          smsoil(i,k) = Sfcprop%smc(i,k)
-          stsoil(i,k) = Sfcprop%stc(i,k)
-          slsoil(i,k) = Sfcprop%slc(i,k)          !! clu: slc -> slsoil
-        enddo
-      enddo
-
-      do k = 1, levs
-        do i = 1, im
-          dudt(i,k)  = 0.
-          dvdt(i,k)  = 0.
-          dtdt(i,k)  = 0.
-          dtdtc(i,k) = 0.
-        enddo
-      enddo
-
-      do n = 1, ntrac
-        do k = 1, levs
-          do i = 1, im
-            dqdt(i,k,n) = 0.
-          enddo
-        enddo
-      enddo
+      smsoil(:,:) = Sfcprop%smc(:,:)
+      stsoil(:,:) = Sfcprop%stc(:,:)
+      slsoil(:,:) = Sfcprop%slc(:,:)          !! clu: slc -> slsoil
+      dudt(:,:)  = 0.
+      dvdt(:,:)  = 0.
+      dtdt(:,:)  = 0.
+      dtdtc(:,:) = 0.
+      dqdt(:,:,:) = 0.
 
 !  --- ...  initialize dtdt with heating rate from dcyc2
 
@@ -1149,14 +1132,12 @@
         endif
       endif    ! end if_lssav_block
 
-      do i = 1, im
-        kcnv(i)   = 0
-        kinver(i) = levs
-        invrsn(i) = .false.
-        tx1(i)    = 0.0
-        tx2(i)    = 10.0
-        ctei_r(i) = 10.0
-      enddo
+      kcnv(:)   = 0
+      kinver(:) = levs
+      invrsn(:) = .false.
+      tx1(:)    = 0.0
+      tx2(:)    = 10.0
+      ctei_r(:) = 10.0
 
 !    Only used for old shallow convection with mstrat=.true.
 
@@ -1202,25 +1183,23 @@
 
 !  --- ...  lu: initialize flag_guess, flag_iter, tsurf
 
-      do i = 1, im
-        tsurf(i)      = Sfcprop%tsfc(i)
-        flag_guess(i) = .false.
-        flag_iter(i)  = .true.
-        drain(i)      = 0.0
-        ep1d(i)       = 0.0
-        runof(i)      = 0.0
-        hflx(i)       = 0.0
-        evap(i)       = 0.0
-        evbs(i)       = 0.0
-        evcw(i)       = 0.0
-        trans(i)      = 0.0
-        sbsno(i)      = 0.0
-        snowc(i)      = 0.0
-        snohf(i)      = 0.0
-        Diag%zlvl(i)    = Statein%phil(i,1) * onebg
-        Diag%smcwlt2(i) = 0.0
-        Diag%smcref2(i) = 0.0
-      enddo
+      tsurf(:)      = Sfcprop%tsfc(:)
+      flag_guess(:) = .false.
+      flag_iter(:)  = .true.
+      drain(:)      = 0.0
+      ep1d(:)       = 0.0
+      runof(:)      = 0.0
+      hflx(:)       = 0.0
+      evap(:)       = 0.0
+      evbs(:)       = 0.0
+      evcw(:)       = 0.0
+      trans(:)      = 0.0
+      sbsno(:)      = 0.0
+      snowc(:)      = 0.0
+      snohf(:)      = 0.0
+      Diag%zlvl(:)    = Statein%phil(:,1) * onebg
+      Diag%smcwlt2(:) = 0.0
+      Diag%smcref2(:) = 0.0
 
 !  --- ...  lu: iter-loop over (sfc_diff,sfc_drv,sfc_ocean,sfc_sice)
 
@@ -1421,18 +1400,16 @@
 
       enddo   ! end iter_loop
 
-      do i = 1, im
-        Diag%epi(i)     = ep1d(i)
-        Diag%dlwsfci(i) = adjsfcdlw(i)
-        Diag%ulwsfci(i) = adjsfculw(i)
-        Diag%uswsfci(i) = adjsfcdsw(i) - adjsfcnsw(i)
-        Diag%dswsfci(i) = adjsfcdsw(i)
-        Diag%gfluxi(i)  = gflx(i)
-        Diag%t1(i)      = Statein%tgrs(i,1)
-        Diag%q1(i)      = Statein%qgrs(i,1,1)
-        Diag%u1(i)      = Statein%ugrs(i,1)
-        Diag%v1(i)      = Statein%vgrs(i,1)
-      enddo
+      Diag%epi(:)     = ep1d(:)
+      Diag%dlwsfci(:) = adjsfcdlw(:)
+      Diag%ulwsfci(:) = adjsfculw(:)
+      Diag%uswsfci(:) = adjsfcdsw(:) - adjsfcnsw(:)
+      Diag%dswsfci(:) = adjsfcdsw(:)
+      Diag%gfluxi(:)  = gflx(:)
+      Diag%t1(:)      = Statein%tgrs(:,1)
+      Diag%q1(:)      = Statein%qgrs(:,1,1)
+      Diag%u1(:)      = Statein%ugrs(:,1)
+      Diag%v1(:)      = Statein%vgrs(:,1)
 
 !  --- ...  update near surface fields
 
@@ -1442,9 +1419,7 @@
                      Sfcprop%t2m, Sfcprop%q2m, work3, evap,           &
                      Sfcprop%ffmm, Sfcprop%ffhh, fm10, fh2)
 
-      do i = 1, im
-        Tbd%phy_f2d(i,Model%num_p2d) = 0.0
-      enddo
+      Tbd%phy_f2d(:,Model%num_p2d) = 0.0
 
       if (Model%cplflx) then
         Coupling%dlwsfci_cpl (:) = adjsfcdlw(:)
@@ -1503,22 +1478,20 @@
       endif
 
       if (Model%lssav) then
-        do i = 1, im
-          Diag%gflux(i)   = Diag%gflux(i)  + gflx(i)  * dtf
-          Diag%evbsa(i)   = Diag%evbsa(i)  + evbs(i)  * dtf
-          Diag%evcwa(i)   = Diag%evcwa(i)  + evcw(i)  * dtf
-          Diag%transa(i)  = Diag%transa(i) + trans(i) * dtf
-          Diag%sbsnoa(i)  = Diag%sbsnoa(i) + sbsno(i) * dtf
-          Diag%snowca(i)  = Diag%snowca(i) + snowc(i) * dtf
-          Diag%snohfa(i)  = Diag%snohfa(i) + snohf(i) * dtf
-          Diag%ep(i)      = Diag%ep(i)     + ep1d(i)  * dtf
+        Diag%gflux(:)   = Diag%gflux(:)  + gflx(:)  * dtf
+        Diag%evbsa(:)   = Diag%evbsa(:)  + evbs(:)  * dtf
+        Diag%evcwa(:)   = Diag%evcwa(:)  + evcw(:)  * dtf
+        Diag%transa(:)  = Diag%transa(:) + trans(:) * dtf
+        Diag%sbsnoa(:)  = Diag%sbsnoa(:) + sbsno(:) * dtf
+        Diag%snowca(:)  = Diag%snowca(:) + snowc(:) * dtf
+        Diag%snohfa(:)  = Diag%snohfa(:) + snohf(:) * dtf
+        Diag%ep(:)      = Diag%ep(:)     + ep1d(:)  * dtf
 
-          Diag%tmpmax(i)  = max(Diag%tmpmax(i),Sfcprop%t2m(i))
-          Diag%tmpmin(i)  = min(Diag%tmpmin(i),Sfcprop%t2m(i))
+        Diag%tmpmax(:)  = max(Diag%tmpmax(:),Sfcprop%t2m(:))
+        Diag%tmpmin(:)  = min(Diag%tmpmin(:),Sfcprop%t2m(:))
 
-          Diag%spfhmax(i) = max(Diag%spfhmax(i),Sfcprop%q2m(i))
-          Diag%spfhmin(i) = min(Diag%spfhmin(i),Sfcprop%q2m(i))
-        enddo
+        Diag%spfhmax(:) = max(Diag%spfhmax(:),Sfcprop%q2m(:))
+        Diag%spfhmin(:) = min(Diag%spfhmin(:),Sfcprop%q2m(:))
       endif
 
 !!!!!!!!!!!!!!!!!Commented by Moorthi on July 18, 2012 !!!!!!!!!!!!!!!!!!!
@@ -1694,45 +1667,39 @@
 !            ---------------------------------------------
 
       if (Model%nmtvr == 14) then         ! current operational - as of 2014
-        do i = 1, im
-          oc(i)     = Sfcprop%hprime(i,2)
-          oa4(i,1)  = Sfcprop%hprime(i,3)
-          oa4(i,2)  = Sfcprop%hprime(i,4)
-          oa4(i,3)  = Sfcprop%hprime(i,5)
-          oa4(i,4)  = Sfcprop%hprime(i,6)
-          clx(i,1)  = Sfcprop%hprime(i,7)
-          clx(i,2)  = Sfcprop%hprime(i,8)
-          clx(i,3)  = Sfcprop%hprime(i,9)
-          clx(i,4)  = Sfcprop%hprime(i,10)
-          theta(i)  = Sfcprop%hprime(i,11)
-          gamma(i)  = Sfcprop%hprime(i,12)
-          sigma(i)  = Sfcprop%hprime(i,13)
-          elvmax(i) = Sfcprop%hprime(i,14)
-        enddo
+        oc(:)     = Sfcprop%hprime(:,2)
+        oa4(:,1)  = Sfcprop%hprime(:,3)
+        oa4(:,2)  = Sfcprop%hprime(:,4)
+        oa4(:,3)  = Sfcprop%hprime(:,5)
+        oa4(:,4)  = Sfcprop%hprime(:,6)
+        clx(:,1)  = Sfcprop%hprime(:,7)
+        clx(:,2)  = Sfcprop%hprime(:,8)
+        clx(:,3)  = Sfcprop%hprime(:,9)
+        clx(:,4)  = Sfcprop%hprime(:,10)
+        theta(:)  = Sfcprop%hprime(:,11)
+        gamma(:)  = Sfcprop%hprime(:,12)
+        sigma(:)  = Sfcprop%hprime(:,13)
+        elvmax(:) = Sfcprop%hprime(:,14)
       elseif (Model%nmtvr == 10) then
-        do i = 1, im
-          oc(i)     = Sfcprop%hprime(i,2)
-          oa4(i,1)  = Sfcprop%hprime(i,3)
-          oa4(i,2)  = Sfcprop%hprime(i,4)
-          oa4(i,3)  = Sfcprop%hprime(i,5)
-          oa4(i,4)  = Sfcprop%hprime(i,6)
-          clx(i,1)  = Sfcprop%hprime(i,7)
-          clx(i,2)  = Sfcprop%hprime(i,8)
-          clx(i,3)  = Sfcprop%hprime(i,9)
-          clx(i,4)  = Sfcprop%hprime(i,10)
-        enddo
+        oc(:)     = Sfcprop%hprime(:,2)
+        oa4(:,1)  = Sfcprop%hprime(:,3)
+        oa4(:,2)  = Sfcprop%hprime(:,4)
+        oa4(:,3)  = Sfcprop%hprime(:,5)
+        oa4(:,4)  = Sfcprop%hprime(:,6)
+        clx(:,1)  = Sfcprop%hprime(:,7)
+        clx(:,2)  = Sfcprop%hprime(:,8)
+        clx(:,3)  = Sfcprop%hprime(:,9)
+        clx(:,4)  = Sfcprop%hprime(:,10)
       elseif (Model%nmtvr == 6) then
-        do i = 1, im
-          oc(i)     = Sfcprop%hprime(i,2)
-          oa4(i,1)  = Sfcprop%hprime(i,3)
-          oa4(i,2)  = Sfcprop%hprime(i,4)
-          oa4(i,3)  = Sfcprop%hprime(i,5)
-          oa4(i,4)  = Sfcprop%hprime(i,6)
-          clx(i,1)  = 0.0
-          clx(i,2)  = 0.0
-          clx(i,3)  = 0.0
-          clx(i,4)  = 0.0
-        enddo
+        oc(:)     = Sfcprop%hprime(:,2)
+        oa4(:,1)  = Sfcprop%hprime(:,3)
+        oa4(:,2)  = Sfcprop%hprime(:,4)
+        oa4(:,3)  = Sfcprop%hprime(:,5)
+        oa4(:,4)  = Sfcprop%hprime(:,6)
+        clx(:,1)  = 0.0
+        clx(:,2)  = 0.0
+        clx(:,3)  = 0.0
+        clx(:,4)  = 0.0
       else
         oc = 0 ; oa4 = 0 ; clx = 0 ; theta = 0 ; gamma = 0 ; sigma = 0
         elvmax = 0
@@ -2017,8 +1984,8 @@
 !    &,                    gq0(1,1,1),clw(1,1,2),clw(1,1,1),'shoc      ')
 
           if ((Model%ntlnc > 0) .and. (Model%ntinc > 0) .and. (Model%ncld >= 2)) then
-            Stateout%gq0(i,k,Model%ntlnc) = ncpl(i,k)
-            Stateout%gq0(i,k,Model%ntinc) = ncpi(i,k)
+            Stateout%gq0(:,:,Model%ntlnc) = ncpl(:,:)
+            Stateout%gq0(:,:,Model%ntinc) = ncpi(:,:)
           endif
 !       do k=1,levs
 !         do i=1,im
@@ -2050,14 +2017,14 @@
 
         if (Model%imfdeepcnv == 1) then             ! no random cloud top
           call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
-                        Statein%prsl, Statein%pgr, Statein%phil, clw,   &
+                        Statein%prsl, Statein%pgr, Statein%phil, clw(1,1,1:2),   &
                         Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
                         Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
                         islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
                         dt_mf, cnvw, cnvc)
         elseif (Model%imfdeepcnv == 2) then
           call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                          Statein%pgr, Statein%phil, clw, Stateout%gq0, &
+                          Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
                           Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                           cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                           garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
@@ -2065,7 +2032,7 @@
 !         if (lprnt) print *,' rain1=',rain1(ipr)
         elseif (Model%imfdeepcnv == 0) then         ! random cloud top
           call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
-                       Statein%prsl, Statein%pgr, Statein%phil, clw,    &
+                       Statein%prsl, Statein%pgr, Statein%phil, clw(1,1,1:2),    &
                        Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
                        Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
                        islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
@@ -2255,10 +2222,10 @@
 !
 !       update dqdt_v to include moisture tendency due to deep convection
       if (Model%lgocart) then
-        Coupling%dqdti  (:,:)  = (Stateout%gq0(:,:,1)-dqdt(:,:,1))  * frain
-        Coupling%upd_mfi(:,:)  = Coupling%upd_mfi(:,:)  + ud_mf(:,:) * frain
-        Coupling%dwn_mfi(:,:)  = Coupling%dwn_mfi(:,:)  + dd_mf(:,:) * frain
-        Coupling%det_mfi(:,:)  = Coupling%det_mfi(:,:)  + dt_mf(:,:) * frain
+        Coupling%dqdti  (:,:)  = (Stateout%gq0(:,:,1) - dqdt(:,:,1))  * frain
+        Coupling%upd_mfi(:,:)  = Coupling%upd_mfi(:,:) + ud_mf(:,:) * frain
+        Coupling%dwn_mfi(:,:)  = Coupling%dwn_mfi(:,:) + dd_mf(:,:) * frain
+        Coupling%det_mfi(:,:)  = Coupling%det_mfi(:,:) + dt_mf(:,:) * frain
         Coupling%cnvqci (:,:)  = Coupling%cnvqci (:,:) + (clw(:,:,1)+clw(:,:,2))*frain
       endif ! if (lgocart)
 !
@@ -2285,7 +2252,6 @@
 
         cumabs(:) = 0.0
         work3 (:)  = 0.0
-
         do k = 1, levs
           do i = 1, im
             if (k >= kbot(i) .and. k <= ktop(i)) then
@@ -3159,24 +3125,19 @@
       REAL (kind=kind_phys), dimension(im) :: sumq, sumqv, sumql, sumqi
       integer               :: i, k
 !
+      sumqv(:) = 0.0
+      sumql(:) = 0.0
+      sumqi(:) = 0.0
+      sumq (:) = 0.0
       do i=1,im
-        sumqv(i) = 0.0
-        sumql(i) = 0.0
-        sumqi(i) = 0.0
+        sumqv(:) = sumqv(:) + (qv1(:,k) - qv0(:,k)) * delp(:,k)
+        sumql(:) = sumql(:) + (ql1(:,k) - ql0(:,k)) * delp(:,k)
+        sumqi(:) = sumqi(:) + (qi1(:,k) - qi0(:,k)) * delp(:,k)
       enddo
-      do k=1,levs
-        do i=1,im
-          sumqv(i) = sumqv(i) + (qv1(i,k) - qv0(i,k)) * delp(i,k)
-          sumql(i) = sumql(i) + (ql1(i,k) - ql0(i,k)) * delp(i,k)
-          sumqi(i) = sumqi(i) + (qi1(i,k) - qi0(i,k)) * delp(i,k)
-        enddo
-      enddo
-      do i=1,im
-        sumqv(i) = - sumqv(i) * (1.0/grav)
-        sumql(i) = - sumql(i) * (1.0/grav)
-        sumqi(i) = - sumqi(i) * (1.0/grav)
-        sumq(i)   =  sumqv(i) + sumql(i) + sumqi(i)
-      enddo
+      sumqv(:) = - sumqv(:) * (1.0/grav)
+      sumql(:) = - sumql(:) * (1.0/grav)
+      sumqi(:) = - sumqi(:) * (1.0/grav)
+      sumq (:)   =  sumqv(:) + sumql(:) + sumqi(:)
       do i=1,im
         write(1000+me,*)' in moist_bud:',' i=',i,' sumq=',sumq(i), &
        ' sumqv=',sumqv(i),' sumql=',sumql(i),' sumqi=',sumqi(i),   &

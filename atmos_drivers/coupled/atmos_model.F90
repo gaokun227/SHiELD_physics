@@ -734,8 +734,8 @@ end subroutine atmos_data_type_chksum
    type(IPD_data_type),     intent(in) :: IPD_Data(:)
    !--- local variables
    integer :: outunit, j, i, ix, nb, isc, iec, jsc, jec, lev, ct, l
-   real, allocatable :: temp2d(:,:,:)
-   real, allocatable :: temp3d(:,:,:,:)
+   real(kind=kind_phys), allocatable :: temp2d(:,:,:)
+   real(kind=kind_phys), allocatable :: temp3d(:,:,:,:)
    character(len=32) :: name
 
    isc = Model%isc

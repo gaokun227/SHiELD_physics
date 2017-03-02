@@ -1,6 +1,38 @@
-!> @file gbphys.f This file contains the gbphys subroutine.
+module module_physics_driver
 
-!> @defgroup gbphys GFS Physics Implementation Layer
+  use machine,               only: kind_phys
+  use physcons,              only: con_cp, con_fvirt, con_g, con_rd, &
+                                   con_rv, con_hvap, con_hfus,       &
+                                   con_rerth, con_pi, rhc_max, dxmin,&
+                                   dxinv, pa2mb, rlapse 
+  use cs_conv,               only: cs_convr
+  use ozne_def,              only: levozp,  oz_coeff, oz_pres
+  use h2o_def,               only: levh2o, h2o_coeff, h2o_pres
+  use gfs_fv3_needs,         only: get_prs_fv3, get_phi_fv3
+  use module_nst_water_prop, only: get_dtzm_2d
+  use GFS_typedefs,          only: GFS_statein_type, GFS_stateout_type, &
+                                   GFS_sfcprop_type, GFS_coupling_type, &
+                                   GFS_control_type, GFS_grid_type,     &
+                                   GFS_tbd_type,     GFS_cldprop_type,  &
+                                   GFS_radtend_type, GFS_diag_type
+
+  implicit none
+
+
+  !--- CONSTANT PARAMETERS
+  real(kind=kind_phys), parameter :: hocp    = con_hvap/con_cp
+  real(kind=kind_phys), parameter :: qmin    = 1.0e-10
+  real(kind=kind_phys), parameter :: p850    = 85000.0
+  real(kind=kind_phys), parameter :: epsq    = 1.e-20
+  real(kind=kind_phys), parameter :: hsub    = con_hvap+con_hfus
+  real(kind=kind_phys), parameter :: czmin   = 0.0001      ! cos(89.994)
+  real(kind=kind_phys), parameter :: onebg   = 1.0/con_g
+  real(kind=kind_phys), parameter :: albdf   = 0.06 
+  real(kind=kind_phys) tf, tcr, tcrf
+  parameter (tf=258.16, tcr=273.16, tcrf=1.0/(tcr-tf))
+
+
+!> GFS Physics Implementation Layer
 !> @brief Layer that invokes individual GFS physics routines
 !> @{
 !at tune step===========================================================!
@@ -129,361 +161,6 @@
 !! this routine applies radiative heating rates that were calculated during the
 !! antecedent call to the radiation scheme. Code within this subroutine is executed on the
 !! physics sub-timestep. The sub-timestep loop is executed in the subroutine gloopb.
-!!
-!! Parameter descriptions include intent, name, description, and size
-!! @param      ix, im    horizontal dimension and num of used pts
-!! @param      levs      vertical layer dimension
-!! @param      lsoil     number of soil layers
-!! @param      lsm       flag for land surface model to use
-!!                            =0  for osu lsm; =1  for noah lsm
-!! @param      ntrac     number of tracers
-!! @param      ncld      number of cloud species
-!! @param      ntoz      ozone location in the tracer array
-!! @param      ntcw      cloud condensate location in the tracer
-!!                       array
-!! @param      ntke      tke location in the tracer array
-!! @param      ntiw
-!! @param      ntlnc
-!! @param      ntinc
-!! @param      nmtvr     number of topographic variables such as
-!!                       variance etc used in the GWD parameterization
-!! @param      nrcm      second dimension for the random number
-!!                       array rann
-!! @param      ko3       number of layers for ozone data
-!! @param      lonr,latr number of lon/lat points
-!! @param      jcap      number of spectral wave trancation
-!!                       used only by sascnv shalcnv
-!! @param      num_p3d   number of 3D arrays needed for
-!!                       microphysics
-!! @param      num_p2d   number of 2D arrays needed for
-!!                       microphysics
-!! @param      npdf3d    number of 3d arrays associated with pdf
-!!                       based clouds/microphysics
-!! @param      ncnvcld3d number of 3d arrays associated with
-!!                       convective cloudiness enhancement
-!! @param      kdt       number of the current time step
-!! @param      lat       latitude index - used for debug prints
-!! @param      me        pe number - used for debug prints
-!! @param      pl_coeff  number coefficients in ozone forcing
-!! @param      nlons     number of total grid points in a latitude
-!!                       circle through a point
-!! @param      ncw       range of droplet number concentrations for
-!!                       Ferrier microphysics
-!! @param      flgmin    range of  minimum large ice fraction for
-!!                       Ferrier microphys
-!! @param      crtrh     critical relative humidity at the surface, PBL
-!!                       top and at the top of the atmosphere
-!! @param      cdmbgwd   multiplication factors for cdmb and gwd
-!! @param      ccwf      multiplication factor for critical cloud
-!!                       workfunction for RAS
-!! @param      dlqf      factor for cloud condensate detrainment from
-!!                       cloud edges (RAS)
-!! @param      ctei_rm   critical cloud top entrainment instability
-!!                       criteria (used if mstrat=.true.)
-!! @param      clstp     index used by cnvc90 (for convective clouds)
-!!                       legacy stuff - does not affect forecast
-!! @param      cgwf      multiplication factor for convective GWD
-!! @param      prslrd0   pressure level (Pa) from which Rayleigh Damping
-!!                       is applied
-!! @param      ral_ts    time scale for Rayleigh damping in days
-!! @param      dtp       physics time step in seconds
-!! @param      dtf       dynamics time step in seconds
-!! @param      fhour     forecast hour
-!! @param      solhr     fcst hour at the end of prev time step
-!! @param      slag      equation of time ( radian )
-!! @param      sdec,cdec sin and cos of the solar declination angle
-!! @param      sinlat    sin of latitude
-!! @param      coslat    cos of latitude
-!! @param      pgr       surface pressure (Pa)
-!! @param      ugrs,vgrs u/v component of layer wind
-!! @param      tgrs      layer mean temperature ( k )
-!! @param      qgrs      layer mean tracer concentration
-!! @param      vvel      layer mean vertical velocity (Pa/s)
-!! @param      prsi      pressure at layer interfaces
-!! @param      prsl      mean layer presure
-!! @param      prsik     Exner function at layer interface
-!! @param      prslk     Exner function at layer
-!! @param      phii      interface geopotential (\f$m^2/s^2\f$)
-!! @param      phil      layer geopotential (\f$m^2/s^2\f$)
-!! @param      rann      random number array (0-1)
-!! @param      prdout    ozone forcing data
-!! @param      poz       ozone forcing data level pressure (ln(Pa))
-!! @param      dpshc     maximum pressure depth for shallow convection
-!! @paran      fscav
-!! @param      fswtr
-!! @param      hprime    orographic std dev
-!! @param      xlon,xlat longitude and latitude ( radian )
-!! @param      h2o_phys
-!! @param      levh2o
-!! @param      h2opl
-!! @param      h2o_pres
-!! @param      h2o_coeff
-!! @param      isot
-!! @param      ivegsrc
-!! @param      slope     sfc slope type for lsm
-!! @param      shdmin    min fractional coverage of green veg
-!! @param      shdmax    max fractional coverage of green veg (not used)
-!! @param      snoalb    max snow albedo over land (for deep snow)
-!! @param      tg3       deep soil temperature
-!! @param      slmsk     sea/land/ice mask (=0/1/2)
-!! @param      vfrac     vegetation fraction
-!! @param      vtype     vegetation type
-!! @param      stype     soil type
-!! @param      uustar    boundary layer parameter
-!! @param      oro       orography
-!! @param      oro_uf    unfiltered orography
-!! @param      coszen    avg cosz over daytime sw radiation interval
-!! @param      sfcdsw    total sky sfc downward sw flux ( \f$w/m^2\f$ )
-!! @param      sfcnsw    total sky sfc netsw flx into ground(\f$w/m^2\f$)
-!! @param      sfcnirbmd sfc nir-beam sw downward flux (\f$w/m^2\f$)
-!! @param      sfcnirdfd sfc nir-diff sw downward flux (\f$w/m^2\f$)
-!! @param      sfcvisbmd sfc uv+vis-beam sw downward flux (\f$w/m^2\f$)
-!! @param      sfcvisdfd sfc uv+vis-diff sw downward flux (\f$w/m^2\f$)
-!! @param      sfcnirbmu sfc nir-beam sw upward flux (\f$w/m^2\f$)
-!! @param      sfcnirdfu sfc nir-diff sw upward flux (\f$w/m^2\f$)
-!! @param      sfcvisbmu sfc uv+vis-beam sw upward flux (\f$w/m^2\f$)
-!! @param      sfcvisdfu sfc uv+vis-diff sw upward flux (\f$w/m^2\f$)
-!! @param      slimskin_cpl
-!! @param      ulwsfcin_cpl
-!! @param      dusfcin_cpl
-!! @param      dvsfcin_cpl
-!! @param      dtsfcin_cpl
-!! @param      dqsfcin_cpl
-!! @param      sfcdlw    total sky sfc downward lw flux ( \f$w/m^2\f$ )
-!! @param      tsflw     sfc air (layer 1) temp over lw interval (k)
-!! @param      sfcemis   sfc lw emissivity ( fraction )
-!! @param      sfalb     mean sfc diffused sw albedo
-!! @param      swh       total sky sw heating rates (\f$k/s\f$ )
-!! @param      swhc      clear sky sw heating rates (\f$k/s\f$ )
-!! @param      lwh       total sky lw heating rates (\f$k/s\f$ )
-!! @param      lwhc      clear sky lw heating rates (\f$k/s\f$ )
-!! @param      lwhd      idea  sky lw heating rates (\f$k/s\f$ )
-!! @param      lsidea
-!! @param      ras       flag for ras convection scheme
-!! @param      pre_rad   flag for testing purpose
-!! @param      ldiag3d   flag for 3d diagnostic fields
-!! @param      lgocart   flag for 3d diagnostic fields for gocart
-!! @param      lssav     flag controls data store and output
-!! @param      lssav_cpl flag for save data for A/O/I coupling
-!! @param      xkzm_m    background vertical diffusion for momentum
-!! @param      xkzm_h    background vertical diffusion for heat, q
-!! @param      xkzm_s    sigma threshold for background mom. diffusn
-!! @param      psautco   auto conversion coeff from ice to snow
-!! @param      prautco   auto conversion coeff from cloud to rain
-!! @param      evpco     coeff for evaporation of largescale rain
-!! @param      wminco    water and ice minimum threshold for Zhao
-!! @param      pdfcld    flag for pdfcld
-!! @param      shcnvcw   flag for shallow convective cloud
-!! @param      sup       supsaturation for ho. nucleation of ice
-!! @param      redrag    flag for reduced drag coeff. over sea
-!! @param      hybedmf   flag for hybrid edmf pbl scheme
-!! @param      dspheat   flag for tke dissipative heating
-!! @param      flipv     flag for vertical direction flip (ras)
-!! @param      old_monin flag for diff monin schemes
-!! @param      cnvgwd    flag for conv gravity wave drag
-!! @param      shal_cnv  flag for calling shallow convection
-!! @param      imfshalcnv  flag for mass-flux shallow conv scheme
-!!<PRE>
-!!     1: July 2010 version of mass-flux shallow conv scheme
-!!         current operational version as of 2016
-!!     2: scale- & aerosol-aware mass-flux shallow conv scheme (2017)
-!!     0: modified Tiedtke's eddy-diffusion shallow conv scheme
-!!    -1: no shallow convection used
-!!</PRE>
-!! @param      imfdeepcnv  flag for mass-flux deep conv scheme
-!!<PRE>
-!!     1: July 2010 version of SAS conv scheme
-!!           current operational version as of 2016
-!!     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
-!!     0: old SAS Convection scheme before July 2010
-!!</PRE>
-!! @param      cal_pre   flag controls precip type algorithm
-!! @param      aero_in
-!! @param      mom4ice   flag controls mom4 sea-ice
-!! @param      mstrat    flag for moorthi approach for stratus
-!! @param      trans_trac  flag for convective transport of tracers
-!! @param      nstf_name   NSST related flag parameters
-!!<PRE>
-!!     nstf_name(1) : 0 = NSSTM off
-!!                    1 = NSSTM on but uncoupled
-!!                    2 = NSSTM on and coupled
-!!     nstf_name(2) : 1 = NSSTM spin up on
-!!                    0 = NSSTM spin up off
-!!     nstf_name(3) : 1 = NSST analysis on
-!!                    0 = NSSTM analysis off
-!!     nstf_name(4) : zsea1 in mm
-!!     nstf_name(5) : zsea2 in mm
-!!</PRE>
-!! @param      moist_adj     flag for moist convective adjustment
-!! @param      thermodyn_id  valid for GFS only for get_prs/phi
-!! @param      sfcpress_id   valid for GFS only for get_prs/phi
-!! @param      gen_coord_hybrid   logical for pk=ak+bk*ps+ck*theta (Henry)
-!! @param      levr          the number of layers GFS Radiative heating calculted at 1
-!! @param      adjtrc        dynamics adjustments to tracers
-!! @param      nnp           physics substep number
-!! @param      cscnv         flag for Chikira-Sugiyama convection
-!! @param      nctp          number of cloud types in CS scheme
-!! @param      do_shoc       flag for SHOC
-!! @param      shocaftcnv    flag for SHOC
-!! @param      ntot3d        number of total 3d fields for phy_f3d
-!! @param      ntot2d        number of total 2d fields for phy_f2d
-!! @param      hice          sea-ice thickness
-!! @param      fice          sea-ice concentration
-!! @param      tisfc         sea-ice temperature
-!! @param      tsea          ground surface temperature ( k )
-!! @param      tprcp         total precipitation
-!!\n       the following three variables do not affect the forecast
-!! @param      cv            convective clouds amountt
-!! @param      cvb           convective clouds base pressure (kPa)
-!! @param      cvt           convective clouds top  pressure (kPa)
-!! @param      srflag        snow/rain flag for precipitation
-!! @param      snwdph        actual snow depth (mm) over land/sea ice
-!! @param      weasd         water equiv of accumulated  snow depth (\f$kg/m^2\f$)
-!!                                      over land and sea ice
-!! @param      sncovr        snow cover over land
-!! @param      zorl          surface roughness
-!! @param      canopy        canopy water
-!! @param      ffmm          fm parameter from PBL scheme
-!! @param      ffhh          fh parameter from PBL scheme
-!! @param      f10m          fm at 10m
-!! @param      srunoff       surface water runoff (from lsm)
-!! @param      evbsa         noah lsm diagnostics
-!! @param      evcwa         noah lsm diagnostics
-!! @param      snohfa        noah lsm diagnostics
-!! @param      transa        noah lsm diagnostics
-!! @param      sbsnoa        noah lsm diagnostics
-!! @param      snowca        noah lsm diagnostics
-!! @param      soilm         soil moisture
-!! @param      tmpmin        min temperature at 2m height (k)
-!! @param      tmpmax        max temperature at 2m height (k)
-!! @param      dusfc         u component of surface stress
-!! @param      dvsfc         v component of surface stress
-!! @param      dtsfc         sensible heat flux (\f$w/m^2\f$)
-!! @param      dqsfc         latent heat flux (\f$w/m^2\f$)
-!! @param      totprcp       accumulated total precipitation (\f$kg/m^2\f$)
-!! @param      gflux         ground conductive heat flux
-!! @param      dlwsfc        time accumulated sfc dn lw flux ( \f$w/m^2\f$ )
-!! @param      ulwsfc        time accumulated sfc up lw flux ( \f$w/m^2\f$ )
-!! @param      suntim        sunshine duration time (s)
-!! @param      runoff        total water runoff
-!! @param      ep            potential evaporation
-!! @param      cldwrk        cloud workfunction (valid only with sas)
-!! @param      dugwd         vertically integrated u change by OGWD
-!! @param      dvgwd         vertically integrated v change by OGWD
-!! @param      psmean        surface pressure (kPa)
-!! @param      cnvprcp       accumulated convective precipitation (\f$kg/m^2\f$)
-!! @param      spfhmin       minimum specific humidity
-!! @param      spfhmax       maximum specific humidity
-!! @param      rain          total rain at this time step
-!! @param      rainc         convective rain at this time step
-!! @param      dt3dt         temperature change due to physics
-!! @param      dq3dt         moisture change due to physics
-!! @param      du3dt         u momentum change due to physics
-!! @param      dv3dt         v momentum change due to physics
-!! @param      dqdt_v        total moisture tendency (kg/kg/s)
-!! @param      cnvqc_v       total convective conensate (kg/kg)
-!! @param      acv           array containing accumulated convective clouds
-!! @param      acvb,acvt     arrays used by cnvc90
-!! @param      slc           liquid soil moisture
-!! @param      smc           total soil moisture
-!! @param      stc           soil temperature
-!! @param      upd_mf        convective updraft mass flux
-!! @param      dwn_mf        convective downdraft mass flux
-!! @param      det_mf        convective detrainment mass flux
-!! @param      phy_f3d       3d arrays saved for restart
-!! @param      phy_f2d       2d arrays save for restart
-!! @param      dusfc_cpl     sfc u-momentum flux       for A/O/I coupling
-!! @param      dvsfc_cpl     sfc v-momentum flux       for A/O/I coupling
-!! @param      dtsfc_cpl     sfc sensible heat flux    for A/O/I coupling
-!! @param      dqsfc_cpl     sfc latent heat flux      for A/O/I coupling
-!! @param      dlwsfc_cpl    sfc dnwd lw flux (\f$w/m^2\f$) for A/O/I coupling
-!! @param      dswsfc_cpl    sfc dnwd sw flux (\f$w/m^2\f$) for A/O/I coupling
-!! @param      dnirbm_cpl    sfc nir beam dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      dnirdf_cpl    sfc nir diff dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      dvisbm_cpl    sfc uv+vis beam dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      dvisdf_cpl    sfc uv+vis diff dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      rain_cpl      total precipitation rain for A/O/I coupling
-!! @param      nlwsfc_cpl    net dnwd lw flux (\f$w/m^2\f$) for A/O/I coupling
-!! @param      nswsfc_cpl    net dnwd sw flux (\f$w/m^2\f$) for A/O/I coupling
-!! @param      nnirbm_cpl    net nir beam dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      nnirdf_cpl    net nir diff dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      nvisbm_cpl    net uv+vis beam dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      nvisdf_cpl    net uv+vis diff dnwd sw rad flux (\f$w/m^2\f$)
-!! @param      snow_cpl      total precipitation  snow for A/O/I coupling
-!! @param      xt            heat content in DTL
-!! @param      xs            salinity  content in DTL
-!! @param      xu            u-current content in DTL
-!! @param      xv            v-current content in DTL
-!! @param      xz            DTL thickness
-!! @param      zm            MXL thickness
-!! @param      xtts          d(xt)/d(ts)
-!! @param      xzts          d(xz)/d(ts)
-!! @param      d_conv        thickness of Free Convection Layer (FCL)
-!! @param      ifd           index to start DTM run or not
-!! @param      dt_cool       Sub-layer cooling amount
-!! @param      Qrain         sensible heat flux due to rainfall (watts)
-!! @param      tref          Reference Temperature
-!! @param      z_c           Sub-layer cooling thickness
-!! @param      c_0           coefficient1 to calculate d(Tz)/d(Ts)
-!! @param      c_d           coefficient2 to calculate d(Tz)/d(Ts)
-!! @param      w_0           coefficient3 to calculate d(Tz)/d(Ts)
-!! @param      w_d           coefficient4 to calculate d(Tz)/d(Ts)
-!! @param      phy_fctd      cloud base mass flux for CScnv
-!! @param      gt0           updated temperature
-!! @param      gq0           updated tracers
-!! @param      gu0           updated zonal wind
-!! @param      gv0           update meridional wind
-!! @param      t2m,q2m       2 meter temperature and humidity
-!! @param      u10m,v10m     10 meater u/v wind speed
-!! @param      zlvl          layer 1 height (m)
-!! @param      psurf         surface pressure (Pa)
-!! @param      hpbl          pbl height (m)
-!! @param      pwat          precipitable water
-!! @param      t1            layer 1 temperature (K)
-!! @param      q1            layer 1 specific humidity (kg/kg)
-!! @param      u1            layer 1 zonal wind (m/s)
-!! @param      v1            layer 1 merdional wind (m/s)
-!! @param      chh           thermal exchange coefficient
-!! @param      cmm           momentum exchange coefficient
-!! @param      dlwsfci       instantaneous sfc dnwd lw flux ( \f$w/m^2\f$ )
-!! @param      ulwsfci       instantaneous sfc upwd lw flux ( \f$w/m^2\f$ )
-!! @param      dswsfci       instantaneous sfc dnwd sw flux ( \f$w/m^2\f$ )
-!! @param      uswsfci       instantaneous sfc upwd sw flux ( \f$w/m^2\f$ )
-!! @param      dusfci        instantaneous u component of surface stress
-!! @param      dvsfci        instantaneous v component of surface stress
-!! @param      dtsfci        instantaneous sfc sensible heat flux
-!! @param      dqsfci        instantaneous sfc latent heat flux
-!! @param      gfluxi        instantaneous sfc ground heat flux
-!! @param      epi           instantaneous sfc potential evaporation
-!! @param      smcwlt2       wilting point (volumetric)
-!! @param      smcref2       soil moisture threshold (volumetric)
-!! @param      wet1
-!! @param      sr
-!! @param      rqtk          mass change due to moisture variation
-!! @param      dtdtr         temperature change due to radiative heating
-!!                                      per time step (K)
-!! @param      dusfci_cpl    sfc u-momentum flux at time step AOI cpl
-!! @param      dvsfci_cpl    sfc v-momentum flux at time step AOI cpl
-!! @param      dtsfci_cpl    sfc sensib heat flux at time step AOI cpl
-!! @param      dqsfci_cpl    sfc latent heat flux at time step AOI cpl
-!! @param      dlwsfci_cpl   sfc dnwd lw flux at time step AOI cpl
-!! @param      dswsfci_cpl   sfc dnwd sw flux at time step AOI cpl
-!! @param      dnirbmi_cpl   sfc nir beam dnwd sw flx rad at time step
-!! @param      dnirdfi_cpl   sfc nir diff dnwd sw flx rad at time step
-!! @param      dvisbmi_cpl   sfc uv+vis beam dnwd sw flx at time step
-!! @param      dvisdfi_cpl   sfc uv+vis diff dnwd sw flx at time step
-!! @param      nlwsfci_cpl   net sfc dnwd lw flux at time step AOI cpl
-!! @param      nswsfci_cpl   net sfc dnwd sw flux at time step AOI cpl
-!! @param      nnirbmi_cpl   net nir beam dnwd sw flx rad at time step
-!! @param      nnirdfi_cpl   net nir diff dnwd sw flx rad at time step
-!! @param      nvisbmi_cpl   net uv+vis beam dnwd sw flx at time step
-!! @param      nvisdfi_cpl   net uv+vis diff dnwd sw flx at time step
-!! @param      t2mi_cpl      T2m at time step AOI cpl
-!! @param      q2mi_cpl      Q2m at time step AOI cpl
-!! @param      u10mi_cpl     U10m at time step AOI cpl
-!! @param      v10mi_cpl     V10m at time step AOI cpl
-!! @param      tseai_cpl     sfc temp at time step AOI cpl
-!! @param      psurfi_cpl    sfc pressure at time step AOI cpl
 !!
 !!  \section general General Algorithm
 !!  -# Prepare input variables for calling individual parameterizations.
@@ -698,25 +375,16 @@
 !!   - Set global soil moisture variables
 !!   - Calculate precipitable water and water vapor mass change due to all physics for the column
 !!   - Deallocate arrays for SHOC scheme, deep convective scheme, and Morrison et al. microphysics
-      subroutine physics_driver                         &
+
+
+  public physics_driver
+
+  CONTAINS
+!*******************************************************************************************
+
+    subroutine physics_driver                         &
          (Model, Statein, Stateout, Sfcprop, Coupling,  &
           Grid, Tbd, Cldprop, Radtend, Diag)
-
-      use machine ,              only: kind_phys
-      use physcons,              only: con_cp, con_fvirt, con_g, con_rd, &
-                                       con_rv, con_hvap, con_hfus,       &
-                                       con_rerth, con_pi, rhc_max, dxmin,&
-                                       dxinv, pa2mb, rlapse 
-      use cs_conv,               only: cs_convr
-      use ozne_def,              only: levozp,  oz_coeff, oz_pres
-      use h2o_def,               only: levh2o, h2o_coeff, h2o_pres
-      use gfs_fv3_needs,         only: get_prs_fv3, get_phi_fv3
-      use module_nst_water_prop, only: get_dtzm_2d
-      use GFS_typedefs,          only: GFS_statein_type, GFS_stateout_type, &
-                                       GFS_sfcprop_type, GFS_coupling_type, &
-                                       GFS_control_type, GFS_grid_type,     &
-                                       GFS_tbd_type,     GFS_cldprop_type,  &
-                                       GFS_radtend_type, GFS_diag_type
 
       implicit none
 !
@@ -733,18 +401,6 @@
       type(GFS_diag_type),            intent(inout) :: Diag
 !
 !  ---  local variables
-
-      !--- CONSTANT PARAMETERS
-      real(kind=kind_phys), parameter :: hocp    = con_hvap/con_cp
-      real(kind=kind_phys), parameter :: qmin    = 1.0e-10
-      real(kind=kind_phys), parameter :: p850    = 85000.0
-      real(kind=kind_phys), parameter :: epsq    = 1.e-20
-      real(kind=kind_phys), parameter :: hsub    = con_hvap+con_hfus
-      real(kind=kind_phys), parameter :: czmin   = 0.0001      ! cos(89.994)
-      real(kind=kind_phys), parameter :: onebg   = 1.0/con_g
-      real(kind=kind_phys), parameter :: albdf   = 0.06 
-      real(kind=kind_phys) tf, tcr, tcrf
-      parameter (tf=258.16, tcr=273.16, tcrf=1.0/(tcr-tf))
 
       !--- INTEGER VARIABLES
       integer :: me, lprint, ipr, ix, im, levs, ntrac, nvdiff, kdt
@@ -2017,7 +1673,7 @@
 
         if (Model%imfdeepcnv == 1) then             ! no random cloud top
           call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
-                        Statein%prsl, Statein%pgr, Statein%phil, clw(1,1,1:2),   &
+                        Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
                         Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
                         Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
                         islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
@@ -2032,7 +1688,7 @@
 !         if (lprnt) print *,' rain1=',rain1(ipr)
         elseif (Model%imfdeepcnv == 0) then         ! random cloud top
           call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
-                       Statein%prsl, Statein%pgr, Statein%phil, clw(1,1,1:2),    &
+                       Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
                        Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
                        Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
                        islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
@@ -2973,7 +2629,7 @@
 
 !  --- ...  coupling insertion
 
-      if (Model%cplflx) then
+      if (Model%cplflx .or. Model%do_sppt) then
         do i = 1, im
           if (t850(i) > 273.16) then
              Coupling%rain_cpl(i) = Coupling%rain_cpl(i) + Diag%rain(i)
@@ -3156,5 +2812,7 @@
       enddo
       return
       
-      end subroutine moist_bud
+    end subroutine moist_bud
 !> @}
+
+end module module_physics_driver

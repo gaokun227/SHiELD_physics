@@ -3,10 +3,11 @@ module IPD_driver
   use IPD_typedefs, only: IPD_control_type,  IPD_data_type,    &
                           IPD_diag_type,     IPD_restart_type
 
-  use GFS_driver,   only: IPD_init_type => GFS_init_type
+  use GFS_driver,   only: IPD_init_type => init_type
 
-  use GFS_driver,   only: GFS_initialize,     GFS_setup_step,  &
-                          GFS_radiation_step, GFS_physics_step
+  use GFS_driver,   only: initialize,       time_vary_step,  &
+                          radiation_driver, physics_driver,  &
+                          stochastic_driver
 
        implicit none
 
@@ -23,7 +24,11 @@ module IPD_driver
 ! Public Entities
 !----------------
 ! functions
-  public IPD_initialize, IPD_setup_step, IPD_radiation_step, IPD_physics_step
+  public IPD_initialize
+  public IPD_setup_step 
+  public IPD_radiation_step
+  public IPD_physics_step1
+  public IPD_physics_step2
 
   CONTAINS
 !*******************************************************************************************
@@ -39,10 +44,10 @@ module IPD_driver
     type(IPD_restart_type), intent(inout) :: IPD_Restart
     type(IPD_init_type),    intent(in)    :: GFS_init_parm
 
-    call GFS_initialize (IPD_Control, IPD_Data(:)%Statein, IPD_Data(:)%Stateout,      &
-                         IPD_Data(:)%Sfcprop, IPD_Data(:)%Coupling, IPD_Data(:)%Grid, &
-                         IPD_Data(:)%Tbd, IPD_Data(:)%Cldprop, IPD_Data(:)%Radtend,   &
-                         IPD_Data(:)%Intdiag, IPD_Diag, IPD_Restart, GFS_init_parm)
+    call initialize (IPD_Control, IPD_Data(:)%Statein, IPD_Data(:)%Stateout,      &
+                     IPD_Data(:)%Sfcprop, IPD_Data(:)%Coupling, IPD_Data(:)%Grid, &
+                     IPD_Data(:)%Tbd, IPD_Data(:)%Cldprop, IPD_Data(:)%Radtend,   &
+                     IPD_Data(:)%Intdiag, IPD_Diag, IPD_Restart, GFS_init_parm)
 
   end subroutine IPD_initialize
 
@@ -57,7 +62,7 @@ module IPD_driver
     type(IPD_diag_type),    intent(inout) :: IPD_Diag(:)
     type(IPD_restart_type), intent(inout) :: IPD_Restart
 
-    call GFS_setup_step (IPD_Control, IPD_Data(:)%Statein, IPD_Data(:)%Stateout,      &
+    call time_vary_step (IPD_Control, IPD_Data(:)%Statein, IPD_Data(:)%Stateout,      &
                          IPD_Data(:)%Sfcprop, IPD_Data(:)%Coupling, IPD_Data(:)%Grid, &
                          IPD_Data(:)%Tbd, IPD_Data(:)%Cldprop, IPD_Data(:)%Radtend,   &
                          IPD_Data(:)%Intdiag, IPD_Diag, IPD_Restart)
@@ -74,28 +79,46 @@ module IPD_driver
     type(IPD_diag_type),    intent(inout) :: IPD_Diag(:)
     type(IPD_restart_type), intent(inout) :: IPD_Restart
 
-    call GFS_radiation_step (IPD_control, IPD_Data%Statein, IPD_Data%Stateout,   &
-                             IPD_Data%Sfcprop, IPD_Data%Coupling, IPD_Data%Grid, &
-                             IPD_Data%Tbd, IPD_Data%Cldprop, IPD_Data%Radtend,   &
-                             IPD_Data%Intdiag, IPD_Diag, IPD_Restart)
+    call radiation_driver (IPD_control, IPD_Data%Statein, IPD_Data%Stateout,   &
+                           IPD_Data%Sfcprop, IPD_Data%Coupling, IPD_Data%Grid, &
+                           IPD_Data%Tbd, IPD_Data%Cldprop, IPD_Data%Radtend,   &
+                           IPD_Data%Intdiag)
 
   end subroutine IPD_radiation_step
 
 
-!------------------
-!  IPD physics step
-!------------------
-  subroutine IPD_physics_step (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart)
+!-------------------
+!  IPD physics step1
+!-------------------
+  subroutine IPD_physics_step1 (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart)
     type(IPD_control_type), intent(inout) :: IPD_Control
     type(IPD_data_type),    intent(inout) :: IPD_Data
     type(IPD_diag_type),    intent(inout) :: IPD_Diag(:)
     type(IPD_restart_type), intent(inout) :: IPD_Restart
 
-    call GFS_physics_step (IPD_control, IPD_Data%Statein, IPD_Data%Stateout,   &
-                           IPD_Data%Sfcprop, IPD_Data%Coupling, IPD_Data%Grid, &
-                           IPD_Data%Tbd, IPD_Data%Cldprop, IPD_Data%Radtend,   &
-                           IPD_Data%Intdiag, IPD_Diag, IPD_Restart)
+    call physics_driver (IPD_control, IPD_Data%Statein, IPD_Data%Stateout,   &
+                         IPD_Data%Sfcprop, IPD_Data%Coupling, IPD_Data%Grid, &
+                         IPD_Data%Tbd, IPD_Data%Cldprop, IPD_Data%Radtend,   &
+                         IPD_Data%Intdiag)
 
-  end subroutine IPD_physics_step
+  end subroutine IPD_physics_step1
+
+
+!-------------------
+!  IPD physics step2
+!-------------------
+  subroutine IPD_physics_step2 (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart)
+    type(IPD_control_type), intent(inout) :: IPD_Control
+    type(IPD_data_type),    intent(inout) :: IPD_Data
+    type(IPD_diag_type),    intent(inout) :: IPD_Diag(:)
+    type(IPD_restart_type), intent(inout) :: IPD_Restart
+
+    call stochastic_driver (IPD_control, IPD_Data%Statein, IPD_Data%Stateout,   &
+                            IPD_Data%Sfcprop, IPD_Data%Coupling, IPD_Data%Grid, &
+                            IPD_Data%Tbd, IPD_Data%Cldprop, IPD_Data%Radtend,   &
+                            IPD_Data%Intdiag)
+
+  end subroutine IPD_physics_step2
+
 
 end module IPD_driver

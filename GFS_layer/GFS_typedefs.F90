@@ -1077,6 +1077,14 @@ module GFS_typedefs
     Coupling%sfcnsw    = clear_val
     Coupling%sfcdlw    = clear_val
 
+    if (Model%cplflx .or. Model%do_sppt) then
+      allocate (Coupling%rain_cpl     (IM))
+      allocate (Coupling%snow_cpl     (IM))
+
+      Coupling%rain_cpl     = clear_val
+      Coupling%snow_cpl     = clear_val
+    endif
+
     if (Model%cplflx) then
       !--- incoming quantities
       allocate (Coupling%slimskin_cpl (IM))
@@ -1094,8 +1102,6 @@ module GFS_typedefs
       Coupling%ulwsfcin_cpl = clear_val
 
       !--- accumulated quantities
-      allocate (Coupling%rain_cpl     (IM))
-      allocate (Coupling%snow_cpl     (IM))
       allocate (Coupling%dusfc_cpl    (IM))
       allocate (Coupling%dvsfc_cpl    (IM))
       allocate (Coupling%dtsfc_cpl    (IM))
@@ -1113,8 +1119,6 @@ module GFS_typedefs
       allocate (Coupling%nvisbm_cpl   (IM))
       allocate (Coupling%nvisdf_cpl   (IM))
 
-      Coupling%rain_cpl     = clear_val
-      Coupling%snow_cpl     = clear_val
       Coupling%dusfc_cpl    = clear_val
       Coupling%dvsfc_cpl    = clear_val
       Coupling%dtsfc_cpl    = clear_val

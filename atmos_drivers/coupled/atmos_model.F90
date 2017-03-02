@@ -51,14 +51,15 @@ use mpp_mod,            only: input_nml_file
 #else
 use fms_mod,            only: open_namelist_file
 #endif
-use fms_mod,            only: file_exist, error_mesg, field_size, FATAL, NOTE, WARNING
-use fms_mod,            only: close_file,  write_version_number, stdlog, stdout
+use fms_mod,            only: file_exist, error_mesg, FATAL
+use fms_mod,            only: close_file, write_version_number, stdlog, stdout
 use fms_mod,            only: clock_flag_default
 use fms_mod,            only: check_nml_error
 use diag_manager_mod,   only: diag_send_complete_extra
-use time_manager_mod,   only: time_type, operator(+), operator(-), get_time, get_date
+use time_manager_mod,   only: time_type, get_time, get_date, &
+                              operator(+), operator(-)
 use field_manager_mod,  only: MODEL_ATMOS
-use tracer_manager_mod, only: get_number_tracers, get_tracer_index, get_tracer_names, NO_TRACER
+use tracer_manager_mod, only: get_number_tracers, get_tracer_names
 use xgrid_mod,          only: grid_box_type
 use atmosphere_mod,     only: atmosphere_init
 use atmosphere_mod,     only: atmosphere_end
@@ -71,14 +72,14 @@ use atmosphere_mod,     only: atmosphere_state_update
 use atmosphere_mod,     only: atmos_phys_driver_statein
 use atmosphere_mod,     only: atmosphere_control_data, atmosphere_pref
 use atmosphere_mod,     only: set_atmosphere_pelist
-use coupler_types_mod,  only: coupler_2d_bc_type
-use block_control_mod,  only: block_control_type, define_blocks, &
-                              define_blocks_packed
-use IPD_typedefs,       only: IPD_init_type, IPD_control_type,    &
-                              IPD_data_type, IPD_diag_type,       &
+use block_control_mod,  only: block_control_type, define_blocks_packed
+use IPD_typedefs,       only: IPD_init_type, IPD_control_type, &
+                              IPD_data_type, IPD_diag_type,    &
                               IPD_restart_type, kind_phys
 use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
-                              IPD_radiation_step, IPD_physics_step
+                              IPD_radiation_step,             &
+                              IPD_physics_step1,              &
+                              IPD_physics_step2
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               gfdl_diag_register, gfdl_diag_output
 
@@ -99,53 +100,19 @@ public atmos_model_restart
      type (domain2d)               :: domain             ! domain decomposition
      integer                       :: axes(4)            ! axis indices (returned by diag_manager) for the atmospheric grid 
                                                          ! (they correspond to the x, y, pfull, phalf axes)
-     real, pointer, dimension(:,:) :: lon_bnd  => null() ! local longitude axis grid box corners in radians.
-     real, pointer, dimension(:,:) :: lat_bnd  => null() ! local latitude axis grid box corners in radians.
-     real, pointer, dimension(:,:) :: lon      => null() ! local longitude axis grid box centers in radians.
-     real, pointer, dimension(:,:) :: lat      => null() ! local latitude axis grid box centers in radians.
-     real, pointer, dimension(:,:) :: t_bot    => null() ! temperature at lowest model level
-     real, pointer, dimension(:,:,:) :: tr_bot => null() ! tracers at lowest model level
-     real, pointer, dimension(:,:) :: z_bot    => null() ! height above the surface for the lowest model level
-     real, pointer, dimension(:,:) :: p_bot    => null() ! pressure at lowest model level
-     real, pointer, dimension(:,:) :: u_bot    => null() ! zonal wind component at lowest model level
-     real, pointer, dimension(:,:) :: v_bot    => null() ! meridional wind component at lowest model level
-     real, pointer, dimension(:,:) :: p_surf   => null() ! surface pressure 
-     real, pointer, dimension(:,:) :: slp      => null() ! sea level pressure 
-     real, pointer, dimension(:,:) :: gust     => null() ! gustiness factor
-     real, pointer, dimension(:,:) :: coszen   => null() ! cosine of the zenith angle
-     real, pointer, dimension(:,:) :: flux_sw  => null() ! net shortwave flux (W/m2) at the surface
-     real, pointer, dimension(:,:) :: flux_sw_dir            =>null()
-     real, pointer, dimension(:,:) :: flux_sw_dif            =>null()
-     real, pointer, dimension(:,:) :: flux_sw_down_vis_dir   =>null()
-     real, pointer, dimension(:,:) :: flux_sw_down_vis_dif   =>null()
-     real, pointer, dimension(:,:) :: flux_sw_down_total_dir =>null()
-     real, pointer, dimension(:,:) :: flux_sw_down_total_dif =>null()
-     real, pointer, dimension(:,:) :: flux_sw_vis            =>null()
-     real, pointer, dimension(:,:) :: flux_sw_vis_dir        =>null()
-     real, pointer, dimension(:,:) :: flux_sw_vis_dif        =>null()
-     real, pointer, dimension(:,:) :: flux_lw  => null() ! net longwave flux (W/m2) at the surface
-     real, pointer, dimension(:,:) :: lprec    => null() ! mass of liquid precipitation since last time step (Kg/m2)
-     real, pointer, dimension(:,:) :: fprec    => null() ! ass of frozen precipitation since last time step (Kg/m2)
-     logical, pointer, dimension(:,:) :: maskmap =>null()! A pointer to an array indicating which
-                                                         ! logical processors are actually used for
-                                                         ! the ocean code. The other logical
-                                                         ! processors would be all land points and
-                                                         ! are not assigned to actual processors.
-                                                         ! This need not be assigned if all logical
-                                                         ! processors are used. This variable is dummy and need 
-                                                         ! not to be set, but it is needed to pass compilation.
+     real,                 pointer, dimension(:,:) :: lon_bnd  => null() ! local longitude axis grid box corners in radians.
+     real,                 pointer, dimension(:,:) :: lat_bnd  => null() ! local latitude axis grid box corners in radians.
+     real(kind=kind_phys), pointer, dimension(:,:) :: lon      => null() ! local longitude axis grid box centers in radians.
+     real(kind=kind_phys), pointer, dimension(:,:) :: lat      => null() ! local latitude axis grid box centers in radians.
      type (time_type)              :: Time               ! current time
      type (time_type)              :: Time_step          ! atmospheric time step.
      type (time_type)              :: Time_init          ! reference time.
      integer, pointer              :: pelist(:) =>null() ! pelist where atmosphere is running.
      logical                       :: pe                 ! current pe.
-     type(coupler_2d_bc_type)      :: fields             ! array of fields used for additional tracers
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
                                                          ! to calculate gradient on cubic sphere grid.
      real(kind=8), pointer, dimension(:) :: ak
      real(kind=8), pointer, dimension(:) :: bk
-     real(kind=8), pointer, dimension(:,:) :: xlon
-     real(kind=8), pointer, dimension(:,:) :: xlat
      real(kind=kind_phys), pointer, dimension(:,:) :: dx
      real(kind=kind_phys), pointer, dimension(:,:) :: dy
      real(kind=8), pointer, dimension(:,:) :: area
@@ -155,18 +122,12 @@ public atmos_model_restart
 integer :: fv3Clock, getClock, updClock, setupClock, radClock, physClock
 
 !-----------------------------------------------------------------------
-
-integer :: ivapor = NO_TRACER ! index of water vapor tracer
-
-!-----------------------------------------------------------------------
-integer :: nxblocks = 1
-integer :: nyblocks = 1
-integer :: blocksize = 1
+integer :: blocksize    = 1
 logical :: chksum_debug = .false.
-logical :: dycore_only = .false.
-logical :: debug = .false.
-logical :: sync = .false.
-namelist /atmos_model_nml/ nxblocks, nyblocks, blocksize, chksum_debug, dycore_only, debug, sync
+logical :: dycore_only  = .false.
+logical :: debug        = .false.
+logical :: sync         = .false.
+namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync
 type (time_type) :: diag_time
 
 !--- concurrent and decoupled radiation and physics variables
@@ -177,9 +138,11 @@ type(IPD_control_type)              :: IPD_Control
 type(IPD_data_type),    allocatable :: IPD_Data(:)  ! number of blocks
 type(IPD_diag_type)                 :: IPD_Diag(250)
 type(IPD_restart_type)              :: IPD_Restart
-type (block_control_type), target   :: Atm_block
 
-integer :: ntrace, ntprog
+!-----------------
+!  Block container
+!-----------------
+type (block_control_type), target   :: Atm_block
 
 !-----------------------------------------------------------------------
 
@@ -214,7 +177,6 @@ subroutine update_atmos_radiation_physics (Atmos)
 !-----------------------------------------------------------------------
   type (atmos_data_type), intent(in) :: Atmos
 !--- local variables---
-    real :: tmax, tmin
     integer :: nb, jdat(8)
 
     if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "statein driver"
@@ -224,6 +186,7 @@ subroutine update_atmos_radiation_physics (Atmos)
     call atmos_phys_driver_statein (IPD_data, Atm_block)
     call mpp_clock_end(getClock)
 
+!--- if dycore only run, set up the dummy physics output state as the input state
     if (dycore_only) then
       do nb = 1,Atm_block%nblks
         IPD_Data(nb)%Stateout%gu0 = IPD_Data(nb)%Statein%ugrs
@@ -262,14 +225,30 @@ subroutine update_atmos_radiation_physics (Atmos)
       endif
 
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "physics driver"
-!--- execute the IPD atmospheric physics subcomponent
+!--- execute the IPD atmospheric physics step1 subcomponent (main physics driver)
       call mpp_clock_begin(physClock)
 !$OMP parallel do default (none) &
 !$OMP            schedule (dynamic,1), &
 !$OMP            shared   (Atm_block, IPD_Control, IPD_Data, IPD_Diag, IPD_Restart) &
 !$OMP            private  (nb)
       do nb = 1,Atm_block%nblks
-        call IPD_physics_step (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
+        call IPD_physics_step1 (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
+      enddo
+      call mpp_clock_end(physClock)
+
+      if (chksum_debug) then
+        if (mpp_pe() == mpp_root_pe()) print *,'PHYSICS   ', IPD_Control%kdt, IPD_Control%fhour
+        call GFS_checksum(IPD_Control, IPD_Data)
+      endif
+
+      call mpp_clock_begin(physClock)
+!--- execute the IPD atmospheric physics step1 subcomponent (stochastic physics driver)
+!$OMP parallel do default (none) &
+!$OMP            schedule (dynamic,1), &
+!$OMP            shared   (Atm_block, IPD_Control, IPD_Data, IPD_Diag, IPD_Restart) &
+!$OMP            private  (nb)
+      do nb = 1,Atm_block%nblks
+        call IPD_physics_step1 (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
       enddo
       call mpp_clock_end(physClock)
 
@@ -329,17 +308,6 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    logunit = stdlog()
 
 !-----------------------------------------------------------------------
-! how many tracers have been registered?
-!  (will print number below)
-   call get_number_tracers ( MODEL_ATMOS, ntrace, ntprog, ntdiag, ntfamily )
-   if ( ntfamily > 0 ) call error_mesg ('atmos_model', 'ntfamily > 0', FATAL)
-   ivapor = get_tracer_index( MODEL_ATMOS, 'sphum' )
-   if (ivapor==NO_TRACER) &
-        ivapor = get_tracer_index( MODEL_ATMOS, 'mix_rat' )
-   if (ivapor==NO_TRACER) &
-        call error_mesg('atmos_model_init', 'Cannot find water vapor in ATM tracer table', FATAL)
-
-!-----------------------------------------------------------------------
 ! initialize atmospheric model -----
 
 !---------- initialize atmospheric dynamics -------
@@ -363,13 +331,11 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !-----------------------------------------------------------------------
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
-   call alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
+   call alloc_atmos_data_type (nlon, nlat, Atmos)
    call atmosphere_domain (Atmos%domain)
    call get_atmosphere_axes (Atmos%axes)
    call atmosphere_boundary (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
-   allocate(Atmos%xlon(nlon, nlat))
-   allocate(Atmos%xlat(nlon, nlat))
-   call atmosphere_grid_center (Atmos%xlon, Atmos%xlat)
+   call atmosphere_grid_center (Atmos%lon, Atmos%lat)
 
 !-----------------------------------------------------------------------
 !--- before going any further check definitions for 'blocks'
@@ -413,8 +379,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Init_parm%blksz           => Atm_block%blksz
    Init_parm%ak              => Atmos%ak
    Init_parm%bk              => Atmos%bk
-   Init_parm%xlon            => Atmos%xlon
-   Init_parm%xlat            => Atmos%xlat
+   Init_parm%xlon            => Atmos%lon
+   Init_parm%xlat            => Atmos%lat
    Init_parm%area            => Atmos%area
    Init_parm%tracer_names    => tracer_names
    Init_parm%fn_nml          =  'input.nml'
@@ -432,20 +398,18 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
    call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, Atm_block, Atmos%axes, IPD_Control%nfxr)
    call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
+
+   !--- set the initial diagnostic timestamp
    diag_time = Time
 
-!---- print version number to logfile ----
+   !---- print version number to logfile ----
 
    call write_version_number ( version, tagname )
-!  write the namelist to a log file
+   !--- write the namelist to a log file
    if (mpp_pe() == mpp_root_pe()) then
       unit = stdlog( )
       write (unit, nml=atmos_model_nml)
       call close_file (unit)
-!  number of tracers
-      write (unit, '(a,i3)') 'Number of tracers =', ntrace
-      write (unit, '(a,i3)') 'Number of prognostic tracers =', ntprog
-      write (unit, '(a,i3)') 'Number of diagnostic tracers =', ntdiag
    endif
 
    setupClock = mpp_clock_id( 'GFS Step Setup        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
@@ -490,7 +454,6 @@ subroutine update_atmos_model_state (Atmos)
   type (atmos_data_type), intent(inout) :: Atmos
 !--- local variables
   integer :: isec
-  real :: tmax, tmin
   real(kind=kind_phys) :: time_int
 
     call set_atmosphere_pelist()
@@ -618,113 +581,27 @@ type(atmos_data_type), intent(in) :: atm
   write(outunit,100) ' atm%lat_bnd                ', mpp_chksum(atm%lat_bnd               )
   write(outunit,100) ' atm%lon                    ', mpp_chksum(atm%lon                   )
   write(outunit,100) ' atm%lat                    ', mpp_chksum(atm%lat                   )
-  write(outunit,100) ' atm%t_bot                  ', mpp_chksum(atm%t_bot                 )
-  do n = 1, size(atm%tr_bot,3)
-  write(outunit,100) ' atm%tr_bot(:,:,n)          ', mpp_chksum(atm%tr_bot(:,:,n)         )
-  enddo
-  write(outunit,100) ' atm%z_bot                  ', mpp_chksum(atm%z_bot                 )
-  write(outunit,100) ' atm%p_bot                  ', mpp_chksum(atm%p_bot                 )
-  write(outunit,100) ' atm%u_bot                  ', mpp_chksum(atm%u_bot                 )
-  write(outunit,100) ' atm%v_bot                  ', mpp_chksum(atm%v_bot                 )
-  write(outunit,100) ' atm%p_surf                 ', mpp_chksum(atm%p_surf                )
-  write(outunit,100) ' atm%slp                    ', mpp_chksum(atm%slp                   )
-  write(outunit,100) ' atm%gust                   ', mpp_chksum(atm%gust                  )
-  write(outunit,100) ' atm%coszen                 ', mpp_chksum(atm%coszen                )
-  write(outunit,100) ' atm%flux_sw                ', mpp_chksum(atm%flux_sw               )
-  write(outunit,100) ' atm%flux_sw_dir            ', mpp_chksum(atm%flux_sw_dir           )
-  write(outunit,100) ' atm%flux_sw_dif            ', mpp_chksum(atm%flux_sw_dif           )
-  write(outunit,100) ' atm%flux_sw_down_vis_dir   ', mpp_chksum(atm%flux_sw_down_vis_dir  )
-  write(outunit,100) ' atm%flux_sw_down_vis_dif   ', mpp_chksum(atm%flux_sw_down_vis_dif  )
-  write(outunit,100) ' atm%flux_sw_down_total_dir ', mpp_chksum(atm%flux_sw_down_total_dir)
-  write(outunit,100) ' atm%flux_sw_down_total_dif ', mpp_chksum(atm%flux_sw_down_total_dif)
-  write(outunit,100) ' atm%flux_sw_vis            ', mpp_chksum(atm%flux_sw_vis           )
-  write(outunit,100) ' atm%flux_sw_vis_dir        ', mpp_chksum(atm%flux_sw_vis_dir       )
-  write(outunit,100) ' atm%flux_sw_vis_dif        ', mpp_chksum(atm%flux_sw_vis_dif       )
-  write(outunit,100) ' atm%flux_lw                ', mpp_chksum(atm%flux_lw               )
-  write(outunit,100) ' atm%lprec                  ', mpp_chksum(atm%lprec                 )
-  write(outunit,100) ' atm%fprec                  ', mpp_chksum(atm%fprec                 )
-!  call surf_diff_type_chksum(id, timestep, atm%surf_diff)
 
 end subroutine atmos_data_type_chksum
 
 ! </SUBROUTINE>
 
-
-  subroutine alloc_atmos_data_type (nlon, nlat, ntprog, Atmos)
-   integer, intent(in) :: nlon, nlat, ntprog
+  subroutine alloc_atmos_data_type (nlon, nlat, Atmos)
+   integer, intent(in) :: nlon, nlat
    type(atmos_data_type), intent(inout) :: Atmos
     allocate ( Atmos % lon_bnd  (nlon+1,nlat+1), &
                Atmos % lat_bnd  (nlon+1,nlat+1), &
-               Atmos % lon      (nlon,nlat), &
-               Atmos % lat      (nlon,nlat), &
-               Atmos % t_bot    (nlon,nlat), &
-               Atmos % tr_bot   (nlon,nlat, ntprog), &
-               Atmos % z_bot    (nlon,nlat), &
-               Atmos % p_bot    (nlon,nlat), &
-               Atmos % u_bot    (nlon,nlat), &
-               Atmos % v_bot    (nlon,nlat), &
-               Atmos % p_surf   (nlon,nlat), &
-               Atmos % slp      (nlon,nlat), &
-               Atmos % gust     (nlon,nlat), &
-               Atmos % flux_sw  (nlon,nlat), &
-               Atmos % flux_sw_dir (nlon,nlat), &
-               Atmos % flux_sw_dif (nlon,nlat), &
-               Atmos % flux_sw_down_vis_dir (nlon,nlat), &
-               Atmos % flux_sw_down_vis_dif (nlon,nlat), &
-               Atmos % flux_sw_down_total_dir (nlon,nlat), &
-               Atmos % flux_sw_down_total_dif (nlon,nlat), &
-               Atmos % flux_sw_vis (nlon,nlat), &
-               Atmos % flux_sw_vis_dir (nlon,nlat), &
-               Atmos % flux_sw_vis_dif(nlon,nlat), &
-               Atmos % flux_lw  (nlon,nlat), &
-               Atmos % coszen   (nlon,nlat), &
-               Atmos % lprec    (nlon,nlat), &
-               Atmos % fprec    (nlon,nlat)  )
-
-    Atmos % flux_sw                 = 0.0
-    Atmos % flux_lw                 = 0.0
-    Atmos % flux_sw_dir             = 0.0
-    Atmos % flux_sw_dif             = 0.0
-    Atmos % flux_sw_down_vis_dir    = 0.0
-    Atmos % flux_sw_down_vis_dif    = 0.0
-    Atmos % flux_sw_down_total_dir  = 0.0
-    Atmos % flux_sw_down_total_dif  = 0.0
-    Atmos % flux_sw_vis             = 0.0
-    Atmos % flux_sw_vis_dir         = 0.0
-    Atmos % flux_sw_vis_dif         = 0.0
-    Atmos % coszen                  = 0.0
+               Atmos % lon      (nlon,nlat),     &
+               Atmos % lat      (nlon,nlat)      )
 
   end subroutine alloc_atmos_data_type
 
   subroutine dealloc_atmos_data_type (Atmos)
    type(atmos_data_type), intent(inout) :: Atmos
-    deallocate (Atmos%lon_bnd,                &
-                Atmos%lat_bnd,                &
-                Atmos%lon,                    &
-                Atmos%lat,                    &
-                Atmos%t_bot,                  &
-                Atmos%tr_bot,                 &
-                Atmos%z_bot,                  &
-                Atmos%p_bot,                  &
-                Atmos%u_bot,                  &
-                Atmos%v_bot,                  &
-                Atmos%p_surf,                 &
-                Atmos%slp,                    &
-                Atmos%gust,                   &
-                Atmos%flux_sw,                &
-                Atmos%flux_sw_dir,            &
-                Atmos%flux_sw_dif,            &
-                Atmos%flux_sw_down_vis_dir,   &
-                Atmos%flux_sw_down_vis_dif,   &
-                Atmos%flux_sw_down_total_dir, &
-                Atmos%flux_sw_down_total_dif, &
-                Atmos%flux_sw_vis,            &
-                Atmos%flux_sw_vis_dir,        &
-                Atmos%flux_sw_vis_dif,        &
-                Atmos%flux_lw,                &
-                Atmos%coszen,                 &
-                Atmos%lprec,                  &
-                Atmos%fprec  )
+    deallocate (Atmos%lon_bnd, &
+                Atmos%lat_bnd, &
+                Atmos%lon,     &
+                Atmos%lat      )
   end subroutine dealloc_atmos_data_type
 
 
@@ -750,14 +627,10 @@ end subroutine atmos_data_type_chksum
    temp2d = 0.
    temp3d = 0.
 
-   ix = 1
-   nb = 1
    do j=jsc,jec
-     do i=isc,jec
-         if (ix .gt. size(IPD_Data(nb)%Grid%xlat,1)) then
-           ix = 1
-           nb = nb + 1
-         endif
+     do i=isc,iec
+         nb = Atm_block%blkno(i,j)
+         ix = Atm_block%ixp(i,j)
          !--- statein pressure
          temp2d(i,j, 1) = IPD_Data(nb)%Statein%pgr(ix)
          temp2d(i,j, 2) = IPD_Data(nb)%Sfcprop%slmsk(ix)
@@ -829,7 +702,7 @@ end subroutine atmos_data_type_chksum
            temp2d(i,j,67) = IPD_Data(nb)%Grid%ddy_o3(ix)
          endif
          if (Model%h2o_phys) then
-           temp2d(i,j,67) = IPD_Data(nb)%Grid%ddy_h(ix)
+           temp2d(i,j,68) = IPD_Data(nb)%Grid%ddy_h(ix)
          endif
          temp2d(i,j,69) = IPD_Data(nb)%Cldprop%cv(ix)
          temp2d(i,j,70) = IPD_Data(nb)%Cldprop%cvt(ix)
@@ -906,11 +779,11 @@ end subroutine atmos_data_type_chksum
    outunit = stdout()
    do i = 1,100+Model%ntot2d+Model%nctp
      write (name, '(i3.3,3x,4a)') i, ' 2d '
-     write(outunit,100) name, mpp_chksum(temp2d(:,:,i:i))
+     write(outunit,100) name, mpp_chksum(temp2d(isc:iec,jsc:jec,i:i))
    enddo
    do i = 1,23+Model%ntot3d
      write (name, '(i2.2,3x,4a)') i, ' 3d '
-     write(outunit,100) name, mpp_chksum(temp3d(:,:,:,i:i))
+     write(outunit,100) name, mpp_chksum(temp3d(isc:iec,jsc:jec,1:lev,i:i))
    enddo
 100 format("CHECKSUM::",A32," = ",Z20)
 

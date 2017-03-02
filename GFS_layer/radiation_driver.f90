@@ -332,6 +332,7 @@
      &                                     proflw_type, NBDLW
       use module_radlw_main,         only: rlwinit,  lwrad
       use GFS_typedefs,              only: GFS_statein_type,             &
+                                           GFS_stateout_type,            &
                                            GFS_sfcprop_type,             &
                                            GFS_coupling_type,            &
                                            GFS_control_type,             &
@@ -1002,13 +1003,14 @@
 !> @{
 !-----------------------------------
       subroutine radiation_driver                       &
-         (Model, Statein, Sfcprop, Coupling, Grid, Tbd, &
+         (Model, Statein, Stateout, Sfcprop, Coupling, Grid, Tbd, &
           Cldprop, Radtend, Diag)
 
       implicit none
 
       type(GFS_control_type),         intent(in)    :: Model
       type(GFS_statein_type),         intent(in)    :: Statein
+      type(GFS_stateout_type),        intent(inout) :: Stateout
       type(GFS_sfcprop_type),         intent(in)    :: Sfcprop
       type(GFS_coupling_type),        intent(inout) :: Coupling
       type(GFS_grid_type),            intent(in)    :: Grid

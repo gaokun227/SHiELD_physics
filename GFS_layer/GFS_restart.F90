@@ -1,10 +1,15 @@
-module GFS_restarts
+module physics_restart_layer
 
-  use machine,       only: kind_phys
-  use IPD_typedefs,  only: IPD_restart_type
-  use GFS_typedefs,  only: GFS_tbd_type, Gfs_coupling_type, GFS_control_type
+  use machine,                   only: kind_phys
+  use IPD_typedefs,              only: IPD_restart_type
+  use physics_abstraction_layer, only: control_type,  statein_type,  &
+                                       stateout_type, sfcprop_type,  &
+                                       coupling_type, grid_type,     &
+                                       tbd_type,      cldprop_type,  &
+                                       radtend_type,  intdiag_type,  &
+                                       init_type   
 
-  public GFS_populate_IPD_restart
+  public restart_populate
 
   CONTAINS
 !*******************************************************************************************
@@ -12,7 +17,8 @@ module GFS_restarts
 !---------------------
 ! GFS_restart_populate
 !---------------------
-  subroutine GFS_populate_IPD_restart (IPD_Restart, Tbd, Coupling, Model, blksz)
+  subroutine restart_populate (IPD_Restart, Model, Statein, Stateout, Sfcprop, &
+                               Coupling, Grid, Tbd, Cldprop, Radtend, Diag, Init_parm)
 !----------------------------------------------------------------------------------------!
 !   IPD_METADATA                                                                         !
 !     IPD_Restart%num2d          [int*4  ]  number of 2D variables to output             !
@@ -23,15 +29,23 @@ module GFS_restarts
 !     IPD_Restart%fld3d(:,:,:,:) [real*8 ]  pointer to 3D data (im,levs,nblks,MAX_RSTRT) !
 !----------------------------------------------------------------------------------------!
     type(IPD_restart_type),  intent(inout) :: IPD_Restart
-    type(GFS_tbd_type),      intent(in)    :: Tbd(:)
-    type(GFS_coupling_type), intent(in)    :: Coupling(:)
-    type(GFS_control_type),  intent(in)    :: Model
-    integer,                 intent(in)    :: blksz(:)
+    type(control_type),         intent(in)    :: Model
+    type(statein_type),         intent(in)    :: Statein(:)
+    type(stateout_type),        intent(in)    :: Stateout(:)
+    type(sfcprop_type),         intent(in)    :: Sfcprop(:)
+    type(coupling_type),        intent(in)    :: Coupling(:)
+    type(grid_type),            intent(in)    :: Grid(:)
+    type(tbd_type),             intent(in)    :: Tbd(:)
+    type(cldprop_type),         intent(in)    :: Cldprop(:)
+    type(radtend_type),         intent(in)    :: Radtend(:)
+    type(intdiag_type),         intent(in)    :: Diag(:)
+    type(init_type),            intent(in)    :: Init_parm
+
     !--- local variables
     integer :: nblks, num, nb, max_rstrt
     character(len=2) :: c2 = ''
     
-    nblks = size(blksz)
+    nblks = size(Init_parm%blksz)
     max_rstrt = size(IPD_Restart%name2d)
 
     IPD_Restart%num2d = Model%ntot2d + Model%nctp
@@ -74,6 +88,6 @@ module GFS_restarts
       enddo
     enddo
 
-  end subroutine GFS_populate_IPD_restart
+  end subroutine restart_populate
 
-end module GFS_restarts
+end module physics_restart_layer

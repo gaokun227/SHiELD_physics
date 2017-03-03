@@ -302,7 +302,7 @@
 
 
 !========================================!
-      module module_radiation_driver     !
+      module module_radiation_driver        !
 !........................................!
 !
       use physparam
@@ -391,7 +391,7 @@
 
 !  ---  publicly accessible module programs:
 
-      public radinit, radupdate, radiation_driver
+      public radinit, radupdate, GFS_radiation_driver
 
 
 ! =================
@@ -1002,7 +1002,7 @@
 !> \section gen_grrad General Algorithm
 !> @{
 !-----------------------------------
-      subroutine radiation_driver                       &
+      subroutine GFS_radiation_driver                       &
          (Model, Statein, Stateout, Sfcprop, Coupling, Grid, Tbd, &
           Cldprop, Radtend, Diag)
 
@@ -1842,7 +1842,7 @@
 !
       return
 !........................................
-      end subroutine radiation_driver
+      end subroutine GFS_radiation_driver
 !----------------------------------------
 
 

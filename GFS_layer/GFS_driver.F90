@@ -1,17 +1,14 @@
 module GFS_driver
 
   use machine,                  only: kind_phys
-  use IPD_typedefs,             only: IPD_restart_type, IPD_diag_type
-  use GFS_typedefs,             only: init_type => GFS_init_type,          &
+  use GFS_typedefs,             only: GFS_init_type,                       &
                                       GFS_statein_type, GFS_stateout_type, &
                                       GFS_sfcprop_type, GFS_coupling_type, &
                                       GFS_control_type, GFS_grid_type,     &
                                       GFS_tbd_type,     GFS_cldprop_type,  &
                                       GFS_radtend_type, GFS_diag_type
-  use GFS_diagnostics,          only: GFS_populate_IPD_diag
-  use GFS_restarts,             only: GFS_populate_IPD_restart
-  use module_radiation_driver,  only: radiation_driver, radupdate
-  use module_physics_driver,    only: physics_driver
+  use module_radiation_driver,  only: GFS_radiation_driver, radupdate
+  use module_physics_driver,    only: GFS_physics_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
@@ -84,13 +81,11 @@ module GFS_driver
 !----------------
 ! Public entities
 !----------------
-  public  initialize              !< GFS initialization routine
-  public  time_vary_step          !< perform operations needed prior radiation or physics
-  public  radiation_driver        !< radiation_driver (was grrad)
-  public  physics_driver          !< physics_driver (was gbphys)
-  public  stochastic_driver       !< stochastic physics
-  public  init_type               !< type to hold needed initialization variables 
-                                  !< (defined in GFS_typedefs.F90)
+  public  GFS_initialize              !< GFS initialization routine
+  public  GFS_time_vary_step          !< perform operations needed prior radiation or physics
+  public  GFS_radiation_driver        !< radiation_driver (was grrad)
+  public  GFS_physics_driver          !< physics_driver (was gbphys)
+  public  GFS_stochastic_driver       !< stochastic physics
 
 
   CONTAINS
@@ -100,9 +95,9 @@ module GFS_driver
 !--------------
 ! GFS initialze
 !--------------
-  subroutine initialize (Model, Statein, Stateout, Sfcprop,    &
+  subroutine GFS_initialize (Model, Statein, Stateout, Sfcprop,    &
                              Coupling, Grid, Tbd, Cldprop, Radtend, & 
-                             Diag, IPD_Diag, IPD_Restart, Init_parm)
+                             Diag, Init_parm)
 
     use module_microphysics, only: gsmconst
     use cldwat2m_micro,      only: ini_micro
@@ -121,9 +116,7 @@ module GFS_driver
     type(GFS_cldprop_type),   intent(inout) :: Cldprop(:)
     type(GFS_radtend_type),   intent(inout) :: Radtend(:)
     type(GFS_diag_type),      intent(inout) :: Diag(:)
-    type(IPD_diag_type),      intent(inout) :: IPD_Diag(:)
-    type(IPD_restart_type),   intent(inout) :: IPD_Restart
-    type(init_type),          intent(in)    :: Init_parm
+    type(GFS_init_type),      intent(in)    :: Init_parm
 
     !--- local variables
     integer :: nb
@@ -164,12 +157,6 @@ module GFS_driver
       !--- internal representation of diagnostics
       call Diag     (nb)%create (Init_parm%blksz(nb), Model)
     enddo
-
-    !--- populate/associate the Diag container elements
-    call GFS_populate_IPD_diag (IPD_Diag, Diag, Sfcprop, Coupling, Model, Init_parm%blksz) 
-
-    !--- allocate and populate/associate the Restart container elements
-    call GFS_populate_IPD_restart (IPD_Restart, Tbd, Coupling, Model, Init_parm%blksz)
 
     !--- populate the grid components
     call GFS_grid_populate (Grid, Init_parm%xlon, Init_parm%xlat, Init_parm%area)
@@ -233,7 +220,7 @@ module GFS_driver
     !--- this not is placed here to alert users to the need to study
     !--- the FV3GFS_io.F90 module
 
-  end subroutine initialize
+  end subroutine GFS_initialize
 
 
 !-------------------------------------------------------------------------
@@ -246,9 +233,8 @@ module GFS_driver
 !      5) interpolates coefficients for prognostic ozone calculation
 !      6) performs surface data cycling via the GFS gcycle routine
 !-------------------------------------------------------------------------
-  subroutine time_vary_step (Model, Statein, Stateout, Sfcprop, Coupling, & 
-                             Grid, Tbd, Cldprop, Radtend, Diag, IPD_Diag,  &
-                             IPD_Restart)
+  subroutine GFS_time_vary_step (Model, Statein, Stateout, Sfcprop, Coupling, & 
+                                 Grid, Tbd, Cldprop, Radtend, Diag)
 
     implicit none
 
@@ -263,8 +249,6 @@ module GFS_driver
     type(GFS_cldprop_type),   intent(inout) :: Cldprop(:)
     type(GFS_radtend_type),   intent(inout) :: Radtend(:)
     type(GFS_diag_type),      intent(inout) :: Diag(:)
-    type(IPD_diag_type),      intent(inout) :: IPD_Diag(:)
-    type(IPD_restart_type),   intent(inout) :: IPD_Restart
     !--- local variables
     integer :: nb, nblks
     real(kind=kind_phys) :: rinc(5)
@@ -330,10 +314,11 @@ module GFS_driver
       enddo
     endif
 
-  end subroutine time_vary_step
+  end subroutine GFS_time_vary_step
+
 
 !-------------------------------------------------------------------------
-! GFS physics_step
+! GFS stochastic_driver
 !-------------------------------------------------------------------------
 !    routine called prior to radiation and physics steps to handle:
 !      1) sets up various time/date variables
@@ -342,30 +327,60 @@ module GFS_driver
 !      5) interpolates coefficients for prognostic ozone calculation
 !      6) performs surface data cycling via the GFS gcycle routine
 !-------------------------------------------------------------------------
-  subroutine GFS_physics_step (Model, Statein, Stateout, Sfcprop, Coupling, &
-                             Grid, Tbd, Cldprop, Radtend, Diag, IPD_Diag,  &
-                             IPD_Restart)
+  subroutine GFS_stochastic_driver (Model, Statein, Stateout, Sfcprop, Coupling, &
+                                    Grid, Tbd, Cldprop, Radtend, Diag)
+
     implicit none
 
     !--- interface variables
-    type(GFS_control_type),   intent(in)    :: Model
-    type(GFS_statein_type),   intent(inout) :: Statein
-    type(GFS_stateout_type),  intent(inout) :: Stateout
-    type(GFS_sfcprop_type),   intent(inout) :: Sfcprop
+    type(GFS_control_type),   intent(in   ) :: Model
+    type(GFS_statein_type),   intent(in   ) :: Statein
+    type(GFS_stateout_type),  intent(in   ) :: Stateout
+    type(GFS_sfcprop_type),   intent(in   ) :: Sfcprop
     type(GFS_coupling_type),  intent(inout) :: Coupling
-    type(GFS_grid_type),      intent(inout) :: Grid
-    type(GFS_tbd_type),       intent(inout) :: Tbd
-    type(GFS_cldprop_type),   intent(inout) :: Cldprop
-    type(GFS_radtend_type),   intent(inout) :: Radtend
+    type(GFS_grid_type),      intent(in   ) :: Grid
+    type(GFS_tbd_type),       intent(in   ) :: Tbd
+    type(GFS_cldprop_type),   intent(in   ) :: Cldprop
+    type(GFS_radtend_type),   intent(in   ) :: Radtend
     type(GFS_diag_type),      intent(inout) :: Diag
-    type(IPD_diag_type),      intent(inout) :: IPD_Diag(:)
-    type(IPD_restart_type),   intent(inout) :: IPD_Restart
     !--- local variables
+    integer :: k, i
+    real(kind=kind_phys) :: upert, vpert, tpert, qpert, qnew
 
-    call physics_driver (Model, Statein, Stateout, Sfcprop, Coupling, &
-                         Grid, Tbd, Cldprop, Radtend, Diag)
+     if (Model%do_sppt) then
+       do k = 1,size(Statein%tgrs,2)
+         do i = 1,size(Statein%tgrs,1)
+      
+           upert = (Stateout%gu0(i,k)   - Statein%ugrs(i,k))   * Coupling%sppt_wts(i,k)
+           vpert = (Stateout%gv0(i,k)   - Statein%vgrs(i,k))   * Coupling%sppt_wts(i,k)
+           tpert = (Stateout%gt0(i,k)   - Statein%tgrs(i,k))   * Coupling%sppt_wts(i,k) - Tbd%dtdtr(i,k)
+           qpert = (Stateout%gq0(i,k,1) - Statein%qgrs(i,k,1)) * Coupling%sppt_wts(i,k)
+ 
+           Stateout%gu0(i,k)  = Statein%ugrs(i,k)+upert
+           Stateout%gv0(i,k)  = Statein%vgrs(i,k)+vpert
+ 
+           !negative humidity check
+           qnew = Statein%qgrs(i,k,1)+qpert
+           if (qnew .GE. 1.0e-10) then
+              Stateout%gq0(i,k,1) = qnew
+              Stateout%gt0(i,k)   = Statein%tgrs(i,k) + tpert + Tbd%dtdtr(i,k)
+           endif
+         enddo
+       enddo
+ 
+       Diag%totprcp(:)      = Diag%totprcp(:)      + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dtotprcp(:)
+       Diag%cnvprcp(:)      = Diag%cnvprcp(:)      + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dcnvprcp(:)
+       Coupling%rain_cpl(:) = Coupling%rain_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%drain_cpl(:)
+       Coupling%snow_cpl(:) = Coupling%snow_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dsnow_cpl(:)
+     endif
 
-  end subroutine GFS_physics_step
+     if (Model%do_shum) then
+       Stateout%gq0(:,:,1) = Stateout%gq0(:,:,1)*(1.0 + Coupling%shum_wts(:,:))
+     endif
+
+  end subroutine GFS_stochastic_driver
+
+
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !
@@ -526,70 +541,6 @@ module GFS_driver
      endif
 
   end subroutine GFS_phys_time_vary
-
-
-!-------------------------------------------------------------------------
-! GFS stochastic_driver
-!-------------------------------------------------------------------------
-!    routine called prior to radiation and physics steps to handle:
-!      1) sets up various time/date variables
-!      2) sets up various triggers
-!      3) defines random seed indices for radiation (in a reproducible way)
-!      5) interpolates coefficients for prognostic ozone calculation
-!      6) performs surface data cycling via the GFS gcycle routine
-!-------------------------------------------------------------------------
-  subroutine stochastic_driver (Model, Statein, Stateout, Sfcprop, Coupling, &
-                                Grid, Tbd, Cldprop, Radtend, Diag)
-
-    implicit none
-
-    !--- interface variables
-    type(GFS_control_type),   intent(in   ) :: Model
-    type(GFS_statein_type),   intent(in   ) :: Statein
-    type(GFS_stateout_type),  intent(in   ) :: Stateout
-    type(GFS_sfcprop_type),   intent(in   ) :: Sfcprop
-    type(GFS_coupling_type),  intent(inout) :: Coupling
-    type(GFS_grid_type),      intent(in   ) :: Grid
-    type(GFS_tbd_type),       intent(in   ) :: Tbd
-    type(GFS_cldprop_type),   intent(in   ) :: Cldprop
-    type(GFS_radtend_type),   intent(in   ) :: Radtend
-    type(GFS_diag_type),      intent(inout) :: Diag
-    !--- local variables
-    integer :: k, i
-    real(kind=kind_phys) :: upert, vpert, tpert, qpert, qnew
-
-     if (Model%do_sppt) then
-       do k = 1,size(Statein%tgrs,2)
-         do i = 1,size(Statein%tgrs,1)
-      
-           upert = (Stateout%gu0(i,k)   - Statein%ugrs(i,k))   * Coupling%sppt_wts(i,k)
-           vpert = (Stateout%gv0(i,k)   - Statein%vgrs(i,k))   * Coupling%sppt_wts(i,k)
-           tpert = (Stateout%gt0(i,k)   - Statein%tgrs(i,k))   * Coupling%sppt_wts(i,k) - Tbd%dtdtr(i,k)
-           qpert = (Stateout%gq0(i,k,1) - Statein%qgrs(i,k,1)) * Coupling%sppt_wts(i,k)
- 
-           Stateout%gu0(i,k)  = Statein%ugrs(i,k)+upert
-           Stateout%gv0(i,k)  = Statein%vgrs(i,k)+vpert
- 
-           !negative humidity check
-           qnew = Statein%qgrs(i,k,1)+qpert
-           if (qnew .GE. 1.0e-10) then
-              Stateout%gq0(i,k,1) = qnew
-              Stateout%gt0(i,k)   = Statein%tgrs(i,k) + tpert + Tbd%dtdtr(i,k)
-           endif
-         enddo
-       enddo
- 
-       Diag%totprcp(:)      = Diag%totprcp(:)      + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dtotprcp(:)
-       Diag%cnvprcp(:)      = Diag%cnvprcp(:)      + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dcnvprcp(:)
-       Coupling%rain_cpl(:) = Coupling%rain_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%drain_cpl(:)
-       Coupling%snow_cpl(:) = Coupling%snow_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dsnow_cpl(:)
-     endif
-
-     if (Model%do_shum) then
-       Stateout%gq0(:,:,1) = Stateout%gq0(:,:,1)*(1.0 + Coupling%shum_wts(:,:))
-     endif
-
-  end subroutine stochastic_driver
 
 
 !------------------

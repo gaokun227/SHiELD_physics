@@ -1,27 +1,27 @@
 module IPD_typedefs
   use machine,  only: kind_phys
 
-  use GFS_typedefs, only: IPD_control_type => GFS_control_type, &
-                          IPD_init_type    => GFS_init_type,    &
-                          GFS_statein_type,  GFS_stateout_type, &
-                          GFS_sfcprop_type,  GFS_coupling_type, &
-                          GFS_grid_type,     GFS_tbd_type,      &
-                          GFS_cldprop_type,  GFS_radtend_type,  &
-                          GFS_diag_type
+  use physics_abstraction_layer, only: IPD_control_type => control_type, &
+                                       IPD_init_type    => init_type,    &
+                                       statein_type,  stateout_type,     &
+                                       sfcprop_type,  coupling_type,     &
+                                       grid_type,     tbd_type,          &
+                                       cldprop_type,  radtend_type,      &
+                                       intdiag_type
 
 !--------------------
 !  IPD sub-containers
 !--------------------
   type IPD_data_type
-    type(GFS_statein_type)  :: Statein
-    type(GFS_stateout_type) :: Stateout
-    type(GFS_sfcprop_type)  :: Sfcprop
-    type(GFS_coupling_type) :: Coupling
-    type(GFS_grid_type)     :: Grid
-    type(GFS_tbd_type)      :: Tbd
-    type(GFS_cldprop_type)  :: Cldprop
-    type(GFS_radtend_type)  :: Radtend
-    type(GFS_diag_type)     :: Intdiag
+    type(statein_type)  :: Statein
+    type(stateout_type) :: Stateout
+    type(sfcprop_type)  :: Sfcprop
+    type(coupling_type) :: Coupling
+    type(grid_type)     :: Grid
+    type(tbd_type)      :: Tbd
+    type(cldprop_type)  :: Cldprop
+    type(radtend_type)  :: Radtend
+    type(intdiag_type)  :: Intdiag
   end type IPD_data_type
 
 

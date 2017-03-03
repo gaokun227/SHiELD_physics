@@ -1,4 +1,4 @@
-module GFS_diagnostics
+module physics_diag_layer
 
 !------------------------------------------------------------------------------------------!
 !                                                                                          !
@@ -8,12 +8,16 @@ module GFS_diagnostics
 !                                                                                          !
 !------------------------------------------------------------------------------------------!
 
-  use machine,      only: kind_phys
-  use IPD_typedefs, only: IPD_diag_type
-  use GFS_typedefs, only: GFS_diag_type, GFS_sfcprop_type, &
-                          GFS_coupling_type, GFS_control_type
+  use machine,                   only: kind_phys
+  use IPD_typedefs,              only: IPD_diag_type
+  use physics_abstraction_layer, only: control_type,  statein_type,  &
+                                       stateout_type, sfcprop_type,  &
+                                       coupling_type, grid_type,     &
+                                       tbd_type,      cldprop_type,  &
+                                       radtend_type,  intdiag_type,  &
+                                       init_type 
 
-  public GFS_populate_IPD_Diag
+  public diag_populate
 
   CONTAINS
 !*******************************************************************************************
@@ -21,7 +25,8 @@ module GFS_diagnostics
 !----------------------
 ! GFS_populate_IPD_Diag
 !----------------------
-  subroutine GFS_populate_IPD_diag (IPD_Diag, Diag, Sfcprop, Coupling, Model, blksz)
+  subroutine diag_populate (IPD_Diag, Model, Statein, Stateout, Sfcprop, Coupling,  &
+                            Grid, Tbd, Cldprop, Radtend, Diag, Init_parm)
 !------------------------------------------------------------------------------------------!
 !   IPD_METADATA                                                                           !
 !     IPD_Diag%name           [char*32 ]   variable name in source  [char*32]              !
@@ -40,12 +45,22 @@ module GFS_diagnostics
 !     IPD_Diag%data(nb)%var2p(:)       [real*8  ]   pointer to 2D data [=> null() for a 3D field]   !
 !     IPD_Diag%data(nb)%var3p(:,:)     [real*8  ]   pointer to 3D data [=> null() for a 2D field]   !
 !------------------------------------------------------------------------------------------!
-    type(IPD_diag_type),     intent(inout) :: IPD_Diag(:)
-    type(GFS_diag_type),     intent(in)    :: Diag(:)
-    type(GFS_sfcprop_type),  intent(in)    :: Sfcprop(:)
-    type(GFS_coupling_type), intent(in)    :: Coupling(:)
-    type(GFS_control_type),  intent(in)    :: Model
-    integer,                 intent(in)    :: blksz(:)
+
+      implicit none
+!
+!  ---  interface variables
+    type(IPD_diag_type),        intent(inout) :: IPD_Diag(:)
+    type(control_type),         intent(in)    :: Model
+    type(statein_type),         intent(in)    :: Statein(:)
+    type(stateout_type),        intent(in)    :: Stateout(:)
+    type(sfcprop_type),         intent(in)    :: Sfcprop(:)
+    type(coupling_type),        intent(in)    :: Coupling(:)
+    type(grid_type),            intent(in)    :: Grid(:)
+    type(tbd_type),             intent(in)    :: Tbd(:)
+    type(cldprop_type),         intent(in)    :: Cldprop(:)
+    type(radtend_type),         intent(in)    :: Radtend(:)
+    type(intdiag_type),         intent(in)    :: Diag(:)
+    type(init_type),            intent(in)    :: Init_parm
 
     !--- local variabls
     integer :: idx, nblks, nb, num
@@ -56,7 +71,7 @@ module GFS_diagnostics
 
     real(kind=kind_phys), pointer :: var1(:) => null()
      
-    nblks = size(blksz)
+    nblks = size(Init_parm%blksz)
 
     !--- initialize GFS_diag
     IPD_Diag(:)%name           = ' '
@@ -3200,7 +3215,7 @@ module GFS_diagnostics
       stop
     endif
 
-  end subroutine GFS_populate_IPD_diag
+  end subroutine diag_populate
 
-end module GFS_diagnostics
+end module physics_diag_layer
 

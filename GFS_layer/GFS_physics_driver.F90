@@ -377,12 +377,12 @@ module module_physics_driver
 !!   - Deallocate arrays for SHOC scheme, deep convective scheme, and Morrison et al. microphysics
 
 
-  public physics_driver
+  public GFS_physics_driver
 
   CONTAINS
 !*******************************************************************************************
 
-    subroutine physics_driver                         &
+    subroutine GFS_physics_driver                         &
          (Model, Statein, Stateout, Sfcprop, Coupling,  &
           Grid, Tbd, Cldprop, Radtend, Diag)
 
@@ -2764,7 +2764,7 @@ module module_physics_driver
 
       return
 !...................................
-      end subroutine physics_driver
+      end subroutine GFS_physics_driver
 !-----------------------------------
 
 

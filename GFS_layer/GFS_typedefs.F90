@@ -1870,6 +1870,15 @@ module GFS_typedefs
                                             ' microphysics',' aero_in=',Model%aero_in, &
                                             ' mg_dcs=',Model%mg_dcs,' mg_qcvar=',Model%mg_qcvar, &
                                             ' mg_ts_auto_ice=',Model%mg_ts_auto_ice
+    elseif (Model%ncld == 5) then
+      Model%num_p3d = 4
+      Model%num_p2d = 1
+      Model%pdfcld  = .false.
+      Model%shcnvcw = .false.
+      if (Model%me == Model%master) print *,' Using GFDL Lin Microphysics', &
+                                            ' num_p2d = ', Model%nump2d,    &
+                                            ' num_p3d = ', Model%nump3d,    &
+                                            ' pdfcld  = ', Model%pdfcld
     endif
 
     Model%uni_cld = .false.

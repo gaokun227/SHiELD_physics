@@ -520,6 +520,7 @@ module GFS_typedefs
     integer              :: ntrw            !< tracer index for rain water
     integer              :: ntsw            !< tracer index for snow water
     integer              :: ntgl            !< tracer index for graupel
+    integer              :: ntclamt         !< tracer index for cloud amount
     integer              :: ntlnc           !< tracer index for liquid number concentration
     integer              :: ntinc           !< tracer index for ice    number concentration
     integer              :: ntrnc           !< tracer index for rain   number concentration
@@ -1676,6 +1677,7 @@ module GFS_typedefs
     Model%ntrw             = get_tracer_index(Model%tracer_names, 'rainwat',  Model%me, Model%master, Model%debug)
     Model%ntsw             = get_tracer_index(Model%tracer_names, 'snowwat',  Model%me, Model%master, Model%debug)
     Model%ntgl             = get_tracer_index(Model%tracer_names, 'graupel',  Model%me, Model%master, Model%debug)
+    Model%ntclamt          = get_tracer_index(Model%tracer_names, 'cld_amt',  Model%me, Model%master, Model%debug)
     Model%ntlnc            = get_tracer_index(Model%tracer_names, 'water_nc', Model%me, Model%master, Model%debug)
     Model%ntinc            = get_tracer_index(Model%tracer_names, 'ice_nc',   Model%me, Model%master, Model%debug)
     Model%ntrnc            = get_tracer_index(Model%tracer_names, 'rain_nc',  Model%me, Model%master, Model%debug)
@@ -2112,6 +2114,7 @@ module GFS_typedefs
       print *, ' ntrw              : ', Model%ntrw
       print *, ' ntsw              : ', Model%ntsw
       print *, ' ntgl              : ', Model%ntgl
+      print *, ' ntclamt           : ', Model%ntclamt
       print *, ' ntlnc             : ', Model%ntlnc
       print *, ' ntinc             : ', Model%ntinc
       print *, ' ntrnc             : ', Model%ntrnc

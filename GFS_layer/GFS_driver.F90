@@ -191,7 +191,8 @@ module GFS_driver
              / (p_ref - Init_parm%ak(Model%levr+1))
     call rad_initialize (si, Model%levr, Model%ictm, Model%isol, &
            Model%ico2, Model%iaer, Model%ialb, Model%iems,       &
-           Model%ntcw, Model%num_p3d, Model%npdf3d, Model%ntoz,  &
+           Model%ntcw, Model%num_p2d,  Model%num_p3d,            &
+           Model%npdf3d, Model%ntoz,                             &
            Model%iovr_sw, Model%iovr_lw, Model%isubc_sw,         &
            Model%isubc_lw, Model%crick_proof, Model%ccnorm,      &
            Model%norad_precip, Model%idate,Model%iflip, Model%me)

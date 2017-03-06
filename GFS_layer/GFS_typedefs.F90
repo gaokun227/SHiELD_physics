@@ -1875,10 +1875,12 @@ module GFS_typedefs
       Model%num_p2d = 1
       Model%pdfcld  = .false.
       Model%shcnvcw = .false.
+      Model%cnvcld  = .false.
       if (Model%me == Model%master) print *,' Using GFDL Lin Microphysics', &
-                                            ' num_p2d = ', Model%nump2d,    &
-                                            ' num_p3d = ', Model%nump3d,    &
-                                            ' pdfcld  = ', Model%pdfcld
+                                            ' num_p2d = ', Model%num_p2d,   &
+                                            ' num_p3d = ', Model%num_p3d,   &
+                                            ' pdfcld  = ', Model%pdfcld,    &
+                                            ' cnvcld  = ', Model%cnvcld
     endif
 
     Model%uni_cld = .false.

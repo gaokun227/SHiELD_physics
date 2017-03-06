@@ -445,7 +445,7 @@ module GFS_driver
       enddo
     endif  ! isubc_lw and isubc_sw
 
-    if (Model%num_p3d == 4) then
+    if (Model%zhao_mic) then
       if (Model%kdt == 1) then
         do nb = 1,nblks
           Tbd(nb)%phy_f3d(:,:,1) = Statein(nb)%tgrs

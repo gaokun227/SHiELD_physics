@@ -2597,7 +2597,7 @@ module module_physics_driver
           endif
         enddo
         do k = 1, levs
-          Stateout%gq0(:,k,1         ) = qv1(i,1,levs-k+1) + qv_dt(i,1,levs-k+1) * Model%dtp
+          Stateout%gq0(:,k,1         ) = qv1(:,1,levs-k+1) + qv_dt(:,1,levs-k+1) * Model%dtp
           Stateout%gq0(:,k,Model%ntcw) = ql1(:,1,levs-k+1) + ql_dt(:,1,levs-k+1) * Model%dtp
           Stateout%gq0(:,k,Model%ntrw) = qr1(:,1,levs-k+1) + qr_dt(:,1,levs-k+1) * Model%dtp
           Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * Model%dtp

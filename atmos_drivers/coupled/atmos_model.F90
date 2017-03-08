@@ -51,7 +51,7 @@ use mpp_mod,            only: input_nml_file
 #else
 use fms_mod,            only: open_namelist_file
 #endif
-use fms_mod,            only: file_exist, error_mesg, FATAL
+use fms_mod,            only: file_exist, error_mesg
 use fms_mod,            only: close_file, write_version_number, stdlog, stdout
 use fms_mod,            only: clock_flag_default
 use fms_mod,            only: check_nml_error
@@ -237,23 +237,24 @@ subroutine update_atmos_radiation_physics (Atmos)
       call mpp_clock_end(physClock)
 
       if (chksum_debug) then
-        if (mpp_pe() == mpp_root_pe()) print *,'PHYSICS STEP1 ', IPD_Control%kdt, IPD_Control%fhour
+        if (mpp_pe() == mpp_root_pe()) print *,'PHYSICS STEP1   ', IPD_Control%kdt, IPD_Control%fhour
         call GFS_checksum(IPD_Control, IPD_Data)
       endif
 
+      if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "stochastic physics driver"
+!--- execute the IPD atmospheric physics step2 subcomponent (stochastic physics driver)
       call mpp_clock_begin(physClock)
-!--- execute the IPD atmospheric physics step1 subcomponent (stochastic physics driver)
 !$OMP parallel do default (none) &
 !$OMP            schedule (dynamic,1), &
 !$OMP            shared   (Atm_block, IPD_Control, IPD_Data, IPD_Diag, IPD_Restart) &
 !$OMP            private  (nb)
       do nb = 1,Atm_block%nblks
-        call IPD_physics_step1 (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
+        call IPD_physics_step2 (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
       enddo
       call mpp_clock_end(physClock)
 
       if (chksum_debug) then
-        if (mpp_pe() == mpp_root_pe()) print *,'PHYSICS STEP2 ', IPD_Control%kdt, IPD_Control%fhour
+        if (mpp_pe() == mpp_root_pe()) print *,'PHYSICS STEP2   ', IPD_Control%kdt, IPD_Control%fhour
         call GFS_checksum(IPD_Control, IPD_Data)
       endif
 
@@ -472,7 +473,7 @@ subroutine update_atmos_model_state (Atmos)
     Atmos % Time = Atmos % Time + Atmos % Time_step
 
     call get_time (Atmos%Time - diag_time, isec)
-    if (mod(isec,3600*nint(IPD_Control%fhzero)) == 0) then
+    if (mod(isec,3600) == 0) then
       time_int = real(isec)
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &
@@ -629,161 +630,161 @@ end subroutine atmos_data_type_chksum
 
    do j=jsc,jec
      do i=isc,iec
-         nb = Atm_block%blkno(i,j)
-         ix = Atm_block%ixp(i,j)
-         !--- statein pressure
-         temp2d(i,j, 1) = IPD_Data(nb)%Statein%pgr(ix)
-         temp2d(i,j, 2) = IPD_Data(nb)%Sfcprop%slmsk(ix)
-         temp2d(i,j, 3) = IPD_Data(nb)%Sfcprop%tsfc(ix)
-         temp2d(i,j, 4) = IPD_Data(nb)%Sfcprop%tisfc(ix)
-         temp2d(i,j, 5) = IPD_Data(nb)%Sfcprop%snowd(ix)
-         temp2d(i,j, 6) = IPD_Data(nb)%Sfcprop%zorl(ix)
-         temp2d(i,j, 7) = IPD_Data(nb)%Sfcprop%fice(ix)
-         temp2d(i,j, 8) = IPD_Data(nb)%Sfcprop%hprim(ix)
-         temp2d(i,j, 9) = IPD_Data(nb)%Sfcprop%sncovr(ix)
-         temp2d(i,j,10) = IPD_Data(nb)%Sfcprop%snoalb(ix)
-         temp2d(i,j,11) = IPD_Data(nb)%Sfcprop%alvsf(ix)
-         temp2d(i,j,12) = IPD_Data(nb)%Sfcprop%alnsf(ix)
-         temp2d(i,j,13) = IPD_Data(nb)%Sfcprop%alvwf(ix)
-         temp2d(i,j,14) = IPD_Data(nb)%Sfcprop%alnwf(ix)
-         temp2d(i,j,15) = IPD_Data(nb)%Sfcprop%facsf(ix)
-         temp2d(i,j,16) = IPD_Data(nb)%Sfcprop%facwf(ix)
-         temp2d(i,j,17) = IPD_Data(nb)%Sfcprop%slope(ix)
-         temp2d(i,j,18) = IPD_Data(nb)%Sfcprop%shdmin(ix)
-         temp2d(i,j,19) = IPD_Data(nb)%Sfcprop%shdmax(ix)
-         temp2d(i,j,20) = IPD_Data(nb)%Sfcprop%tg3(ix)
-         temp2d(i,j,21) = IPD_Data(nb)%Sfcprop%vfrac(ix)
-         temp2d(i,j,22) = IPD_Data(nb)%Sfcprop%vtype(ix)
-         temp2d(i,j,23) = IPD_Data(nb)%Sfcprop%stype(ix)
-         temp2d(i,j,24) = IPD_Data(nb)%Sfcprop%uustar(ix)
-         temp2d(i,j,25) = IPD_Data(nb)%Sfcprop%oro(ix)
-         temp2d(i,j,26) = IPD_Data(nb)%Sfcprop%oro_uf(ix)
-         temp2d(i,j,27) = IPD_Data(nb)%Sfcprop%hice(ix)
-         temp2d(i,j,28) = IPD_Data(nb)%Sfcprop%weasd(ix)
-         temp2d(i,j,29) = IPD_Data(nb)%Sfcprop%canopy(ix)
-         temp2d(i,j,30) = IPD_Data(nb)%Sfcprop%ffmm(ix)
-         temp2d(i,j,31) = IPD_Data(nb)%Sfcprop%ffhh(ix)
-         temp2d(i,j,32) = IPD_Data(nb)%Sfcprop%f10m(ix)
-         temp2d(i,j,33) = IPD_Data(nb)%Sfcprop%tprcp(ix)
-         temp2d(i,j,34) = IPD_Data(nb)%Sfcprop%srflag(ix)
-         temp2d(i,j,35) = IPD_Data(nb)%Sfcprop%slc(ix,1)
-         temp2d(i,j,36) = IPD_Data(nb)%Sfcprop%slc(ix,2)
-         temp2d(i,j,37) = IPD_Data(nb)%Sfcprop%slc(ix,3)
-         temp2d(i,j,38) = IPD_Data(nb)%Sfcprop%slc(ix,4)
-         temp2d(i,j,39) = IPD_Data(nb)%Sfcprop%smc(ix,1)
-         temp2d(i,j,40) = IPD_Data(nb)%Sfcprop%smc(ix,2)
-         temp2d(i,j,41) = IPD_Data(nb)%Sfcprop%smc(ix,3)
-         temp2d(i,j,42) = IPD_Data(nb)%Sfcprop%smc(ix,4)
-         temp2d(i,j,43) = IPD_Data(nb)%Sfcprop%stc(ix,1)
-         temp2d(i,j,44) = IPD_Data(nb)%Sfcprop%stc(ix,2)
-         temp2d(i,j,45) = IPD_Data(nb)%Sfcprop%stc(ix,3)
-         temp2d(i,j,46) = IPD_Data(nb)%Sfcprop%stc(ix,4)
-         temp2d(i,j,47) = IPD_Data(nb)%Sfcprop%t2m(ix)
-         temp2d(i,j,48) = IPD_Data(nb)%Sfcprop%q2m(ix)
-         temp2d(i,j,49) = IPD_Data(nb)%Coupling%nirbmdi  (ix)
-         temp2d(i,j,50) = IPD_Data(nb)%Coupling%nirdfdi  (ix)
-         temp2d(i,j,51) = IPD_Data(nb)%Coupling%visbmdi  (ix)
-         temp2d(i,j,52) = IPD_Data(nb)%Coupling%visdfdi  (ix)
-         temp2d(i,j,53) = IPD_Data(nb)%Coupling%nirbmui  (ix)
-         temp2d(i,j,54) = IPD_Data(nb)%Coupling%nirdfui  (ix)
-         temp2d(i,j,55) = IPD_Data(nb)%Coupling%visbmui  (ix)
-         temp2d(i,j,56) = IPD_Data(nb)%Coupling%visdfui  (ix)
-         temp2d(i,j,57) = IPD_Data(nb)%Coupling%sfcdsw   (ix)
-         temp2d(i,j,59) = IPD_Data(nb)%Coupling%sfcnsw   (ix)
-         temp2d(i,j,59) = IPD_Data(nb)%Coupling%sfcdlw   (ix)
-         temp2d(i,j,60) = IPD_Data(nb)%Grid%xlon(ix)
-         temp2d(i,j,61) = IPD_Data(nb)%Grid%xlat(ix)
-         temp2d(i,j,62) = IPD_Data(nb)%Grid%xlat_d(ix)
-         temp2d(i,j,63) = IPD_Data(nb)%Grid%sinlat(ix)
-         temp2d(i,j,64) = IPD_Data(nb)%Grid%coslat(ix)
-         temp2d(i,j,65) = IPD_Data(nb)%Grid%area(ix)
-         temp2d(i,j,66) = IPD_Data(nb)%Grid%dx(ix)
-         if (Model%ntoz > 0) then
-           temp2d(i,j,67) = IPD_Data(nb)%Grid%ddy_o3(ix)
-         endif
-         if (Model%h2o_phys) then
-           temp2d(i,j,68) = IPD_Data(nb)%Grid%ddy_h(ix)
-         endif
-         temp2d(i,j,69) = IPD_Data(nb)%Cldprop%cv(ix)
-         temp2d(i,j,70) = IPD_Data(nb)%Cldprop%cvt(ix)
-         temp2d(i,j,71) = IPD_Data(nb)%Cldprop%cvb(ix)
-         temp2d(i,j,72) = IPD_Data(nb)%Radtend%sfalb(ix)
-         temp2d(i,j,73) = IPD_Data(nb)%Radtend%coszen(ix)
-         temp2d(i,j,74) = IPD_Data(nb)%Radtend%tsflw(ix)
-         temp2d(i,j,75) = IPD_Data(nb)%Radtend%semis(ix)
-         temp2d(i,j,76) = IPD_Data(nb)%Radtend%coszdg(ix)
-         temp2d(i,j,77) = IPD_Data(nb)%Radtend%sfcfsw(ix)%upfxc
-         temp2d(i,j,78) = IPD_Data(nb)%Radtend%sfcfsw(ix)%upfx0
-         temp2d(i,j,79) = IPD_Data(nb)%Radtend%sfcfsw(ix)%dnfxc
-         temp2d(i,j,80) = IPD_Data(nb)%Radtend%sfcfsw(ix)%dnfx0
-         temp2d(i,j,81) = IPD_Data(nb)%Radtend%sfcflw(ix)%upfxc
-         temp2d(i,j,82) = IPD_Data(nb)%Radtend%sfcflw(ix)%upfx0
-         temp2d(i,j,83) = IPD_Data(nb)%Radtend%sfcflw(ix)%dnfxc
-         temp2d(i,j,84) = IPD_Data(nb)%Radtend%sfcflw(ix)%dnfx0
-         if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
-           temp2d(i,j,85) = IPD_Data(nb)%Sfcprop%tref(ix)
-           temp2d(i,j,86) = IPD_Data(nb)%Sfcprop%z_c(ix)
-           temp2d(i,j,87) = IPD_Data(nb)%Sfcprop%c_0(ix)
-           temp2d(i,j,88) = IPD_Data(nb)%Sfcprop%c_d(ix)
-           temp2d(i,j,89) = IPD_Data(nb)%Sfcprop%w_0(ix)
-           temp2d(i,j,90) = IPD_Data(nb)%Sfcprop%w_d(ix)
-           temp2d(i,j,91) = IPD_Data(nb)%Sfcprop%xt(ix)
-           temp2d(i,j,92) = IPD_Data(nb)%Sfcprop%xs(ix)
-           temp2d(i,j,93) = IPD_Data(nb)%Sfcprop%xu(ix)
-           temp2d(i,j,94) = IPD_Data(nb)%Sfcprop%xz(ix)
-           temp2d(i,j,95) = IPD_Data(nb)%Sfcprop%zm(ix)
-           temp2d(i,j,96) = IPD_Data(nb)%Sfcprop%xtts(ix)
-           temp2d(i,j,97) = IPD_Data(nb)%Sfcprop%xzts(ix)
-           temp2d(i,j,98) = IPD_Data(nb)%Sfcprop%ifd(ix)
-           temp2d(i,j,99) = IPD_Data(nb)%Sfcprop%dt_cool(ix)
-           temp2d(i,j,100) = IPD_Data(nb)%Sfcprop%qrain(ix)
-         endif
+       nb = Atm_block%blkno(i,j) 
+       ix = Atm_block%ixp(i,j) 
+       !--- statein pressure
+       temp2d(i,j, 1) = IPD_Data(nb)%Statein%pgr(ix)
+       temp2d(i,j, 2) = IPD_Data(nb)%Sfcprop%slmsk(ix)
+       temp2d(i,j, 3) = IPD_Data(nb)%Sfcprop%tsfc(ix)
+       temp2d(i,j, 4) = IPD_Data(nb)%Sfcprop%tisfc(ix)
+       temp2d(i,j, 5) = IPD_Data(nb)%Sfcprop%snowd(ix)
+       temp2d(i,j, 6) = IPD_Data(nb)%Sfcprop%zorl(ix)
+       temp2d(i,j, 7) = IPD_Data(nb)%Sfcprop%fice(ix)
+       temp2d(i,j, 8) = IPD_Data(nb)%Sfcprop%hprim(ix)
+       temp2d(i,j, 9) = IPD_Data(nb)%Sfcprop%sncovr(ix)
+       temp2d(i,j,10) = IPD_Data(nb)%Sfcprop%snoalb(ix)
+       temp2d(i,j,11) = IPD_Data(nb)%Sfcprop%alvsf(ix)
+       temp2d(i,j,12) = IPD_Data(nb)%Sfcprop%alnsf(ix)
+       temp2d(i,j,13) = IPD_Data(nb)%Sfcprop%alvwf(ix)
+       temp2d(i,j,14) = IPD_Data(nb)%Sfcprop%alnwf(ix)
+       temp2d(i,j,15) = IPD_Data(nb)%Sfcprop%facsf(ix)
+       temp2d(i,j,16) = IPD_Data(nb)%Sfcprop%facwf(ix)
+       temp2d(i,j,17) = IPD_Data(nb)%Sfcprop%slope(ix)
+       temp2d(i,j,18) = IPD_Data(nb)%Sfcprop%shdmin(ix)
+       temp2d(i,j,19) = IPD_Data(nb)%Sfcprop%shdmax(ix)
+       temp2d(i,j,20) = IPD_Data(nb)%Sfcprop%tg3(ix)
+       temp2d(i,j,21) = IPD_Data(nb)%Sfcprop%vfrac(ix)
+       temp2d(i,j,22) = IPD_Data(nb)%Sfcprop%vtype(ix)
+       temp2d(i,j,23) = IPD_Data(nb)%Sfcprop%stype(ix)
+       temp2d(i,j,24) = IPD_Data(nb)%Sfcprop%uustar(ix)
+       temp2d(i,j,25) = IPD_Data(nb)%Sfcprop%oro(ix)
+       temp2d(i,j,26) = IPD_Data(nb)%Sfcprop%oro_uf(ix)
+       temp2d(i,j,27) = IPD_Data(nb)%Sfcprop%hice(ix)
+       temp2d(i,j,28) = IPD_Data(nb)%Sfcprop%weasd(ix)
+       temp2d(i,j,29) = IPD_Data(nb)%Sfcprop%canopy(ix)
+       temp2d(i,j,30) = IPD_Data(nb)%Sfcprop%ffmm(ix)
+       temp2d(i,j,31) = IPD_Data(nb)%Sfcprop%ffhh(ix)
+       temp2d(i,j,32) = IPD_Data(nb)%Sfcprop%f10m(ix)
+       temp2d(i,j,33) = IPD_Data(nb)%Sfcprop%tprcp(ix)
+       temp2d(i,j,34) = IPD_Data(nb)%Sfcprop%srflag(ix)
+       temp2d(i,j,35) = IPD_Data(nb)%Sfcprop%slc(ix,1)
+       temp2d(i,j,36) = IPD_Data(nb)%Sfcprop%slc(ix,2)
+       temp2d(i,j,37) = IPD_Data(nb)%Sfcprop%slc(ix,3)
+       temp2d(i,j,38) = IPD_Data(nb)%Sfcprop%slc(ix,4)
+       temp2d(i,j,39) = IPD_Data(nb)%Sfcprop%smc(ix,1)
+       temp2d(i,j,40) = IPD_Data(nb)%Sfcprop%smc(ix,2)
+       temp2d(i,j,41) = IPD_Data(nb)%Sfcprop%smc(ix,3)
+       temp2d(i,j,42) = IPD_Data(nb)%Sfcprop%smc(ix,4)
+       temp2d(i,j,43) = IPD_Data(nb)%Sfcprop%stc(ix,1)
+       temp2d(i,j,44) = IPD_Data(nb)%Sfcprop%stc(ix,2)
+       temp2d(i,j,45) = IPD_Data(nb)%Sfcprop%stc(ix,3)
+       temp2d(i,j,46) = IPD_Data(nb)%Sfcprop%stc(ix,4)
+       temp2d(i,j,47) = IPD_Data(nb)%Sfcprop%t2m(ix)
+       temp2d(i,j,48) = IPD_Data(nb)%Sfcprop%q2m(ix)
+       temp2d(i,j,49) = IPD_Data(nb)%Coupling%nirbmdi(ix)
+       temp2d(i,j,50) = IPD_Data(nb)%Coupling%nirdfdi(ix)
+       temp2d(i,j,51) = IPD_Data(nb)%Coupling%visbmdi(ix)
+       temp2d(i,j,52) = IPD_Data(nb)%Coupling%visdfdi(ix)
+       temp2d(i,j,53) = IPD_Data(nb)%Coupling%nirbmui(ix)
+       temp2d(i,j,54) = IPD_Data(nb)%Coupling%nirdfui(ix)
+       temp2d(i,j,55) = IPD_Data(nb)%Coupling%visbmui(ix)
+       temp2d(i,j,56) = IPD_Data(nb)%Coupling%visdfui(ix)
+       temp2d(i,j,57) = IPD_Data(nb)%Coupling%sfcdsw(ix)
+       temp2d(i,j,59) = IPD_Data(nb)%Coupling%sfcnsw(ix)
+       temp2d(i,j,59) = IPD_Data(nb)%Coupling%sfcdlw(ix)
+       temp2d(i,j,60) = IPD_Data(nb)%Grid%xlon(ix)
+       temp2d(i,j,61) = IPD_Data(nb)%Grid%xlat(ix)
+       temp2d(i,j,62) = IPD_Data(nb)%Grid%xlat_d(ix)
+       temp2d(i,j,63) = IPD_Data(nb)%Grid%sinlat(ix)
+       temp2d(i,j,64) = IPD_Data(nb)%Grid%coslat(ix)
+       temp2d(i,j,65) = IPD_Data(nb)%Grid%area(ix)
+       temp2d(i,j,66) = IPD_Data(nb)%Grid%dx(ix)
+       if (Model%ntoz > 0) then
+         temp2d(i,j,67) = IPD_Data(nb)%Grid%ddy_o3(ix)
+       endif
+       if (Model%h2o_phys) then
+         temp2d(i,j,68) = IPD_Data(nb)%Grid%ddy_h(ix)
+       endif
+       temp2d(i,j,69) = IPD_Data(nb)%Cldprop%cv(ix)
+       temp2d(i,j,70) = IPD_Data(nb)%Cldprop%cvt(ix)
+       temp2d(i,j,71) = IPD_Data(nb)%Cldprop%cvb(ix)
+       temp2d(i,j,72) = IPD_Data(nb)%Radtend%sfalb(ix)
+       temp2d(i,j,73) = IPD_Data(nb)%Radtend%coszen(ix)
+       temp2d(i,j,74) = IPD_Data(nb)%Radtend%tsflw(ix)
+       temp2d(i,j,75) = IPD_Data(nb)%Radtend%semis(ix)
+       temp2d(i,j,76) = IPD_Data(nb)%Radtend%coszdg(ix)
+       temp2d(i,j,77) = IPD_Data(nb)%Radtend%sfcfsw(ix)%upfxc
+       temp2d(i,j,78) = IPD_Data(nb)%Radtend%sfcfsw(ix)%upfx0
+       temp2d(i,j,79) = IPD_Data(nb)%Radtend%sfcfsw(ix)%dnfxc
+       temp2d(i,j,80) = IPD_Data(nb)%Radtend%sfcfsw(ix)%dnfx0
+       temp2d(i,j,81) = IPD_Data(nb)%Radtend%sfcflw(ix)%upfxc
+       temp2d(i,j,82) = IPD_Data(nb)%Radtend%sfcflw(ix)%upfx0
+       temp2d(i,j,83) = IPD_Data(nb)%Radtend%sfcflw(ix)%dnfxc
+       temp2d(i,j,84) = IPD_Data(nb)%Radtend%sfcflw(ix)%dnfx0
+       if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
+         temp2d(i,j,85) = IPD_Data(nb)%Sfcprop%tref(ix)
+         temp2d(i,j,86) = IPD_Data(nb)%Sfcprop%z_c(ix)
+         temp2d(i,j,87) = IPD_Data(nb)%Sfcprop%c_0(ix)
+         temp2d(i,j,88) = IPD_Data(nb)%Sfcprop%c_d(ix)
+         temp2d(i,j,89) = IPD_Data(nb)%Sfcprop%w_0(ix)
+         temp2d(i,j,90) = IPD_Data(nb)%Sfcprop%w_d(ix)
+         temp2d(i,j,91) = IPD_Data(nb)%Sfcprop%xt(ix)
+         temp2d(i,j,92) = IPD_Data(nb)%Sfcprop%xs(ix)
+         temp2d(i,j,93) = IPD_Data(nb)%Sfcprop%xu(ix)
+         temp2d(i,j,94) = IPD_Data(nb)%Sfcprop%xz(ix)
+         temp2d(i,j,95) = IPD_Data(nb)%Sfcprop%zm(ix)
+         temp2d(i,j,96) = IPD_Data(nb)%Sfcprop%xtts(ix)
+         temp2d(i,j,97) = IPD_Data(nb)%Sfcprop%xzts(ix)
+         temp2d(i,j,98) = IPD_Data(nb)%Sfcprop%ifd(ix)
+         temp2d(i,j,99) = IPD_Data(nb)%Sfcprop%dt_cool(ix)
+         temp2d(i,j,100) = IPD_Data(nb)%Sfcprop%qrain(ix)
+       endif
 
-         do l = 1,Model%ntot2d
-           temp2d(i,j,100+l) = IPD_Data(nb)%Tbd%phy_f2d(ix,l)
-         enddo
+       do l = 1,Model%ntot2d
+         temp2d(i,j,100+l) = IPD_Data(nb)%Tbd%phy_f2d(ix,l)
+       enddo
 
-         do l = 1,Model%nctp
-           temp2d(i,j,100+Model%ntot2d+l) = IPD_Data(nb)%Tbd%phy_fctd(ix,l)
-         enddo
+       do l = 1,Model%nctp
+         temp2d(i,j,100+Model%ntot2d+l) = IPD_Data(nb)%Tbd%phy_fctd(ix,l)
+       enddo
 
-         temp3d(i,j,:, 1) = IPD_Data(nb)%Statein%phii(ix,:)
-         temp3d(i,j,:, 2) = IPD_Data(nb)%Statein%prsi(ix,:)
-         temp3d(i,j,:, 3) = IPD_Data(nb)%Statein%prsik(ix,:)
-         temp3d(i,j,:, 4) = IPD_Data(nb)%Statein%phil(ix,:)
-         temp3d(i,j,:, 5) = IPD_Data(nb)%Statein%prsl(ix,:)
-         temp3d(i,j,:, 6) = IPD_Data(nb)%Statein%prslk(ix,:)
-         temp3d(i,j,:, 7) = IPD_Data(nb)%Statein%ugrs(ix,:)
-         temp3d(i,j,:, 8) = IPD_Data(nb)%Statein%vgrs(ix,:)
-         temp3d(i,j,:, 9) = IPD_Data(nb)%Statein%vvl(ix,:)
-         temp3d(i,j,:,10) = IPD_Data(nb)%Statein%tgrs(ix,:)
-         temp3d(i,j,:,11) = IPD_Data(nb)%Statein%qgrs(ix,:,1)
-         temp3d(i,j,:,12) = IPD_Data(nb)%Statein%qgrs(ix,:,2)
-         temp3d(i,j,:,13) = IPD_Data(nb)%Statein%qgrs(ix,:,3)
-         temp3d(i,j,:,14) = IPD_Data(nb)%Stateout%gu0(ix,:)
-         temp3d(i,j,:,15) = IPD_Data(nb)%Stateout%gv0(ix,:)
-         temp3d(i,j,:,16) = IPD_Data(nb)%Stateout%gt0(ix,:)
-         temp3d(i,j,:,17) = IPD_Data(nb)%Stateout%gq0(ix,:,1)
-         temp3d(i,j,:,18) = IPD_Data(nb)%Stateout%gq0(ix,:,2)
-         temp3d(i,j,:,19) = IPD_Data(nb)%Stateout%gq0(ix,:,3)
-         temp3d(i,j,:,20) = IPD_Data(nb)%Radtend%htrsw(ix,:)
-         temp3d(i,j,:,21) = IPD_Data(nb)%Radtend%htrlw(ix,:)
-         temp3d(i,j,:,22) = IPD_Data(nb)%Radtend%swhc(ix,:)
-         temp3d(i,j,:,23) = IPD_Data(nb)%Radtend%lwhc(ix,:)
-         do l = 1,Model%ntot3d
-           temp3d(i,j,:,23+l) = IPD_Data(nb)%Tbd%phy_f3d(ix,:,l)
-         enddo
+       temp3d(i,j,:, 1) = IPD_Data(nb)%Statein%phii(ix,:)
+       temp3d(i,j,:, 2) = IPD_Data(nb)%Statein%prsi(ix,:)
+       temp3d(i,j,:, 3) = IPD_Data(nb)%Statein%prsik(ix,:)
+       temp3d(i,j,:, 4) = IPD_Data(nb)%Statein%phil(ix,:)
+       temp3d(i,j,:, 5) = IPD_Data(nb)%Statein%prsl(ix,:)
+       temp3d(i,j,:, 6) = IPD_Data(nb)%Statein%prslk(ix,:)
+       temp3d(i,j,:, 7) = IPD_Data(nb)%Statein%ugrs(ix,:)
+       temp3d(i,j,:, 8) = IPD_Data(nb)%Statein%vgrs(ix,:)
+       temp3d(i,j,:, 9) = IPD_Data(nb)%Statein%vvl(ix,:)
+       temp3d(i,j,:,10) = IPD_Data(nb)%Statein%tgrs(ix,:)
+       temp3d(i,j,:,11) = IPD_Data(nb)%Statein%qgrs(ix,:,1)
+       temp3d(i,j,:,12) = IPD_Data(nb)%Statein%qgrs(ix,:,2)
+       temp3d(i,j,:,13) = IPD_Data(nb)%Statein%qgrs(ix,:,3)
+       temp3d(i,j,:,14) = IPD_Data(nb)%Stateout%gu0(ix,:)
+       temp3d(i,j,:,15) = IPD_Data(nb)%Stateout%gv0(ix,:)
+       temp3d(i,j,:,16) = IPD_Data(nb)%Stateout%gt0(ix,:)
+       temp3d(i,j,:,17) = IPD_Data(nb)%Stateout%gq0(ix,:,1)
+       temp3d(i,j,:,18) = IPD_Data(nb)%Stateout%gq0(ix,:,2)
+       temp3d(i,j,:,19) = IPD_Data(nb)%Stateout%gq0(ix,:,3)
+       temp3d(i,j,:,20) = IPD_Data(nb)%Radtend%htrsw(ix,:)
+       temp3d(i,j,:,21) = IPD_Data(nb)%Radtend%htrlw(ix,:)
+       temp3d(i,j,:,22) = IPD_Data(nb)%Radtend%swhc(ix,:)
+       temp3d(i,j,:,23) = IPD_Data(nb)%Radtend%lwhc(ix,:)
+       do l = 1,Model%ntot3d
+         temp3d(i,j,:,23+l) = IPD_Data(nb)%Tbd%phy_f3d(ix,:,l)
+       enddo
      enddo
    enddo
 
    outunit = stdout()
    do i = 1,100+Model%ntot2d+Model%nctp
      write (name, '(i3.3,3x,4a)') i, ' 2d '
-     write(outunit,100) name, mpp_chksum(temp2d(isc:iec,jsc:jec,i:i))
+     write(outunit,100) name, mpp_chksum(temp2d(:,:,i:i))
    enddo
    do i = 1,23+Model%ntot3d
      write (name, '(i2.2,3x,4a)') i, ' 3d '
-     write(outunit,100) name, mpp_chksum(temp3d(isc:iec,jsc:jec,1:lev,i:i))
+     write(outunit,100) name, mpp_chksum(temp3d(:,:,:,i:i))
    enddo
 100 format("CHECKSUM::",A32," = ",Z20)
 

@@ -437,6 +437,9 @@ module module_physics_driver
            !--- GFDL-Lin microphysics
            crain, csnow
 
+      real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
+           fscav, fswtr
+
       real(kind=kind_phys), dimension(size(Grid%xlon,1))  ::            &
            ccwfac, garea, dlength, cumabs, cice, zice, tice, gflx,      &
            rain1, raincs, snowmt, cd, cdq, qss, dusfcg, dvsfcg, dusfc1, &
@@ -449,7 +452,7 @@ module module_physics_driver
            adjnirdfd, adjvisbmd, adjvisdfd, gabsbdlw, xcosz, tseal,     &
            snohf, dlqfac, work3, ctei_rml, cldf, domr, domzr, domip,    &
            doms, psautco_l, prautco_l, ocalnirbm_cpl, ocalnirdf_cpl,    &
-           ocalvisbm_cpl, ocalvisdf_cpl, dtzm, temrain1, fscav, fswtr,  &
+           ocalvisbm_cpl, ocalvisdf_cpl, dtzm, temrain1,                &
            !--- coupling inputs for physics
            dtsfc_cice, dqsfc_cice, dusfc_cice, dvsfc_cice, ulwsfc_cice, &
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
@@ -1738,7 +1741,7 @@ module module_physics_driver
 !GFDL  again lat replaced with "1"
 !GFDL     &                  otspt, lat, kdt     ,                     &
           call cs_convr (ix, im, levs, tottracer+3, Model%nctp, otspt, 1, &
-                         kdt, Stateout%gt0, Stateout%gq0(1,1,1:1), rain1, &
+                         kdt, Stateout%gt0, Stateout%gq0(:,:,1:1), rain1, &
                          clw, Statein%phil, Statein%phii, Statein%prsl,   &
                          Statein%prsi, dtp, dtf, ud_mf, dd_mf, dt_mf,     &
                          Stateout%gu0, Stateout%gv0, fscav, fswtr,        &

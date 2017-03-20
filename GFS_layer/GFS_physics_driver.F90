@@ -1227,7 +1227,8 @@ module module_physics_driver
                       Statein%prslk, Statein%phii, Statein%phil, dtp,           &
                       Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl, &
                       gamt, gamq, dkt, kinver, Model%xkzm_m, Model%xkzm_h,      &
-                      Model%xkzm_s, lprnt, ipr)
+                      Model%xkzm_s, lprnt, ipr,                                 &
+                      Model%xkzminv, Model%moninq_fac)
         else
           if (Model%mstrat) then
             call moninp1(ix, im, levs, nvdiff, dvdt, dudt, dtdt, dqdt,          &

@@ -1214,7 +1214,8 @@ module module_physics_driver
                          Statein%prslk, Statein%phii, Statein%phil, dtp,          &
                          Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,&
                          gamt, gamq, dkt, kinver, Model%xkzm_m, Model%xkzm_h,     &
-                         Model%xkzm_s, lprnt, ipr)
+                         Model%xkzm_s, lprnt, ipr,                                &
+                         Model%xkzminv, Model%moninq_fac)
 !     if (lprnt)  write(0,*)' dtdtm=',(dtdt(ipr,k),k=1,15)
 !     if (lprnt)  write(0,*)' dqdtm=',(dqdt(ipr,k,1),k=1,15)
         elseif (.not. Model%old_monin) then
@@ -1701,7 +1702,11 @@ module module_physics_driver
                           Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                           cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                           garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                          dt_mf, cnvw, cnvc)
+                          dt_mf, cnvw, cnvc,                            &
+                          Model%cxlamu_deep, Model%clam_deep, Model%c0s_deep,    &
+                          Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                          Model%evfact_deep, Model%evfactl_deep,                 &
+                          Model%pgcon_deep, Model%asolfac_deep)
 !         if (lprnt) print *,' rain1=',rain1(ipr)
         elseif (Model%imfdeepcnv == 0) then         ! random cloud top
           call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
@@ -2134,7 +2139,9 @@ module module_physics_driver
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                             rain1, kbot, ktop, kcnv, islmsk, garea,       &
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
-                            dt_mf, cnvw, cnvc)
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                            Model%pgcon_shal, Model%asolfac_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = DIag%rainc(:) + raincs(:)

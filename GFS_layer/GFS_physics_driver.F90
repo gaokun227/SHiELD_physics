@@ -288,7 +288,7 @@ module module_physics_driver
 !!  .
 !!  ## Calculate and apply the state variable tendencies (within the subroutine) due to deep convection.
 !!   - Call deep convective scheme according to the parameter 'imfdeepcnv', 'ras', and 'cscnv'.
-!!    - if imfdeepcnv == 0, 1, or 2, no special processing is needed
+!!    - if imfdeepcnv == 0, 1, or 2 or 3, no special processing is needed
 !!    - if the Chikira-Sugiyama scheme (cscnv), convert rain rate to accumulated rain (rain1)
 !!    - if RAS, initialize 'ccwfac', 'dlqfac', 'lmh', and revap before the call to 'rascnv'
 !!   - Zero out 'cld1d' (cloud work function calculated in non-RAS, non-Chikira-Sugiyama schemes)
@@ -1688,30 +1688,42 @@ module module_physics_driver
 !
       if (.not. Model%ras .and. .not. Model%cscnv) then
 
-        if (Model%imfdeepcnv == 1) then             ! no random cloud top
-          call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
-                        Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
-                        Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
-                        Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
-                        islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
-                        dt_mf, cnvw, cnvc)
-        elseif (Model%imfdeepcnv == 2) then
-          call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                          Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
-                          Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                          cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
-                          garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                          dt_mf, cnvw, cnvc)
-!         if (lprnt) print *,' rain1=',rain1(ipr)
-        elseif (Model%imfdeepcnv == 0) then         ! random cloud top
-          call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
-                       Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
-                       Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
-                       Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
-                       islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
-                       ud_mf, dd_mf, dt_mf, cnvw, cnvc)
-!         if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
-        endif
+         if (Model%do_deep) then
+
+            if (Model%imfdeepcnv == 1) then             ! no random cloud top
+               call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
+                             Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
+                             Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
+                             Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
+                             islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
+                             dt_mf, cnvw, cnvc)
+            elseif (Model%imfdeepcnv == 2) then
+               call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
+                               Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
+                               Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                               cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
+                               garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
+                               dt_mf, cnvw, cnvc)
+               !         if (lprnt) print *,' rain1=',rain1(ipr)
+            elseif (Model%imfdeepcnv == 0) then         ! random cloud top
+               call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
+                            Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
+                            Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
+                            Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
+                            islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
+                            ud_mf, dd_mf, dt_mf, cnvw, cnvc)
+               !         if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
+            endif
+
+         else ! no deep convection
+            cld1d = 0.
+            rain1 = 0.
+            ud_mf = 0.
+            dd_mf = 0.
+            dt_mf = 0.
+            cnvw  = 0.
+            cnvc  = 0.
+         endif
       else        ! ras or cscnv
         if (Model%cscnv) then    ! Chikira-Sugiyama  convection scheme (via CSU)
           otspt(:,:)   = .true.
@@ -1826,7 +1838,7 @@ module module_physics_driver
 !     if (lprnt) write(0,*)' gt04=',gt0(ipr,1:10)
 !     if (lprnt) write(0,*)' gq04=',gq0(ipr,:,1)
 
-        cld1d = 0
+        cld1d = 0 !?!?
 
         if (Model%ldiag3d .or. Model%lgocart) then
           Coupling%upd_mfi(:,:) = 0.

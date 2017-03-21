@@ -464,6 +464,7 @@ module GFS_typedefs
                                             !<           current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
                                             !<     0: old SAS Convection scheme before July 2010
+    logical              :: do_deep         !< whether to do deep convection
     integer              :: nmtvr           !< number of topographic variables such as variance etc
                                             !< used in the GWD parameterization
     integer              :: jcap            !< number of spectral wave trancation used only by sascnv shalcnv
@@ -1401,6 +1402,7 @@ module GFS_typedefs
                                                                       !<     1: July 2010 version of SAS conv scheme
                                                                       !<           current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
+    logical              :: do_deep        = .true.                   !< whether to do deep convection
     integer              :: nmtvr          = 14                       !< number of topographic variables such as variance etc
                                                                       !< used in the GWD parameterization
     integer              :: jcap           =  1              !< number of spectral wave trancation used only by sascnv shalcnv
@@ -1468,7 +1470,7 @@ module GFS_typedefs
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
-                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, jcap,         &
+                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,                                                        &
                           !--- Rayleigh friction
@@ -1631,6 +1633,7 @@ module GFS_typedefs
     Model%shal_cnv         = shal_cnv
     Model%imfshalcnv       = imfshalcnv
     Model%imfdeepcnv       = imfdeepcnv
+    Model%do_deep          = do_deep
     Model%nmtvr            = nmtvr
     Model%jcap             = jcap
     Model%cs_parm          = cs_parm
@@ -1782,6 +1785,10 @@ module GFS_typedefs
         print *,' nstf_name(3)=',Model%nstf_name(3)
         print *,' nstf_name(4)=',Model%nstf_name(4)
         print *,' nstf_name(5)=',Model%nstf_name(5)
+      endif
+      if (.not. Model%do_deep) then
+         print*, ' Convection scheme disabled'
+         Model%imfdeepcnv = 3
       endif
       if (.not. Model%cscnv) then
         if (Model%ras) then

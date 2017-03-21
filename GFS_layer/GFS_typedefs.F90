@@ -1884,22 +1884,22 @@ module GFS_typedefs
         print *,' nstf_name(4)=',Model%nstf_name(4)
         print *,' nstf_name(5)=',Model%nstf_name(5)
       endif
-      if (.not. Model%do_deep) then
-         print*, ' Convection scheme disabled'
-         Model%imfdeepcnv = 3
-      endif
       if (.not. Model%cscnv) then
         if (Model%ras) then
           print *,' RAS Convection scheme used with ccwf=',Model%ccwf
           Model%imfdeepcnv = -1
         else
-          if (Model%imfdeepcnv == 0) then
-            print *,' old SAS Convection scheme before July 2010 used'
-          elseif(Model%imfdeepcnv == 1) then
-            print *,' July 2010 version of SAS conv scheme used'
-          elseif(Model%imfdeepcnv == 2) then
-          print *,' scale & aerosol-aware mass-flux deep conv scheme'
-          endif
+           if (Model%do_deep) then
+              if (Model%imfdeepcnv == 0) then
+                 print *,' old SAS Convection scheme before July 2010 used'
+              elseif(Model%imfdeepcnv == 1) then
+                 print *,' July 2010 version of SAS conv scheme used'
+              elseif(Model%imfdeepcnv == 2) then
+                 print *,' scale & aerosol-aware mass-flux deep conv scheme'
+              endif
+           else
+              print*, ' Convection scheme disabled'
+           endif
         endif
       else
         if (Model%do_aw) then
@@ -2174,6 +2174,7 @@ module GFS_typedefs
       print *, ' shal_cnv          : ', Model%shal_cnv
       print *, ' imfshalcnv        : ', Model%imfshalcnv
       print *, ' imfdeepcnv        : ', Model%imfdeepcnv
+      print *, ' do_deep           : ', Model%do_deep
       print *, ' nmtvr             : ', Model%nmtvr
       print *, ' jcap              : ', Model%jcap
       print *, ' cs_parm           : ', Model%cs_parm

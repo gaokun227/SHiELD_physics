@@ -288,7 +288,7 @@ module module_physics_driver
 !!  .
 !!  ## Calculate and apply the state variable tendencies (within the subroutine) due to deep convection.
 !!   - Call deep convective scheme according to the parameter 'imfdeepcnv', 'ras', and 'cscnv'.
-!!    - if imfdeepcnv == 0, 1, or 2 or 3, no special processing is needed
+!!    - if imfdeepcnv == 0, 1, or 2, no special processing is needed
 !!    - if the Chikira-Sugiyama scheme (cscnv), convert rain rate to accumulated rain (rain1)
 !!    - if RAS, initialize 'ccwfac', 'dlqfac', 'lmh', and revap before the call to 'rascnv'
 !!   - Zero out 'cld1d' (cloud work function calculated in non-RAS, non-Chikira-Sugiyama schemes)
@@ -1705,7 +1705,11 @@ module module_physics_driver
                                Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                                cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                                garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                               dt_mf, cnvw, cnvc)
+                               dt_mf, cnvw, cnvc,                            &
+                               Model%cxlamu_deep, Model%clam_deep, Model%c0s_deep,    &
+                               Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                               Model%evfact_deep, Model%evfactl_deep,        &
+                               Model%pgcon_deep, Model%asolfac_deep )
                !         if (lprnt) print *,' rain1=',rain1(ipr)
             elseif (Model%imfdeepcnv == 0) then         ! random cloud top
                call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
@@ -1840,7 +1844,7 @@ module module_physics_driver
 !     if (lprnt) write(0,*)' gt04=',gt0(ipr,1:10)
 !     if (lprnt) write(0,*)' gq04=',gq0(ipr,:,1)
 
-        cld1d = 0 !?!?
+        cld1d = 0
 
         if (Model%ldiag3d .or. Model%lgocart) then
           Coupling%upd_mfi(:,:) = 0.

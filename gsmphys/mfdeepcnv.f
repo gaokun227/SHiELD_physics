@@ -1,6 +1,7 @@
       subroutine mfdeepcnv(im,ix,km,delt,delp,prslp,psp,phil,ql,
      &     q1,t1,u1,v1,cldwrk,rn,kbot,ktop,kcnv,islimsk,garea,
-     &     dot,ncloud,ud_mf,dd_mf,dt_mf,cnvw,cnvc)
+     &     dot,ncloud,ud_mf,dd_mf,dt_mf,cnvw,cnvc,
+     &     cxlamu,clam,c0s,c1,betal,betas,evfact,evfactl,pgcon,asolfac)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -99,10 +100,12 @@ cj
      &                     bb1,     bb2,     wucb
 !
 c  physical parameters
-      parameter(g=grav,asolfac=0.89)
+!     parameter(g=grav,asolfac=0.89)
+      parameter(g=grav)
       parameter(elocp=hvap/cp,el2orc=hvap*hvap/(rv*cp))
-      parameter(c0s=.002,c1=.002,d0=.01)
-      parameter(c0l=c0s*asolfac)
+!     parameter(c0s=.002,c1=.002,d0=.01)
+      parameter(d0=.01)
+!     parameter(c0l=c0s*asolfac)
 !
 ! asolfac: aerosol-aware parameter based on Lim & Hong (2012)
 !      asolfac= cx / c0s(=.002)
@@ -207,7 +210,7 @@ c
 !
       do i=1,im
         if(islimsk(i) == 1) then
-           c0(i) = c0l
+           c0(i) = c0s*asolfac
         else
            c0(i) = c0s
         endif
@@ -253,26 +256,26 @@ c
 c  model tunable parameters are all here
       edtmaxl = .3
       edtmaxs = .3
-      clam    = .1
+!     clam    = .1
       aafac   = .1
 !     betal   = .15
 !     betas   = .15
-      betal   = .05
-      betas   = .05
+!     betal   = .05
+!     betas   = .05
 c     evef    = 0.07
-      evfact  = 0.3
-      evfactl = 0.3
+!     evfact  = 0.3
+!     evfactl = 0.3
 !
       crtlamu = 1.0e-4
       crtlamd = 1.0e-4
 !
-      cxlamu  = 1.0e-3
+!     cxlamu  = 1.0e-3
       cxlamd  = 1.0e-4
       xlamde  = 1.0e-4
       xlamdd  = 1.0e-4
 !
 !     pgcon   = 0.7     ! Gregory et al. (1997, QJRMS)
-      pgcon   = 0.55    ! Zhang & Wu (2003,JAS)
+!     pgcon   = 0.55    ! Zhang & Wu (2003,JAS)
 !
       w1l     = -8.e-3 
       w2l     = -4.e-2

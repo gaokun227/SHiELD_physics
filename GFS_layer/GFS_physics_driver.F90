@@ -1214,7 +1214,8 @@ module module_physics_driver
                          Statein%prslk, Statein%phii, Statein%phil, dtp,          &
                          Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,&
                          gamt, gamq, dkt, kinver, Model%xkzm_m, Model%xkzm_h,     &
-                         Model%xkzm_s, lprnt, ipr)
+                         Model%xkzm_s, lprnt, ipr,                                &
+                         Model%xkzminv, Model%moninq_fac)
 !     if (lprnt)  write(0,*)' dtdtm=',(dtdt(ipr,k),k=1,15)
 !     if (lprnt)  write(0,*)' dqdtm=',(dqdt(ipr,k,1),k=1,15)
         elseif (.not. Model%old_monin) then
@@ -1226,7 +1227,8 @@ module module_physics_driver
                       Statein%prslk, Statein%phii, Statein%phil, dtp,           &
                       Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl, &
                       gamt, gamq, dkt, kinver, Model%xkzm_m, Model%xkzm_h,      &
-                      Model%xkzm_s, lprnt, ipr)
+                      Model%xkzm_s, lprnt, ipr,                                 &
+                      Model%xkzminv, Model%moninq_fac)
         else
           if (Model%mstrat) then
             call moninp1(ix, im, levs, nvdiff, dvdt, dudt, dtdt, dqdt,          &
@@ -2146,7 +2148,9 @@ module module_physics_driver
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                             rain1, kbot, ktop, kcnv, islmsk, garea,       &
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
-                            dt_mf, cnvw, cnvc)
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                            Model%pgcon_shal, Model%asolfac_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = DIag%rainc(:) + raincs(:)

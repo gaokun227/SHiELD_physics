@@ -487,7 +487,6 @@ module GFS_typedefs
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
 
     !--- mass flux deep convection
-    real(kind=kind_phys) :: cxlamu_deep     !< d_1 in Han and Pan (2011, eq (8))
     real(kind=kind_phys) :: clam_deep       !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -1458,7 +1457,6 @@ module GFS_typedefs
     real(kind=kind_phys) :: ral_ts         = 0.0d0           !< time scale for Rayleigh damping in days
 
     !--- mass flux deep convection
-    real(kind=kind_phys) :: cxlamu_deep    = 1.0e-3          !< d_1 in Han and Pan (2011, eq (8))
     real(kind=kind_phys) :: clam_deep      = 0.1             !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep        = 0.002           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -1544,7 +1542,7 @@ module GFS_typedefs
                           !--- Rayleigh friction
                                prslrd0, ral_ts, dlqf, nst_anl, lsea, xkzm_m,                &
                           !--- mass flux deep convection
-                               cxlamu_deep, clam_deep, c0s_deep, c1_deep, betal_deep,       &
+                               clam_deep, c0s_deep, c1_deep, betal_deep,                    &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
                                asolfac_deep,                                                &
                           !--- mass flux shallow convection
@@ -1726,7 +1724,6 @@ module GFS_typedefs
     Model%ral_ts           = ral_ts
 
     !--- mass flux deep convection
-    Model%cxlamu_deep      = cxlamu_deep
     Model%clam_deep        = clam_deep
     Model%c0s_deep         = c0s_deep
     Model%c1_deep          = c1_deep
@@ -2185,7 +2182,6 @@ module GFS_typedefs
       print *, ' ral_ts            : ', Model%ral_ts
       print *, ' '
       print *, 'mass flux deep convection'
-      print *, ' cxlamu_deep       : ', Model%cxlamu_deep
       print *, ' clam_deep         : ', Model%clam_deep
       print *, ' c0s_deep          : ', Model%c0s_deep
       print *, ' c1_deep           : ', Model%c1_deep

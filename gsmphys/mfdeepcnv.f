@@ -1,7 +1,7 @@
       subroutine mfdeepcnv(im,ix,km,delt,delp,prslp,psp,phil,ql,
      &     q1,t1,u1,v1,cldwrk,rn,kbot,ktop,kcnv,islimsk,garea,
      &     dot,ncloud,ud_mf,dd_mf,dt_mf,cnvw,cnvc,
-     &     cxlamu,clam,c0s,c1,betal,betas,evfact,evfactl,pgcon,asolfac)
+     &     clam,c0s,c1,betal,betas,evfact,evfactl,pgcon,asolfac)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -269,7 +269,7 @@ c     evef    = 0.07
       crtlamu = 1.0e-4
       crtlamd = 1.0e-4
 !
-!     cxlamu  = 1.0e-3
+      cxlamu  = 1.0e-3
       cxlamd  = 1.0e-4
       xlamde  = 1.0e-4
       xlamdd  = 1.0e-4

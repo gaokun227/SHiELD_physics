@@ -1696,7 +1696,11 @@ module module_physics_driver
                         Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
                         Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
                         islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
-                        dt_mf, cnvw, cnvc)
+                        dt_mf, cnvw, cnvc,                              &
+                        Model%clam_deep, Model%c0s_deep,                       &
+                        Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                        Model%evfact_deep, Model%evfactl_deep,                 &
+                        Model%pgcon_deep)
         elseif (Model%imfdeepcnv == 2) then
           call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
                           Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
@@ -1704,7 +1708,7 @@ module module_physics_driver
                           cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                           garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
                           dt_mf, cnvw, cnvc,                            &
-                          Model%cxlamu_deep, Model%clam_deep, Model%c0s_deep,    &
+                          Model%clam_deep, Model%c0s_deep,                       &
                           Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
                           Model%evfact_deep, Model%evfactl_deep,                 &
                           Model%pgcon_deep, Model%asolfac_deep)
@@ -2119,7 +2123,9 @@ module module_physics_driver
                          Statein%pgr, Statein%phil, clw, Stateout%gq0,     &
                          Stateout%gt0, Stateout%gu0, Stateout%gv0, rain1,  &
                          kbot, ktop, kcnv, islmsk, Statein%vvl, Model%ncld,&
-                         Diag%hpbl, hflx, evap, ud_mf, dt_mf, cnvw, cnvc)
+                         Diag%hpbl, hflx, evap, ud_mf, dt_mf, cnvw, cnvc,  &
+                         Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                         Model%pgcon_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)

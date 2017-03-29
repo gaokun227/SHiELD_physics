@@ -2131,7 +2131,9 @@ module module_physics_driver
                          Statein%pgr, Statein%phil, clw, Stateout%gq0,     &
                          Stateout%gt0, Stateout%gu0, Stateout%gv0, rain1,  &
                          kbot, ktop, kcnv, islmsk, Statein%vvl, Model%ncld,&
-                         Diag%hpbl, hflx, evap, ud_mf, dt_mf, cnvw, cnvc)
+                         Diag%hpbl, hflx, evap, ud_mf, dt_mf, cnvw, cnvc,  &
+                         Model%clam_shal, Model%c0s_shal, Model%c1_shal,   &
+                         Model%pgcon_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)

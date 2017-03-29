@@ -1691,38 +1691,51 @@ module module_physics_driver
 !
       if (.not. Model%ras .and. .not. Model%cscnv) then
 
-        if (Model%imfdeepcnv == 1) then             ! no random cloud top
-          call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
-                        Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
-                        Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
-                        Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
-                        islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
-                        dt_mf, cnvw, cnvc,                              &
-                        Model%clam_deep, Model%c0s_deep,                       &
-                        Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
-                        Model%evfact_deep, Model%evfactl_deep,                 &
-                        Model%pgcon_deep)
-        elseif (Model%imfdeepcnv == 2) then
-          call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                          Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
-                          Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                          cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
-                          garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                          dt_mf, cnvw, cnvc,                            &
+        if (Model%do_deep) then
+
+          if (Model%imfdeepcnv == 1) then             ! no random cloud top
+            call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
+                          Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
+                          Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
+                          Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
+                          islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
+                          dt_mf, cnvw, cnvc,                              &
                           Model%clam_deep, Model%c0s_deep,                       &
                           Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
                           Model%evfact_deep, Model%evfactl_deep,                 &
-                          Model%pgcon_deep, Model%asolfac_deep)
-!         if (lprnt) print *,' rain1=',rain1(ipr)
-        elseif (Model%imfdeepcnv == 0) then         ! random cloud top
-          call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
-                       Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
-                       Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
-                       Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
-                       islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
-                       ud_mf, dd_mf, dt_mf, cnvw, cnvc)
-!         if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
+                          Model%pgcon_deep)
+          elseif (Model%imfdeepcnv == 2) then
+            call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
+                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
+                            garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_deep, Model%c0s_deep,                       &
+                            Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                            Model%evfact_deep, Model%evfactl_deep,                 &
+                            Model%pgcon_deep, Model%asolfac_deep)
+!           if (lprnt) print *,' rain1=',rain1(ipr)
+          elseif (Model%imfdeepcnv == 0) then         ! random cloud top
+            call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
+                         Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
+                         Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
+                         Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
+                         islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
+                         ud_mf, dd_mf, dt_mf, cnvw, cnvc)
+!           if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
+          endif
+
+        else ! no deep convection
+          cld1d = 0.
+          rain1 = 0.
+          ud_mf = 0.
+          dd_mf = 0.
+          dt_mf = 0.
+          cnvw  = 0.
+          cnvc  = 0.
         endif
+
       else        ! ras or cscnv
         if (Model%cscnv) then    ! Chikira-Sugiyama  convection scheme (via CSU)
           otspt(:,:)   = .true.

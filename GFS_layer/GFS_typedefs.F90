@@ -464,6 +464,7 @@ module GFS_typedefs
                                             !<           current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
                                             !<     0: old SAS Convection scheme before July 2010
+    logical              :: do_deep         !< whether to do deep convection
     integer              :: nmtvr           !< number of topographic variables such as variance etc
                                             !< used in the GWD parameterization
     integer              :: jcap            !< number of spectral wave trancation used only by sascnv shalcnv
@@ -1435,6 +1436,7 @@ module GFS_typedefs
                                                                       !<     1: July 2010 version of SAS conv scheme
                                                                       !<           current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
+    logical              :: do_deep        = .true.                   !< whether to do deep convection
     integer              :: nmtvr          = 14                       !< number of topographic variables such as variance etc
                                                                       !< used in the GWD parameterization
     integer              :: jcap           =  1              !< number of spectral wave trancation used only by sascnv shalcnv
@@ -1536,7 +1538,7 @@ module GFS_typedefs
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
-                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, jcap,         &
+                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,                                                        &
                           !--- Rayleigh friction
@@ -1706,6 +1708,7 @@ module GFS_typedefs
     Model%shal_cnv         = shal_cnv
     Model%imfshalcnv       = imfshalcnv
     Model%imfdeepcnv       = imfdeepcnv
+    Model%do_deep          = do_deep
     Model%nmtvr            = nmtvr
     Model%jcap             = jcap
     Model%cs_parm          = cs_parm
@@ -1883,13 +1886,17 @@ module GFS_typedefs
           print *,' RAS Convection scheme used with ccwf=',Model%ccwf
           Model%imfdeepcnv = -1
         else
-          if (Model%imfdeepcnv == 0) then
-            print *,' old SAS Convection scheme before July 2010 used'
-          elseif(Model%imfdeepcnv == 1) then
-            print *,' July 2010 version of SAS conv scheme used'
-          elseif(Model%imfdeepcnv == 2) then
-          print *,' scale & aerosol-aware mass-flux deep conv scheme'
-          endif
+           if (Model%do_deep) then
+              if (Model%imfdeepcnv == 0) then
+                 print *,' old SAS Convection scheme before July 2010 used'
+              elseif(Model%imfdeepcnv == 1) then
+                 print *,' July 2010 version of SAS conv scheme used'
+              elseif(Model%imfdeepcnv == 2) then
+                 print *,' scale & aerosol-aware mass-flux deep conv scheme'
+              endif
+           else
+              print*, ' Convection scheme disabled'
+           endif
         endif
       else
         if (Model%do_aw) then
@@ -2164,6 +2171,7 @@ module GFS_typedefs
       print *, ' shal_cnv          : ', Model%shal_cnv
       print *, ' imfshalcnv        : ', Model%imfshalcnv
       print *, ' imfdeepcnv        : ', Model%imfdeepcnv
+      print *, ' do_deep           : ', Model%do_deep
       print *, ' nmtvr             : ', Model%nmtvr
       print *, ' jcap              : ', Model%jcap
       print *, ' cs_parm           : ', Model%cs_parm

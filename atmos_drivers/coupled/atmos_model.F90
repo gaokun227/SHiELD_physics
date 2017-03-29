@@ -44,8 +44,9 @@ module atmos_model_mod
 
 use mpp_mod,            only: mpp_pe, mpp_root_pe, mpp_clock_id, mpp_clock_begin
 use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, MPP_CLOCK_SYNC
-use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum
+use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum, input_nml_file
 use mpp_domains_mod,    only: domain2d
+use mpp_mod,            only: mpp_get_current_pelist_name
 #ifdef INTERNAL_FILE_NML
 use mpp_mod,            only: input_nml_file
 #else
@@ -288,9 +289,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   real(kind=kind_phys) :: dt_phys
   real, allocatable :: q(:,:,:,:), p_half(:,:,:)
   character(len=80) :: control
-  character(len=64) :: filename, filename2
+  character(len=64) :: filename, filename2, pelist_name
   character(len=132) :: text
-  logical :: p_hydro, hydro
+  logical :: p_hydro, hydro, fexist
   logical, save :: block_message = .true.
   type(IPD_init_type) :: Init_parm
   integer :: bdat(8), cdat(8)
@@ -384,7 +385,13 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Init_parm%xlat            => Atmos%lat
    Init_parm%area            => Atmos%area
    Init_parm%tracer_names    => tracer_names
-   Init_parm%fn_nml          =  'input.nml'
+
+   pelist_name=mpp_get_current_pelist_name()
+   Init_parm%fn_nml='input_'//trim(pelist_name)//'.nml'
+   inquire(FILE=Init_parm%fn_nml, EXIST=fexist)
+   if (.not. fexist ) then
+      Init_parm%fn_nml='input.nml'
+   endif
 
    call IPD_initialize (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart, Init_parm)
 

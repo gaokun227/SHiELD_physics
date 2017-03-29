@@ -1249,7 +1249,7 @@ module GFS_typedefs
 
     !--- modules
     use physcons,         only: max_lon, max_lat, min_lon, min_lat, &
-                                dxmax, dxmin, dxinv
+                                dxmax, dxmin, dxinv, con_rerth, con_pi
     use mersenne_twister, only: random_setseed, random_number
     use module_ras,       only: nrcmax
     use parse_tracers,    only: get_tracer_index
@@ -1283,6 +1283,7 @@ module GFS_typedefs
     integer :: ios
     integer :: seed0
     logical :: exists
+    real(kind=kind_phys) :: tem
     real(kind=kind_phys) :: rinc(5)
     real(kind=kind_evod) :: wrk(1)
     real(kind=kind_phys), parameter :: con_hr = 3600.
@@ -1721,8 +1722,9 @@ module GFS_typedefs
 
     !--- BEGIN CODE FROM GFS_PHYSICS_INITIALIZE
     !--- define physcons module variables
-    dxmax = log(1.0d0/(max_lon*max_lat))
-    dxmin = log(1.0d0/(min_lon*min_lat))
+    tem   = con_rerth*con_rerth*(con_pi+con_pi)*con_pi
+    dxmax = log(tem/(max_lon*max_lat))
+    dxmin = log(tem/(min_lon*min_lat))
     dxinv = 1.0d0 / (dxmax-dxmin)
     if (Model%me == Model%master) write(0,*)' dxmax=',dxmax,' dxmin=',dxmin,' dxinv=',dxinv
 

@@ -172,6 +172,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
     !--- local variables for sncovr calculation
     integer :: vegtyp
+    logical :: mand
     real(kind=kind_phys) :: rsnow
     
     nvar_o2  = 17
@@ -330,10 +331,12 @@ module FV3GFS_io_mod
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
         endif
       enddo
-      if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
-        do num = nvar_s2m+1,nvar_s2o
+      if (Model%nstf_name(1) > 0) then
+        mand = .false.
+        if (Model%nstf_name(2) == 1) mand = .true.
+        do num = nvar_s2m+1,nvar_s2m+nvar_s2o
           var2_p => sfc_var2(:,:,num)
-          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=.false.)
+          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=mand)
         enddo
       endif
       nullify(var2_p)
@@ -425,20 +428,26 @@ module FV3GFS_io_mod
         Sfcprop(nb)%snoalb(ix) = sfc_var2(i,j,31)
         !--- sncovr
         Sfcprop(nb)%sncovr(ix) = sfc_var2(i,j,32)
+        !
         !--- NSSTM variables
-        if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
+        if (Model%nstf_name(1) > 0 ) then
+          !--- nsstm tref
+          Sfcprop(nb)%tref(ix)    = Sfcprop(nb)%tsfc(ix)
+          Sfcprop(nb)%xz(ix)      = 30.0d0
+        endif
+        if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 1)) then
           !--- nsstm tref
           Sfcprop(nb)%tref(ix)    = sfc_var2(i,j,33)
           !--- nsstm z_c
-          Sfcprop(nb)%z_c(ix)      = sfc_var2(i,j,34)
+          Sfcprop(nb)%z_c(ix)     = sfc_var2(i,j,34)
           !--- nsstm c_0
-          Sfcprop(nb)%c_0(ix)      = sfc_var2(i,j,35)
+          Sfcprop(nb)%c_0(ix)     = sfc_var2(i,j,35)
           !--- nsstm c_d
-          Sfcprop(nb)%c_d(ix)      = sfc_var2(i,j,36)
+          Sfcprop(nb)%c_d(ix)     = sfc_var2(i,j,36)
           !--- nsstm w_0
-          Sfcprop(nb)%w_0(ix)      = sfc_var2(i,j,37)
+          Sfcprop(nb)%w_0(ix)     = sfc_var2(i,j,37)
           !--- nsstm w_d
-          Sfcprop(nb)%w_d(ix)      = sfc_var2(i,j,38)
+          Sfcprop(nb)%w_d(ix)     = sfc_var2(i,j,38)
           !--- nsstm xt
           Sfcprop(nb)%xt(ix)      = sfc_var2(i,j,39)
           !--- nsstm xs
@@ -524,6 +533,7 @@ module FV3GFS_io_mod
     integer :: isc, iec, jsc, jec, npz, nx, ny
     integer :: id_restart
     integer :: nvar2m, nvar2o, nvar3
+    logical :: mand
     character(len=32) :: fn_srf = 'sfc_data.nc'
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
@@ -612,10 +622,12 @@ module FV3GFS_io_mod
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
         endif
       enddo
-      if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
-        do num = nvar2m+1,nvar2o
+      if (Model%nstf_name(1) > 0) then
+        mand = .false.
+        if (Model%nstf_name(2) ==1 ) mand = .true.
+        do num = nvar2m+1,nvar2m+nvar2o
           var2_p => sfc_var2(:,:,num)
-          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=.false.)
+          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=mand)
         enddo
       endif
       nullify(var2_p)
@@ -703,7 +715,7 @@ module FV3GFS_io_mod
         !--- sncovr
         sfc_var2(i,j,32) = Sfcprop(nb)%sncovr(ix)
         !--- NSSTM variables
-        if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
+        if (Model%nstf_name(1) > 0) then
           !--- nsstm tref
           sfc_var2(i,j,33) = Sfcprop(nb)%tref(ix)
           !--- nsstm z_c

@@ -1031,7 +1031,7 @@ module GFS_typedefs
     Sfcprop%t2m = clear_val
     Sfcprop%q2m = clear_val
 
-    if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
+    if (Model%nstf_name(1) > 0) then
       allocate (Sfcprop%tref   (IM))
       allocate (Sfcprop%z_c    (IM))
       allocate (Sfcprop%c_0    (IM))
@@ -1051,24 +1051,24 @@ module GFS_typedefs
       allocate (Sfcprop%dt_cool(IM))
       allocate (Sfcprop%qrain  (IM))
 
-      Sfcprop%tref    = clear_val
-      Sfcprop%z_c     = clear_val
-      Sfcprop%c_0     = clear_val
-      Sfcprop%c_d     = clear_val
-      Sfcprop%w_0     = clear_val
-      Sfcprop%w_d     = clear_val
-      Sfcprop%xt      = clear_val
-      Sfcprop%xs      = clear_val
-      Sfcprop%xu      = clear_val
-      Sfcprop%xv      = clear_val
-      Sfcprop%xz      = clear_val
-      Sfcprop%zm      = clear_val
-      Sfcprop%xtts    = clear_val
-      Sfcprop%xzts    = clear_val
-      Sfcprop%d_conv  = clear_val
-      Sfcprop%ifd     = clear_val
-      Sfcprop%dt_cool = clear_val
-      Sfcprop%qrain   = clear_val
+      Sfcprop%tref    = zero
+      Sfcprop%z_c     = zero
+      Sfcprop%c_0     = zero
+      Sfcprop%c_d     = zero
+      Sfcprop%w_0     = zero
+      Sfcprop%w_d     = zero
+      Sfcprop%xt      = zero
+      Sfcprop%xs      = zero
+      Sfcprop%xu      = zero
+      Sfcprop%xv      = zero
+      Sfcprop%xz      = zero
+      Sfcprop%zm      = zero
+      Sfcprop%xtts    = zero
+      Sfcprop%xzts    = zero
+      Sfcprop%d_conv  = zero
+      Sfcprop%ifd     = zero
+      Sfcprop%dt_cool = zero
+      Sfcprop%qrain   = zero
     endif
 
   end subroutine sfcprop_create
@@ -1543,7 +1543,7 @@ module GFS_typedefs
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,                                                        &
                           !--- Rayleigh friction
-                               prslrd0, ral_ts, dlqf, nst_anl, lsea, xkzm_m,                &
+                               prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
                                cxlamu_deep, clam_deep, c0s_deep, c1_deep, betal_deep,       &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &

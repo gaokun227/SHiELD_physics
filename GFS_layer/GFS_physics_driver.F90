@@ -987,7 +987,7 @@ module module_physics_driver
            (im, Model%lsoil, Statein%pgr, Statein%ugrs, Statein%vgrs,  &
             Statein%tgrs, Statein%qgrs, soiltyp, vegtype, sigmaf,      &
             Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
-            Sfcprop%tg3, cd, cdq, Statein%prsl(1,1), work3, DIag%zlvl, &
+            Sfcprop%tg3, cd, cdq, Statein%prsl(1,1), work3, Diag%zlvl, &
             islmsk, Tbd%phy_f2d(1,Model%num_p2d), slopetyp,            &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess, Model%isot,          &
@@ -2146,7 +2146,7 @@ module module_physics_driver
                             Model%pgcon_shal, Model%asolfac_shal)
 
             raincs(:)     = frain * rain1(:)
-            Diag%rainc(:) = DIag%rainc(:) + raincs(:)
+            Diag%rainc(:) = Diag%rainc(:) + raincs(:)
             if (Model%lssav) then
               Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
             endif
@@ -2590,16 +2590,16 @@ module module_physics_driver
                                       qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
                                       qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
                                       uin, vin, udt, vdt, dz, delp,      &
-                                      area, Model%dtp, land, rain0,      &
-                                      snow0, ice0, graupel0, .false.,    &
-                                      .true., 1, im, 1, 1, 1, levs,      &
-                                      1, levs, seconds)
+                                      area, dtp, land, rain0, snow0,     &
+                                      ice0, graupel0, .false., .true.,   &
+                                      1, im, 1, 1, 1, levs, 1, levs,     &
+                                      seconds)
 
         rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
-                     * Model%dtp * con_p001 / con_day
-        Diag%ice(:)     = ice0    (:,1) * Model%dtp * con_p001 / con_day
-        Diag%snow(:)    = snow0   (:,1) * Model%dtp * con_p001 / con_day
-        Diag%graupel(:) = graupel0(:,1) * Model%dtp * con_p001 / con_day
+                     * dtp * con_p001 / con_day
+        Diag%ice(:)     = ice0    (:,1) * dtp * con_p001 / con_day
+        Diag%snow(:)    = snow0   (:,1) * dtp * con_p001 / con_day
+        Diag%graupel(:) = graupel0(:,1) * dtp * con_p001 / con_day
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  =              (snow0(i,1) + ice0(i,1) + graupel0(i,1)) &
@@ -2609,15 +2609,15 @@ module module_physics_driver
           endif
         enddo
         do k = 1, levs
-          Stateout%gq0(:,k,1         ) = qv1(:,1,levs-k+1) + qv_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntcw) = ql1(:,1,levs-k+1) + ql_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntrw) = qr1(:,1,levs-k+1) + qr_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntsw) = qs1(:,1,levs-k+1) + qs_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntgl) = qg1(:,1,levs-k+1) + qg_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,1,levs-k+1) * Model%dtp
-          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,1,levs-k+1) * Model%dtp
+          Stateout%gq0(:,k,1         ) = qv1(:,1,levs-k+1) + qv_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntcw) = ql1(:,1,levs-k+1) + ql_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntrw) = qr1(:,1,levs-k+1) + qr_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntsw) = qs1(:,1,levs-k+1) + qs_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntgl) = qg1(:,1,levs-k+1) + qg_dt(:,1,levs-k+1) * dtp
+          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,1,levs-k+1) * dtp
+          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,1,levs-k+1) * dtp
+          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,1,levs-k+1) * dtp
         enddo
 
       endif       ! end if_ncld

@@ -129,7 +129,7 @@ c  physical parameters
       parameter(g=grav)
       parameter(elocp=hvap/cp,
      &          el2orc=hvap*hvap/(rv*cp))
-!     parameter(c0=.002,c1=5.e-4,delta=fv)
+!      parameter(c0=.002,c1=5.e-4,delta=fv)
       parameter(delta=fv)
       parameter(fact1=(cvap-cliq)/rv,fact2=hvap/rv-fact1*t0c)
       parameter(cincrmax=180.,cincrmin=120.,dthk=25.)
@@ -223,7 +223,7 @@ c
       val   =         3600.
       dtmax = max(dt2, val )
 c  model tunable parameters are all here
-!     clam    = .3
+      !clam    = .3
       aafac   = .1
       betaw   = .03
 c     evef    = 0.07
@@ -231,7 +231,7 @@ c     evef    = 0.07
       evfactl = 0.3
 !
 !     pgcon   = 0.7     ! gregory et al. (1997, qjrms)
-!     pgcon   = 0.55    ! zhang & wu (2003,jas)
+!      pgcon   = 0.55    ! zhang & wu (2003,jas)
       fjcap   = (float(jcap) / 126.) ** 2
       val     =           1.
       fjcap   = max(fjcap,val)

@@ -2138,7 +2138,7 @@ module module_physics_driver
                          Stateout%gt0, Stateout%gu0, Stateout%gv0, rain1,  &
                          kbot, ktop, kcnv, islmsk, Statein%vvl, Model%ncld,&
                          Diag%hpbl, hflx, evap, ud_mf, dt_mf, cnvw, cnvc,  &
-                         Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                         Model%clam_shal, Model%c0s_shal, Model%c1_shal,   &
                          Model%pgcon_shal)
 
             raincs(:)     = frain * rain1(:)

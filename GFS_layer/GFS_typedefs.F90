@@ -464,6 +464,7 @@ module GFS_typedefs
                                             !<           current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
                                             !<     0: old SAS Convection scheme before July 2010
+    logical              :: do_deep         !< whether to do deep convection
     integer              :: nmtvr           !< number of topographic variables such as variance etc
                                             !< used in the GWD parameterization
     integer              :: jcap            !< number of spectral wave trancation used only by sascnv shalcnv
@@ -486,6 +487,38 @@ module GFS_typedefs
     real(kind=kind_phys) :: prslrd0         !< pressure level from which Rayleigh Damping is applied
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
 
+    !--- mass flux deep convection
+    real(kind=kind_phys) :: clam_deep       !< c_e for deep convection (Han and Pan, 2011, eq(6))
+    real(kind=kind_phys) :: c0s_deep        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
+    real(kind=kind_phys) :: c1_deep         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
+    real(kind=kind_phys) :: betal_deep      !< downdraft heat flux contribution over land
+    real(kind=kind_phys) :: betas_deep      !< downdraft heat flux contribution over ocean
+    real(kind=kind_phys) :: evfact_deep     !< evaporation factor
+    real(kind=kind_phys) :: evfactl_deep    !< evaporation factor over land
+    real(kind=kind_phys) :: pgcon_deep      !< control the reduction in momentum transport
+                                            !< 0.7 : Gregory et al. (1997, QJRMS)
+                                            !< 0.55: Zhang & Wu (2003, JAS)
+    real(kind=kind_phys) :: asolfac_deep    !< aerosol-aware parameter based on Lim & Hong (2012)
+                                            !< asolfac= cx / c0s(=.002)
+                                            !< cx = min([-0.7 ln(Nccn) + 24]*1.e-4, c0s)
+                                            !< Nccn: CCN number concentration in cm^(-3)
+                                            !< Until a realistic Nccn is provided, typical Nccns are assumed
+                                            !< as Nccn=100 for sea and Nccn=7000 for land 
+
+    !--- mass flux shallow convection
+    real(kind=kind_phys) :: clam_shal       !< c_e for shallow convection (Han and Pan, 2011, eq(6))
+    real(kind=kind_phys) :: c0s_shal        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
+    real(kind=kind_phys) :: c1_shal         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
+    real(kind=kind_phys) :: pgcon_shal      !< control the reduction in momentum transport
+                                            !< 0.7 : Gregory et al. (1997, QJRMS)
+                                            !< 0.55: Zhang & Wu (2003, JAS)
+    real(kind=kind_phys) :: asolfac_shal    !< aerosol-aware parameter based on Lim & Hong (2012)
+                                            !< asolfac= cx / c0s(=.002)
+                                            !< cx = min([-0.7 ln(Nccn) + 24]*1.e-4, c0s)
+                                            !< Nccn: CCN number concentration in cm^(-3)
+                                            !< Until a realistic Nccn is provided, typical Nccns are assumed
+                                            !< as Nccn=100 for sea and Nccn=7000 for land 
+
     !--- near surface temperature model
     logical              :: nst_anl         !< flag for NSSTM analysis in gcycle/sfcsub
     integer              :: lsea           
@@ -499,6 +532,8 @@ module GFS_typedefs
                                             !< nstf_name(3) : 1 = NSST analysis on, 0 = NSSTM analysis off
                                             !< nstf_name(4) : zsea1 in mm
                                             !< nstf_name(5) : zsea2 in mm
+    real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
+    real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
      
     !--- stochastic physics control parameters
     logical              :: do_sppt
@@ -1402,6 +1437,7 @@ module GFS_typedefs
                                                                       !<     1: July 2010 version of SAS conv scheme
                                                                       !<           current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
+    logical              :: do_deep        = .true.                   !< whether to do deep convection
     integer              :: nmtvr          = 14                       !< number of topographic variables such as variance etc
                                                                       !< used in the GWD parameterization
     integer              :: jcap           =  1              !< number of spectral wave trancation used only by sascnv shalcnv
@@ -1423,6 +1459,38 @@ module GFS_typedefs
     real(kind=kind_phys) :: prslrd0        = 0.0d0           !< pressure level from which Rayleigh Damping is applied
     real(kind=kind_phys) :: ral_ts         = 0.0d0           !< time scale for Rayleigh damping in days
 
+    !--- mass flux deep convection
+    real(kind=kind_phys) :: clam_deep      = 0.1             !< c_e for deep convection (Han and Pan, 2011, eq(6))
+    real(kind=kind_phys) :: c0s_deep       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
+    real(kind=kind_phys) :: c1_deep        = 0.002           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
+    real(kind=kind_phys) :: betal_deep     = 0.05            !< downdraft heat flux contribution over land
+    real(kind=kind_phys) :: betas_deep     = 0.05            !< downdraft heat flux contribution over ocean
+    real(kind=kind_phys) :: evfact_deep    = 0.3             !< evaporation factor
+    real(kind=kind_phys) :: evfactl_deep   = 0.3             !< evaporation factor over land
+    real(kind=kind_phys) :: pgcon_deep     = 0.55            !< control the reduction in momentum transport
+                                                             !< 0.7 : Gregory et al. (1997, QJRMS)
+                                                             !< 0.55: Zhang & Wu (2003, JAS)
+    real(kind=kind_phys) :: asolfac_deep   = 0.89            !< aerosol-aware parameter based on Lim & Hong (2012)
+                                                             !< asolfac= cx / c0s(=.002)
+                                                             !< cx = min([-0.7 ln(Nccn) + 24]*1.e-4, c0s)
+                                                             !< Nccn: CCN number concentration in cm^(-3)
+                                                             !< Until a realistic Nccn is provided, typical Nccns are assumed
+                                                             !< as Nccn=100 for sea and Nccn=7000 for land 
+
+    !--- mass flux shallow convection
+    real(kind=kind_phys) :: clam_shal      = 0.3             !< c_e for shallow convection (Han and Pan, 2011, eq(6))
+    real(kind=kind_phys) :: c0s_shal       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
+    real(kind=kind_phys) :: c1_shal        = 5.e-4           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
+    real(kind=kind_phys) :: pgcon_shal     = 0.55            !< control the reduction in momentum transport
+                                                             !< 0.7 : Gregory et al. (1997, QJRMS)
+                                                             !< 0.55: Zhang & Wu (2003, JAS)
+    real(kind=kind_phys) :: asolfac_shal   = 0.89            !< aerosol-aware parameter based on Lim & Hong (2012)
+                                                             !< asolfac= cx / c0s(=.002)
+                                                             !< cx = min([-0.7 ln(Nccn) + 24]*1.e-4, c0s)
+                                                             !< Nccn: CCN number concentration in cm^(-3)
+                                                             !< Until a realistic Nccn is provided, typical Nccns are assumed
+                                                             !< as Nccn=100 for sea and Nccn=7000 for land 
+
     !--- near surface temperature model
     logical              :: nst_anl        = .false.         !< flag for NSSTM analysis in gcycle/sfcsub
     integer              :: lsea           = 0 
@@ -1437,6 +1505,8 @@ module GFS_typedefs
                                                              !< nstf_name(3) : 1 = NSSTM analysis on, 0 = NSSTM analysis off
                                                              !< nstf_name(4) : zsea1 in mm
                                                              !< nstf_name(5) : zsea2 in mm
+    real(kind=kind_phys) :: xkzminv        = 0.3             !< diffusivity in inversion layers
+    real(kind=kind_phys) :: moninq_fac     = 1.0             !< turbulence diffusion coefficient factor
      
     !--- stochastic physics options
     real(kind=kind_phys) :: sppt(5)        = -999.           !< stochastic physics tendency amplitude
@@ -1469,13 +1539,20 @@ module GFS_typedefs
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
-                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, jcap,         &
+                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,                                                        &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
+                          !--- mass flux deep convection
+                               clam_deep, c0s_deep, c1_deep, betal_deep,                    &
+                               betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
+                               asolfac_deep,                                                &
+                          !--- mass flux shallow convection
+                               clam_shal, c0s_shal, c1_shal, pgcon_shal, asolfac_shal,      &
                           !--- near surface temperature model
                                nst_anl, lsea, xkzm_m, xkzm_h, xkzm_s, nstf_name,            &
+                               xkzminv, moninq_fac,                                         &
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
@@ -1632,6 +1709,7 @@ module GFS_typedefs
     Model%shal_cnv         = shal_cnv
     Model%imfshalcnv       = imfshalcnv
     Model%imfdeepcnv       = imfdeepcnv
+    Model%do_deep          = do_deep
     Model%nmtvr            = nmtvr
     Model%jcap             = jcap
     Model%cs_parm          = cs_parm
@@ -1649,6 +1727,24 @@ module GFS_typedefs
     Model%prslrd0          = prslrd0
     Model%ral_ts           = ral_ts
 
+    !--- mass flux deep convection
+    Model%clam_deep        = clam_deep
+    Model%c0s_deep         = c0s_deep
+    Model%c1_deep          = c1_deep
+    Model%betal_deep       = betal_deep
+    Model%betas_deep       = betas_deep
+    Model%evfact_deep      = evfact_deep
+    Model%evfactl_deep     = evfactl_deep
+    Model%pgcon_deep       = pgcon_deep
+    Model%asolfac_deep     = asolfac_deep
+
+    !--- mass flux shallow convection
+    Model%clam_shal        = clam_shal
+    Model%c0s_shal         = c0s_shal
+    Model%c1_shal          = c1_shal
+    Model%pgcon_shal       = pgcon_shal
+    Model%asolfac_shal     = asolfac_shal
+
     !--- near surface temperature model
     Model%nst_anl          = nst_anl
     Model%lsea             = lsea
@@ -1656,6 +1752,8 @@ module GFS_typedefs
     Model%xkzm_h           = xkzm_h
     Model%xkzm_s           = xkzm_s
     Model%nstf_name        = nstf_name
+    Model%xkzminv          = xkzminv
+    Model%moninq_fac       = moninq_fac
 
     !--- stochastic physics options
     Model%sppt             = sppt
@@ -1790,13 +1888,17 @@ module GFS_typedefs
           print *,' RAS Convection scheme used with ccwf=',Model%ccwf
           Model%imfdeepcnv = -1
         else
-          if (Model%imfdeepcnv == 0) then
-            print *,' old SAS Convection scheme before July 2010 used'
-          elseif(Model%imfdeepcnv == 1) then
-            print *,' July 2010 version of SAS conv scheme used'
-          elseif(Model%imfdeepcnv == 2) then
-          print *,' scale & aerosol-aware mass-flux deep conv scheme'
-          endif
+           if (Model%do_deep) then
+              if (Model%imfdeepcnv == 0) then
+                 print *,' old SAS Convection scheme before July 2010 used'
+              elseif(Model%imfdeepcnv == 1) then
+                 print *,' July 2010 version of SAS conv scheme used'
+              elseif(Model%imfdeepcnv == 2) then
+                 print *,' scale & aerosol-aware mass-flux deep conv scheme'
+              endif
+           else
+              print*, ' Convection scheme disabled'
+           endif
         endif
       else
         if (Model%do_aw) then
@@ -2071,6 +2173,7 @@ module GFS_typedefs
       print *, ' shal_cnv          : ', Model%shal_cnv
       print *, ' imfshalcnv        : ', Model%imfshalcnv
       print *, ' imfdeepcnv        : ', Model%imfdeepcnv
+      print *, ' do_deep           : ', Model%do_deep
       print *, ' nmtvr             : ', Model%nmtvr
       print *, ' jcap              : ', Model%jcap
       print *, ' cs_parm           : ', Model%cs_parm
@@ -2088,6 +2191,24 @@ module GFS_typedefs
       print *, ' prslrd0           : ', Model%prslrd0
       print *, ' ral_ts            : ', Model%ral_ts
       print *, ' '
+      print *, 'mass flux deep convection'
+      print *, ' clam_deep         : ', Model%clam_deep
+      print *, ' c0s_deep          : ', Model%c0s_deep
+      print *, ' c1_deep           : ', Model%c1_deep
+      print *, ' betal_deep        : ', Model%betal_deep
+      print *, ' betas_deep        : ', Model%betas_deep
+      print *, ' evfact_deep       : ', Model%evfact_deep
+      print *, ' evfactl_deep      : ', Model%evfactl_deep
+      print *, ' pgcon_deep        : ', Model%pgcon_deep
+      print *, ' asolfac_deep      : ', Model%asolfac_deep
+      print *, ' '
+      print *, 'mass flux shallow convection'
+      print *, ' clam_shal         : ', Model%clam_shal
+      print *, ' c0s_shal          : ', Model%c0s_shal
+      print *, ' c1_shal           : ', Model%c1_shal
+      print *, ' pgcon_shal        : ', Model%pgcon_shal
+      print *, ' asolfac_shal      : ', Model%asolfac_shal
+      print *, ' '
       print *, 'near surface temperature model'
       print *, ' nst_anl           : ', Model%nst_anl
       print *, ' lsea              : ', Model%lsea
@@ -2095,6 +2216,8 @@ module GFS_typedefs
       print *, ' xkzm_h            : ', Model%xkzm_h
       print *, ' xkzm_s            : ', Model%xkzm_s
       print *, ' nstf_name         : ', Model%nstf_name
+      print *, ' xkzminv           : ', Model%xkzminv
+      print *, ' moninq_fac        : ', Model%moninq_fac
       print *, ' '
       print *, 'stochastic physics'
       print *, ' do_sppt           : ', Model%do_sppt

@@ -1165,6 +1165,18 @@ module module_physics_driver
 
         Diag%spfhmax(:) = max(Diag%spfhmax(:),Sfcprop%q2m(:))
         Diag%spfhmin(:) = min(Diag%spfhmin(:),Sfcprop%q2m(:))
+
+        !find max wind speed then decompose
+        do i=1, im
+           tem = sqrt(Diag%u10m(i)**2 + Diag%v10m(i)**2 )
+           if (tem > Diag%wind10mmax(i)) then
+              Diag%wind10mmax(i) = tem
+              Diag%u10mmax(i)    = Diag%u10m(i)
+              Diag%v10mmax(i)    = Diag%v10m(i)
+           endif
+        enddo
+
+
       endif
 
 !!!!!!!!!!!!!!!!!Commented by Moorthi on July 18, 2012 !!!!!!!!!!!!!!!!!!!
@@ -2783,6 +2795,15 @@ module module_physics_driver
           Diag%tmpmin (:) = min(Diag%tmpmin (:),Sfcprop%t2m(:))
           Diag%spfhmax(:) = max(Diag%spfhmax(:),Sfcprop%q2m(:))
           Diag%spfhmin(:) = min(Diag%spfhmin(:),Sfcprop%q2m(:))
+          !find max wind speed then decompose
+          do i=1, im
+             tem = sqrt(Diag%u10m(i)**2 + Diag%v10m(i)**2 ) 
+             if (tem > Diag%wind10mmax(i)) then
+                Diag%wind10mmax(i) = tem
+                Diag%u10mmax(i)    = Diag%u10m(i)
+                Diag%v10mmax(i)    = Diag%v10m(i)
+             endif
+          enddo
         endif
       endif
 

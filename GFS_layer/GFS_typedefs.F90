@@ -783,6 +783,9 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: cnvprcp(:)    => null()   !< accumulated convective precipitation (kg/m2)
     real (kind=kind_phys), pointer :: spfhmin(:)    => null()   !< minimum specific humidity
     real (kind=kind_phys), pointer :: spfhmax(:)    => null()   !< maximum specific humidity
+    real (kind=kind_phys), pointer :: u10mmax(:)    => null()   !< maximum u-wind
+    real (kind=kind_phys), pointer :: v10mmax(:)    => null()   !< maximum v-wind
+    real (kind=kind_phys), pointer :: wind10mmax(:) => null()   !< maximum wind speed
     real (kind=kind_phys), pointer :: rain   (:)    => null()   !< total rain at this time step
     real (kind=kind_phys), pointer :: rainc  (:)    => null()   !< convective rain at this time step
     real (kind=kind_phys), pointer :: ice    (:)    => null()   !< ice fall at this time step
@@ -2509,6 +2512,9 @@ module GFS_typedefs
     allocate (Diag%cnvprcp (IM))
     allocate (Diag%spfhmin (IM))
     allocate (Diag%spfhmax (IM))
+    allocate (Diag%u10mmax (IM))
+    allocate (Diag%v10mmax (IM))
+    allocate (Diag%wind10mmax (IM))
     allocate (Diag%rain    (IM))
     allocate (Diag%rainc   (IM))
     allocate (Diag%ice     (IM))
@@ -2617,6 +2623,9 @@ module GFS_typedefs
     Diag%cnvprcp = zero
     Diag%spfhmin = huge
     Diag%spfhmax = zero
+    Diag%u10mmax  = zero
+    Diag%v10mmax  = zero
+    Diag%wind10mmax = zero
     Diag%rain    = zero
     Diag%rainc   = zero
     Diag%ice     = zero

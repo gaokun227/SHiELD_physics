@@ -1570,6 +1570,39 @@ module FV3GFS_io_mod
 
     idx = idx + 1
     Diag(idx)%axes = 2
+    Diag(idx)%name = 'u10mmax'
+    Diag(idx)%desc = 'maximum (magnitude) u-wind'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%u10mmax(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'v10mmax'
+    Diag(idx)%desc = 'maximum (magnitude) v-wind'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%v10mmax(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'wind10mmax'
+    Diag(idx)%desc = 'maximum wind speed'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%wind10mmax(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
     Diag(idx)%name = 'rain'
     Diag(idx)%desc = 'total rain at this time step'
     Diag(idx)%unit = 'XXX'

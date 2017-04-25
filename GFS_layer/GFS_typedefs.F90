@@ -488,7 +488,6 @@ module GFS_typedefs
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
 
     !--- mass flux deep convection
-    real(kind=kind_phys) :: cxlamu_deep     !< d_1 in Han and Pan (2011, eq (8))
     real(kind=kind_phys) :: clam_deep       !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -1036,7 +1035,7 @@ module GFS_typedefs
     Sfcprop%t2m = clear_val
     Sfcprop%q2m = clear_val
 
-    if ((Model%nstf_name(1) > 0) .or. (Model%nst_anl)) then
+    if (Model%nstf_name(1) > 0) then
       allocate (Sfcprop%tref   (IM))
       allocate (Sfcprop%z_c    (IM))
       allocate (Sfcprop%c_0    (IM))
@@ -1056,24 +1055,24 @@ module GFS_typedefs
       allocate (Sfcprop%dt_cool(IM))
       allocate (Sfcprop%qrain  (IM))
 
-      Sfcprop%tref    = clear_val
-      Sfcprop%z_c     = clear_val
-      Sfcprop%c_0     = clear_val
-      Sfcprop%c_d     = clear_val
-      Sfcprop%w_0     = clear_val
-      Sfcprop%w_d     = clear_val
-      Sfcprop%xt      = clear_val
-      Sfcprop%xs      = clear_val
-      Sfcprop%xu      = clear_val
-      Sfcprop%xv      = clear_val
-      Sfcprop%xz      = clear_val
-      Sfcprop%zm      = clear_val
-      Sfcprop%xtts    = clear_val
-      Sfcprop%xzts    = clear_val
-      Sfcprop%d_conv  = clear_val
-      Sfcprop%ifd     = clear_val
-      Sfcprop%dt_cool = clear_val
-      Sfcprop%qrain   = clear_val
+      Sfcprop%tref    = zero
+      Sfcprop%z_c     = zero
+      Sfcprop%c_0     = zero
+      Sfcprop%c_d     = zero
+      Sfcprop%w_0     = zero
+      Sfcprop%w_d     = zero
+      Sfcprop%xt      = zero
+      Sfcprop%xs      = zero
+      Sfcprop%xu      = zero
+      Sfcprop%xv      = zero
+      Sfcprop%xz      = zero
+      Sfcprop%zm      = zero
+      Sfcprop%xtts    = zero
+      Sfcprop%xzts    = zero
+      Sfcprop%d_conv  = zero
+      Sfcprop%ifd     = zero
+      Sfcprop%dt_cool = zero
+      Sfcprop%qrain   = zero
     endif
 
   end subroutine sfcprop_create
@@ -1289,7 +1288,7 @@ module GFS_typedefs
 
     !--- modules
     use physcons,         only: max_lon, max_lat, min_lon, min_lat, &
-                                dxmax, dxmin, dxinv
+                                dxmax, dxmin, dxinv, con_rerth, con_pi
     use mersenne_twister, only: random_setseed, random_number
     use module_ras,       only: nrcmax
     use parse_tracers,    only: get_tracer_index
@@ -1323,6 +1322,7 @@ module GFS_typedefs
     integer :: ios
     integer :: seed0
     logical :: exists
+    real(kind=kind_phys) :: tem
     real(kind=kind_phys) :: rinc(5)
     real(kind=kind_evod) :: wrk(1)
     real(kind=kind_phys), parameter :: con_hr = 3600.
@@ -1464,7 +1464,6 @@ module GFS_typedefs
     real(kind=kind_phys) :: ral_ts         = 0.0d0           !< time scale for Rayleigh damping in days
 
     !--- mass flux deep convection
-    real(kind=kind_phys) :: cxlamu_deep    = 1.0e-3          !< d_1 in Han and Pan (2011, eq (8))
     real(kind=kind_phys) :: clam_deep      = 0.1             !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep        = 0.002           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -1548,9 +1547,9 @@ module GFS_typedefs
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,                                                        &
                           !--- Rayleigh friction
-                               prslrd0, ral_ts, dlqf, nst_anl, lsea, xkzm_m,                &
+                               prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
-                               cxlamu_deep, clam_deep, c0s_deep, c1_deep, betal_deep,       &
+                               clam_deep, c0s_deep, c1_deep, betal_deep,                    &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
                                asolfac_deep,                                                &
                           !--- mass flux shallow convection
@@ -1733,7 +1732,6 @@ module GFS_typedefs
     Model%ral_ts           = ral_ts
 
     !--- mass flux deep convection
-    Model%cxlamu_deep      = cxlamu_deep
     Model%clam_deep        = clam_deep
     Model%c0s_deep         = c0s_deep
     Model%c1_deep          = c1_deep
@@ -1826,8 +1824,9 @@ module GFS_typedefs
 
     !--- BEGIN CODE FROM GFS_PHYSICS_INITIALIZE
     !--- define physcons module variables
-    dxmax = log(1.0d0/(max_lon*max_lat))
-    dxmin = log(1.0d0/(min_lon*min_lat))
+    tem   = con_rerth*con_rerth*(con_pi+con_pi)*con_pi
+    dxmax = log(tem/(max_lon*max_lat))
+    dxmin = log(tem/(min_lon*min_lat))
     dxinv = 1.0d0 / (dxmax-dxmin)
     if (Model%me == Model%master) write(0,*)' dxmax=',dxmax,' dxmin=',dxmin,' dxinv=',dxinv
 
@@ -2197,7 +2196,6 @@ module GFS_typedefs
       print *, ' ral_ts            : ', Model%ral_ts
       print *, ' '
       print *, 'mass flux deep convection'
-      print *, ' cxlamu_deep       : ', Model%cxlamu_deep
       print *, ' clam_deep         : ', Model%clam_deep
       print *, ' c0s_deep          : ', Model%c0s_deep
       print *, ' c1_deep           : ', Model%c1_deep

@@ -646,7 +646,8 @@ module module_physics_driver
         tice(i) = Sfcprop%tisfc(i)
 !
 !GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
-        work1(i)   = (log(Grid%dx(i)) - dxmin) * dxinv
+!GFS         Moorthi thinks this should be area and not dx
+        work1(i)   = (log(Grid%area(i)) - dxmin) * dxinv
         work1(i)   = max(0.0, min(1.0,work1(i)))
         work2(i)   = 1.0 - work1(i)
         Diag%psurf(i)   = Statein%pgr(i)
@@ -987,7 +988,7 @@ module module_physics_driver
            (im, Model%lsoil, Statein%pgr, Statein%ugrs, Statein%vgrs,  &
             Statein%tgrs, Statein%qgrs, soiltyp, vegtype, sigmaf,      &
             Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
-            Sfcprop%tg3, cd, cdq, Statein%prsl(1,1), work3, DIag%zlvl, &
+            Sfcprop%tg3, cd, cdq, Statein%prsl(1,1), work3, Diag%zlvl, &
             islmsk, Tbd%phy_f2d(1,Model%num_p2d), slopetyp,            &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess, Model%isot,          &
@@ -1708,46 +1709,51 @@ module module_physics_driver
 !
       if (.not. Model%ras .and. .not. Model%cscnv) then
 
-         if (Model%do_deep) then
+        if (Model%do_deep) then
 
-            if (Model%imfdeepcnv == 1) then             ! no random cloud top
-               call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
-                             Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
-                             Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
-                             Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
-                             islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
-                             dt_mf, cnvw, cnvc)
-            elseif (Model%imfdeepcnv == 2) then
-               call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                               Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
-                               Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                               cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
-                               garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                               dt_mf, cnvw, cnvc,                            &
-                               Model%cxlamu_deep, Model%clam_deep, Model%c0s_deep,    &
-                               Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
-                               Model%evfact_deep, Model%evfactl_deep,        &
-                               Model%pgcon_deep, Model%asolfac_deep )
-               !         if (lprnt) print *,' rain1=',rain1(ipr)
-            elseif (Model%imfdeepcnv == 0) then         ! random cloud top
-               call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
-                            Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
-                            Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
-                            Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
-                            islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
-                            ud_mf, dd_mf, dt_mf, cnvw, cnvc)
-               !         if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
-            endif
+          if (Model%imfdeepcnv == 1) then             ! no random cloud top
+            call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
+                          Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
+                          Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
+                          Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
+                          islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
+                          dt_mf, cnvw, cnvc,                              &
+                          Model%clam_deep, Model%c0s_deep,                       &
+                          Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                          Model%evfact_deep, Model%evfactl_deep,                 &
+                          Model%pgcon_deep)
+          elseif (Model%imfdeepcnv == 2) then
+            call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
+                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
+                            garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_deep, Model%c0s_deep,                       &
+                            Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                            Model%evfact_deep, Model%evfactl_deep,                 &
+                            Model%pgcon_deep, Model%asolfac_deep)
+!           if (lprnt) print *,' rain1=',rain1(ipr)
+          elseif (Model%imfdeepcnv == 0) then         ! random cloud top
+            call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
+                         Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
+                         Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
+                         Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
+                         islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
+                         ud_mf, dd_mf, dt_mf, cnvw, cnvc)
+!           if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
+          endif
 
-         else ! no deep convection
-            cld1d = 0.
-            rain1 = 0.
-            ud_mf = 0.
-            dd_mf = 0.
-            dt_mf = 0.
-            cnvw  = 0.
-            cnvc  = 0.
-         endif
+        else ! no deep convection
+          cld1d = 0.
+          rain1 = 0.
+          ud_mf = 0.
+          dd_mf = 0.
+          dt_mf = 0.
+          cnvw  = 0.
+          cnvc  = 0.
+        endif
+
       else        ! ras or cscnv
         if (Model%cscnv) then    ! Chikira-Sugiyama  convection scheme (via CSU)
           otspt(:,:)   = .true.
@@ -2177,7 +2183,7 @@ module module_physics_driver
                             Model%pgcon_shal, Model%asolfac_shal)
 
             raincs(:)     = frain * rain1(:)
-            Diag%rainc(:) = DIag%rainc(:) + raincs(:)
+            Diag%rainc(:) = Diag%rainc(:) + raincs(:)
             if (Model%lssav) then
               Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
             endif
@@ -2621,16 +2627,16 @@ module module_physics_driver
                                       qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
                                       qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
                                       uin, vin, udt, vdt, dz, delp,      &
-                                      area, Model%dtp, land, rain0,      &
-                                      snow0, ice0, graupel0, .false.,    &
-                                      .true., 1, im, 1, 1, 1, levs,      &
-                                      1, levs, seconds)
+                                      area, dtp, land, rain0, snow0,     &
+                                      ice0, graupel0, .false., .true.,   &
+                                      1, im, 1, 1, 1, levs, 1, levs,     &
+                                      seconds)
 
         rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
-                     * Model%dtp * con_p001 / con_day
-        Diag%ice(:)     = ice0    (:,1) * Model%dtp * con_p001 / con_day
-        Diag%snow(:)    = snow0   (:,1) * Model%dtp * con_p001 / con_day
-        Diag%graupel(:) = graupel0(:,1) * Model%dtp * con_p001 / con_day
+                     * dtp * con_p001 / con_day
+        Diag%ice(:)     = ice0    (:,1) * dtp * con_p001 / con_day
+        Diag%snow(:)    = snow0   (:,1) * dtp * con_p001 / con_day
+        Diag%graupel(:) = graupel0(:,1) * dtp * con_p001 / con_day
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  =              (snow0(i,1) + ice0(i,1) + graupel0(i,1)) &
@@ -2640,15 +2646,15 @@ module module_physics_driver
           endif
         enddo
         do k = 1, levs
-          Stateout%gq0(:,k,1         ) = qv1(:,1,levs-k+1) + qv_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntcw) = ql1(:,1,levs-k+1) + ql_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntrw) = qr1(:,1,levs-k+1) + qr_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntsw) = qs1(:,1,levs-k+1) + qs_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gq0(:,k,Model%ntgl) = qg1(:,1,levs-k+1) + qg_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,1,levs-k+1) * Model%dtp
-          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,1,levs-k+1) * Model%dtp
-          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,1,levs-k+1) * Model%dtp
+          Stateout%gq0(:,k,1         ) = qv1(:,1,levs-k+1) + qv_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntcw) = ql1(:,1,levs-k+1) + ql_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntrw) = qr1(:,1,levs-k+1) + qr_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntsw) = qs1(:,1,levs-k+1) + qs_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntgl) = qg1(:,1,levs-k+1) + qg_dt(:,1,levs-k+1) * dtp
+          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,1,levs-k+1) * dtp
+          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,1,levs-k+1) * dtp
+          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,1,levs-k+1) * dtp
         enddo
 
       endif       ! end if_ncld

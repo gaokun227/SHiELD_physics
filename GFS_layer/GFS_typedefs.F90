@@ -798,6 +798,7 @@ module GFS_typedefs
     ! Output - only in physics
     real (kind=kind_phys), pointer :: u10m   (:)    => null()   !< 10 meater u/v wind speed
     real (kind=kind_phys), pointer :: v10m   (:)    => null()   !< 10 meater u/v wind speed
+    real (kind=kind_phys), pointer :: dpt2m  (:)    => null()   !< 2 meter dew point temperature
     real (kind=kind_phys), pointer :: zlvl   (:)    => null()   !< layer 1 height (m)
     real (kind=kind_phys), pointer :: psurf  (:)    => null()   !< surface pressure (Pa)
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
@@ -2525,6 +2526,7 @@ module GFS_typedefs
     allocate (Diag%totgrp  (IM))
     allocate (Diag%u10m    (IM))
     allocate (Diag%v10m    (IM))
+    allocate (Diag%dpt2m   (IM))
     allocate (Diag%zlvl    (IM))
     allocate (Diag%psurf   (IM))
     allocate (Diag%hpbl    (IM))
@@ -2638,6 +2640,7 @@ module GFS_typedefs
     !--- Out
     Diag%u10m    = zero
     Diag%v10m    = zero
+    Diag%dpt2m   = zero
     Diag%zlvl    = zero
     Diag%psurf   = zero
     Diag%hpbl    = zero

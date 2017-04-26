@@ -4,7 +4,7 @@ module module_physics_driver
   use physcons,              only: con_cp, con_fvirt, con_g, con_rd, &
                                    con_rv, con_hvap, con_hfus,       &
                                    con_rerth, con_pi, rhc_max, dxmin,&
-                                   dxinv, pa2mb, rlapse 
+                                   dxinv, pa2mb, rlapse, con_eps, con_epsm1
   use cs_conv,               only: cs_convr
   use ozne_def,              only: levozp,  oz_coeff, oz_pres
   use h2o_def,               only: levh2o, h2o_coeff, h2o_pres
@@ -16,6 +16,7 @@ module module_physics_driver
                                    GFS_tbd_type,     GFS_cldprop_type,  &
                                    GFS_radtend_type, GFS_diag_type
   use lin_cld_microphys_mod, only: lin_cld_microphys_driver
+  use funcphys,              only: ftdp
 
   implicit none
 
@@ -1166,6 +1167,23 @@ module module_physics_driver
 
         Diag%spfhmax(:) = max(Diag%spfhmax(:),Sfcprop%q2m(:))
         Diag%spfhmin(:) = min(Diag%spfhmin(:),Sfcprop%q2m(:))
+
+        do i=1, im
+           !find max wind speed then decompose
+           tem = sqrt(Diag%u10m(i)**2 + Diag%v10m(i)**2 )
+           if (tem > Diag%wind10mmax(i)) then
+              Diag%wind10mmax(i) = tem
+              Diag%u10mmax(i)    = Diag%u10m(i)
+              Diag%v10mmax(i)    = Diag%v10m(i)
+           endif
+
+           !Compute dew point, first using vapor pressure
+           tem = max(Statein%pgr(i) * Sfcprop%q2m(i) / ( con_eps - con_epsm1 * Sfcprop%q2m(i)), 1.e-8)
+           Diag%dpt2m(i) = 243.5 / ( ( 17.67 / log(tem/611.2) ) - 1.) + 273.14
+        enddo
+
+
+
       endif
 
 !!!!!!!!!!!!!!!!!Commented by Moorthi on July 18, 2012 !!!!!!!!!!!!!!!!!!!
@@ -2789,6 +2807,18 @@ module module_physics_driver
           Diag%tmpmin (:) = min(Diag%tmpmin (:),Sfcprop%t2m(:))
           Diag%spfhmax(:) = max(Diag%spfhmax(:),Sfcprop%q2m(:))
           Diag%spfhmin(:) = min(Diag%spfhmin(:),Sfcprop%q2m(:))
+          !find max wind speed then decompose
+          do i=1, im
+             tem = sqrt(Diag%u10m(i)**2 + Diag%v10m(i)**2 ) 
+             if (tem > Diag%wind10mmax(i)) then
+                Diag%wind10mmax(i) = tem
+                Diag%u10mmax(i)    = Diag%u10m(i)
+                Diag%v10mmax(i)    = Diag%v10m(i)
+             endif
+           !Compute dew point, first using vapor pressure
+           tem = max(Statein%pgr(i) * Sfcprop%q2m(i) / ( con_eps - con_epsm1 * Sfcprop%q2m(i)), 1.e-8)
+           Diag%dpt2m(i) = 243.5 / ( ( 17.67 / log(tem/611.2) ) - 1.) + 273.14
+          enddo
         endif
       endif
 

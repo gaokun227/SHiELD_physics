@@ -1915,7 +1915,7 @@ module module_physics_driver
 !     endif
 !
       do i = 1, im
-        Diag%rainc(:) = frain * rain1(:)
+        Diag%rainc(i) = frain * rain1(i)
       enddo
 !
       if (Model%lssav) then

@@ -534,6 +534,7 @@ module GFS_typedefs
                                             !< nstf_name(5) : zsea2 in mm
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
+    real(kind=kind_phys) :: rbcr            !< PBL critical bulk richardson number
      
     !--- stochastic physics control parameters
     logical              :: do_sppt
@@ -1511,6 +1512,7 @@ module GFS_typedefs
                                                              !< nstf_name(5) : zsea2 in mm
     real(kind=kind_phys) :: xkzminv        = 0.3             !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac     = 1.0             !< turbulence diffusion coefficient factor
+    real(kind=kind_phys) :: rbcr           = 0.25            !< PBL critical bulk richardson number
      
     !--- stochastic physics options
     real(kind=kind_phys) :: sppt(5)        = -999.           !< stochastic physics tendency amplitude
@@ -1556,7 +1558,7 @@ module GFS_typedefs
                                clam_shal, c0s_shal, c1_shal, pgcon_shal, asolfac_shal,      &
                           !--- near surface temperature model
                                nst_anl, lsea, xkzm_m, xkzm_h, xkzm_s, nstf_name,            &
-                               xkzminv, moninq_fac,                                         &
+                               xkzminv, moninq_fac, rbcr,                                   &
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
@@ -1758,6 +1760,7 @@ module GFS_typedefs
     Model%nstf_name        = nstf_name
     Model%xkzminv          = xkzminv
     Model%moninq_fac       = moninq_fac
+    Model%rbcr             = rbcr
 
     !--- stochastic physics options
     Model%sppt             = sppt
@@ -2222,6 +2225,7 @@ module GFS_typedefs
       print *, ' nstf_name         : ', Model%nstf_name
       print *, ' xkzminv           : ', Model%xkzminv
       print *, ' moninq_fac        : ', Model%moninq_fac
+      print *, ' rbcr              : ', Model%rbcr
       print *, ' '
       print *, 'stochastic physics'
       print *, ' do_sppt           : ', Model%do_sppt

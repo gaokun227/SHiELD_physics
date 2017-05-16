@@ -5,7 +5,7 @@ cfpp$ noconcur r
      &     prsi,del,prsl,prslk,phii,phil,deltim,dspheat,
      &     dusfc,dvsfc,dtsfc,dqsfc,hpbl,hgamt,hgamq,dkt,
      &     kinver,xkzm_m,xkzm_h,xkzm_s,lprnt,ipr,
-     &     xkzminv,moninq_fac)
+     &     xkzminv,moninq_fac,rbcr)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -117,7 +117,8 @@ cc
       parameter(rlam=30.0,vk=0.4,vk2=vk*vk)
       parameter(prmin=0.25,prmax=4.)
       parameter(dw2min=0.0001,dkmin=0.0,dkmax=1000.,rimin=-100.)
-      parameter(rbcr=0.25,wfac=7.0,cfac=6.5,pfac=2.0,sfcfrac=0.1)
+      parameter(wfac=7.0,cfac=6.5,pfac=2.0,sfcfrac=0.1)
+!      parameter(rbcr=0.25,wfac=7.0,cfac=6.5,pfac=2.0,sfcfrac=0.1)
 !     parameter(qmin=1.e-8,xkzm=1.0,zfmin=1.e-8,aphi5=5.,aphi16=16.)
       parameter(qmin=1.e-8,         zfmin=1.e-8,aphi5=5.,aphi16=16.)
       parameter(tdzmin=1.e-3,qlmin=1.e-12,cpert=0.25,sfac=5.4)

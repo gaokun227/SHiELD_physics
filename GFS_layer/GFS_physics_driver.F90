@@ -2593,7 +2593,6 @@ module module_physics_driver
         snow0    (:,1)   = 0.0
         ice0     (:,1)   = 0.0
         graupel0 (:,1)   = 0.0
-        qa1      (:,1,:) = 0.0
         qn1      (:,1,:) = 0.0
         qv_dt    (:,1,:) = 0.0
         ql_dt    (:,1,:) = 0.0
@@ -2612,6 +2611,7 @@ module module_physics_driver
           qi1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntiw)
           qs1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntsw)
           qg1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntgl)
+          qa1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntclamt)
           pt   (:,1,k) = Stateout%gt0(:,levs-k+1)
           w    (:,1,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g

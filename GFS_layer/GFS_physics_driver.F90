@@ -1915,7 +1915,7 @@ module module_physics_driver
 !     endif
 !
       do i = 1, im
-        Diag%rainc(:) = frain * rain1(:)
+        Diag%rainc(i) = frain * rain1(i)
       enddo
 !
       if (Model%lssav) then
@@ -2593,7 +2593,6 @@ module module_physics_driver
         snow0    (:,1)   = 0.0
         ice0     (:,1)   = 0.0
         graupel0 (:,1)   = 0.0
-        qa1      (:,1,:) = 0.0
         qn1      (:,1,:) = 0.0
         qv_dt    (:,1,:) = 0.0
         ql_dt    (:,1,:) = 0.0
@@ -2612,6 +2611,7 @@ module module_physics_driver
           qi1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntiw)
           qs1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntsw)
           qg1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntgl)
+          qa1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntclamt)
           pt   (:,1,k) = Stateout%gt0(:,levs-k+1)
           w    (:,1,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g
@@ -2652,6 +2652,7 @@ module module_physics_driver
           Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * dtp
           Stateout%gq0(:,k,Model%ntsw) = qs1(:,1,levs-k+1) + qs_dt(:,1,levs-k+1) * dtp
           Stateout%gq0(:,k,Model%ntgl) = qg1(:,1,levs-k+1) + qg_dt(:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntclamt) = qa1(:,1,levs-k+1) + qa_dt(:,1,levs-k+1) * dtp
           Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,1,levs-k+1) * dtp
           Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,1,levs-k+1) * dtp
           Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,1,levs-k+1) * dtp

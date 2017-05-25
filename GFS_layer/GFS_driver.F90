@@ -12,7 +12,7 @@ module GFS_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
-  use lin_cld_microphys_mod,    only: lin_cld_microphys_init
+  use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_init
 
   implicit none
 
@@ -204,9 +204,9 @@ module GFS_driver
       call aer_cloud_init ()
     endif
 
-    !--- initialize GFDL Lin microphysics
+    !--- initialize GFDL Cloud microphysics
     if (Model%ncld == 5) then
-      call lin_cld_microphys_init (Model%me, Model%master, Model%nlunit, Init_parm%logunit, Model%fn_nml)
+      call gfdl_cloud_microphys_init (Model%me, Model%master, Model%nlunit, Init_parm%logunit, Model%fn_nml)
     endif
 
     !--- initialize ras

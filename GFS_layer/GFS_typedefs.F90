@@ -1986,10 +1986,10 @@ module GFS_typedefs
       Model%pdfcld  = .false.
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
-      if (Model%me == Model%master) print *,' Using GFDL Lin Microphysics', &
-                                            ' num_p2d = ', Model%num_p2d,   &
-                                            ' num_p3d = ', Model%num_p3d,   &
-                                            ' pdfcld  = ', Model%pdfcld,    &
+      if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics', &
+                                            ' num_p2d = ', Model%num_p2d,     &
+                                            ' num_p3d = ', Model%num_p3d,     &
+                                            ' pdfcld  = ', Model%pdfcld,      &
                                             ' cnvcld  = ', Model%cnvcld
     endif
 

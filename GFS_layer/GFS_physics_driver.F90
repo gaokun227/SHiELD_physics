@@ -15,7 +15,7 @@ module module_physics_driver
                                    GFS_control_type, GFS_grid_type,     &
                                    GFS_tbd_type,     GFS_cldprop_type,  &
                                    GFS_radtend_type, GFS_diag_type
-  use lin_cld_microphys_mod, only: lin_cld_microphys_driver
+  use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
   use funcphys,              only: ftdp
 
   implicit none
@@ -435,7 +435,7 @@ module module_physics_driver
            xcosz_loc, zsea1, zsea2, eng0, eng1, dpshc,                  &
            !--- experimental for shoc sub-stepping 
            dtshoc,                                                      &
-           !--- GFDL-Lin microphysics
+           !--- GFDL Cloud microphysics
            crain, csnow
 
       real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
@@ -2585,7 +2585,7 @@ module module_physics_driver
           Stateout%gq0(:,:,Model%ntsnc) = ncps(:,:)
         endif
 
-      elseif (Model%ncld == 5) then       ! GFDL-Lin microphysics
+      elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
 
         land     (:,1)   = frland(:)
         area     (:,1)   = Grid%area(:)
@@ -2623,14 +2623,14 @@ module module_physics_driver
 
         seconds          = mod(nint(Model%fhour*3600),86400)
 
-        call lin_cld_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
-                                      qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
-                                      qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
-                                      uin, vin, udt, vdt, dz, delp,      &
-                                      area, dtp, land, rain0, snow0,     &
-                                      ice0, graupel0, .false., .true.,   &
-                                      1, im, 1, 1, 1, levs, 1, levs,     &
-                                      seconds)
+        call gfdl_cloud_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
+                                         qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
+                                         qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
+                                         uin, vin, udt, vdt, dz, delp,      &
+                                         area, dtp, land, rain0, snow0,     &
+                                         ice0, graupel0, .false., .true.,   &
+                                         1, im, 1, 1, 1, levs, 1, levs,     &
+                                         seconds)
 
         rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
                      * dtp * con_p001 / con_day

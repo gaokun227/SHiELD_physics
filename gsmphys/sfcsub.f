@@ -34,7 +34,8 @@
      &,                   sihfcs,sicfcs,sitfcs                 
      &,                   swdfcs,slcfcs      
      &,                   vmnfcs,vmxfcs,slpfcs,absfcs
-     &,                   tsffcs,snofcs,zorfcs,albfcs,tg3fcs
+!    &,                   tsffcs,snofcs,zorfcs,albfcs,tg3fcs
+     &,                   tsffcs,tsfclm, snofcs,zorfcs,albfcs,tg3fcs !bqx+ tsfclm
      &,                   cnpfcs,smcfcs,stcfcs,slifcs,aisfcs,f10m
      &,                   vegfcs,vetfcs,sotfcs,alffcs
      &,                   cvfcs,cvbfcs,cvtfcs,me,nlunit,ialb

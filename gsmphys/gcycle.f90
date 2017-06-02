@@ -24,6 +24,7 @@
        OROG_UF (Model%nx*Model%ny),             &
         SLIFCS (Model%nx*Model%ny),             &
         TSFFCS (Model%nx*Model%ny),             &
+        TSCLIM_obs (Model%nx*Model%ny),        & !bqx
         SNOFCS (Model%nx*Model%ny),             &
         ZORFCS (Model%nx*Model%ny),             &
         TG3FCS (Model%nx*Model%ny),             &
@@ -64,6 +65,7 @@
 !
       pifac = 180.0 / pi
       len = 0
+!     if (Model%me .eq. 0) print*,'kdt_bqx=',Model%kdt
       do nb = 1,nblks
         do ix = 1,size(Grid(nb)%xlat,1)
           len = len + 1
@@ -72,7 +74,19 @@
           OROG    (len)          = Sfcprop(nb)%oro    (ix)
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
-          TSFFCS  (len)          = Sfcprop(nb)%tsfc   (ix)
+!bqx
+          if (Model%do_som) then
+           if (Model%kdt == 1) then
+            TSFFCS  (len)          = Sfcprop(nb)%tsfc   (ix)
+!            TSCLIM_obs  (len)      = Sfcprop(nb)%tsfc   (ix)
+           else
+            TSFFCS  (len)          = Sfcprop(nb)%tsfc_obs   (ix)
+!            TSCLIM_obs  (len)      = Sfcprop(nb)%tsfc_obs   (ix)
+           endif
+          else
+           TSFFCS  (len)          = Sfcprop(nb)%tsfc   (ix)
+          endif
+!bqx
           SNOFCS  (len)          = Sfcprop(nb)%weasd  (ix)
           ZORFCS  (len)          = Sfcprop(nb)%zorl   (ix)
           TG3FCS  (len)          = Sfcprop(nb)%tg3    (ix)
@@ -141,7 +155,7 @@
                      Model%fhour, RLA, RLO, SLMASK,               &
                      OROG, OROG_UF, Model%USE_UFO, Model%nst_anl, &
                      SIHFCS, SICFCS, SITFCS, SWDFCS, SLCFC1,      &
-                     VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS,      &
+                     VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS, TSCLIM_OBS,      &
                      SNOFCS, ZORFCS, ALBFC1, TG3FCS, CNPFCS,      &
                      SMCFC1, STCFC1, SLIFCS, AISFCS, F10MFCS,     &
                      VEGFCS, VETFCS, SOTFCS, ALFFC1, CVFCS,       &
@@ -154,7 +168,15 @@
         do ix = 1,size(Grid(nb)%xlat,1)
           len = len + 1
           Sfcprop(nb)%slmsk  (ix) = SLIFCS  (len)
-          Sfcprop(nb)%tsfc   (ix) = TSFFCS  (len)
+!bqx
+          if (Model%do_som) then
+!           Sfcprop(nb)%tsfc_obs (ix) = TSFFCS  (len)
+           Sfcprop(nb)%tsfc_obs (ix) = TSCLIM_OBS  (len)
+          else
+           Sfcprop(nb)%tsfc     (ix) = TSFFCS  (len) 
+!           Sfcprop(nb)%tsfc     (ix) = TSCLIM_OBS  (len) 
+          endif
+!bqx
           Sfcprop(nb)%weasd  (ix) = SNOFCS  (len)
           Sfcprop(nb)%zorl   (ix) = ZORFCS  (len)
           Sfcprop(nb)%tg3    (ix) = TG3FCS  (len)

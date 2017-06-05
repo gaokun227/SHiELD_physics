@@ -17,7 +17,7 @@
 !      'update_som'     -- set up SOM          !
 !         inputs:                                                      !
 !           ( im, dtf, xcosz, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj, &
-!           sst_obs, tsfc)
+!           tsclim, tsfc)
 !                                                                      !
 !                                                                      !
 !!!!!  ==========================================================  !!!!!
@@ -41,13 +41,15 @@
 
       character(len=24)     :: mld_option         = 'const'   ! use 'const'
                                                               !     'obs'
+      integer               :: nudge_method       = 1         ! climatology
+                                                  ! 2         ! climatology plus initial anomaly with a decay time scale
       real(kind=kind_phys)  :: const_mld          = 50.       ! meter
       real(kind=kind_phys)  :: sst_restore_tscale = 1.        ! day
       real(kind=kind_phys)  :: start_lat          = -60.      ! latitude starting from?
       real(kind=kind_phys)  :: end_lat            = 60.       ! latitude ending with?
 
       namelist /SOM_nml/   &
-       mld_option, const_mld, sst_restore_tscale, start_lat, end_lat
+       mld_option, nudge_method, const_mld, sst_restore_tscale, start_lat, end_lat
 
 ! =================
       contains
@@ -76,7 +78,7 @@
 !  ====================  defination of variables  ====================  !
 !                                                                       !
 !  inputs:                                                              !
-!      me           - print control flag                                !
+!      me                                         !
 !                                                                       !
 !  outputs: (none) to module variables only                             !
 !                                                                       !
@@ -125,9 +127,9 @@
 !...................................
       end subroutine som_init
 !-----------------------------------
-       subroutine update_som                                           &
+      subroutine update_som                                           &
           ( im, dtf, xcosz, Grid, islmsk,  netflxsfc, qflux_restore,   &
-           qflux_adj, sst_obs, tsfc) 
+           qflux_adj, tsclim, ts_clim_iano, tsfc) 
 
 !  ===================================================================  !
 !                                                                       !
@@ -142,7 +144,7 @@
       real,    intent(in)                                :: dtf
       type (GFS_grid_type),  intent (in)                 :: Grid
       real (kind=kind_phys), dimension(:), intent(in)    ::         &
-           xcosz, netflxsfc, sst_obs
+           xcosz, netflxsfc, tsclim, ts_clim_iano
       integer,  dimension(:), intent(in)                 :: islmsk
 
 !  ---  inoutputs
@@ -150,21 +152,34 @@
            qflux_restore, qflux_adj, tsfc
 
 !  ---  locals:
-      real (kind=kind_phys) :: lat, mlcp
+      real (kind=kind_phys) :: lat, mlcp, tau, alpha
       integer :: i
 
 !
 !===> ...  begin here
 !
           mlcp = const_mld * 4.e6
+          tau = sst_restore_tscale*86400.
+          alpha = 1. + dtf/tau
           do i = 1, im
            lat = Grid%xlat(i) * 57.29578
            if (islmsk(i) == 0 ) then
             if (lat >= start_lat .and. lat<= end_lat) then
-            qflux_restore(i) = (sst_obs(i) - tsfc(i)) * mlcp / (sst_restore_tscale*86400.)
-            tsfc(i) = tsfc(i) + (qflux_restore(i)+netflxsfc(i))/mlcp*dtf
+!
+             if (nudge_method == 1) then 
+!              qflux_restore(i) = (tsclim(i) - tsfc(i)) * mlcp / tau
+              tsfc(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + tsclim(i)/tau*dtf ) / alpha 
+             elseif (nudge_method == 2) then
+!              qflux_restore(i) = (ts_clim_iano(i) - tsfc(i)) * mlcp / tau
+              tsfc(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + ts_clim_iano(i)/tau*dtf ) / alpha 
+             endif
+!             tsfc(i) = tsfc(i) + (qflux_restore(i)+netflxsfc(i))/mlcp*dtf  ! explicit
            else
-            tsfc(i) = sst_obs(i)
+            if (nudge_method == 1) then
+             tsfc(i) = tsclim(i)
+            elseif (nudge_method == 2) then
+             tsfc(i) = ts_clim_iano(i)
+            endif
            endif
            endif
           enddo

@@ -24,7 +24,7 @@
        OROG_UF (Model%nx*Model%ny),             &
         SLIFCS (Model%nx*Model%ny),             &
         TSFFCS (Model%nx*Model%ny),             &
-        TSCLIM_obs (Model%nx*Model%ny),        & !bqx
+        TSCLIM (Model%nx*Model%ny),        & !bqx
         SNOFCS (Model%nx*Model%ny),             &
         ZORFCS (Model%nx*Model%ny),             &
         TG3FCS (Model%nx*Model%ny),             &
@@ -74,14 +74,12 @@
           OROG    (len)          = Sfcprop(nb)%oro    (ix)
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
-!bqx
+!bqx+
           if (Model%do_som) then
-           if (Model%kdt == 1) then
+            if (Model%kdt == 1) then
             TSFFCS  (len)          = Sfcprop(nb)%tsfc   (ix)
-!            TSCLIM_obs  (len)      = Sfcprop(nb)%tsfc   (ix)
            else
-            TSFFCS  (len)          = Sfcprop(nb)%tsfc_obs   (ix)
-!            TSCLIM_obs  (len)      = Sfcprop(nb)%tsfc_obs   (ix)
+             TSFFCS  (len)          = Sfcprop(nb)%ts_clim_iano   (ix)
            endif
           else
            TSFFCS  (len)          = Sfcprop(nb)%tsfc   (ix)
@@ -155,7 +153,7 @@
                      Model%fhour, RLA, RLO, SLMASK,               &
                      OROG, OROG_UF, Model%USE_UFO, Model%nst_anl, &
                      SIHFCS, SICFCS, SITFCS, SWDFCS, SLCFC1,      &
-                     VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS, TSCLIM_OBS,      &
+                     VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS, TSCLIM,      &
                      SNOFCS, ZORFCS, ALBFC1, TG3FCS, CNPFCS,      &
                      SMCFC1, STCFC1, SLIFCS, AISFCS, F10MFCS,     &
                      VEGFCS, VETFCS, SOTFCS, ALFFC1, CVFCS,       &
@@ -169,12 +167,12 @@
           len = len + 1
           Sfcprop(nb)%slmsk  (ix) = SLIFCS  (len)
 !bqx
+          Sfcprop(nb)%ts_clim_iano     (ix) = TSFFCS  (len) 
+
           if (Model%do_som) then
-!           Sfcprop(nb)%tsfc_obs (ix) = TSFFCS  (len)
-           Sfcprop(nb)%tsfc_obs (ix) = TSCLIM_OBS  (len)
+           Sfcprop(nb)%tsclim (ix) = TSCLIM  (len)
           else
            Sfcprop(nb)%tsfc     (ix) = TSFFCS  (len) 
-!           Sfcprop(nb)%tsfc     (ix) = TSCLIM_OBS  (len) 
           endif
 !bqx
           Sfcprop(nb)%weasd  (ix) = SNOFCS  (len)

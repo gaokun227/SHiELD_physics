@@ -138,8 +138,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: tsfc   (:)   => null()  !< surface temperature in k 
                                                               !< [tsea in gbphys.f]
 !bqx
-    real (kind=kind_phys), pointer :: tsfc_obs   (:)   => null()  !< surface temperature in k 
-                                                              !< [tsea in gbphys.f]
+    real (kind=kind_phys), pointer :: tsclim   (:)   => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: ts_clim_iano   (:)   => null()  !< climatological SST in k 
 !bqx
     real (kind=kind_phys), pointer :: tisfc  (:)   => null()  !< surface temperature over ice fraction 
     real (kind=kind_phys), pointer :: snowd  (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
@@ -950,7 +950,8 @@ module GFS_typedefs
     !--- physics and radiation
     allocate (Sfcprop%slmsk  (IM))
     allocate (Sfcprop%tsfc   (IM))
-    allocate (Sfcprop%tsfc_obs   (IM)) !bqx
+    allocate (Sfcprop%tsclim   (IM)) !bqx
+    allocate (Sfcprop%ts_clim_iano   (IM)) !bqx
     allocate (Sfcprop%tisfc  (IM))
     allocate (Sfcprop%snowd  (IM))
     allocate (Sfcprop%zorl   (IM))
@@ -960,7 +961,8 @@ module GFS_typedefs
 
     Sfcprop%slmsk   = clear_val
     Sfcprop%tsfc    = clear_val
-    Sfcprop%tsfc_obs    = clear_val !bqx
+    Sfcprop%tsclim    = clear_val !bqx
+    Sfcprop%ts_clim_iano    = clear_val !bqx
     Sfcprop%tisfc   = clear_val
     Sfcprop%snowd   = clear_val
     Sfcprop%zorl    = clear_val

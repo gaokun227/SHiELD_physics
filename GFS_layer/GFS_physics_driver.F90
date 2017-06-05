@@ -18,7 +18,6 @@ module module_physics_driver
   use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
   use funcphys,              only: ftdp
   use module_som,            only: update_som !bqx
- ! use fv_diagnostics_mod, only: prt_maxmin !bqx
 
   implicit none
 
@@ -1360,11 +1359,12 @@ module module_physics_driver
            endif
           enddo
         if (Model%do_som) then
-         call update_som (im, dtf, xcosz, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj, Sfcprop%tsfc_obs, Sfcprop%tsfc)
+         call update_som (im, dtf, xcosz, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj,  &
+                          Sfcprop%tsclim, Sfcprop%ts_clim_iano, Sfcprop%tsfc)
         endif
          Diag%netflxsfc(:) = netflxsfc(:)
          Diag%qflux_restore(:) = qflux_restore(:)
-         Diag%qflux_adj(:) = Sfcprop%tsfc_obs(:)
+         Diag%qflux_adj(:) = Sfcprop%tsclim(:)
 
 !-------------------------------------------------------lssav if loop ----------
    !   if(Model%me == 0 ) write(0,*) 'bqx lssav=',Model%lssav

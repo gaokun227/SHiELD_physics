@@ -1,24 +1,20 @@
 !>  \file som.f
-!!  This file contains routines for slab ocean model
+!!  This file contains routines for a Slab Ocean Model (SOM)
 !
 !!  Written by Baoqiang Xiang (baoqiang.xiang@noaa.gov)
 
 !  ==========================================================  !!!!!
-!            'module_som' description            !!!!!
+!                          'module_som' description            !!!!!
 !  ==========================================================  !!!!!
 !                                                                      !
 !    this module sets up SST using a slab ocean model (SOM)            !
 !                                                                      !
-!                                                                      !
 !    in the module, the externally callabe subroutines are :           !
 !                                                                      !
-!      'som_init'   -- initialization SOM  data           !
+!      'som_init'   -- initialization SOM  by setting some namelists   !
 !                                                                      !
-!      'update_som'     -- set up SOM          !
-!         inputs:                                                      !
-!           ( im, dtf, xcosz, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj, &
-!           tsclim, tsfc)
-!                                                                      !
+!      'update_som' -- update SST with the combined effect of net      !
+!                      surface heat flux and the nudging term          !
 !                                                                      !
 !!!!!  ==========================================================  !!!!!
 !!!!!                       end descriptions                       !!!!!
@@ -34,78 +30,60 @@
 !
       implicit   none
       private
-
-!  ---  version tag and last revision date
 !
       public  som_init, update_som
 
-      character(len=24)     :: mld_option         = 'const'   ! use 'const'
-                                                              !     'obs'
-      integer               :: nudge_method       = 1         ! climatology
-                                                  ! 2         ! climatology plus initial anomaly with a decay time scale
-      real(kind=kind_phys)  :: const_mld          = 50.       ! meter
-      real(kind=kind_phys)  :: sst_restore_tscale = 1.        ! day
+      character(len=24)     :: mld_option         = 'obs'     ! option to set ocean mixed layer depth (MLD)
+                                                              ! using either 'obs' or 'const'
+      real(kind=kind_phys)  :: mld_obs_ratio      = 1.        ! tunning parameter for observed MLD
+      integer               :: restore_method     = 1         ! option 1: nudging toward observational climatology
+                                                  ! 2         ! option 2: nudging toward observational climatology plus
+                                                              !           initial anomaly with a decay time scale of FTSFS (90 days)
+      real(kind=kind_phys)  :: const_mld          = 40.       ! constant ocean MLD (meter)
+      real(kind=kind_phys)  :: sst_restore_tscale = 3.        ! restoring time scale (day)
       real(kind=kind_phys)  :: start_lat          = -60.      ! latitude starting from?
       real(kind=kind_phys)  :: end_lat            = 60.       ! latitude ending with?
+                                                              ! beyond the latitude bands (start_lat:end_lat), using climatological SST or
+                                                              ! climatological SST plus initial anomaly 
 
       namelist /SOM_nml/   &
-       mld_option, nudge_method, const_mld, sst_restore_tscale, start_lat, end_lat
+       mld_option, mld_obs_ratio, restore_method, const_mld,  &
+       sst_restore_tscale, start_lat, end_lat
 
 ! =================
       contains
 ! =================
 
 
-!> This subroutine is the initialization program for surface radiation
-!! related quantities (albedo, emissivity, etc.)
-!!\param me       print control flag
-!>\section gen_sfc_init General Algorithm
-!! @{
 !-----------------------------------
       subroutine som_init                                               &
      &     ( Model, logunit )!  ---  inputs:
-!  ---  outputs: ( none )
 
 !  ===================================================================  !
 !                                                                       !
-!  this program is the initialization program for surface radiation     !
-!  related quantities (albedo, emissivity, etc.)                        !
+!  this program is the initialization program for SOM model             !
 !                                                                       !
-! usage:         call sfc_init                                          !
+! usage:         call som_init                                          !
 !                                                                       !
-! subprograms called:  none                                             !
 !                                                                       !
 !  ====================  defination of variables  ====================  !
 !                                                                       !
-!  inputs:                                                              !
-!      me                                         !
-!                                                                       !
-!  outputs: (none) to module variables only                             !
-!                                                                       !
-!  external module variables:                                           !
-!                                                                       !
-!  ====================    end of description    =====================  !
 !
       implicit none
 
 !  ---  inputs:
       type (GFS_control_type),    intent(in)  :: Model
       integer,    intent(in)  :: logunit
-!      integer, intent(in) :: me
 
 !  ---  outputs: ( none )
 
 !  ---  locals:
-      integer    :: i, k
-!     integer    :: ia, ja
-      logical    :: file_exist
-      character  :: cline*80
       integer    :: ios
       logical    :: exists
 !
 !===> ...  begin here
 !
-        !--- read in the namelist
+!--- read in the namelist
       inquire (file=trim(Model%fn_nml), exist=exists)
       if (.not. exists) then
       write(6,*) 'GFS_namelist_read:: namelist file: ',trim(Model%fn_nml),' does not exist'
@@ -127,13 +105,15 @@
 !...................................
       end subroutine som_init
 !-----------------------------------
-      subroutine update_som                                           &
-          ( im, dtf, xcosz, Grid, islmsk,  netflxsfc, qflux_restore,   &
-           qflux_adj, tsclim, ts_clim_iano, tsfc) 
+!
+      subroutine update_som                                            &
+          ( im, dtf, Grid, islmsk,  netflxsfc, qflux_restore,          &
+           qflux_adj, mldclim, tsclim, ts_clim_iano, tsfc) 
 
 !  ===================================================================  !
 !                                                                       !
 !  this program computes the updated SST based on a simple SOM model    !
+!  A q-flux method is developing now and will be implemented later      !
 !                                                                       !
 !  ====================    end of description    =====================  !
 !
@@ -141,15 +121,20 @@
 
 !  ---  inputs
       integer, intent(in)                                :: im
-      real,    intent(in)                                :: dtf
+      real,    intent(in)                                :: dtf  ! model time step
       type (GFS_grid_type),  intent (in)                 :: Grid
-      real (kind=kind_phys), dimension(:), intent(in)    ::         &
-           xcosz, netflxsfc, tsclim, ts_clim_iano
+      real (kind=kind_phys), dimension(:), intent(in)    ::                &
+                                                            netflxsfc,     & ! net surface heat flux
+                                                            mldclim,       & ! ocean MLD
+                                                            tsclim,        & ! observed climatological SST
+                                                            ts_clim_iano     ! observed climatological SST plus initial anomaly
       integer,  dimension(:), intent(in)                 :: islmsk
 
 !  ---  inoutputs
-      real (kind=kind_phys), dimension(:), intent(inout) ::         &
-           qflux_restore, qflux_adj, tsfc
+      real (kind=kind_phys), dimension(:), intent(inout) ::                &
+                                                            qflux_restore, & ! restoring flux for diagnosis purpose
+                                                            qflux_adj,     & ! qflux to be added later
+                                                            tsfc             ! model SST
 
 !  ---  locals:
       real (kind=kind_phys) :: lat, mlcp, tau, alpha
@@ -158,26 +143,34 @@
 !
 !===> ...  begin here
 !
-          mlcp = const_mld * 4.e6
           tau = sst_restore_tscale*86400.
           alpha = 1. + dtf/tau
           do i = 1, im
+           if (mld_option == 'const') then
+            mlcp = const_mld * 1000.*4.e3    ! rho*Cp*mld
+           elseif (mld_option == 'obs') then
+            mlcp =  mld_obs_ratio* mldclim(i) * 1000.*4.e3   ! rho*Cp*mld
+           else
+            write(*,*) ' mld_option can only be const or obs now'
+            call abort
+           endif
+           
            lat = Grid%xlat(i) * 57.29578
            if (islmsk(i) == 0 ) then
             if (lat >= start_lat .and. lat<= end_lat) then
 !
-             if (nudge_method == 1) then 
-!              qflux_restore(i) = (tsclim(i) - tsfc(i)) * mlcp / tau
+             if (restore_method == 1) then 
+              qflux_restore(i) = (tsclim(i) - tsfc(i)) * mlcp / tau  ! for diagnosis purpose only
               tsfc(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + tsclim(i)/tau*dtf ) / alpha 
-             elseif (nudge_method == 2) then
-!              qflux_restore(i) = (ts_clim_iano(i) - tsfc(i)) * mlcp / tau
+             elseif (restore_method == 2) then
+              qflux_restore(i) = (ts_clim_iano(i) - tsfc(i)) * mlcp / tau 
               tsfc(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + ts_clim_iano(i)/tau*dtf ) / alpha 
              endif
 !             tsfc(i) = tsfc(i) + (qflux_restore(i)+netflxsfc(i))/mlcp*dtf  ! explicit
            else
-            if (nudge_method == 1) then
+            if (restore_method == 1) then
              tsfc(i) = tsclim(i)
-            elseif (nudge_method == 2) then
+            elseif (restore_method == 2) then
              tsfc(i) = ts_clim_iano(i)
             endif
            endif

@@ -13,7 +13,7 @@ module GFS_driver
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
   use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_init
-  use module_som,               only: som_init !bqx
+  use module_som,               only: som_init
 
   implicit none
 
@@ -215,10 +215,10 @@ module GFS_driver
 
     !--- initialize soil vegetation
     call set_soilveg(Model%me, Model%isot, Model%ivegsrc, Model%nlunit)
-!bqx
+!
     !--- initialize slab ocean model
     if (Model%do_som) call som_init (Model, Init_parm%logunit)
-!bqx
+!
     !--- lsidea initialization
     if (Model%lsidea) then
       print *,' LSIDEA is active but needs to be reworked for FV3 - shutting down'
@@ -317,13 +317,13 @@ module GFS_driver
     endif
 
     !--- determine if diagnostics buckets need to be cleared
-!    if (mod(Model%kdt,Model%nszero) == 1) then !bqx
+    if (mod(Model%kdt,Model%nszero) == 1) then 
       do nb = 1,nblks
         call Diag(nb)%rad_zero  (Model)
         call Diag(nb)%phys_zero (Model)
     !!!!  THIS IS THE POINT AT WHICH DIAG%ZHOUR NEEDS TO BE UPDATED
       enddo
-!    endif
+    endif
 
   end subroutine GFS_time_vary_step
 

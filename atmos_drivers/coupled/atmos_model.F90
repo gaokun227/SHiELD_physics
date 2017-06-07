@@ -56,7 +56,7 @@ use fms_mod,            only: file_exist, error_mesg
 use fms_mod,            only: close_file, write_version_number, stdlog, stdout
 use fms_mod,            only: clock_flag_default
 use fms_mod,            only: check_nml_error
-use diag_manager_mod,   only: diag_send_complete_extra, diag_send_complete !bqx
+use diag_manager_mod,   only: diag_send_complete_extra
 use time_manager_mod,   only: time_type, get_time, get_date, &
                               operator(+), operator(-)
 use field_manager_mod,  only: MODEL_ATMOS
@@ -486,16 +486,14 @@ subroutine update_atmos_model_state (Atmos)
 
     call get_time (Atmos%Time - diag_time, isec)
     if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) then
-      time_int = real(isec) !bqx
-!      time_int = 1.0 !bqx
+      time_int = real(isec) 
 
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int)
       if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
-    call diag_send_complete_extra (Atmos%Time) !bqx
-!    call diag_send_complete (Atmos%time_step) !bqx
+    call diag_send_complete_extra (Atmos%Time) 
 
  end subroutine update_atmos_model_state
 ! </SUBROUTINE>

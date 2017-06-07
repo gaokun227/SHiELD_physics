@@ -17,7 +17,7 @@ module module_physics_driver
                                    GFS_radtend_type, GFS_diag_type
   use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
   use funcphys,              only: ftdp
-  use module_som,            only: update_som !bqx
+  use module_som,            only: update_som 
 
   implicit none
 
@@ -460,15 +460,13 @@ module module_physics_driver
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
            !--- for CS-convection
            wcbmax
-!bqx+
+!
       real(kind=kind_phys), dimension(size(Grid%xlon,1))  ::            &
-           tsurf_prev,                                                  & ! previous step surface temp
            netflxsfc,                                                   & ! net surface heat flux
-           netswsfc,                                                   & ! 
+           netswsfc,                                                    & ! 
            qflux_restore,                                               & ! 
            qflux_adj                                                     ! 
-      real(kind=kind_phys)                                :: mlcp, lat
-!bqx
+!
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::           &
           area, land, rain0, snow0, ice0, graupel0
@@ -970,7 +968,6 @@ module module_physics_driver
         else
 
 !  --- ...  surface energy balance over ocean
-!bqx+
          
           call sfc_ocean                                                &
 !  ---  inputs:
@@ -979,20 +976,6 @@ module module_physics_driver
             work3, islmsk, Tbd%phy_f2d(1,Model%num_p2d), flag_iter,     &
 !  ---  outputs:
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
-!          write(0,*) 'evap=',max(-3000.,evap),min(3000.,evap)
-!          write(0,*) 'sensible=',max(-3000.,hflx),min(3000.,hflx)
-!         write(0,*) 'bqx test lssav0='
-!         write(0,*) 'bqx test lssav=',Model%lssav
-!          write(0,*) 'netsw=',max(-3000.,netswsfc),min(3000.,netswsfc)
-!          write(0,*) 'netflx=',max(-3000.,netflxsfc),min(3000.,netflxsfc)
-  !       call prt_maxmin('netflxsfc', netflxsfc,1,Model%nx,1,Model%ny,0,1,1) 
-  !       call prt_maxmin('netswsfc', netswsfc,1,Model%nx,1,Model%ny,0,1,1) 
-  !       call prt_maxmin('netlwsfc', adjsfcdlw-adjsfculw,1,Model%nx,1,Model%ny,0,1,1) 
-  !       call prt_maxmin('sensible', -hflx,1,Model%nx,1,Model%ny,0,1,1) 
-  !       call prt_maxmin('latent',   -evap,1,Model%nx,1,Model%ny,0,1,1) 
-  !       call prt_maxmin('qflux_restore', qflux_restore,1,Model%nx,1,Model%ny,0,1,1) 
-!            tsurf_prev(:)     = Sfcprop%tsfc(:)
-!bqx
         endif       ! if ( nstf_name(1) > 0 ) then
 
 !       if (lprnt) write(0,*)' sfalb=',sfalb(ipr),' ipr=',ipr          &
@@ -1329,49 +1312,45 @@ module module_physics_driver
         Coupling%dtsfci_cpl(:) = dtsfc1(:)
         Coupling%dqsfci_cpl(:) = dqsfc1(:)
       endif
-! bqx+
-! bqx+ SOM
-! net surface heat flux
+
+!  use for slab ocean model (SOM)
         netswsfc = 0.
         netflxsfc = 0.
         qflux_restore = 0.
         qflux_adj = 0.
-          do i = 1, im
-           if (islmsk(i) == 0 ) then
+        do i = 1, im
+         if (islmsk(i) == 0 ) then
 !  ---  compute open water albedo
-            xcosz_loc = max( 0.0, min( 1.0, xcosz(i) ))
-            ocalnirdf_cpl(i) = 0.06
-            ocalnirbm_cpl(i) = max(albdf, 0.026/(xcosz_loc**1.7+0.065)  &
+          xcosz_loc = max( 0.0, min( 1.0, xcosz(i) ))
+          ocalnirdf_cpl(i) = 0.06
+          ocalnirbm_cpl(i) = max(albdf, 0.026/(xcosz_loc**1.7+0.065)  &
                             + 0.15 * (xcosz_loc-0.1) * (xcosz_loc-0.5) &
                             * (xcosz_loc-1.0))
-            ocalvisdf_cpl(i) = 0.06
-            ocalvisbm_cpl(i) = ocalnirbm_cpl(i)
+          ocalvisdf_cpl(i) = 0.06
+          ocalvisbm_cpl(i) = ocalnirbm_cpl(i)
 !
-            netswsfc (i) = adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i) +   &
-                           adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i) +   &
-                           adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i) +   &
-                           adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
+          netswsfc (i) = adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i) +   &
+                         adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i) +   &
+                         adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i) +   &
+                         adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
 
-            netflxsfc (i) = netswsfc(i)                                +   &
-                            adjsfcdlw(i)-adjsfculw(i)                  +   & !net longwave
-                            dtsfc1(i) * (-1.)                          +   & !sensible heat flux
-                            dqsfc1(i) * (-1.)                                !latent heat flux
-           endif
-          enddo
+          netflxsfc (i) = netswsfc(i)                                +   &
+                          adjsfcdlw(i)-adjsfculw(i)                  +   & !net longwave
+                          dtsfc1(i) * (-1.)                          +   & !sensible heat flux
+                          dqsfc1(i) * (-1.)                                !latent heat flux
+         endif
+        enddo
         if (Model%do_som) then
-         call update_som (im, dtf, xcosz, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj,  &
-                          Sfcprop%tsclim, Sfcprop%ts_clim_iano, Sfcprop%tsfc)
+         call update_som (im, dtf, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj,  &
+                          Sfcprop%mldclim, Sfcprop%tsclim, Sfcprop%ts_clim_iano, Sfcprop%tsfc)
         endif
          Diag%netflxsfc(:) = netflxsfc(:)
          Diag%qflux_restore(:) = qflux_restore(:)
-         Diag%qflux_adj(:) = Sfcprop%tsclim(:)
+!         Diag%qflux_adj(:) = Sfcprop%tsclim(:)
+         Diag%qflux_adj(:) = Sfcprop%mldclim(:)
 
 !-------------------------------------------------------lssav if loop ----------
-   !   if(Model%me == 0 ) write(0,*) 'bqx lssav=',Model%lssav
-   !     write(0,*) 'bqx lssav0='
-   !     write(0,*) 'bqx lssav=',Model%lssav
       if (Model%lssav) then
-   !   if(Model%me == 0 ) write(0,*) 'bqx lssav2'
         Diag%dusfc (:) = Diag%dusfc(:) + dusfc1(:)*dtf
         Diag%dvsfc (:) = Diag%dvsfc(:) + dvsfc1(:)*dtf
         Diag%dtsfc (:) = Diag%dtsfc(:) + dtsfc1(:)*dtf

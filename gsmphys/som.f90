@@ -35,7 +35,7 @@
 
       character(len=24)     :: mld_option         = 'obs'     ! option to set ocean mixed layer depth (MLD)
                                                               ! using either 'obs' or 'const'
-      real(kind=kind_phys)  :: mld_obs_ratio      = 1.        ! tunning parameter for observed MLD
+      real(kind=kind_phys)  :: mld_obs_ratio      = 1.        ! tuning parameter for observed MLD
       integer               :: restore_method     = 1         ! option 1: nudging toward observational climatology
                                                   ! 2         ! option 2: nudging toward observational climatology plus
                                                               !           initial anomaly with a decay time scale of FTSFS (90 days)

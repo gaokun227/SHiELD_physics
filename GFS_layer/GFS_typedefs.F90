@@ -829,9 +829,10 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: wet1   (:)    => null()   !< normalized soil wetness
     real (kind=kind_phys), pointer :: sr     (:)    => null()   !< snow ratio : ratio of snow to total precipitation
 !
-    real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !netflxsfc
-    real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !
-    real (kind=kind_phys), pointer :: qflux_adj     (:)    => null()   !
+    real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
+    real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !restoring term for diagnosis only
+    real (kind=kind_phys), pointer :: qflux_adj     (:)    => null()   !Q-flux (to be developed)
+    real (kind=kind_phys), pointer :: tclim_iano    (:)    => null()   !climatological SST with initial anomaly
 !
 
     !--- accumulated quantities for 3D diagnostics
@@ -2523,6 +2524,7 @@ module GFS_typedefs
     allocate (Diag%netflxsfc     (IM)) 
     allocate (Diag%qflux_restore (IM)) 
     allocate (Diag%qflux_adj     (IM)) 
+    allocate (Diag%tclim_iano    (IM)) 
     allocate (Diag%ulwsfc  (IM))
     allocate (Diag%suntim  (IM))
     allocate (Diag%runoff  (IM))
@@ -2638,6 +2640,7 @@ module GFS_typedefs
     Diag%netflxsfc     = zero 
     Diag%qflux_restore = zero 
     Diag%qflux_adj     = zero 
+    Diag%tclim_iano    = zero 
     Diag%ulwsfc  = zero
     Diag%suntim  = zero
     Diag%runoff  = zero

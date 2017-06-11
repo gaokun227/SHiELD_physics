@@ -1,7 +1,7 @@
 !>  \file som.f
 !!  This file contains routines for a Slab Ocean Model (SOM)
 !
-!!  Contacted Baoqiang Xiang at baoqiang.xiang@noaa.gov
+!!  Written by Baoqiang Xiang (baoqiang.xiang@noaa.gov)
 
 !  ==========================================================  !!!!!
 !                          'module_som' description            !!!!!
@@ -31,13 +31,10 @@
       implicit   none
       private
 
+      parameter(maxlat_4som = 60.)
+!
       public  som_init, update_som
-!
-      real (kind=kind_phys)   :: maxlat_4som, width_sponge    
-      parameter(maxlat_4som  = 60.)  ! determine the maximum latitude band for SOM  
-      parameter(width_sponge = 10.)  ! the width of a sponge band where SST is determined by both SOM 
-                                     ! and climatology (or climatology plus initial anomaly)
-!
+
       character(len=24)     :: mld_option         = 'obs'     ! option to set ocean mixed layer depth (MLD)
                                                               ! using either 'obs' or 'const'
       real(kind=kind_phys)  :: mld_obs_ratio      = 1.        ! tuning parameter for observed MLD
@@ -127,7 +124,6 @@
 !                                                                       !
 !  this program computes the updated SST based on a simple SOM model    !
 !  A q-flux method is developing now and will be implemented later      !
-!  Within start_lat - end_lat, SST is determined by SOM
 !                                                                       !
 !  ====================    end of description    =====================  !
 !
@@ -151,12 +147,8 @@
                                                             tsfc             ! model SST
 
 !  ---  locals:
-      real (kind=kind_phys)                              ::                &
-                                                            lat, mlcp, tau,& 
-                                                            alpha, latsps, &
-                                                            latspn, c1, c2
-      real (kind=kind_phys), dimension (size(tsfc,1))    :: tsfc1,         &
-                                                            tsfc2
+      real (kind=kind_phys) :: lat, mlcp, tau, alpha, latsps, latspn, c1
+      real (kind=kind_phys) :: lat, mlcp, tau, alpha, latsps, latspn, c1
       integer :: i
 
 !
@@ -164,14 +156,7 @@
 !
           tau = sst_restore_tscale*86400.
           alpha = 1. + dtf/tau
-
-!         two sponage bands:
-!          (latsps - start_lat)  and (end_lat - latspn)
 !
-          latsps = max(-maxlat_4som - 0.1, start_lat - width_sponge)  
-          latspn = min( maxlat_4som + 0.1, end_lat + width_sponge)     
-!          write(0,*) 'bqx=',latsps, latspn,maxlat_4som, width_sponge
-
           do i = 1, im
 !
            if (mld_option == 'const') then
@@ -183,36 +168,47 @@
             call abort
            endif
 
-           if (restore_method == 1) then 
-              qflux_restore(i) = (tsclim(i) - tsfc(i)) * mlcp / tau  ! for diagnosis purpose only
-              tsfc1(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + tsclim(i)/tau*dtf ) / alpha 
-              tsfc2(i) = tsclim(i)
-           elseif (restore_method == 2) then
-              qflux_restore(i) = (ts_clim_iano(i) - tsfc(i)) * mlcp / tau 
-              tsfc1(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + ts_clim_iano(i)/tau*dtf ) / alpha 
-              tsfc2(i) = ts_clim_iano(i)
-!             tsfc(i) = tsfc(i) + (qflux_restore(i)+netflxsfc(i))/mlcp*dtf  ! explicit
-           endif  
-
-          enddo
-
-          do i = 1, im
+           latsps = max(-maxlat_4som - 1., start_lat - 10.)     
+           latspn = min(maxlat_4som + 1., end_lat + 10.)     
+               
            lat = Grid%xlat(i) * 57.29578
-           c1 = abs((lat -latsps) / (start_lat-latsps))
-           c2 = abs((latspn - lat) / (latspn - end_lat))
+
            if (islmsk(i) == 0 ) then
             if (lat >= start_lat .and. lat<= end_lat ) then
-             tsfc(i) = tsfc1(i)  
-            elseif (lat >= latsps .and. lat < start_lat) then  ! a sponge layer
-             tsfc(i) = c1 * tsfc1(i) + (1.-c1) * tsfc2(i)
-            elseif (lat > end_lat .and. lat <= latspn) then ! a sponge layer
-             tsfc(i) = c2 * tsfc1(i) + (1.-c2) * tsfc2(i)
+!
+             if (restore_method == 1) then 
+              qflux_restore(i) = (tsclim(i) - tsfc(i)) * mlcp / tau  ! for diagnosis purpose only
+              tsfc(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + tsclim(i)/tau*dtf ) / alpha 
+             elseif (restore_method == 2) then
+              qflux_restore(i) = (ts_clim_iano(i) - tsfc(i)) * mlcp / tau 
+              tsfc(i) = (tsfc(i) + netflxsfc(i)/mlcp*dtf + ts_clim_iano(i)/tau*dtf ) / alpha 
+             endif
+!             tsfc(i) = tsfc(i) + (qflux_restore(i)+netflxsfc(i))/mlcp*dtf  ! explicit
+            elseif (lat >= latsps .and. lat <= start_lat) then  ! a sponge layer
+             c1 = (lat -latsps) / (start_lat-latsps)
+             if (restore_method == 1) then
+              tsfc(i) = tsclim(i)
+             elseif (restore_method == 2) then
+              tsfc(i) = ts_clim_iano(i)
+             endif
+        
+            elseif (lat >= end_lat .and. lat <= latspn) then ! a sponge layer
+             if (restore_method == 1) then
+              tsfc(i) = tsclim(i)
+             elseif (restore_method == 2) then
+              tsfc(i) = ts_clim_iano(i)
+             endif
             else
-             tsfc(i) = tsfc2(i)
-            endif
+             if (restore_method == 1) then
+              tsfc(i) = tsclim(i)
+             elseif (restore_method == 2) then
+              tsfc(i) = ts_clim_iano(i)
+             endif
+            endif  ! endif lat
+
            endif
           enddo
-!
+
       return
 !...................................
       end subroutine update_som

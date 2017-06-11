@@ -1347,7 +1347,8 @@ module module_physics_driver
          Diag%netflxsfc(:) = netflxsfc(:)
          Diag%qflux_restore(:) = qflux_restore(:)
 !         Diag%qflux_adj(:) = Sfcprop%tsclim(:)
-         Diag%qflux_adj(:) = Sfcprop%mldclim(:)
+!         Diag%qflux_adj(:) = Sfcprop%mldclim(:)
+         Diag%tclim_iano(:) = Sfcprop%ts_clim_iano(:)
 
 !-------------------------------------------------------lssav if loop ----------
       if (Model%lssav) then

@@ -600,7 +600,6 @@
       data fnmskh/'global_slmask.t126.grb'/
       data fnalbc/'global_albedo4.1x1.grb'/
       data fnalbc2/'global_albedo4.1x1.grb'/
-      data fnmldc/'global_mld.2x2.grb'/
       data fntsfc/'global_sstclim.2x2.grb'/
       data fnsotc/'global_soiltype.1x1.grb'/
       data fnvegc/'global_vegfrac.1x1.grb'/
@@ -619,6 +618,7 @@
       data fnabsc/'global_snoalb.1x1.grb'/
 !
       data fnwetc/'        '/
+      data fnmldc/'        '/
       data fnplrc/'        '/
       data fnstcc/'        '/
       data fnscvc/'        '/

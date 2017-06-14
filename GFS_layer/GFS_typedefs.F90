@@ -488,6 +488,8 @@ module GFS_typedefs
                                             !< from cloud edges for RAS
     integer              :: seed0           !< random seed for radiation
 
+    real(kind=kind_phys) :: rbcr            !< Critical Richardson Number in the PBL scheme
+
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0         !< pressure level from which Rayleigh Damping is applied
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
@@ -539,7 +541,6 @@ module GFS_typedefs
                                             !< nstf_name(5) : zsea2 in mm
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
-    real(kind=kind_phys) :: rbcr            !< PBL critical bulk richardson number
      
     !--- stochastic physics control parameters
     logical              :: do_sppt
@@ -1477,6 +1478,7 @@ module GFS_typedefs
                                                                       !< PBL top and at the top of the atmosphere
     real(kind=kind_phys) :: dlqf(2)        = (/0.0d0,0.0d0/)          !< factor for cloud condensate detrainment 
                                                                       !< from cloud edges for RAS
+    real(kind=kind_phys) :: rbcr           = 0.25                     !< Critical Richardson Number in PBL scheme
 
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0        = 0.0d0           !< pressure level from which Rayleigh Damping is applied
@@ -1530,7 +1532,6 @@ module GFS_typedefs
                                                              !< nstf_name(5) : zsea2 in mm
     real(kind=kind_phys) :: xkzminv        = 0.3             !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac     = 1.0             !< turbulence diffusion coefficient factor
-    real(kind=kind_phys) :: rbcr           = 0.25            !< PBL critical bulk richardson number
      
     !--- stochastic physics options
     real(kind=kind_phys) :: sppt(5)        = -999.           !< stochastic physics tendency amplitude
@@ -1566,7 +1567,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,                                                        &
+                               dlqf,rbcr,                                                   &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1577,7 +1578,7 @@ module GFS_typedefs
                                clam_shal, c0s_shal, c1_shal, pgcon_shal, asolfac_shal,      &
                           !--- near surface temperature model
                                nst_anl, lsea, xkzm_m, xkzm_h, xkzm_s, nstf_name,            &
-                               xkzminv, moninq_fac, rbcr,                                   &
+                               xkzminv, moninq_fac,                                         &
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
@@ -1747,6 +1748,7 @@ module GFS_typedefs
     Model%ctei_rm          = ctei_rm
     Model%crtrh            = crtrh
     Model%dlqf             = dlqf
+    Model%rbcr             = rbcr
 
     !--- Rayleigh friction
     Model%prslrd0          = prslrd0
@@ -1779,7 +1781,6 @@ module GFS_typedefs
     Model%nstf_name        = nstf_name
     Model%xkzminv          = xkzminv
     Model%moninq_fac       = moninq_fac
-    Model%rbcr             = rbcr
 
     !--- stochastic physics options
     Model%sppt             = sppt
@@ -2213,6 +2214,7 @@ module GFS_typedefs
       print *, ' crtrh             : ', Model%crtrh
       print *, ' dlqf              : ', Model%dlqf
       print *, ' seed0             : ', Model%seed0
+      print *, ' rbcr              : ', Model%rbcr
       print *, ' '
       print *, 'Rayleigh friction'
       print *, ' prslrd0           : ', Model%prslrd0
@@ -2245,7 +2247,6 @@ module GFS_typedefs
       print *, ' nstf_name         : ', Model%nstf_name
       print *, ' xkzminv           : ', Model%xkzminv
       print *, ' moninq_fac        : ', Model%moninq_fac
-      print *, ' rbcr              : ', Model%rbcr
       print *, ' '
       print *, 'stochastic physics'
       print *, ' do_sppt           : ', Model%do_sppt

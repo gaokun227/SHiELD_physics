@@ -2668,7 +2668,52 @@ module FV3GFS_io_mod
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%stc(:,4)
     enddo
+!bqx+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'netflxsfc'
+    Diag(idx)%desc = 'net surface heat flux [W/m**2]'
+    Diag(idx)%unit = 'W/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%netflxsfc(:)
+    enddo
 
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'qflux_restore'
+    Diag(idx)%desc = 'restoring flux'
+    Diag(idx)%unit = 'W/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%qflux_restore(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'qflux_adj'
+    Diag(idx)%desc = 'adjusted flux'
+    Diag(idx)%unit = 'W/m**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%qflux_adj(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tclim_iano'
+    Diag(idx)%desc = 'climatological SST plus initial anomaly'
+    Diag(idx)%unit = 'degree C'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%tclim_iano(:)
+    enddo
+
+!
 !--- prognostic variable tendencies (T, u, v, sph, clwmr, o3)
 !rab    idx = idx + 1
 !rab    Diag(idx)%axes = 3

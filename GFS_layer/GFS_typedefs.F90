@@ -137,6 +137,11 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: slmsk  (:)   => null()  !< sea/land mask array (sea:0,land:1,sea-ice:2)
     real (kind=kind_phys), pointer :: tsfc   (:)   => null()  !< surface temperature in k 
                                                               !< [tsea in gbphys.f]
+!
+    real (kind=kind_phys), pointer :: tsclim   (:)   => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: mldclim   (:)   => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: ts_clim_iano   (:)   => null()  !< climatological SST in k 
+!
     real (kind=kind_phys), pointer :: tisfc  (:)   => null()  !< surface temperature over ice fraction 
     real (kind=kind_phys), pointer :: snowd  (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
     real (kind=kind_phys), pointer :: zorl   (:)   => null()  !< surface roughness in cm 
@@ -579,6 +584,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug         
     logical              :: pre_rad         !< flag for testing purpose
+    logical              :: do_som          !< flag for slab ocean model 
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
@@ -823,6 +829,12 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: smcref2(:)    => null()   !< soil moisture threshold (volumetric)
     real (kind=kind_phys), pointer :: wet1   (:)    => null()   !< normalized soil wetness
     real (kind=kind_phys), pointer :: sr     (:)    => null()   !< snow ratio : ratio of snow to total precipitation
+!
+    real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
+    real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !restoring term for diagnosis only
+    real (kind=kind_phys), pointer :: qflux_adj     (:)    => null()   !Q-flux (to be developed)
+    real (kind=kind_phys), pointer :: tclim_iano    (:)    => null()   !climatological SST with initial anomaly
+!
 
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: du3dt (:,:,:) => null()   !< u momentum change due to physics
@@ -941,6 +953,9 @@ module GFS_typedefs
     !--- physics and radiation
     allocate (Sfcprop%slmsk  (IM))
     allocate (Sfcprop%tsfc   (IM))
+    allocate (Sfcprop%tsclim   (IM)) 
+    allocate (Sfcprop%mldclim   (IM)) 
+    allocate (Sfcprop%ts_clim_iano  (IM)) 
     allocate (Sfcprop%tisfc  (IM))
     allocate (Sfcprop%snowd  (IM))
     allocate (Sfcprop%zorl   (IM))
@@ -950,6 +965,9 @@ module GFS_typedefs
 
     Sfcprop%slmsk   = clear_val
     Sfcprop%tsfc    = clear_val
+    Sfcprop%tsclim    = clear_val 
+    Sfcprop%mldclim    = clear_val 
+    Sfcprop%ts_clim_iano    = clear_val 
     Sfcprop%tisfc   = clear_val
     Sfcprop%snowd   = clear_val
     Sfcprop%zorl    = clear_val
@@ -1524,6 +1542,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
+    logical              :: do_som         = .false.         !< flag for slab ocean model 
     !--- END NAMELIST VARIABLES
 
     NAMELIST /gfs_physics_nml/                                                              &
@@ -1562,7 +1581,7 @@ module GFS_typedefs
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
-                               debug, pre_rad
+                               debug, pre_rad, do_som
 
     !--- other parameters 
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -1799,6 +1818,7 @@ module GFS_typedefs
     !--- debug flag
     Model%debug            = debug
     Model%pre_rad          = pre_rad
+    Model%do_som           = do_som 
 
     !--- set initial values for time varying properties
     Model%ipt              = 1
@@ -1989,10 +2009,10 @@ module GFS_typedefs
       Model%pdfcld  = .false.
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
-      if (Model%me == Model%master) print *,' Using GFDL Lin Microphysics', &
-                                            ' num_p2d = ', Model%num_p2d,   &
-                                            ' num_p3d = ', Model%num_p3d,   &
-                                            ' pdfcld  = ', Model%pdfcld,    &
+      if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics', &
+                                            ' num_p2d = ', Model%num_p2d,     &
+                                            ' num_p3d = ', Model%num_p3d,     &
+                                            ' pdfcld  = ', Model%pdfcld,      &
                                             ' cnvcld  = ', Model%cnvcld
     endif
 
@@ -2270,6 +2290,7 @@ module GFS_typedefs
       print *, 'debug flags'
       print *, ' debug             : ', Model%debug 
       print *, ' pre_rad           : ', Model%pre_rad
+      print *, ' do_som            : ', Model%do_som 
       print *, ' '
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt
@@ -2504,6 +2525,10 @@ module GFS_typedefs
     allocate (Diag%totprcp (IM))
     allocate (Diag%gflux   (IM))
     allocate (Diag%dlwsfc  (IM))
+    allocate (Diag%netflxsfc     (IM)) 
+    allocate (Diag%qflux_restore (IM)) 
+    allocate (Diag%qflux_adj     (IM)) 
+    allocate (Diag%tclim_iano    (IM)) 
     allocate (Diag%ulwsfc  (IM))
     allocate (Diag%suntim  (IM))
     allocate (Diag%runoff  (IM))
@@ -2616,6 +2641,10 @@ module GFS_typedefs
     Diag%totprcp = zero
     Diag%gflux   = zero
     Diag%dlwsfc  = zero
+    Diag%netflxsfc     = zero 
+    Diag%qflux_restore = zero 
+    Diag%qflux_adj     = zero 
+    Diag%tclim_iano    = zero 
     Diag%ulwsfc  = zero
     Diag%suntim  = zero
     Diag%runoff  = zero

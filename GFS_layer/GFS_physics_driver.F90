@@ -15,8 +15,9 @@ module module_physics_driver
                                    GFS_control_type, GFS_grid_type,     &
                                    GFS_tbd_type,     GFS_cldprop_type,  &
                                    GFS_radtend_type, GFS_diag_type
-  use lin_cld_microphys_mod, only: lin_cld_microphys_driver
+  use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
   use funcphys,              only: ftdp
+  use module_som,            only: update_som 
 
   implicit none
 
@@ -435,7 +436,7 @@ module module_physics_driver
            xcosz_loc, zsea1, zsea2, eng0, eng1, dpshc,                  &
            !--- experimental for shoc sub-stepping 
            dtshoc,                                                      &
-           !--- GFDL-Lin microphysics
+           !--- GFDL Cloud microphysics
            crain, csnow
 
       real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
@@ -459,6 +460,13 @@ module module_physics_driver
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
            !--- for CS-convection
            wcbmax
+!
+      real(kind=kind_phys), dimension(size(Grid%xlon,1))  ::            &
+           netflxsfc,                                                   & ! net surface heat flux
+           netswsfc,                                                    & ! 
+           qflux_restore,                                               & ! 
+           qflux_adj                                                     ! 
+!
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::           &
           area, land, rain0, snow0, ice0, graupel0
@@ -960,7 +968,7 @@ module module_physics_driver
         else
 
 !  --- ...  surface energy balance over ocean
-
+         
           call sfc_ocean                                                &
 !  ---  inputs:
            (im, Statein%pgr, Statein%ugrs, Statein%vgrs, Statein%tgrs,  &
@@ -968,7 +976,6 @@ module module_physics_driver
             work3, islmsk, Tbd%phy_f2d(1,Model%num_p2d), flag_iter,     &
 !  ---  outputs:
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
-
         endif       ! if ( nstf_name(1) > 0 ) then
 
 !       if (lprnt) write(0,*)' sfalb=',sfalb(ipr),' ipr=',ipr          &
@@ -1305,6 +1312,44 @@ module module_physics_driver
         Coupling%dtsfci_cpl(:) = dtsfc1(:)
         Coupling%dqsfci_cpl(:) = dqsfc1(:)
       endif
+
+!  use for slab ocean model (SOM)
+        netswsfc = 0.
+        netflxsfc = 0.
+        qflux_restore = 0.
+        qflux_adj = 0.
+        do i = 1, im
+         if (islmsk(i) == 0 ) then
+!  ---  compute open water albedo
+          xcosz_loc = max( 0.0, min( 1.0, xcosz(i) ))
+          ocalnirdf_cpl(i) = 0.06
+          ocalnirbm_cpl(i) = max(albdf, 0.026/(xcosz_loc**1.7+0.065)  &
+                            + 0.15 * (xcosz_loc-0.1) * (xcosz_loc-0.5) &
+                            * (xcosz_loc-1.0))
+          ocalvisdf_cpl(i) = 0.06
+          ocalvisbm_cpl(i) = ocalnirbm_cpl(i)
+!
+          netswsfc (i) = adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i) +   &
+                         adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i) +   &
+                         adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i) +   &
+                         adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
+
+          netflxsfc (i) = netswsfc(i)                                +   &
+                          adjsfcdlw(i)-adjsfculw(i)                  +   & !net longwave
+                          dtsfc1(i) * (-1.)                          +   & !sensible heat flux
+                          dqsfc1(i) * (-1.)                                !latent heat flux
+         endif
+        enddo
+        if (Model%do_som) then
+         call update_som (im, dtf, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj,  &
+                          Sfcprop%mldclim, Sfcprop%tsclim, Sfcprop%ts_clim_iano, Sfcprop%tsfc)
+        endif
+         Diag%netflxsfc(:) = netflxsfc(:)
+         Diag%qflux_restore(:) = qflux_restore(:)
+!         Diag%qflux_adj(:) = Sfcprop%tsclim(:)
+!         Diag%qflux_adj(:) = Sfcprop%mldclim(:)
+         Diag%tclim_iano(:) = Sfcprop%ts_clim_iano(:)
+
 !-------------------------------------------------------lssav if loop ----------
       if (Model%lssav) then
         Diag%dusfc (:) = Diag%dusfc(:) + dusfc1(:)*dtf
@@ -2585,7 +2630,7 @@ module module_physics_driver
           Stateout%gq0(:,:,Model%ntsnc) = ncps(:,:)
         endif
 
-      elseif (Model%ncld == 5) then       ! GFDL-Lin microphysics
+      elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
 
         land     (:,1)   = frland(:)
         area     (:,1)   = Grid%area(:)
@@ -2623,14 +2668,14 @@ module module_physics_driver
 
         seconds          = mod(nint(Model%fhour*3600),86400)
 
-        call lin_cld_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
-                                      qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
-                                      qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
-                                      uin, vin, udt, vdt, dz, delp,      &
-                                      area, dtp, land, rain0, snow0,     &
-                                      ice0, graupel0, .false., .true.,   &
-                                      1, im, 1, 1, 1, levs, 1, levs,     &
-                                      seconds)
+        call gfdl_cloud_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
+                                         qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
+                                         qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
+                                         uin, vin, udt, vdt, dz, delp,      &
+                                         area, dtp, land, rain0, snow0,     &
+                                         ice0, graupel0, .false., .true.,   &
+                                         1, im, 1, 1, 1, levs, 1, levs,     &
+                                         seconds)
 
         rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
                      * dtp * con_p001 / con_day

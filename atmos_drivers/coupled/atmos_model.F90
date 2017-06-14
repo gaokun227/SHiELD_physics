@@ -84,7 +84,6 @@ use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_IPD_checksum,                       &
                               gfdl_diag_register, gfdl_diag_output
-
 !-----------------------------------------------------------------------
 
 implicit none
@@ -487,13 +486,14 @@ subroutine update_atmos_model_state (Atmos)
 
     call get_time (Atmos%Time - diag_time, isec)
     if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) then
-      time_int = real(isec)
+      time_int = real(isec) 
+
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int)
       if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
-    call diag_send_complete_extra (Atmos%Time)
+    call diag_send_complete_extra (Atmos%Time) 
 
  end subroutine update_atmos_model_state
 ! </SUBROUTINE>

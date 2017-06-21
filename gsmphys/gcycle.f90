@@ -24,6 +24,8 @@
        OROG_UF (Model%nx*Model%ny),             &
         SLIFCS (Model%nx*Model%ny),             &
         TSFFCS (Model%nx*Model%ny),             &
+        TSCLIM (Model%nx*Model%ny),             & 
+        MLDCLIM (Model%nx*Model%ny),            & 
         SNOFCS (Model%nx*Model%ny),             &
         ZORFCS (Model%nx*Model%ny),             &
         TG3FCS (Model%nx*Model%ny),             &
@@ -72,7 +74,15 @@
           OROG    (len)          = Sfcprop(nb)%oro    (ix)
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
-          TSFFCS  (len)          = Sfcprop(nb)%tsfc   (ix)
+          if (Model%do_som) then
+           if (Model%kdt == 1) then
+            TSFFCS  (len)        = Sfcprop(nb)%tsfc   (ix)
+           else
+            TSFFCS  (len)        = Sfcprop(nb)%ts_clim_iano   (ix)
+           endif
+          else
+           TSFFCS  (len)         = Sfcprop(nb)%tsfc   (ix)
+          endif
           SNOFCS  (len)          = Sfcprop(nb)%weasd  (ix)
           ZORFCS  (len)          = Sfcprop(nb)%zorl   (ix)
           TG3FCS  (len)          = Sfcprop(nb)%tg3    (ix)
@@ -141,8 +151,8 @@
                      Model%fhour, RLA, RLO, SLMASK,               &
                      OROG, OROG_UF, Model%USE_UFO, Model%nst_anl, &
                      SIHFCS, SICFCS, SITFCS, SWDFCS, SLCFC1,      &
-                     VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS,      &
-                     SNOFCS, ZORFCS, ALBFC1, TG3FCS, CNPFCS,      &
+                     VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS, TSCLIM,      &
+                     SNOFCS, ZORFCS, ALBFC1, MLDCLIM, TG3FCS, CNPFCS,      &
                      SMCFC1, STCFC1, SLIFCS, AISFCS, F10MFCS,     &
                      VEGFCS, VETFCS, SOTFCS, ALFFC1, CVFCS,       &
                      CVBFCS, CVTFCS, Model%me, Model%nlunit,      &
@@ -154,7 +164,15 @@
         do ix = 1,size(Grid(nb)%xlat,1)
           len = len + 1
           Sfcprop(nb)%slmsk  (ix) = SLIFCS  (len)
-          Sfcprop(nb)%tsfc   (ix) = TSFFCS  (len)
+!
+          Sfcprop(nb)%ts_clim_iano  (ix) = TSFFCS  (len) 
+          if (Model%do_som) then
+           Sfcprop(nb)%tsclim (ix)  = TSCLIM  (len)
+           Sfcprop(nb)%mldclim (ix) = MLDCLIM  (len)
+          else
+           Sfcprop(nb)%tsfc    (ix) = TSFFCS  (len) 
+          endif
+!
           Sfcprop(nb)%weasd  (ix) = SNOFCS  (len)
           Sfcprop(nb)%zorl   (ix) = ZORFCS  (len)
           Sfcprop(nb)%tg3    (ix) = TG3FCS  (len)

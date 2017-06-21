@@ -137,6 +137,11 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: slmsk  (:)   => null()  !< sea/land mask array (sea:0,land:1,sea-ice:2)
     real (kind=kind_phys), pointer :: tsfc   (:)   => null()  !< surface temperature in k 
                                                               !< [tsea in gbphys.f]
+!
+    real (kind=kind_phys), pointer :: tsclim   (:)   => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: mldclim   (:)   => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: ts_clim_iano   (:)   => null()  !< climatological SST in k 
+!
     real (kind=kind_phys), pointer :: tisfc  (:)   => null()  !< surface temperature over ice fraction 
     real (kind=kind_phys), pointer :: snowd  (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
     real (kind=kind_phys), pointer :: zorl   (:)   => null()  !< surface roughness in cm 
@@ -483,6 +488,8 @@ module GFS_typedefs
                                             !< from cloud edges for RAS
     integer              :: seed0           !< random seed for radiation
 
+    real(kind=kind_phys) :: rbcr            !< Critical Richardson Number in the PBL scheme
+
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0         !< pressure level from which Rayleigh Damping is applied
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
@@ -578,6 +585,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug         
     logical              :: pre_rad         !< flag for testing purpose
+    logical              :: do_som          !< flag for slab ocean model 
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
@@ -782,6 +790,9 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: cnvprcp(:)    => null()   !< accumulated convective precipitation (kg/m2)
     real (kind=kind_phys), pointer :: spfhmin(:)    => null()   !< minimum specific humidity
     real (kind=kind_phys), pointer :: spfhmax(:)    => null()   !< maximum specific humidity
+    real (kind=kind_phys), pointer :: u10mmax(:)    => null()   !< maximum u-wind
+    real (kind=kind_phys), pointer :: v10mmax(:)    => null()   !< maximum v-wind
+    real (kind=kind_phys), pointer :: wind10mmax(:) => null()   !< maximum wind speed
     real (kind=kind_phys), pointer :: rain   (:)    => null()   !< total rain at this time step
     real (kind=kind_phys), pointer :: rainc  (:)    => null()   !< convective rain at this time step
     real (kind=kind_phys), pointer :: ice    (:)    => null()   !< ice fall at this time step
@@ -794,6 +805,7 @@ module GFS_typedefs
     ! Output - only in physics
     real (kind=kind_phys), pointer :: u10m   (:)    => null()   !< 10 meater u/v wind speed
     real (kind=kind_phys), pointer :: v10m   (:)    => null()   !< 10 meater u/v wind speed
+    real (kind=kind_phys), pointer :: dpt2m  (:)    => null()   !< 2 meter dew point temperature
     real (kind=kind_phys), pointer :: zlvl   (:)    => null()   !< layer 1 height (m)
     real (kind=kind_phys), pointer :: psurf  (:)    => null()   !< surface pressure (Pa)
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
@@ -818,6 +830,12 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: smcref2(:)    => null()   !< soil moisture threshold (volumetric)
     real (kind=kind_phys), pointer :: wet1   (:)    => null()   !< normalized soil wetness
     real (kind=kind_phys), pointer :: sr     (:)    => null()   !< snow ratio : ratio of snow to total precipitation
+!
+    real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
+    real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !restoring term for diagnosis only
+    real (kind=kind_phys), pointer :: qflux_adj     (:)    => null()   !Q-flux (to be developed)
+    real (kind=kind_phys), pointer :: tclim_iano    (:)    => null()   !climatological SST with initial anomaly
+!
 
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: du3dt (:,:,:) => null()   !< u momentum change due to physics
@@ -936,6 +954,9 @@ module GFS_typedefs
     !--- physics and radiation
     allocate (Sfcprop%slmsk  (IM))
     allocate (Sfcprop%tsfc   (IM))
+    allocate (Sfcprop%tsclim   (IM)) 
+    allocate (Sfcprop%mldclim   (IM)) 
+    allocate (Sfcprop%ts_clim_iano  (IM)) 
     allocate (Sfcprop%tisfc  (IM))
     allocate (Sfcprop%snowd  (IM))
     allocate (Sfcprop%zorl   (IM))
@@ -945,6 +966,9 @@ module GFS_typedefs
 
     Sfcprop%slmsk   = clear_val
     Sfcprop%tsfc    = clear_val
+    Sfcprop%tsclim    = clear_val 
+    Sfcprop%mldclim    = clear_val 
+    Sfcprop%ts_clim_iano    = clear_val 
     Sfcprop%tisfc   = clear_val
     Sfcprop%snowd   = clear_val
     Sfcprop%zorl    = clear_val
@@ -1454,6 +1478,7 @@ module GFS_typedefs
                                                                       !< PBL top and at the top of the atmosphere
     real(kind=kind_phys) :: dlqf(2)        = (/0.0d0,0.0d0/)          !< factor for cloud condensate detrainment 
                                                                       !< from cloud edges for RAS
+    real(kind=kind_phys) :: rbcr           = 0.25                     !< Critical Richardson Number in PBL scheme
 
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0        = 0.0d0           !< pressure level from which Rayleigh Damping is applied
@@ -1518,6 +1543,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
+    logical              :: do_som         = .false.         !< flag for slab ocean model 
     !--- END NAMELIST VARIABLES
 
     NAMELIST /gfs_physics_nml/                                                              &
@@ -1541,7 +1567,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,                                                        &
+                               dlqf,rbcr,                                                   &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1556,7 +1582,7 @@ module GFS_typedefs
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
-                               debug, pre_rad
+                               debug, pre_rad, do_som
 
     !--- other parameters 
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -1722,6 +1748,7 @@ module GFS_typedefs
     Model%ctei_rm          = ctei_rm
     Model%crtrh            = crtrh
     Model%dlqf             = dlqf
+    Model%rbcr             = rbcr
 
     !--- Rayleigh friction
     Model%prslrd0          = prslrd0
@@ -1792,6 +1819,7 @@ module GFS_typedefs
     !--- debug flag
     Model%debug            = debug
     Model%pre_rad          = pre_rad
+    Model%do_som           = do_som 
 
     !--- set initial values for time varying properties
     Model%ipt              = 1
@@ -1982,10 +2010,10 @@ module GFS_typedefs
       Model%pdfcld  = .false.
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
-      if (Model%me == Model%master) print *,' Using GFDL Lin Microphysics', &
-                                            ' num_p2d = ', Model%num_p2d,   &
-                                            ' num_p3d = ', Model%num_p3d,   &
-                                            ' pdfcld  = ', Model%pdfcld,    &
+      if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics', &
+                                            ' num_p2d = ', Model%num_p2d,     &
+                                            ' num_p3d = ', Model%num_p3d,     &
+                                            ' pdfcld  = ', Model%pdfcld,      &
                                             ' cnvcld  = ', Model%cnvcld
     endif
 
@@ -2186,6 +2214,7 @@ module GFS_typedefs
       print *, ' crtrh             : ', Model%crtrh
       print *, ' dlqf              : ', Model%dlqf
       print *, ' seed0             : ', Model%seed0
+      print *, ' rbcr              : ', Model%rbcr
       print *, ' '
       print *, 'Rayleigh friction'
       print *, ' prslrd0           : ', Model%prslrd0
@@ -2262,6 +2291,7 @@ module GFS_typedefs
       print *, 'debug flags'
       print *, ' debug             : ', Model%debug 
       print *, ' pre_rad           : ', Model%pre_rad
+      print *, ' do_som            : ', Model%do_som 
       print *, ' '
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt
@@ -2496,6 +2526,10 @@ module GFS_typedefs
     allocate (Diag%totprcp (IM))
     allocate (Diag%gflux   (IM))
     allocate (Diag%dlwsfc  (IM))
+    allocate (Diag%netflxsfc     (IM)) 
+    allocate (Diag%qflux_restore (IM)) 
+    allocate (Diag%qflux_adj     (IM)) 
+    allocate (Diag%tclim_iano    (IM)) 
     allocate (Diag%ulwsfc  (IM))
     allocate (Diag%suntim  (IM))
     allocate (Diag%runoff  (IM))
@@ -2507,6 +2541,9 @@ module GFS_typedefs
     allocate (Diag%cnvprcp (IM))
     allocate (Diag%spfhmin (IM))
     allocate (Diag%spfhmax (IM))
+    allocate (Diag%u10mmax (IM))
+    allocate (Diag%v10mmax (IM))
+    allocate (Diag%wind10mmax (IM))
     allocate (Diag%rain    (IM))
     allocate (Diag%rainc   (IM))
     allocate (Diag%ice     (IM))
@@ -2517,6 +2554,7 @@ module GFS_typedefs
     allocate (Diag%totgrp  (IM))
     allocate (Diag%u10m    (IM))
     allocate (Diag%v10m    (IM))
+    allocate (Diag%dpt2m   (IM))
     allocate (Diag%zlvl    (IM))
     allocate (Diag%psurf   (IM))
     allocate (Diag%hpbl    (IM))
@@ -2604,6 +2642,10 @@ module GFS_typedefs
     Diag%totprcp = zero
     Diag%gflux   = zero
     Diag%dlwsfc  = zero
+    Diag%netflxsfc     = zero 
+    Diag%qflux_restore = zero 
+    Diag%qflux_adj     = zero 
+    Diag%tclim_iano    = zero 
     Diag%ulwsfc  = zero
     Diag%suntim  = zero
     Diag%runoff  = zero
@@ -2615,6 +2657,9 @@ module GFS_typedefs
     Diag%cnvprcp = zero
     Diag%spfhmin = huge
     Diag%spfhmax = zero
+    Diag%u10mmax  = zero
+    Diag%v10mmax  = zero
+    Diag%wind10mmax = zero
     Diag%rain    = zero
     Diag%rainc   = zero
     Diag%ice     = zero
@@ -2627,6 +2672,7 @@ module GFS_typedefs
     !--- Out
     Diag%u10m    = zero
     Diag%v10m    = zero
+    Diag%dpt2m   = zero
     Diag%zlvl    = zero
     Diag%psurf   = zero
     Diag%hpbl    = zero

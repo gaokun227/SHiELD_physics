@@ -44,7 +44,7 @@ module atmos_model_mod
 
 use mpp_mod,            only: mpp_pe, mpp_root_pe, mpp_clock_id, mpp_clock_begin
 use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, MPP_CLOCK_SYNC
-use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum, input_nml_file
+use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum
 use mpp_domains_mod,    only: domain2d
 use mpp_mod,            only: mpp_get_current_pelist_name
 #ifdef INTERNAL_FILE_NML

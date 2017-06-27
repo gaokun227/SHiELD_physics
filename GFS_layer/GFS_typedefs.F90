@@ -488,6 +488,8 @@ module GFS_typedefs
                                             !< from cloud edges for RAS
     integer              :: seed0           !< random seed for radiation
 
+    real(kind=kind_phys) :: rbcr            !< Critical Richardson Number in the PBL scheme
+
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0         !< pressure level from which Rayleigh Damping is applied
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
@@ -1476,6 +1478,7 @@ module GFS_typedefs
                                                                       !< PBL top and at the top of the atmosphere
     real(kind=kind_phys) :: dlqf(2)        = (/0.0d0,0.0d0/)          !< factor for cloud condensate detrainment 
                                                                       !< from cloud edges for RAS
+    real(kind=kind_phys) :: rbcr           = 0.25                     !< Critical Richardson Number in PBL scheme
 
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0        = 0.0d0           !< pressure level from which Rayleigh Damping is applied
@@ -1564,7 +1567,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,                                                        &
+                               dlqf,rbcr,                                                   &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1745,6 +1748,7 @@ module GFS_typedefs
     Model%ctei_rm          = ctei_rm
     Model%crtrh            = crtrh
     Model%dlqf             = dlqf
+    Model%rbcr             = rbcr
 
     !--- Rayleigh friction
     Model%prslrd0          = prslrd0
@@ -2210,6 +2214,7 @@ module GFS_typedefs
       print *, ' crtrh             : ', Model%crtrh
       print *, ' dlqf              : ', Model%dlqf
       print *, ' seed0             : ', Model%seed0
+      print *, ' rbcr              : ', Model%rbcr
       print *, ' '
       print *, 'Rayleigh friction'
       print *, ' prslrd0           : ', Model%prslrd0

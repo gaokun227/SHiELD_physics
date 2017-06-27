@@ -5,7 +5,7 @@ cfpp$ noconcur r
      &     prsi,del,prsl,prslk,phii,phil,deltim,dspheat,
      &     dusfc,dvsfc,dtsfc,dqsfc,hpbl,hgamt,hgamq,dkt,
      &     kinver,xkzm_m,xkzm_h,xkzm_s,lprnt,ipr,
-     &     xkzminv,moninq_fac)
+     &     xkzminv,moninq_fac,rbcr)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -90,7 +90,7 @@ cfpp$ noconcur r
      &                     dtodsu,  dw2,    dw2min, g,
      &                     gamcrq,  gamcrt, gocp,   gor, gravi,
      &                     hol,     hol1,   pfac,   prmax, prmin,
-     &                     prnum,   qmin,   tdzmin, qtend, rbcr,
+     &                     prnum,   qmin,   tdzmin, qtend,
      &                     rbint,   rdt,    rdz,    qlmin, 
 !    &                     rbint,   rdt,    rdz,    rdzt1,
      &                     ri,      rimin,  rl2,    rlam,  rlamun,
@@ -104,7 +104,7 @@ cfpp$ noconcur r
      &                     xkzm,    xkzmu,  xkzminv,
      &                     ptem,    ptem1,  ptem2, tx1(im), tx2(im)
 !
-      real(kind=kind_phys) moninq_fac
+      real(kind=kind_phys) moninq_fac, rbcr
 !
       real(kind=kind_phys) zstblmax,h1,     h2,     qlcr,  actei,
      &                     cldtime, u01,    v01,    delu,  delv
@@ -117,7 +117,7 @@ cc
       parameter(rlam=30.0,vk=0.4,vk2=vk*vk)
       parameter(prmin=0.25,prmax=4.)
       parameter(dw2min=0.0001,dkmin=0.0,dkmax=1000.,rimin=-100.)
-      parameter(rbcr=0.25,wfac=7.0,cfac=6.5,pfac=2.0,sfcfrac=0.1)
+!      parameter(rbcr=0.25,wfac=7.0,cfac=6.5,pfac=2.0,sfcfrac=0.1)
 !     parameter(qmin=1.e-8,xkzm=1.0,zfmin=1.e-8,aphi5=5.,aphi16=16.)
       parameter(qmin=1.e-8,         zfmin=1.e-8,aphi5=5.,aphi16=16.)
       parameter(tdzmin=1.e-3,qlmin=1.e-12,cpert=0.25,sfac=5.4)
@@ -476,7 +476,10 @@ c
       do i = 1, im
         if(.not.flg(i)) then
           rbdn(i) = rbup(i)
-          spdk2   = max((u1(i,k)**2+v1(i,k)**2),1.)
+!          spdk2   = max((u1(i,k)**2+v1(i,k)**2),1.)
+! kgao - change bulk ri defination
+          spdk2   = max(((u1(i,k)-u1(i,1))**2
+     &                  +(v1(i,k)-v1(i,1))**2),1.)
           rbup(i) = (thvx(i,k)-thermal(i))*
      &              (g*zl(i,k)/thvx(i,1))/spdk2
           kpbl(i) = k

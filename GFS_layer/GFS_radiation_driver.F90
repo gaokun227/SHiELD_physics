@@ -488,9 +488,8 @@
 !              =1: use prognostic cloud scheme (default)                !
 !   icmphys  : cloud microphysics scheme control flag                   !
 !              =1 zhao/carr/sundqvist microphysics scheme               !
-!              =2 brad ferrier microphysics scheme                      !
 !              =3 zhao/carr/sundqvist microphysics+pdf cloud & cnvc,cnvw!
-!              =4 GFDL cloud microphysics+pdf cloud & cnvc,cnvw         !
+!              =4 GFDL cloud microphysics                               !
 !   iovrsw   : control flag for cloud overlap in sw radiation           !
 !   iovrlw   : control flag for cloud overlap in lw radiation           !
 !              =0: random overlapping clouds                            !
@@ -1164,8 +1163,8 @@
 !                        =1 index from surface to toa                   !
 !     icmphys          : cloud microphysics scheme control flag         !
 !                        =1 zhao/carr/sundqvist microphysics scheme     !
-!                        =2 brad ferrier microphysics scheme            !
 !                        =3 zhao/carr/sundqvist microphysics +pdf cloud !
+!                        =4 GFDL cloud microphysics                     !
 !                                                                       !
 !    module variables:                                                  !
 !     itsfc            : =0 use same sfc skin-air/ground temp           !

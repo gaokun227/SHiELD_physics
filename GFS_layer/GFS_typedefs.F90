@@ -1983,6 +1983,7 @@ module GFS_typedefs
     !--- set up cloud schemes and tracer elements
     if (Model%ncld <= 1) then
       if (Model%zhao_mic) then        ! default setup for Zhao Microphysics
+        Model%npdf3d = 0
         Model%num_p3d = 4
         Model%num_p2d = 3
         if (Model%pdfcld) then
@@ -1996,6 +1997,7 @@ module GFS_typedefs
         stop
       endif
     elseif (Model%ncld == 2) then
+      Model%npdf3d = 0
       Model%num_p3d = 1
       Model%num_p2d = 1
       Model%pdfcld  = .false.
@@ -2005,16 +2007,13 @@ module GFS_typedefs
                                             ' mg_dcs=',Model%mg_dcs,' mg_qcvar=',Model%mg_qcvar, &
                                             ' mg_ts_auto_ice=',Model%mg_ts_auto_ice
     elseif (Model%ncld == 5) then
+      Model%npdf3d = 0
       Model%num_p3d = 4
       Model%num_p2d = 1
       Model%pdfcld  = .false.
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
-      if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics', &
-                                            ' num_p2d = ', Model%num_p2d,     &
-                                            ' num_p3d = ', Model%num_p3d,     &
-                                            ' pdfcld  = ', Model%pdfcld,      &
-                                            ' cnvcld  = ', Model%cnvcld
+      if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics'
     endif
 
     Model%uni_cld = .false.

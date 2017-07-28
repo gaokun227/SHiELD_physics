@@ -2210,6 +2210,8 @@ module module_physics_driver
               Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
             endif
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
+              num2 = Model%num_p3d + 2
+              num3 = num2 + 1
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
               Tbd%phy_f3d(:,:,num3) = cnvc(:,:)
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
@@ -2233,11 +2235,13 @@ module module_physics_driver
               Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
             endif
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
-              Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
-              Tbd%phy_f3d(:,:,num3) = cnvc(:,:)
+              num2 = Model%num_p3d + 2
+              num3 = num2 + 1
+              Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
+              Tbd%phy_f3d(:,:,num3) = Tbd%phy_f3d(:,:,num3) + cnvc(:,:)
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
               num2 = Model%num_p3d + 1
-              Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
+              Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
             endif
 
           elseif (Model%imfshalcnv == 0) then    ! modified Tiedtke Shallow convecton

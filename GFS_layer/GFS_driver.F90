@@ -228,7 +228,7 @@ module GFS_driver
 
     !--- sncovr may not exist in ICs from chgres.
     !--- FV3GFS handles this as part of the IC ingest
-    !--- this not is placed here to alert users to the need to study
+    !--- this note is placed here alertng users to study
     !--- the FV3GFS_io.F90 module
 
   end subroutine GFS_initialize

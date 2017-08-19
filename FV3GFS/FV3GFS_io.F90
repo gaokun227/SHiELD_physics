@@ -2357,7 +2357,7 @@ module FV3GFS_io_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'uustar'
-    Diag(idx)%desc = 'uustar PBL scheme'
+    Diag(idx)%desc = 'uustar surface frictional wind'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
     allocate (Diag(idx)%data(nblks))
@@ -2787,13 +2787,12 @@ module FV3GFS_io_mod
 
     do idx = 1,tot_diag_idx
       if (diag(idx)%axes == -99) then
-        call mpp_error(FATAL, 'gfs_driver::gfs_diag_register - attempt to register an undefined variable') 
+        call mpp_error(FATAL, 'gfs_driver::gfs_diag_register - attempt to register an undefined variable')
       endif
       Diag(idx)%id = register_diag_field (trim(Diag(idx)%mod_name), trim(Diag(idx)%name),  &
-                                           axes(1:Diag(idx)%axes), Time, trim(Diag(idx)%desc), &
-                                           trim(Diag(idx)%unit), missing_value=real(missing_value))
+                                          axes(1:Diag(idx)%axes), Time, trim(Diag(idx)%desc), &
+                                          trim(Diag(idx)%unit), missing_value=real(missing_value))
     enddo
-!!!#endif
 
   end subroutine gfdl_diag_register
 !-------------------------------------------------------------------------      
@@ -2983,6 +2982,5 @@ module FV3GFS_io_mod
 
   end subroutine gfdl_diag_output
 !-------------------------------------------------------------------------      
-
 
 end module FV3GFS_io_mod

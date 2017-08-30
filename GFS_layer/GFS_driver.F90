@@ -317,7 +317,7 @@ module GFS_driver
     endif
 
     !--- determine if diagnostics buckets need to be cleared
-    if (mod(Model%kdt,Model%nszero) == 1) then 
+    if (mod(Model%kdt,Model%nszero) == 1) then
       do nb = 1,nblks
         call Diag(nb)%rad_zero  (Model)
         call Diag(nb)%phys_zero (Model)

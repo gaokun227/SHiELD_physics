@@ -362,7 +362,6 @@
 !                     =1: model use prognostic cloud method             !
 !   icmphys         : cloud microphysics scheme control flag            !
 !                     =1: zhao/carr/sundqvist microphysics cloud        !
-!                     =2: ferrier microphysics cloud scheme             !
 !                     =3: zhao/carr/sundqvist microphysics cloud +pdfcld!
 !   iovrsw/iovrlw   : sw/lw control flag for cloud overlapping scheme   !
 !                     =0: random overlapping clouds                     !
@@ -415,8 +414,6 @@
           print *,' - Using Prognostic Cloud Method'
           if (icmphys == 1) then
             print *,'   --- Zhao/Carr/Sundqvist microphysics'
-          elseif (icmphys == 2) then
-            print *,'   --- Ferrier cloud microphysics'
           elseif (icmphys == 3) then
             print *,'   --- zhao/carr/sundqvist + pdf cloud'
           elseif (icmphys == 4) then

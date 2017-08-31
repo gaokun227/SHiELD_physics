@@ -223,7 +223,7 @@ c
       val   =         3600.
       dtmax = max(dt2, val )
 c  model tunable parameters are all here
-      !clam    = .3
+!      clam    = .3
       aafac   = .1
       betaw   = .03
 c     evef    = 0.07

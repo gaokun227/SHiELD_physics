@@ -44,7 +44,7 @@ module atmos_model_mod
 
 use mpp_mod,            only: mpp_pe, mpp_root_pe, mpp_clock_id, mpp_clock_begin
 use mpp_mod,            only: mpp_clock_end, CLOCK_COMPONENT, MPP_CLOCK_SYNC
-use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum, input_nml_file
+use mpp_mod,            only: mpp_min, mpp_max, mpp_error, mpp_chksum
 use mpp_domains_mod,    only: domain2d
 use mpp_mod,            only: mpp_get_current_pelist_name
 #ifdef INTERNAL_FILE_NML
@@ -72,7 +72,10 @@ use atmosphere_mod,     only: atmosphere_resolution, atmosphere_domain
 use atmosphere_mod,     only: atmosphere_grid_bdry, atmosphere_grid_ctr
 use atmosphere_mod,     only: atmosphere_dynamics, atmosphere_diag_axes
 use atmosphere_mod,     only: atmosphere_etalvls, atmosphere_hgt
+!rab use atmosphere_mod,     only: atmosphere_tracer_postinit
+use atmosphere_mod,     only: atmosphere_scalar_field_halo
 use atmosphere_mod,     only: set_atmosphere_pelist
+use atmosphere_mod,     only: Atm, mytile
 use block_control_mod,  only: block_control_type, define_blocks_packed
 use IPD_typedefs,       only: IPD_init_type, IPD_control_type, &
                               IPD_data_type, IPD_diag_type,    &
@@ -112,6 +115,7 @@ public atmos_model_restart
      logical                       :: pe                 ! current pe.
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
                                                          ! to calculate gradient on cubic sphere grid.
+     integer                       :: layout(2)          ! computer task laytout
      real(kind=8), pointer, dimension(:) :: ak
      real(kind=8), pointer, dimension(:) :: bk
      real(kind=8), pointer, dimension(:,:,:) :: layer_hgt
@@ -132,6 +136,7 @@ logical :: debug        = .false.
 logical :: sync         = .false.
 namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync
 type (time_type) :: diag_time
+real, dimension(2048) :: fdiag = 0.
 
 !--- concurrent and decoupled radiation and physics variables
 !----------------
@@ -316,7 +321,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 !---------- initialize atmospheric dynamics -------
    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
-                         Atmos%grid, Atmos%dx, Atmos%dy, Atmos%area)
+                         Atmos%grid, Atmos%area)
 
    IF ( file_exist('input.nml')) THEN
 #ifdef INTERNAL_FILE_NML
@@ -336,7 +341,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
    call alloc_atmos_data_type (nlon, nlat, Atmos)
-   call atmosphere_domain (Atmos%domain)
+   call atmosphere_domain (Atmos%domain, Atmos%layout)
    call atmosphere_diag_axes (Atmos%axes)
    call atmosphere_etalvls (Atmos%ak, Atmos%bk, flip=.true.)
    call atmosphere_grid_bdry (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
@@ -409,6 +414,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Init_parm%tracer_names    => null()
    deallocate (tracer_names)
 
+   !--- update tracers in FV3 with any initialized during the physics/radiation init phase
+!rab   call atmosphere_tracer_postinit (IPD_Data, Atm_block)
+
    call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, Atm_block, Atmos%axes, IPD_Control%nfxr)
    call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
 
@@ -424,6 +432,12 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
       write (unit, nml=atmos_model_nml)
       call close_file (unit)
    endif
+
+   !--- get fdiag
+#ifdef GFS_PHYS
+   fdiag(1:2048) = Atm(mytile)%fdiag(1:2048)
+   if (mpp_pe() == mpp_root_pe()) write(6,*) "---fdiag",fdiag(1:40)
+#endif
 
    setupClock = mpp_clock_id( 'GFS Step Setup        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    radClock   = mpp_clock_id( 'GFS Radiation         ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
@@ -466,7 +480,7 @@ subroutine update_atmos_model_state (Atmos)
 ! to update the model state after all concurrency is completed
   type (atmos_data_type), intent(inout) :: Atmos
 !--- local variables
-  integer :: isec
+  integer :: isec,seconds
   real(kind=kind_phys) :: time_int
 
     call set_atmosphere_pelist()
@@ -485,15 +499,16 @@ subroutine update_atmos_model_state (Atmos)
     Atmos % Time = Atmos % Time + Atmos % Time_step
 
     call get_time (Atmos%Time - diag_time, isec)
-    if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) then
-      time_int = real(isec) 
-
+    call get_time (Atmos%Time - Atmos%Time_init, seconds)
+    if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
+    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1) ) then
+      time_int = real(isec)
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int)
-      if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
+      if (mod(isec,3600*nint(IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
-    call diag_send_complete_extra (Atmos%Time) 
+    call diag_send_complete_extra (Atmos%Time)
 
  end subroutine update_atmos_model_state
 ! </SUBROUTINE>

@@ -228,7 +228,7 @@ module GFS_driver
 
     !--- sncovr may not exist in ICs from chgres.
     !--- FV3GFS handles this as part of the IC ingest
-    !--- this not is placed here to alert users to the need to study
+    !--- this note is placed here alertng users to study
     !--- the FV3GFS_io.F90 module
 
   end subroutine GFS_initialize
@@ -317,7 +317,7 @@ module GFS_driver
     endif
 
     !--- determine if diagnostics buckets need to be cleared
-    if (mod(Model%kdt,Model%nszero) == 1) then 
+    if (mod(Model%kdt,Model%nszero) == 1) then
       do nb = 1,nblks
         call Diag(nb)%rad_zero  (Model)
         call Diag(nb)%phys_zero (Model)

@@ -137,6 +137,7 @@ logical :: sync         = .false.
 namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync
 type (time_type) :: diag_time
 real, dimension(2048) :: fdiag = 0.
+logical :: first_time_step = .true.
 
 !--- concurrent and decoupled radiation and physics variables
 !----------------
@@ -436,6 +437,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    !--- get fdiag
 #ifdef GFS_PHYS
    fdiag(1:2048) = Atm(mytile)%fdiag(1:2048)
+   first_time_step = Atm(mytile)%first_time_step
    if (mpp_pe() == mpp_root_pe()) write(6,*) "---fdiag",fdiag(1:40)
 #endif
 
@@ -500,8 +502,9 @@ subroutine update_atmos_model_state (Atmos)
 
     call get_time (Atmos%Time - diag_time, isec)
     call get_time (Atmos%Time - Atmos%Time_init, seconds)
-    if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
-    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1) ) then
+!LZ if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
+!LZ if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1) ) then
+    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1 .and. first_time_step) ) then
       time_int = real(isec)
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Control%nx, IPD_Control%ny, &

@@ -2638,7 +2638,7 @@ module module_physics_driver
           Stateout%gq0(:,:,Model%ntsnc) = ncps(:,:)
         endif
 
-      elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
+      elseif (Model%ncld == 5 .and. (.not. Model%do_unif_gfdlmp)) then       ! GFDL Cloud microphysics
 
         land     (:,1)   = frland(:)
         area     (:,1)   = Grid%area(:)

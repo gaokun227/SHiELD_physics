@@ -468,7 +468,7 @@ module module_physics_driver
            qflux_adj                                                     ! 
 !
 
-      real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::           &
+      real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
           area, land, rain0, snow0, ice0, graupel0
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -485,7 +485,7 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs+1) ::&
            del_gz
 
-      real(kind=kind_phys), dimension(size(Grid%xlon,1),1,Model%levs) ::&
+      real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
            delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1,   &
            qs1, pt_dt, qa_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt,  &
            qs_dt, qg_dt
@@ -2640,38 +2640,38 @@ module module_physics_driver
 
       elseif (Model%ncld == 5 .and. (.not. Model%do_unif_gfdlmp)) then       ! GFDL Cloud microphysics
 
-        land     (:,1)   = frland(:)
-        area     (:,1)   = Grid%area(:)
-        rain0    (:,1)   = 0.0
-        snow0    (:,1)   = 0.0
-        ice0     (:,1)   = 0.0
-        graupel0 (:,1)   = 0.0
-        qn1      (:,1,:) = 0.0
-        qv_dt    (:,1,:) = 0.0
-        ql_dt    (:,1,:) = 0.0
-        qr_dt    (:,1,:) = 0.0
-        qi_dt    (:,1,:) = 0.0
-        qs_dt    (:,1,:) = 0.0
-        qg_dt    (:,1,:) = 0.0
-        qa_dt    (:,1,:) = 0.0
-        pt_dt    (:,1,:) = 0.0
-        udt      (:,1,:) = 0.0
-        vdt      (:,1,:) = 0.0
+        land      = frland(:)
+        area      = Grid%area(:)
+        rain0     = 0.0
+        snow0     = 0.0
+        ice0      = 0.0
+        graupel0  = 0.0
+        qn1       = 0.0
+        qv_dt     = 0.0
+        ql_dt     = 0.0
+        qr_dt     = 0.0
+        qi_dt     = 0.0
+        qs_dt     = 0.0
+        qg_dt     = 0.0
+        qa_dt     = 0.0
+        pt_dt     = 0.0
+        udt       = 0.0
+        vdt       = 0.0
         do k = 1, levs
-          qv1  (:,1,k) = Stateout%gq0(:,levs-k+1,1         )
-          ql1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntcw)
-          qr1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntrw)
-          qi1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntiw)
-          qs1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntsw)
-          qg1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntgl)
-          qa1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntclamt)
-          pt   (:,1,k) = Stateout%gt0(:,levs-k+1)
-          w    (:,1,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
+          qv1  (:,k) = Stateout%gq0(:,levs-k+1,1         )
+          ql1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntcw)
+          qr1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntrw)
+          qi1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntiw)
+          qs1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntsw)
+          qg1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntgl)
+          qa1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntclamt)
+          pt   (:,k) = Stateout%gt0(:,levs-k+1)
+          w    (:,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g
-          uin  (:,1,k) = Stateout%gu0(:,levs-k+1)
-          vin  (:,1,k) = Stateout%gv0(:,levs-k+1)
-          delp (:,1,k) = del(:,levs-k+1)
-          dz   (:,1,k) = (Statein%phii(:,levs-k+1)-Statein%phii(:,levs-k+2))/con_g
+          uin  (:,k) = Stateout%gu0(:,levs-k+1)
+          vin  (:,k) = Stateout%gv0(:,levs-k+1)
+          delp (:,k) = del(:,levs-k+1)
+          dz   (:,k) = (Statein%phii(:,levs-k+1)-Statein%phii(:,levs-k+2))/con_g
         enddo
 
         seconds          = mod(nint(Model%fhour*3600),86400)
@@ -2682,33 +2682,33 @@ module module_physics_driver
                                          uin, vin, udt, vdt, dz, delp,      &
                                          area, dtp, land, rain0, snow0,     &
                                          ice0, graupel0, .false., .true.,   &
-                                         1, im, 1, 1, 1, levs, 1, levs,     &
+                                         1, im, 1, levs, 1, levs,     &
                                          seconds)
 
-        rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
+        rain1(:)   = (rain0(:)+snow0(:)+ice0(:)+graupel0(:))  &
                      * dtp * con_p001 / con_day
-        Diag%ice(:)     = ice0    (:,1) * dtp * con_p001 / con_day
-        Diag%snow(:)    = snow0   (:,1) * dtp * con_p001 / con_day
-        Diag%graupel(:) = graupel0(:,1) * dtp * con_p001 / con_day
+        Diag%ice(:)     = ice0    (:) * dtp * con_p001 / con_day
+        Diag%snow(:)    = snow0   (:) * dtp * con_p001 / con_day
+        Diag%graupel(:) = graupel0(:) * dtp * con_p001 / con_day
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
-            Diag%sr(i)  =              (snow0(i,1) + ice0(i,1) + graupel0(i,1)) &
-                         /(rain0(i,1) + snow0(i,1) + ice0(i,1) + graupel0(i,1))
+            Diag%sr(i)  =              (snow0(i) + ice0(i) + graupel0(i)) &
+                         /(rain0(i) + snow0(i) + ice0(i) + graupel0(i))
           else
             Diag%sr(i) = 0.0
           endif
         enddo
         do k = 1, levs
-          Stateout%gq0(:,k,1         ) = qv1(:,1,levs-k+1) + qv_dt(:,1,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntcw) = ql1(:,1,levs-k+1) + ql_dt(:,1,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntrw) = qr1(:,1,levs-k+1) + qr_dt(:,1,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntiw) = qi1(:,1,levs-k+1) + qi_dt(:,1,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntsw) = qs1(:,1,levs-k+1) + qs_dt(:,1,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntgl) = qg1(:,1,levs-k+1) + qg_dt(:,1,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntclamt) = qa1(:,1,levs-k+1) + qa_dt(:,1,levs-k+1) * dtp
-          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,1,levs-k+1) * dtp
-          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,1,levs-k+1) * dtp
-          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,1,levs-k+1) * dtp
+          Stateout%gq0(:,k,1         ) = qv1(:,levs-k+1) + qv_dt(:,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntcw) = ql1(:,levs-k+1) + ql_dt(:,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntrw) = qr1(:,levs-k+1) + qr_dt(:,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntiw) = qi1(:,levs-k+1) + qi_dt(:,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntsw) = qs1(:,levs-k+1) + qs_dt(:,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntgl) = qg1(:,levs-k+1) + qg_dt(:,levs-k+1) * dtp
+          Stateout%gq0(:,k,Model%ntclamt) = qa1(:,levs-k+1) + qa_dt(:,levs-k+1) * dtp
+          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,levs-k+1) * dtp
+          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,levs-k+1) * dtp
+          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,levs-k+1) * dtp
         enddo
 
       endif       ! end if_ncld
@@ -2821,7 +2821,7 @@ module module_physics_driver
               crain = 0.0
               csnow = Diag%rainc(i)
             endif
-            if ((snow0(i,1)+ice0(i,1)+graupel0(i,1)+csnow) .gt. (rain0(i,1)+crain)) then
+            if ((snow0(i)+ice0(i)+graupel0(i)+csnow) .gt. (rain0(i)+crain)) then
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
             endif
           else

@@ -105,6 +105,12 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: tgrs (:,:)   => null()  !< model layer mean temperature in k
     real (kind=kind_phys), pointer :: qgrs (:,:,:) => null()  !< layer mean tracer concentration
 
+    !--- precipitation
+    real (kind=kind_phys), pointer :: prer (:)     => null()  !< rain
+    real (kind=kind_phys), pointer :: prei (:)     => null()  !< ice
+    real (kind=kind_phys), pointer :: pres (:)     => null()  !< snow
+    real (kind=kind_phys), pointer :: preg (:)     => null()  !< graupel
+
     contains
       procedure :: create  => statein_create  !<   allocate array data
   end type GFS_statein_type
@@ -916,6 +922,16 @@ module GFS_typedefs
     Statein%pgr    = clear_val
     Statein%ugrs   = clear_val
     Statein%vgrs   = clear_val
+
+    allocate (Statein%prer(IM))
+    allocate (Statein%prei(IM))
+    allocate (Statein%pres(IM))
+    allocate (Statein%preg(IM))
+
+    Statein%prer = clear_val
+    Statein%prei = clear_val
+    Statein%pres = clear_val
+    Statein%preg = clear_val
 
   end subroutine statein_create
 

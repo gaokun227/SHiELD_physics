@@ -2638,7 +2638,25 @@ module module_physics_driver
           Stateout%gq0(:,:,Model%ntsnc) = ncps(:,:)
         endif
 
-      elseif (Model%ncld == 5 .and. (.not. Model%do_unif_gfdlmp)) then       ! GFDL Cloud microphysics
+      elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
+
+        if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
+
+        rain1(:)   = (Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:))  &
+                     * dtp * con_p001 / con_day
+        Diag%ice(:)     = Statein%prei(:) * dtp * con_p001 / con_day
+        Diag%snow(:)    = Statein%pres(:) * dtp * con_p001 / con_day
+        Diag%graupel(:) = Statein%preg(:) * dtp * con_p001 / con_day
+        do i = 1, im
+          if (rain1(i) .gt. 0.0) then
+            Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
+                         /(Statein%prer(i) + Statein%pres(i) + Statein%prei(i) + Statein%preg(i))
+          else
+            Diag%sr(i) = 0.0
+          endif
+        enddo
+
+        else
 
         land      = frland(:)
         area      = Grid%area(:)
@@ -2710,6 +2728,8 @@ module module_physics_driver
           Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,levs-k+1) * dtp
           Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,levs-k+1) * dtp
         enddo
+
+        endif
 
       endif       ! end if_ncld
 !     if (lprnt) write(0,*)' rain1 after ls=',rain1(ipr)
@@ -2821,8 +2841,14 @@ module module_physics_driver
               crain = 0.0
               csnow = Diag%rainc(i)
             endif
+            if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
+            if ((Statein%pres(i)+Statein%prei(i)+Statein%preg(i)+csnow) .gt. (Statein%prer(i)+crain)) then
+              Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
+            endif
+            else
             if ((snow0(i)+ice0(i)+graupel0(i)+csnow) .gt. (rain0(i)+crain)) then
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
+            endif
             endif
           else
             if (t850(i) <= 273.16) then

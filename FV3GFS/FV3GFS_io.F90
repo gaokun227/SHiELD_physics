@@ -16,7 +16,7 @@ module FV3GFS_io_mod
 !--- FMS/GFDL modules
   use block_control_mod,  only: block_control_type
   use mpp_mod,            only: mpp_error, mpp_pe, mpp_root_pe, &
-                                mpp_chksum, NOTE, FATAL
+                                mpp_chksum, NOTE, FATAL, mpp_get_current_pelist_name
   use fms_mod,            only: file_exist, stdout
   use fms_io_mod,         only: restart_file_type, free_restart_type, &
                                 register_restart_field,               &
@@ -24,7 +24,7 @@ module FV3GFS_io_mod
   use mpp_domains_mod,    only: domain2d
   use time_manager_mod,   only: time_type
   use diag_manager_mod,   only: register_diag_field, send_data
-
+  use fv_mp_mod,          only: is_master, mp_reduce_sum, mp_reduce_min, mp_reduce_max
 !
 !--- GFS physics modules
   use machine,            only: kind_phys
@@ -37,6 +37,8 @@ module FV3GFS_io_mod
 !--- IPD typdefs
   use IPD_typedefs,       only: IPD_control_type, IPD_data_type, &
                                 IPD_restart_type
+!--- GFS physics constants
+  use physcons,           only: pi => con_pi, RADIUS => con_rerth
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -2808,7 +2810,7 @@ module FV3GFS_io_mod
 !-------------------------------------------------------------------------      
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
-  subroutine gfdl_diag_output(Time, Atm_block, &
+  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, &
                              nx, ny, levs, ntcw, ntoz, dt, time_int)
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
@@ -2816,6 +2818,7 @@ module FV3GFS_io_mod
 !rab    type(state_fields_in),     intent(in) :: Statein
 !rab    type(state_fields_out),    intent(in) :: Stateout
     type (block_control_type), intent(in) :: Atm_block
+    type(IPD_data_type),       intent(in) :: IPD_Data(:)
     integer,                   intent(in) :: nx, ny, levs, ntcw, ntoz
     real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
@@ -2825,7 +2828,7 @@ module FV3GFS_io_mod
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx*ny) :: var2p
     real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
-    real(kind=kind_phys), dimension(nx,ny) :: var2
+    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
     real(kind=kind_phys) :: rdt, rtime_int, lcnvfac
     logical :: used
@@ -2839,6 +2842,20 @@ module FV3GFS_io_mod
      is_in = Atm_block%isc
      js_in = Atm_block%jsc
 
+     !Metrics
+     do j = 1, ny
+        jj = j + jsc -1
+        do i = 1, nx
+           ii = i + isc -1
+           nb = Atm_block%blkno(ii,jj)
+           ix = Atm_block%ixp(ii,jj)
+           area(i,j) = IPD_Data(nb)%Grid%area(ix)
+           lat(i,j)  = IPD_Data(nb)%Grid%xlat(ix)
+           lon(i,j)  = IPD_Data(nb)%Grid%xlon(ix)
+           one(i,j)  = 1.
+           landmask(i,j) = IPD_Data(nb)%Sfcprop%slmsk(ix)
+        enddo
+     enddo
      do idx = 1,tot_diag_idx
        if (Diag(idx)%id > 0) then
          lcnvfac = Diag(idx)%cnvfac
@@ -2894,6 +2911,20 @@ module FV3GFS_io_mod
            endif
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
            used=send_data(Diag(idx)%id, var2, Time)
+           !!!! Accumulated diagnostics!
+           select case (trim(Diag(idx)%name))
+           case('totprcp')
+              call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)
+              call prt_gb_nh_sh_us('Land Precip  (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 86400.)
+           case('totsnw')
+              call prt_gb_nh_sh_us('Total Snowfall (9:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 777600.)
+              call prt_gb_nh_sh_us('Land Snowfall  (9:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 777600.)
+!           case('totgrp') ! Tiny??
+!              call prt_gb_nh_sh_us('Total Icefall (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 172800.)
+!              call prt_gb_nh_sh_us('Land Icefall  (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 172800.)
+           case('dqsfc')
+              call prt_gb_nh_sh_us('Total sfc LH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           end select
          elseif (Diag(idx)%axes == 3) then
          !---
          !--- skipping the 3D variables with the following else statement
@@ -2982,5 +3013,96 @@ module FV3GFS_io_mod
 
   end subroutine gfdl_diag_output
 !-------------------------------------------------------------------------      
+ subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac)
+  character(len=*), intent(in)::  qname
+  integer, intent(in):: is, ie, js, je
+  real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: a2
+  real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: area, lon, lat, mask
+  real, intent(in) :: fac
+! Local:
+  real(kind=kind_phys), parameter:: rad2deg = 180./pi
+  real(kind=kind_phys) :: slat, slon
+  real(kind=kind_phys):: t_eq, t_nh, t_sh, t_gb, t_us
+  real(kind=kind_phys):: area_eq, area_nh, area_sh, area_gb, area_us
+  integer:: i,j
+  character(len=100) :: diagstr
+  character(len=20)  :: diagstr1
+
+     t_eq = 0.   ;    t_nh = 0.;    t_sh = 0.;    t_gb = 0.;    t_us = 0.
+     area_eq = 0.; area_nh = 0.; area_sh = 0.; area_gb = 0.; area_us = 0.
+     do j=js,je
+        do i=is,ie
+           slat = lat(i,j)*rad2deg
+           slon = lon(i,j)*rad2deg
+           area_gb = area_gb + area(i,j)*mask(i,j)
+           t_gb = t_gb + a2(i,j)*area(i,j)*mask(i,j)
+           if( (slat>-20. .and. slat<20.) ) then
+                area_eq = area_eq + area(i,j)*mask(i,j)
+                t_eq = t_eq + a2(i,j)*area(i,j)*mask(i,j)
+           elseif( slat>=20. .and. slat<80. ) then
+                area_nh = area_nh + area(i,j)*mask(i,j)
+                t_nh = t_nh + a2(i,j)*area(i,j)*mask(i,j)
+           elseif( slat<=-20. .and. slat>-80. ) then
+                area_sh = area_sh + area(i,j)*mask(i,j)
+                t_sh = t_sh + a2(i,j)*area(i,j)*mask(i,j)
+           endif
+           if ( slat>25.  .and. slat<50. .and. &
+                slon>235. .and. slon<300. ) then
+              area_us = area_us + area(i,j)*mask(i,j)
+              t_us = t_us + a2(i,j)*area(i,j)*mask(i,j)
+           endif
+        enddo
+     enddo
+
+     call mp_reduce_sum(area_gb)
+     call mp_reduce_sum(   t_gb)
+     call mp_reduce_sum(area_nh)
+     call mp_reduce_sum(   t_nh)
+     call mp_reduce_sum(area_sh)
+     call mp_reduce_sum(   t_sh)
+     call mp_reduce_sum(area_eq)
+     call mp_reduce_sum(   t_eq)
+     call mp_reduce_sum(area_us)
+     call mp_reduce_sum(   t_us)
+
+     diagstr = trim(qname) // ' ' // trim(mpp_get_current_pelist_name()) // ' '
+     if (area_gb < 1.) then
+        diagstr1 = ''
+     !elseif( area_gb <= 4.*pi*RADIUS*RADIUS*.98) then
+     !   write(diagstr1,101) 'Grid', t_gb/area_gb*fac
+     else
+        write(diagstr1,101) 'GB', t_gb/area_gb*fac
+     endif
+     diagstr = trim(diagstr) // trim(diagstr1)
+     if (area_nh <= 1.) then
+        diagstr1 = ''
+     else
+        write(diagstr1,101) 'NH', t_nh/area_nh*fac
+     endif
+     diagstr = trim(diagstr) // trim(diagstr1)
+     if (area_sh <= 1.) then
+        diagstr1 = ''
+     else
+        write(diagstr1,101) 'SH', t_sh/area_sh*fac
+     endif
+     diagstr = trim(diagstr) // trim(diagstr1)
+     if (area_eq <= 1.) then
+        diagstr1 = ''
+     else
+        write(diagstr1,101) 'EQ', t_eq/area_eq*fac
+     endif
+     diagstr = trim(diagstr) // trim(diagstr1)
+     if (area_us <= 1.) then
+        diagstr1 = ''
+     else
+        write(diagstr1,101) 'US', t_us/area_us*fac
+     endif
+     diagstr = trim(diagstr) // trim(diagstr1)
+
+     if (is_master()) write(*,'(A)') trim(diagstr)
+
+101  format(3x, A, ': ', F7.2)
+
+   end subroutine prt_gb_nh_sh_us
 
 end module FV3GFS_io_mod

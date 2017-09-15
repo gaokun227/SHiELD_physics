@@ -2643,10 +2643,10 @@ module module_physics_driver
         if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
 
         rain1(:)   = (Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:))  &
-                     * con_p001 / con_day
-        Diag%ice(:)     = Statein%prei(:) * con_p001 / con_day
-        Diag%snow(:)    = Statein%pres(:) * con_p001 / con_day
-        Diag%graupel(:) = Statein%preg(:) * con_p001 / con_day
+                     * dtp* con_p001 / con_day
+        Diag%ice(:)     = Statein%prei(:) * dtp * con_p001 / con_day
+        Diag%snow(:)    = Statein%pres(:) * dtp * con_p001 / con_day
+        Diag%graupel(:) = Statein%preg(:) * dtp * con_p001 / con_day
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
@@ -2845,7 +2845,7 @@ module module_physics_driver
               csnow = Diag%rainc(i)
             endif
             if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
-            if ((Statein%pres(i)+Statein%prei(i)+Statein%preg(i)+csnow*dtp) .gt. (Statein%prer(i)+crain*dtp)) then
+            if ((Statein%pres(i)+Statein%prei(i)+Statein%preg(i)+csnow) .gt. (Statein%prer(i)+crain)) then
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
             endif
             else

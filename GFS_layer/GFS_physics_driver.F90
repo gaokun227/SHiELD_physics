@@ -2643,7 +2643,7 @@ module module_physics_driver
         if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
 
         rain1(:)   = (Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:))  &
-                     * dtp* con_p001 / con_day
+                     * dtp * con_p001 / con_day
         Diag%ice(:)     = Statein%prei(:) * dtp * con_p001 / con_day
         Diag%snow(:)    = Statein%pres(:) * dtp * con_p001 / con_day
         Diag%graupel(:) = Statein%preg(:) * dtp * con_p001 / con_day

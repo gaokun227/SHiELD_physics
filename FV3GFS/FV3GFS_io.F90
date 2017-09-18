@@ -2924,6 +2924,12 @@ module FV3GFS_io_mod
 !              call prt_gb_nh_sh_us('Land Icefall  (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 172800.)
            case('dqsfc')
               call prt_gb_nh_sh_us('Total sfc LH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('DSWRFtoa')
+              call prt_gb_nh_sh_us('TOA SW down ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('USWRFtoa')
+              call prt_gb_nh_sh_us('TOA SW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('ULWRFtoa')
+              call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            end select
          elseif (Diag(idx)%axes == 3) then
          !---
@@ -3066,21 +3072,21 @@ module FV3GFS_io_mod
      call mp_reduce_sum(   t_us)
 
      diagstr = trim(qname) // ' ' // trim(mpp_get_current_pelist_name()) // ' '
-     if (area_gb < 1.) then
-        diagstr1 = ''
+     !if (area_gb < 1.) then
+     !   diagstr1 = ''
      !elseif( area_gb <= 4.*pi*RADIUS*RADIUS*.98) then
      !   write(diagstr1,101) 'Grid', t_gb/area_gb*fac
-     else
-        write(diagstr1,101) 'GB', t_gb/area_gb*fac
-     endif
+     !else
+     write(diagstr1,101) 'GB', t_gb/area_gb*fac
+     !endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_nh <= 1.) then
+     if (area_nh <= 1. .or. area_nh == area_gb) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'NH', t_nh/area_nh*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_sh <= 1.) then
+     if (area_sh <= 1. .or. area_sh == area_gb) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'SH', t_sh/area_sh*fac

@@ -2911,9 +2911,9 @@ module FV3GFS_io_mod
            endif
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
            used=send_data(Diag(idx)%id, var2, Time)
-           !!!! Accumulated diagnostics!
+           !!!! Accumulated diagnostics --- lmh 19 sep 17
            select case (trim(Diag(idx)%name))
-           case('totprcp')
+           case('totprcp')[M#`
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)
               call prt_gb_nh_sh_us('Land Precip  (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 86400.)
            case('totsnw')

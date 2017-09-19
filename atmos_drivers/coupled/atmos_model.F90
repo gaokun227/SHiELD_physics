@@ -500,7 +500,7 @@ subroutine update_atmos_model_state (Atmos)
 
     call get_time (Atmos%Time - diag_time, isec)
     call get_time (Atmos%Time - Atmos%Time_init, seconds)
-    if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
+!    if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
     if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1) ) then
       time_int = real(isec)
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'

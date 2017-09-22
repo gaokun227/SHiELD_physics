@@ -1765,24 +1765,26 @@
 
       if (Model%lssav) then
         if (Model%lsswr) then
-          Diag%fluxr(:,34) = Diag%fluxr(:,34) + Model%fhswr*aerodp(:,1)  ! total aod at 550nm
-          Diag%fluxr(:,35) = Diag%fluxr(:,35) + Model%fhswr*aerodp(:,2)  ! DU aod at 550nm
-          Diag%fluxr(:,36) = Diag%fluxr(:,36) + Model%fhswr*aerodp(:,3)  ! BC aod at 550nm
-          Diag%fluxr(:,37) = Diag%fluxr(:,37) + Model%fhswr*aerodp(:,4)  ! OC aod at 550nm
-          Diag%fluxr(:,38) = Diag%fluxr(:,38) + Model%fhswr*aerodp(:,5)  ! SU aod at 550nm
-          Diag%fluxr(:,39) = Diag%fluxr(:,39) + Model%fhswr*aerodp(:,6)  ! SS aod at 550nm
+           !!! Fix for fdiag < fhswr; assumes fhswr is CONSTANT --- lmh 21 Sep 17
+          Diag%fluxr(:,34) = Diag%fluxr(:,34) + aerodp(:,1)  ! total aod at 550nm
+          Diag%fluxr(:,35) = Diag%fluxr(:,35) + aerodp(:,2)  ! DU aod at 550nm
+          Diag%fluxr(:,36) = Diag%fluxr(:,36) + aerodp(:,3)  ! BC aod at 550nm
+          Diag%fluxr(:,37) = Diag%fluxr(:,37) + aerodp(:,4)  ! OC aod at 550nm
+          Diag%fluxr(:,38) = Diag%fluxr(:,38) + aerodp(:,5)  ! SU aod at 550nm
+          Diag%fluxr(:,39) = Diag%fluxr(:,39) + aerodp(:,6)  ! SS aod at 550nm
         endif
 
 !  ---  save lw toa and sfc fluxes
         if (Model%lslwr) then
 !  ---  lw total-sky fluxes
-          Diag%fluxr(:,1 ) = Diag%fluxr(:,1 ) + Model%fhlwr *    Diag%topflw(:)%upfxc   ! total sky top lw up
-          Diag%fluxr(:,19) = Diag%fluxr(:,19) + Model%fhlwr * Radtend%sfcflw(:)%dnfxc   ! total sky sfc lw dn
-          Diag%fluxr(:,20) = Diag%fluxr(:,20) + Model%fhlwr * Radtend%sfcflw(:)%upfxc   ! total sky sfc lw up
+           !!! Fix for fdiag < fhswr; assumes fhlwr is CONSTANT --- lmh 21 Sep 17
+          Diag%fluxr(:,1 ) = Diag%fluxr(:,1 ) +    Diag%topflw(:)%upfxc   ! total sky top lw up
+          Diag%fluxr(:,19) = Diag%fluxr(:,19) + Radtend%sfcflw(:)%dnfxc   ! total sky sfc lw dn
+          Diag%fluxr(:,20) = Diag%fluxr(:,20) + Radtend%sfcflw(:)%upfxc   ! total sky sfc lw up
 !  ---  lw clear-sky fluxes
-          Diag%fluxr(:,28) = Diag%fluxr(:,28) + Model%fhlwr *    Diag%topflw(:)%upfx0   ! clear sky top lw up
-          Diag%fluxr(:,30) = Diag%fluxr(:,30) + Model%fhlwr * Radtend%sfcflw(:)%dnfx0   ! clear sky sfc lw dn
-          Diag%fluxr(:,33) = Diag%fluxr(:,33) + Model%fhlwr * Radtend%sfcflw(:)%upfx0   ! clear sky sfc lw up
+          Diag%fluxr(:,28) = Diag%fluxr(:,28) +    Diag%topflw(:)%upfx0   ! clear sky top lw up
+          Diag%fluxr(:,30) = Diag%fluxr(:,30) + Radtend%sfcflw(:)%dnfx0   ! clear sky sfc lw dn
+          Diag%fluxr(:,33) = Diag%fluxr(:,33) + Radtend%sfcflw(:)%upfx0   ! clear sky sfc lw up
         endif
 
 !  ---  save sw toa and sfc fluxes with proper diurnal sw wgt. coszen=mean cosz over daylight
@@ -1792,7 +1794,9 @@
             if (Radtend%coszen(i) > 0.) then
 !  ---                                  sw total-sky fluxes
 !                                       -------------------
-              tem0d = Model%fhswr * Radtend%coszdg(i)  / Radtend%coszen(i)
+              !!! Fix for fdiag < fhswr; assumes fhswr is CONSTANT --- lmh 21 Sep 17
+              tem0d = Radtend%coszdg(i)  / Radtend%coszen(i)
+!              tem0d = Model%fhswr * Radtend%coszdg(i)  / Radtend%coszen(i)
               Diag%fluxr(i,2 ) = Diag%fluxr(i,2)  +    Diag%topfsw(i)%upfxc * tem0d  ! total sky top sw up
               Diag%fluxr(i,3 ) = Diag%fluxr(i,3)  + Radtend%sfcfsw(i)%upfxc * tem0d  ! total sky sfc sw up
               Diag%fluxr(i,4 ) = Diag%fluxr(i,4)  + Radtend%sfcfsw(i)%dnfxc * tem0d  ! total sky sfc sw dn
@@ -1821,8 +1825,9 @@
 !  ---  save total and boundary layer clouds
 
         if (Model%lsswr .or. Model%lslwr) then
-          Diag%fluxr(:,17) = Diag%fluxr(:,17) + raddt * cldsa(:,4)
-          Diag%fluxr(:,18) = Diag%fluxr(:,18) + raddt * cldsa(:,5)
+!!! Fix for fdiag < fhswr; assumes fhswr is CONSTANT --- lmh 21 Sep 17
+          Diag%fluxr(:,17) = Diag%fluxr(:,17) + cldsa(:,4)
+          Diag%fluxr(:,18) = Diag%fluxr(:,18) + cldsa(:,5)
 
 !  ---  save cld frac,toplyr,botlyr and top temp, note that the order
 !       of h,m,l cloud is reversed for the fluxr output.
@@ -1830,7 +1835,9 @@
 
           do j = 1, 3
             do i = 1, IM
-              tem0d = raddt * cldsa(i,j)
+!!! Fix for fdiag < fhswr; assumes fhswr is CONSTANT --- lmh 21 Sep 17
+              tem0d = cldsa(i,j)
+!              tem0d = raddt * cldsa(i,j)
               itop  = mtopa(i,j) - kd
               ibtc  = mbota(i,j) - kd
               Diag%fluxr(i, 8-j) = Diag%fluxr(i, 8-j) + tem0d

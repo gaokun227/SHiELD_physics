@@ -26,6 +26,7 @@
       integer, parameter :: xdata=5000, ydata=2500, mdata=xdata*ydata
       integer            :: veg_type_landice
       integer            :: soil_type_landice
+      logical, parameter :: print_debug = .false.
 !
       end module sfccyc_module
       subroutine sfccycle(lugb,len,lsoil,sig1t,deltsfc
@@ -787,7 +788,7 @@
         read (nlunit,namsfc)
 !       write(6,namsfc)
 !
-        if (me .eq. 0) then
+        if (me .eq. 0 .and. print_debug) then
           print *,'ftsfl,falbl,faisl,fsnol,fzorl=',
      &    ftsfl,falbl,faisl,fsnol,fzorl
           print *,'fsmcl=',fsmcl(1:lsoil)
@@ -978,7 +979,7 @@
      &              kpdmsk,slmskh,gausm,blnmsk,bltmsk,me)
 !       if (qcmsk) call qcmask(slmskh,sllnd,slsea,imsk,jmsk,rla,rlo)
 !
-        if (me .eq. 0) then
+        if (me .eq. 0 .and. print_debug) then
           write(6,*) ' '
           write(6,*) ' lugb=',lugb,' len=',len, ' lsoil=',lsoil
           write(6,*) 'iy=',iy,' im=',im,' id=',id,' ih=',ih,' fh=',fh
@@ -2421,7 +2422,7 @@
         if (fsmcl(k).lt.99999.) fixratio(k) = .true.
        enddo
 
-       if(me .eq. 0) then
+       if(me .eq. 0 .and. print_debug) then
        print *,'dbgx --fixratio:',(fixratio(k),k=1,lsoil)
        endif
 
@@ -2452,7 +2453,7 @@
 ! ensure the consistency between snwdph and sheleg
 !
       if(fsnol .lt. 99999.) then  
-       if(me .eq. 0) then
+       if(me .eq. 0 .and. print_debug) then
        print *,'dbgx -- scale snwdph from sheleg'
        endif
        do i = 1, len
@@ -2631,7 +2632,7 @@
       subroutine hmskrd(lugb,imsk,jmsk,fnmskh,
      &                  kpds5,slmskh,gausm,blnmsk,bltmsk,me)
       use machine , only : kind_io8,kind_io4
-      use sfccyc_module, only : mdata, xdata, ydata
+      use sfccyc_module, only : mdata, xdata, ydata, print_debug
       implicit none
       integer kpds5,me,i,imsk,jmsk,lugb
 !
@@ -2644,7 +2645,7 @@
       imsk = xdata
       jmsk = ydata
 
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
         write(6,*)' imsk=',imsk,' jmsk=',jmsk,' xdata=',xdata,' ydata='
      &,             ydata
       endif
@@ -2664,7 +2665,7 @@
       subroutine fixrdg(lugb,idim,jdim,fngrib,
      &                  kpds5,gdata,gaus,blno,blto,me)
       use machine      , only : kind_io8,kind_io4
-      use sfccyc_module, only : mdata
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       integer lgrib,n,lskip,jret,j,ndata,lugi,jdim,idim,lugb,
      &        iret, me,kpds5,kdata,i,w3kindreal,w3kindint
@@ -2682,7 +2683,7 @@
       integer kpds(200),kgds(200)
       integer jpds(200),jgds(200), kpds0(200)
 !
-!     if(me .eq. 0) then
+!     if(me .eq. 0 .and. print_debug) then
 !     write(6,*) ' '
 !     write(6,*) '************************************************'
 !     endif
@@ -2694,8 +2695,9 @@
         print *,'error in opening file ',trim(fngrib)
         call abort
       endif
-      if (me .eq. 0) write(6,*) ' file ',trim(fngrib),
-     &              ' opened. unit=',lugb
+      if (me .eq. 0 .and. print_debug)
+     $     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
+     &     ' opened. unit=',lugb
       lugi    = 0
       lskip   = -1
       n       = 0
@@ -2707,7 +2709,7 @@
       call getgbh(lugb,lugi,lskip,jpds,jgds,lgrib,ndata,
      &            lskip,kpds,kgds,iret)
 !
-      if(me .eq. 0) then
+      if(me .eq. 0 .and. print_debug) then
         write(6,*) ' first grib record.'
         write(6,*) ' kpds( 1-10)=',(kpds(j),j= 1,10)
         write(6,*) ' kpds(11-20)=',(kpds(j),j=11,20)
@@ -2754,7 +2756,7 @@
         blno = kgds(5)*1.d-3
         blto = kgds(4)*1.d-3
         gdata(1:idim*jdim) = data8(1:idim*jdim)
-        if (me == 0) write(6,*) 'idim,jdim=',idim,jdim
+        if (me == 0 .and. print_debug) write(6,*) 'idim,jdim=',idim,jdim
      &,                ' gaus=',gaus,' blno=',blno,' blto=',blto
       else
         if (me ==. 0) write(6,*) 'idim,jdim=',idim,jdim
@@ -2769,6 +2771,7 @@
       subroutine getarea(kgds,dlat,dlon,rslat,rnlat,wlon,elon,ijordr
      &,                  me)
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       integer j,me,kgds11
       real (kind=kind_io8) f0lon,f0lat,elon,dlon,dlat,rslat,wlon,rnlat
@@ -2778,14 +2781,14 @@
       integer kgds(22)
       logical ijordr
 !
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
        write(6,*) ' kgds( 1-12)=',(kgds(j),j= 1,12)
        write(6,*) ' kgds(13-22)=',(kgds(j),j=13,22)
       endif
 !
       if(kgds(1).eq.0) then                      !  lat/lon grid
 !
-        if (me .eq. 0) write(6,*) 'lat/lon grid'
+        if (me .eq. 0 .and. print_debug) write(6,*) 'lat/lon grid'
         dlat   = float(kgds(10)) * 0.001
         dlon   = float(kgds( 9)) * 0.001
         f0lon  = float(kgds(5))  * 0.001
@@ -2845,7 +2848,7 @@
         call abort
       elseif(kgds(1).eq.4) then                  !  gaussian grid
 !
-        if (me .eq. 0) write(6,*) 'gaussian grid'
+        if (me .eq. 0 .and. print_debug) write(6,*) 'gaussian grid'
         dlat   = 99.
         dlon   = float(kgds( 9)) / 1000.0
         f0lon  = float(kgds(5))  / 1000.0
@@ -2980,6 +2983,7 @@
      &                 gauout,len,lmask,rslmsk,slmask
      &,                outlat, outlon,me)
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       real (kind=kind_io8) wei4,wei3,wei2,sum2,sum1,sum3,wei1,sum4,
      &                     wsum,tem,wsumiv,sums,sumn,wi2j2,x,y,wi1j1,
@@ -3018,7 +3022,8 @@
          if (.not. allocated(imxnx)) allocate (imxnx(num_threads))
       endif
 !
-      if (me == 0) print *,' num_threads =',num_threads,' me=',me
+      if (me == 0 .and. print_debug) print *,' num_threads =',
+     $     num_threads,' me=',me
 !
 !     if(me .eq. 0) then
 !     print *,'rlon=',rlon,' me=',me
@@ -3509,7 +3514,7 @@
       endif
 !
       kmami=1
-      if (me .eq. 0) call maxmin(gauout,len,kmami)
+      if (me .eq. 0 .and. print_debug) call maxmin(gauout,len,kmami)
 !
       return
       end subroutine la2ga
@@ -4487,6 +4492,7 @@
       subroutine snodpth(scvanl,slianl,tsfanl,snoclm,
      &                   glacir,snwmax,snwmin,landice,len,snoanl, me)
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       integer i,me,len
       logical, intent(in) :: landice
@@ -4495,7 +4501,7 @@
       real (kind=kind_io8) scvanl(len), slianl(len), tsfanl(len),
      &     snoclm(len), snoanl(len), glacir(len)
 !
-      if (me .eq. 0) write(6,*) 'snodpth'
+      if (me .eq. 0 .and. print_debug) write(6,*) 'snodpth'
 !
 !  use surface temperature to get snow depth estimate
 !
@@ -4563,6 +4569,7 @@
      &                 irtvet,irtsot,irtalf, landice, me)
       use machine , only : kind_io8,kind_io4
       use sfccyc_module, only : veg_type_landice, soil_type_landice
+      use sfccyc_module, only : print_debug
       implicit none
       integer k,i,im,id,iy,len,lsoil,ih,irtacn,irtsmc,irtscv,irtais,
      &        irttg3,irtstc,irtalf,me,irtsot,irtveg,irtvet, irtzor,
@@ -4771,7 +4778,7 @@
         enddo
       endif
 !
-      if (me == 0) then
+      if (me == 0 .and. print_debug) then
       write(6,100) rtsfl,ralbl,raisl,rsnol,rsmcl,rzorl,rvegl
   100 format('rtsfl,ralbl,raisl,rsnol,rsmcl,rzorl,rvegl=',10f7.3)
       write(6,101) rtsfs,ralbs,raiss,rsnos,rsmcs,rzors,rvegs
@@ -4828,7 +4835,7 @@
 !
 !  merging
 !
-      if(me .eq. 0) then
+      if(me .eq. 0 .and. print_debug) then
         print *, 'dbgx-- csmcl:', (csmcl(k),k=1,lsoil)
         print *, 'dbgx-- rsmcl:', (rsmcl(k),k=1,lsoil)
         print *, 'dbgx-- csnol, csnos:',csnol,csnos
@@ -4998,6 +5005,7 @@
      &                   rla,rlo,me)
 !
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       real (kind=kind_io8), parameter :: one=1.0
       real (kind=kind_io8) tgice,albice,zorice,tsfice,albsea,snosea,
@@ -5014,7 +5022,7 @@
 !
       real (kind=kind_io8) rla(len), rlo(len)
 !
-      if (me .eq. 0) write(6,*) 'newice'
+      if (me .eq. 0 .and. print_debug) write(6,*) 'newice'
 !
       kount1 = 0
       kount2 = 0
@@ -5072,7 +5080,7 @@
         endif
       enddo
 !
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
       if(kount1.gt.0) then
         write(6,*) 'sea ice melted.  tsf,alb,zor are filled',
      &             ' at ',kount1,' points'
@@ -5088,6 +5096,7 @@
       subroutine qcsnow(snoanl,slmask,aisanl,glacir,len,snoval,
      &                  landice,me)
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       integer kount,i,len,me
       logical, intent(in)  :: landice
@@ -5109,7 +5118,7 @@
         enddo
         per = float(kount) / float(len)*100.
         if(kount.gt.0) then
-          if (me .eq. 0) then
+          if (me .eq. 0 .and. print_debug) then
           print *,'snow filled over glacier points at ',kount,
      &            ' points (',per,'percent)'
           endif
@@ -5265,6 +5274,7 @@
      &                  rla,rlo,len,mode,percrit,lgchek,me)
 !
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       real (kind=kind_io8) permax,per,fldimx,fldimn,fldjmx,fldomn,
      &                     fldlmx,fldlmn,fldomx,fldjmn,percrit,
@@ -5295,7 +5305,7 @@
 !
 !  check against land-sea mask and ice cover mask
 !
-      if(me .eq. 0) then
+      if(me .eq. 0 .and. print_debug) then
 !     print *,' '
       print *,'performing qc of ',ttl,' mode=',mode,
      &        '(0=count only, 1=replace)'
@@ -6792,6 +6802,7 @@ cjfe
      &,                gaus, blno, blto, me,lprnt,iprnt, fnalbc2, ialb)
 !
       use machine , only : kind_io8,kind_io4
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       real (kind=kind_io8) rjday,wei1x,wei2x,rjdayh,wei2m,wei1m,wei1s,
      &                     wei2s,fh,stcmon1s,blto,blno,deltsfc,rjdayh2
@@ -6933,7 +6944,7 @@ cjfe
 !
         if (fh .gt. 0.0) then
 !cbosu
-          if (me == 0) print*,'bosu fh gt 0'
+          if (me == 0 .and. print_debug) print*,'bosu fh gt 0'
 
           iy4=iy
           if(iy.lt.101) iy4=1900+iy4
@@ -6956,7 +6967,8 @@ cjfe
           jm=jda(2)
           jd=jda(3)
           jh=jda(5)
-          if (me .eq. 0) write(6,*) ' forecast jy,jm,jd,jh',
+          if (me .eq. 0 .and. print_debug)
+     $         write(6,*) ' forecast jy,jm,jd,jh',
      &                   jy,jm,jd,jh
           jdow = 0
           jdoy = 0
@@ -6965,7 +6977,8 @@ cjfe
           rjday=jdoy+jda(5)/24.
           if(rjday.lt.dayhf(1)) rjday=rjday+365.
 !
-          if (me .eq. 0) write(6,*) 'forecast jy,jm,jd,jh=',jy,jm,jd,jh
+          if (me .eq. 0 .and. print_debug)
+     $         write(6,*) 'forecast jy,jm,jd,jh=',jy,jm,jd,jh
 !
 !         for monthly mean climatology
 !
@@ -6985,7 +6998,8 @@ cjfe
           wei1m = (dayhf(mon2)-rjday)/(dayhf(mon2)-dayhf(mon1))
           wei2m = (rjday-dayhf(mon1))/(dayhf(mon2)-dayhf(mon1))
           if(mon2.eq.13) mon2=1
-          if (me .eq. 0) print *,'rjday,mon1,mon2,wei1m,wei2m=',
+          if (me .eq. 0 .and. print_debug)
+     $         print *,'rjday,mon1,mon2,wei1m,wei2m=',
      &                   rjday,mon1,mon2,wei1m,wei2m
 !
 !       read monthly mean climatology of tsf
@@ -7063,7 +7077,8 @@ cjfe
       wei1m=(dayhf(mon2)-rjday)/(dayhf(mon2)-dayhf(mon1))
       wei2m=(rjday-dayhf(mon1))/(dayhf(mon2)-dayhf(mon1))
       if(mon2.eq.13) mon2=1
-      if (me .eq. 0) print *,'rjday,mon1,mon2,wei1m,wei2m=',
+      if (me .eq. 0 .and. print_debug)
+     $     print *,'rjday,mon1,mon2,wei1m,wei2m=',
      &               rjday,mon1,mon2,wei1m,wei2m
 !
 !     for seasonal mean climatology
@@ -7116,7 +7131,7 @@ cjfe
 !
       first_time : if (first) then
 !cbosu
-        if (me == 0) print*,'bosu first time thru'
+        if (me == 0 .and. print_debug) print*,'bosu first time thru'
 !
 !     annual mean climatology
 !
@@ -7898,7 +7913,7 @@ cjfe
      &,                imsk, jmsk, slmskh, gaus,blno, blto
      &,                outlat, outlon, me)
       use machine ,      only : kind_io8,kind_io4
-      use sfccyc_module, only : mdata
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       integer imax,jmax,ijmax,i,j,n,jret,inttyp,iret,imsk,
      &        jmsk,len,lugb,kpds5,mon,lskip,lgrib,ndata,lugi,me,kmami
@@ -7937,7 +7952,8 @@ cjfe
 !
       iret   = 0
 !
-      if (me .eq. 0) write(6,*) ' in fixrdc for mon=',mon
+      if (me .eq. 0 .and. print_debug) write(6,*)
+     $     ' in fixrdc for mon=',mon
      &,' fngrib=',trim(fngrib)
 !
       close(lugb)
@@ -7947,7 +7963,8 @@ cjfe
         print *,'error in opening file ',trim(fngrib)
         call abort
       endif
-      if (me .eq. 0) write(6,*) ' file ',trim(fngrib),
+      if (me .eq. 0 .and. print_debug)
+     $     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
      &             ' opened. unit=',lugb
 !
       lugi = 0
@@ -7960,7 +7977,7 @@ cjfe
       kpds    = jpds
       call getgbh(lugb,lugi,lskip,jpds,jgds,lgrib,ndata,
      &            lskip,kpds,kgds,iret)
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
       write(6,*) ' first grib record.'
       write(6,*) ' kpds( 1-10)=',(kpds(j),j= 1,10)
       write(6,*) ' kpds(11-20)=',(kpds(j),j=11,20)
@@ -7994,7 +8011,8 @@ cjfe
         data8 = data4
         deallocate(data4)
       endif
-      if (me .eq. 0) write(6,*) ' input grib file dates=',
+      if (me .eq. 0 .and. print_debug)
+     $     write(6,*) ' input grib file dates=',
      &              (kpds(i),i=8,11)
       if(jret.eq.0) then
         if(ndata.eq.0) then
@@ -8013,20 +8031,20 @@ cjfe
             data(i,j) = data8(jj+i)
           enddo
         enddo
-        if (me .eq. 0) write(6,*) 'imax,jmax,ijmax=',imax,jmax,ijmax
+        if (me .eq. 0 .and. print_debug) write(6,*) 'imax,jmax,ijmax=',imax,jmax,ijmax
       else
         write(6,*) ' error in getgb - jret=', jret
         call abort
       endif
 !
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
       write(6,*) ' maxmin of input as is'
       kmami=1
       call maxmin(data(1,1),ijmax,kmami)
       endif
 !
       call getarea(kgds,dlat,dlon,rslat,rnlat,wlon,elon,ijordr,me)
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
       write(6,*) 'imax,jmax,ijmax,dlon,dlat,ijordr,wlon,rnlat='
       write(6,*)  imax,jmax,ijmax,dlon,dlat,ijordr,wlon,rnlat
       endif
@@ -8047,7 +8065,7 @@ cjfe
         if(kpds5.eq.230) inttyp = 1
         if(kpds5.eq.236) inttyp = 1  
         if(kpds5.eq.224) inttyp = 1  
-        if (me .eq. 0) then
+        if (me .eq. 0 .and. print_debug) then
         if(inttyp.eq.1) print *, ' nearest grid point used'
      &,   ' kpds5=',kpds5, ' lmask = ',lmask
         endif
@@ -8069,7 +8087,7 @@ cjfe
      &,                 imsk, jmsk, slmskh, gaus,blno, blto
      &,                 outlat, outlon, me)
       use machine      , only : kind_io8,kind_io4
-      use sfccyc_module, only : mdata
+      use sfccyc_module, only : mdata, print_debug
       implicit none
       integer nrepmx,nvalid,imo,iyr,idy,jret,ihr,nrept,lskip,lugi,
      &        lgrib,j,ndata,i,inttyp,jmax,imax,ijmax,ij,jday,len,iret,
@@ -8173,7 +8191,8 @@ cjfe
         print *,'error in opening file ',trim(fngrib)
         call abort
       endif
-      if (me .eq. 0) write(6,*) ' file ',trim(fngrib),
+      if (me .eq. 0 .and. print_debug)
+     $     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
      &             ' opened. unit=',lugb
 !
       lugi = 0
@@ -8185,7 +8204,7 @@ cjfe
       kpds = jpds
       call getgbh(lugb,lugi,lskip,jpds,jgds,lgrib,ndata,
      &            lskip,kpds,kgds,iret)
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
       write(6,*) ' first grib record.'
       write(6,*) ' kpds( 1-10)=',(kpds(j),j= 1,10)
       write(6,*) ' kpds(11-20)=',(kpds(j),j=11,20)
@@ -8236,7 +8255,8 @@ cjfe
         data8 = data4
         deallocate(data4)
       endif
-      if (me .eq. 0) write(6,*) ' input grib file dates=',
+      if (me .eq. 0 .and. print_debug) write(6,*) 
+     &     ' input grib file dates=',
      &              (kpds(i),i=8,11)
       if(jret.eq.0) then
         if(ndata.eq.0) then
@@ -8334,7 +8354,7 @@ cjfe
       endif
 !
       call getarea(kgds,dlat,dlon,rslat,rnlat,wlon,elon,ijordr,me)
-      if (me .eq. 0) then
+      if (me .eq. 0 .and. print_debug) then
       write(6,*) 'imax,jmax,ijmax,dlon,dlat,ijordr,wlon,rnlat='
       write(6,*)  imax,jmax,ijmax,dlon,dlat,ijordr,wlon,rnlat
       endif

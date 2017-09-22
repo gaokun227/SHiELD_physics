@@ -489,6 +489,7 @@ module GFS_typedefs
     integer              :: seed0           !< random seed for radiation
 
     real(kind=kind_phys) :: rbcr            !< Critical Richardson Number in the PBL scheme
+    logical              :: mix_precip      !< Whether to apply PBL mixing to precipitating hydrometeors
 
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0         !< pressure level from which Rayleigh Damping is applied
@@ -1479,6 +1480,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: dlqf(2)        = (/0.0d0,0.0d0/)          !< factor for cloud condensate detrainment 
                                                                       !< from cloud edges for RAS
     real(kind=kind_phys) :: rbcr           = 0.25                     !< Critical Richardson Number in PBL scheme
+    logical              :: mix_precip     = .true.                   !< Whether to apply PBL mixing to precipitating hydrometeors
 
     !--- Rayleigh friction
     real(kind=kind_phys) :: prslrd0        = 0.0d0           !< pressure level from which Rayleigh Damping is applied
@@ -1567,7 +1569,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,                                                   &
+                               dlqf,rbcr,mix_precip,                                        &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1749,6 +1751,7 @@ module GFS_typedefs
     Model%crtrh            = crtrh
     Model%dlqf             = dlqf
     Model%rbcr             = rbcr
+    Model%mix_precip       = mix_precip
 
     !--- Rayleigh friction
     Model%prslrd0          = prslrd0

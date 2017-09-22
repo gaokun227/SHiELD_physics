@@ -1490,7 +1490,19 @@ module module_physics_driver
       Stateout%gt0(:,:)   = Statein%tgrs(:,:) + dtdt(:,:) * dtp
       Stateout%gu0(:,:)   = Statein%ugrs(:,:) + dudt(:,:) * dtp
       Stateout%gv0(:,:)   = Statein%vgrs(:,:) + dvdt(:,:) * dtp
-      Stateout%gq0(:,:,:) = Statein%qgrs(:,:,:) + dqdt(:,:,:) * dtp
+! Linjiong, 09/18/2017, turn off vertical mixing of rain, snow, and graupel
+      if ((Model%ncld == 5) .and. (.not. Model%mix_precip)) then       ! GFDL Cloud microphysics
+!      if (Model%ncld == 5 ) then       ! GFDL Cloud microphysics
+        ! water vapor
+        Stateout%gq0(:,:,         1) = Statein%qgrs(:,:,         1) + dqdt(:,:,         1) * dtp
+        ! cloud water
+        Stateout%gq0(:,:,Model%ntcw) = Statein%qgrs(:,:,Model%ntcw) + dqdt(:,:,Model%ntcw) * dtp
+        ! cloud ice
+        Stateout%gq0(:,:,Model%ntiw) = Statein%qgrs(:,:,Model%ntiw) + dqdt(:,:,Model%ntiw) * dtp
+      else
+         Stateout%gq0(:,:,:) = Statein%qgrs(:,:,:) + dqdt(:,:,:) * dtp
+      endif
+! Linjiong, 09/18/2017, turn off vertical mixing of rain, snow, and graupel
 
 !     if (lprnt) then
 !                write(7000,*)' ugrs=',ugrs(ipr,:)

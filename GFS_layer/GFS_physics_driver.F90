@@ -655,6 +655,7 @@ module module_physics_driver
 !
 !GFDL        work1(i)   = (log(coslat(i) / (nlons(i)*latr)) - dxmin) * dxinv
 !GFS         Moorthi thinks this should be area and not dx
+!       work1(i)   = (log(Grid%dx(i)) - dxmin) * dxinv
         work1(i)   = (log(Grid%area(i)) - dxmin) * dxinv
         work1(i)   = max(0.0, min(1.0,work1(i)))
         work2(i)   = 1.0 - work1(i)
@@ -968,7 +969,7 @@ module module_physics_driver
         else
 
 !  --- ...  surface energy balance over ocean
-         
+
           call sfc_ocean                                                &
 !  ---  inputs:
            (im, Statein%pgr, Statein%ugrs, Statein%vgrs, Statein%tgrs,  &
@@ -976,6 +977,7 @@ module module_physics_driver
             work3, islmsk, Tbd%phy_f2d(1,Model%num_p2d), flag_iter,     &
 !  ---  outputs:
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
+
         endif       ! if ( nstf_name(1) > 0 ) then
 
 !       if (lprnt) write(0,*)' sfalb=',sfalb(ipr),' ipr=',ipr          &
@@ -1759,7 +1761,7 @@ module module_physics_driver
           if (Model%imfdeepcnv == 1) then             ! no random cloud top
             call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
                           Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
-                          Stateout%gq0, Stateout%gt0, Stateout%gu0,       &
+                          Stateout%gq0(:,:,1), Stateout%gt0, Stateout%gu0,       &
                           Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,   &
                           islmsk, Statein%vvl, Model%ncld, ud_mf, dd_mf,  &
                           dt_mf, cnvw, cnvc,                              &
@@ -1769,7 +1771,8 @@ module module_physics_driver
                           Model%pgcon_deep)
           elseif (Model%imfdeepcnv == 2) then
             call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                            Statein%pgr, Statein%phil, clw(:,:,1:2), Stateout%gq0, &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
+                            Stateout%gq0(:,:,1),                        &
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                             cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                             garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
@@ -1782,7 +1785,7 @@ module module_physics_driver
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
                          Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
-                         Stateout%gq0, Stateout%gt0, Stateout%gu0,        &
+                         Stateout%gq0(:,:,1), Stateout%gt0, Stateout%gu0,        &
                          Stateout%gv0, cld1d, rain1, kbot, ktop, kcnv,    &
                          islmsk, Statein%vvl, Tbd%rann, Model%ncld,       &
                          ud_mf, dd_mf, dt_mf, cnvw, cnvc)
@@ -1959,9 +1962,7 @@ module module_physics_driver
 !       write(0,*)' aftcnvgq1=',(gq0(ipr,k,ntcw),k=1,levs)
 !     endif
 !
-      do i = 1, im
-        Diag%rainc(i) = frain * rain1(i)
-      enddo
+      Diag%rainc(:) = frain * rain1(:)
 !
       if (Model%lssav) then
         Diag%cldwrk (:) = Diag%cldwrk (:) + cld1d(:) * dtf
@@ -2209,6 +2210,7 @@ module module_physics_driver
             if (Model%lssav) then
               Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
             endif
+! in shalcnv,  'cnvw' and 'cnvc' are not set to zero:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               num2 = Model%num_p3d + 2
               num3 = num2 + 1
@@ -2221,7 +2223,8 @@ module module_physics_driver
 
           elseif (Model%imfshalcnv == 2) then
             call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                            Statein%pgr, Statein%phil, clw, Stateout%gq0, &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
+                            Stateout%gq0(:,:,1:1),                        &
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                             rain1, kbot, ktop, kcnv, islmsk, garea,       &
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
@@ -2234,6 +2237,7 @@ module module_physics_driver
             if (Model%lssav) then
               Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
             endif
+! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               num2 = Model%num_p3d + 2
               num3 = num2 + 1

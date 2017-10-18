@@ -1925,7 +1925,7 @@ module GFS_typedefs
                  print *,' scale & aerosol-aware mass-flux deep conv scheme'
               endif
            else
-              print*, ' Convection scheme disabled'
+              print*, ' Deep convection scheme disabled'
            endif
         endif
       else

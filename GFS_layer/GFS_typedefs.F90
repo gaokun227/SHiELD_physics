@@ -104,6 +104,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: vvl  (:,:)   => null()  !< layer mean vertical velocity in pa/sec
     real (kind=kind_phys), pointer :: tgrs (:,:)   => null()  !< model layer mean temperature in k
     real (kind=kind_phys), pointer :: qgrs (:,:,:) => null()  !< layer mean tracer concentration
+    real (kind=kind_phys), pointer :: exch_h (:,:)   => null()  !< 3D heat exchange coefficient
 
     contains
       procedure :: create  => statein_create  !<   allocate array data
@@ -170,6 +171,12 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: uustar (:)   => null()  !< boundary layer parameter
     real (kind=kind_phys), pointer :: oro    (:)   => null()  !< orography 
     real (kind=kind_phys), pointer :: oro_uf (:)   => null()  !< unfiltered orography
+
+    !--- IN/out MYJ scheme
+    real (kind=kind_phys), pointer :: QZ0    (:) => null()  !< vapor mixing ratio at z=z0
+    real (kind=kind_phys), pointer :: THZ0   (:) => null()  !< Potential temperature at z=z0
+    real (kind=kind_phys), pointer :: UZ0    (:) => null()  !< zonal wind at z=z0
+    real (kind=kind_phys), pointer :: VZ0    (:) => null()  !< meridional wind at z=z0
 
     !-- In/Out
     real (kind=kind_phys), pointer :: hice   (:)   => null()  !< sea ice thickness
@@ -454,6 +461,7 @@ module GFS_typedefs
     logical              :: shcnvcw         !< flag for shallow convective cloud
     logical              :: redrag          !< flag for reduced drag coeff. over sea
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
+    logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: cnvcld        
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -837,7 +845,10 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: qflux_adj     (:)    => null()   !Q-flux (to be developed)
     real (kind=kind_phys), pointer :: tclim_iano    (:)    => null()   !climatological SST with initial anomaly
 !
-
+    ! Output - MYJ diagnostics
+    real (kind=kind_phys), pointer :: hmix    (:)    => null()   ! Mixed layer height
+    real (kind=kind_phys), pointer :: el_myj  (:,:)  => null()   ! mixing length
+!
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: du3dt (:,:,:) => null()   !< u momentum change due to physics
     real (kind=kind_phys), pointer :: dv3dt (:,:,:) => null()   !< v momentum change due to physics
@@ -913,6 +924,12 @@ module GFS_typedefs
     Statein%pgr    = clear_val
     Statein%ugrs   = clear_val
     Statein%vgrs   = clear_val
+    
+    if (Model%myj_pbl) then
+       allocate (Statein%exch_h(IM, Model%levs))
+       Statein%exch_h = clear_val
+    endif
+
 
   end subroutine statein_create
 
@@ -1021,6 +1038,18 @@ module GFS_typedefs
     Sfcprop%uustar  = clear_val
     Sfcprop%oro     = clear_val
     Sfcprop%oro_uf  = clear_val
+
+    if (Model%myj_pbl) then
+       allocate (Sfcprop%QZ0  (IM))
+       allocate (Sfcprop%THZ0 (IM))
+       allocate (Sfcprop%UZ0  (IM))
+       allocate (Sfcprop%VZ0  (IM))
+
+       Sfcprop%QZ0  = clear_val
+       Sfcprop%THZ0 = clear_val
+       Sfcprop%UZ0  = clear_val
+       Sfcprop%VZ0  = clear_val
+    endif
 
     !--- In/Out
     allocate (Sfcprop%hice   (IM))
@@ -1448,6 +1477,7 @@ module GFS_typedefs
     logical              :: shcnvcw        = .false.                  !< flag for shallow convective cloud
     logical              :: redrag         = .false.                  !< flag for reduced drag coeff. over sea
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
+    logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: cnvcld         = .false.
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1544,6 +1574,7 @@ module GFS_typedefs
 
     !--- debug flag
     logical              :: debug          = .false.
+    logical              :: lprnt          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_som         = .false.         !< flag for slab ocean model 
     !--- END NAMELIST VARIABLES
@@ -1569,7 +1600,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,                                        &
+                               dlqf,rbcr,mix_precip,myj_pbl,                                &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1584,7 +1615,7 @@ module GFS_typedefs
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
-                               debug, pre_rad, do_som
+                               debug, pre_rad, do_som, lprnt
 
     !--- other parameters 
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -1731,6 +1762,7 @@ module GFS_typedefs
     Model%shcnvcw          = shcnvcw
     Model%redrag           = redrag
     Model%hybedmf          = hybedmf
+    Model%myj_pbl          = myj_pbl
     Model%dspheat          = dspheat
     Model%cnvcld           = cnvcld
     Model%random_clds      = random_clds
@@ -1823,10 +1855,11 @@ module GFS_typedefs
     Model%debug            = debug
     Model%pre_rad          = pre_rad
     Model%do_som           = do_som 
+    Model%lprnt            = lprnt
 
     !--- set initial values for time varying properties
     Model%ipt              = 1
-    Model%lprnt            = .false.
+    !Model%lprnt            = .false.
     Model%lsswr            = .false.
     Model%lslwr            = .false.
     Model%solhr            = -9999.
@@ -2197,6 +2230,7 @@ module GFS_typedefs
       print *, ' shcnvcw           : ', Model%shcnvcw
       print *, ' redrag            : ', Model%redrag
       print *, ' hybedmf           : ', Model%hybedmf
+      print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' dspheat           : ', Model%dspheat
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' random_clds       : ', Model%random_clds
@@ -2532,6 +2566,10 @@ module GFS_typedefs
     allocate (Diag%qflux_restore (IM)) 
     allocate (Diag%qflux_adj     (IM)) 
     allocate (Diag%tclim_iano    (IM)) 
+    if (Model%myj_pbl) then
+       allocate (Diag%hmix   (IM))
+       allocate (Diag%el_myj (IM, Model%levs))
+    endif
     allocate (Diag%ulwsfc  (IM))
     allocate (Diag%suntim  (IM))
     allocate (Diag%runoff  (IM))

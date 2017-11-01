@@ -111,7 +111,7 @@
      &       sfcemis, dlwflx, dswsfc, snet, delt, tg3, cm, ch,          &
      &       prsl1, prslki, zf, islimsk, ddvel, slopetyp,               &
      &       shdmin, shdmax, snoalb, sfalb, flag_iter, flag_guess,      &
-     &       isot, ivegsrc,                                             &
+     &       isot, ivegsrc, lprnt,                                      &
 !  ---  in/outs:
      &       weasd, snwdph, tskin, tprcp, srflag, smc, stc, slc,        &
      &       canopy, trans, tsurf, zorl,                                &
@@ -156,7 +156,7 @@
       integer, dimension(im), intent(in) :: islimsk
       real (kind=kind_phys),  intent(in) :: delt
 
-      logical, dimension(im), intent(in) :: flag_iter, flag_guess
+      logical, dimension(im), intent(in) :: flag_iter, flag_guess, lprnt
 
 !  ---  in/out:
       real (kind=kind_phys), dimension(im), intent(inout) :: weasd,     &
@@ -400,7 +400,7 @@
      &     ( nsoil, couple, ice, ffrozp, delt, zlvl, sldpth,            &
      &       swdn, solnet, lwdn, sfcems, sfcprs, sfctmp,                &
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, ivegsrc,             &
-     &       vtype, stype, slope, shdmin1d, alb, snoalb1d,              &
+     &       vtype, stype, slope, shdmin1d, alb, snoalb1d, lprnt,       &
 !  ---  input/outputs:
      &       tbot, cmc, tsea, stsoil, smsoil, slsoil, sneqv, chx, cmx,  &
      &       z0,                                                        & 

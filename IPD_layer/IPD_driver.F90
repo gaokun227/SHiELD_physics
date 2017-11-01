@@ -108,16 +108,17 @@ module IPD_driver
 !-------------------
 !  IPD physics step1
 !-------------------
-  subroutine IPD_physics_step1 (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart)
+  subroutine IPD_physics_step1 (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart, this_pe, root_pe)
     type(IPD_control_type), intent(inout) :: IPD_Control
     type(IPD_data_type),    intent(inout) :: IPD_Data
     type(IPD_diag_type),    intent(inout) :: IPD_Diag(:)
     type(IPD_restart_type), intent(inout) :: IPD_Restart
+    integer, intent(IN) :: this_pe, root_pe
 
     call physics_step1 (IPD_control, IPD_Data%Statein, IPD_Data%Stateout,   &
                         IPD_Data%Sfcprop, IPD_Data%Coupling, IPD_Data%Grid, &
                         IPD_Data%Tbd, IPD_Data%Cldprop, IPD_Data%Radtend,   &
-                        IPD_Data%Intdiag)
+                        IPD_Data%Intdiag, this_pe, root_pe)
 
   end subroutine IPD_physics_step1
 

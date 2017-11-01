@@ -2524,6 +2524,7 @@ module physics_diag_layer
       enddo
     endif
 
+
     if (Model%lgocart) then
       !---dqdtv
       idx = idx + 1
@@ -2730,7 +2731,7 @@ module physics_diag_layer
     IPD_Diag(idx)%output_name    = 'UUSTAR'
     IPD_Diag(idx)%mod_name       = 'surface'
     IPD_Diag(idx)%file_name      = 'sfc'
-    IPD_Diag(idx)%desc           = 'frictiobal wind [numeric] at surface layer'
+    IPD_Diag(idx)%desc           = 'frictional wind [numeric] at surface layer'
     IPD_Diag(idx)%unit           = 'numeric'
     IPD_Diag(idx)%type_stat_proc = 'inst'
     IPD_Diag(idx)%level_type     = 'sfc'
@@ -2741,6 +2742,46 @@ module physics_diag_layer
     do nb = 1,nblks
       IPD_Diag(idx)%data(nb)%var2p => Sfcprop(nb)%uustar
     enddo
+
+    if (Model%myj_pbl) then
+
+    !---hmix
+    idx = idx + 1
+    IPD_Diag(idx)%name           = 'hmix'
+    IPD_Diag(idx)%output_name    = 'HMIX'
+    IPD_Diag(idx)%mod_name       = 'surface'
+    IPD_Diag(idx)%file_name      = 'sfc'
+    IPD_Diag(idx)%desc           = 'MYJ mixed layer height'
+    IPD_Diag(idx)%unit           = 'numeric'
+    IPD_Diag(idx)%type_stat_proc = 'inst'
+    IPD_Diag(idx)%level_type     = 'sfc'
+    IPD_Diag(idx)%level          = 1
+    IPD_Diag(idx)%cnvfac         = cn_one
+    IPD_Diag(idx)%zhour          = Model%zhour
+    IPD_Diag(idx)%fcst_hour      = Model%fhour
+    do nb = 1,nblks
+      IPD_Diag(idx)%data(nb)%var2p => Diag(nb)%hmix
+    enddo
+
+    !---el_myj
+    idx = idx + 1
+    IPD_Diag(idx)%name           = 'el_myj'
+    IPD_Diag(idx)%output_name    = 'EL_MYJ'
+    IPD_Diag(idx)%mod_name       = 'physics'
+    IPD_Diag(idx)%file_name      = 'diag3d'
+    IPD_Diag(idx)%desc           = 'MYJ Mixing Length'
+    IPD_Diag(idx)%unit           = 'm'
+    IPD_Diag(idx)%type_stat_proc = 'inst'
+    IPD_Diag(idx)%level_type     = 'model layer'
+    IPD_Diag(idx)%level          = 64
+    IPD_Diag(idx)%cnvfac         = cn_one
+    IPD_Diag(idx)%zhour          = Model%zhour
+    IPD_Diag(idx)%fcst_hour      = Model%fhour
+    do nb = 1,nblks
+      IPD_Diag(idx)%data(nb)%var3p => Diag(nb)%el_myj
+    enddo
+
+    endif !myj_pbl
 
     !---slope
     idx = idx + 1
@@ -3047,6 +3088,82 @@ module physics_diag_layer
     do nb = 1,nblks
       IPD_Diag(idx)%data(nb)%var2p => Sfcprop(nb)%oro
     enddo
+
+    if (Model%myj_pbl) then
+
+    !---QZ0
+    idx = idx + 1
+    IPD_Diag(idx)%name           = 'QZ0'
+    IPD_Diag(idx)%output_name    = 'QZ0'
+    IPD_Diag(idx)%mod_name       = 'surface'
+    IPD_Diag(idx)%file_name      = 'flx'
+    IPD_Diag(idx)%desc           = 'Q at z=z0'
+    IPD_Diag(idx)%unit           = 'kg/kg'
+    IPD_Diag(idx)%type_stat_proc = 'inst'
+    IPD_Diag(idx)%level_type     = 'sfc'
+    IPD_Diag(idx)%level          = 1
+    IPD_Diag(idx)%cnvfac         = cn_one
+    IPD_Diag(idx)%zhour          = Model%zhour
+    IPD_Diag(idx)%fcst_hour      = Model%fhour
+    do nb = 1,nblks
+      IPD_Diag(idx)%data(nb)%var2p => Sfcprop(nb)%QZ0
+    enddo
+
+    !---THZ0
+    idx = idx + 1
+    IPD_Diag(idx)%name           = 'THZ0'
+    IPD_Diag(idx)%output_name    = 'THZ0'
+    IPD_Diag(idx)%mod_name       = 'surface'
+    IPD_Diag(idx)%file_name      = 'flx'
+    IPD_Diag(idx)%desc           = 'TH at z=z0'
+    IPD_Diag(idx)%unit           = 'K'
+    IPD_Diag(idx)%type_stat_proc = 'inst'
+    IPD_Diag(idx)%level_type     = 'sfc'
+    IPD_Diag(idx)%level          = 1
+    IPD_Diag(idx)%cnvfac         = cn_one
+    IPD_Diag(idx)%zhour          = Model%zhour
+    IPD_Diag(idx)%fcst_hour      = Model%fhour
+    do nb = 1,nblks
+      IPD_Diag(idx)%data(nb)%var2p => Sfcprop(nb)%THZ0
+    enddo
+
+    !---UZ0
+    idx = idx + 1
+    IPD_Diag(idx)%name           = 'UZ0'
+    IPD_Diag(idx)%output_name    = 'UZ0'
+    IPD_Diag(idx)%mod_name       = 'surface'
+    IPD_Diag(idx)%file_name      = 'flx'
+    IPD_Diag(idx)%desc           = 'U at z=z0'
+    IPD_Diag(idx)%unit           = 'm/s'
+    IPD_Diag(idx)%type_stat_proc = 'inst'
+    IPD_Diag(idx)%level_type     = 'sfc'
+    IPD_Diag(idx)%level          = 1
+    IPD_Diag(idx)%cnvfac         = cn_one
+    IPD_Diag(idx)%zhour          = Model%zhour
+    IPD_Diag(idx)%fcst_hour      = Model%fhour
+    do nb = 1,nblks
+      IPD_Diag(idx)%data(nb)%var2p => Sfcprop(nb)%UZ0
+    enddo
+
+    !---VZ0
+    idx = idx + 1
+    IPD_Diag(idx)%name           = 'VZ0'
+    IPD_Diag(idx)%output_name    = 'VZ0'
+    IPD_Diag(idx)%mod_name       = 'surface'
+    IPD_Diag(idx)%file_name      = 'flx'
+    IPD_Diag(idx)%desc           = 'V at z=z0'
+    IPD_Diag(idx)%unit           = 'kg/kg'
+    IPD_Diag(idx)%type_stat_proc = 'inst'
+    IPD_Diag(idx)%level_type     = 'sfc'
+    IPD_Diag(idx)%level          = 1
+    IPD_Diag(idx)%cnvfac         = cn_one
+    IPD_Diag(idx)%zhour          = Model%zhour
+    IPD_Diag(idx)%fcst_hour      = Model%fhour
+    do nb = 1,nblks
+      IPD_Diag(idx)%data(nb)%var2p => Sfcprop(nb)%VZ0
+    enddo
+
+    endif ! myj_pbl
 
     !---slmsk
     idx = idx + 1

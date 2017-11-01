@@ -5,7 +5,7 @@
      &     ( nsoil, couple, icein, ffrozp, dt, zlvl, sldpth,            &
      &       swdn, swnet, lwdn, sfcems, sfcprs, sfctmp,                 &
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, ivegsrc,             &
-     &       vegtyp, soiltyp, slopetyp, shdmin, alb, snoalb,            &
+     &       vegtyp, soiltyp, slopetyp, shdmin, alb, snoalb, lprnt,     &
 !  ---  input/outputs:
      &       tbot, cmc, t1, stc, smc, sh2o, sneqv, ch, cm,z0,           &
 !  ---  outputs:
@@ -198,6 +198,8 @@
       real (kind=kind_phys), intent(in) :: ffrozp, dt, zlvl, lwdn,      &
      &       sldpth(nsoil), swdn, swnet, sfcems, sfcprs, sfctmp,        &
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, shdmin, alb, snoalb
+
+      logical, intent(in) :: lprnt
 
 !  ---  input/outputs:
       real (kind=kind_phys), intent(inout) :: tbot, cmc, t1, sneqv,     &
@@ -700,6 +702,10 @@
 !  --- ...  prepare sensible heat (h) for return to parent model
 
       sheat = -(ch*cp1*sfcprs) / (rd1*t2v) * (th2 - t1)
+      !!! DEBUG CODE
+      if (lprnt) write(*,'( 7(f8.4, 2x))') ch, cp1, sfcprs,
+     $     rd1, t2v, th2, t1
+      !!! END DEBUG CODE
 
 !  --- ...  convert units and/or sign of total evap (eta), potential evap (etp),
 !           subsurface heat flux (s), and runoffs for what parent model expects

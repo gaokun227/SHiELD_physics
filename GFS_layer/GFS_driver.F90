@@ -14,6 +14,8 @@ module GFS_driver
   use funcphys,                 only: gfuncphys
   use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_init
   use module_som,               only: som_init
+  use myj_pbl_mod,              only: myj_pbl_init
+  use myj_jsfc_mod,             only: myj_jsfc_init
 
   implicit none
 
@@ -213,6 +215,20 @@ module GFS_driver
     !--- initialize ras
     if (Model%ras) call ras_init (Model%levs, Model%me)
 
+    if (Model%myj_pbl) then
+       do nb = 1, nblks
+          call myj_pbl_init(EXCH_H=Statein(nb)%exch_h, RESTART=.false., &
+               IDS=1,IDE=size(Grid(nb)%xlon,1),JDS=1,JDE=1,LM=Model%levs, &
+               IMS=1,IME=size(Grid(nb)%xlon,1),JMS=1,JME=1, &
+               ITS=1,ITE=size(Grid(nb)%xlon,1),JTS=1,JTE=1 )
+          !Removed many input variables which aren't used
+          call myj_jsfc_init(USTAR=Sfcprop(nb)%uustar, RESTART=.false. &
+               ,IDS=1,IDE=size(Grid(nb)%xlon,1),JDS=1,JDE=1,KDS=1,KDE=Model%levs    &
+               ,IMS=1,IME=size(Grid(nb)%xlon,1),JMS=1,JME=1,KMS=1,KME=Model%levs    &
+               ,ITS=1,ITE=size(Grid(nb)%xlon,1),JTS=1,JTE=1,KTS=1,LM =Model%levs )                  
+       enddo
+    endif
+
     !--- initialize soil vegetation
     call set_soilveg(Model%me, Model%isot, Model%ivegsrc, Model%nlunit)
 !
@@ -278,7 +294,7 @@ module GFS_driver
     Model%kdt   = nint((sec + Model%dtp)/Model%dtp)
 
     Model%ipt    = 1
-    Model%lprnt  = .false.
+    !Model%lprnt  = .false.
     Model%lssav  = .true.
 
     !--- radiation triggers

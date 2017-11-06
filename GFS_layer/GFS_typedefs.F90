@@ -849,9 +849,13 @@ module GFS_typedefs
 
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: du3dt (:,:,:) => null()   !< u momentum change due to physics
+                                                                !< lz note: 1: pbl, 2: oro gwd, 3: rf, 4: con gwd
     real (kind=kind_phys), pointer :: dv3dt (:,:,:) => null()   !< v momentum change due to physics
+                                                                !< lz note: 1: pbl, 2: oro gwd, 3: rf, 4: con gwd
     real (kind=kind_phys), pointer :: dt3dt (:,:,:) => null()   !< temperature change due to physics
+                                                                !< lz note: 1: lw, 2: sw, 3: pbl, 4: deep con, 5: shal con, 6: mp 
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
+                                                                !< lz note: 1: pbl, 2: deep con, 3: shal con, 4: mp, 5: ozone
  
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: upd_mf (:,:)   => null()  !< instantaneous convective updraft mass flux

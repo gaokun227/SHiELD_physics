@@ -1397,7 +1397,7 @@ module module_physics_driver
             enddo
           enddo
           if (Model%ntoz > 0) then
-            Diag%dq3dt(:,:,5) = Diag%dq3dt(:,:,5) + dqdt(i,k,Model%ntoz) * dtf
+            Diag%dq3dt(:,:,5) = Diag%dq3dt(:,:,5) + dqdt(:,:,Model%ntoz) * dtf
           endif
         endif
 

@@ -37,6 +37,8 @@ module FV3GFS_io_mod
 !--- IPD typdefs
   use IPD_typedefs,       only: IPD_control_type, IPD_data_type, &
                                 IPD_restart_type
+!--- needed for dq3dt output
+  use ozne_def,           only: oz_coeff
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -66,6 +68,7 @@ module FV3GFS_io_mod
   type data_subtype
     real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
     real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL()
+    real(kind=kind_phys), dimension(:,:), pointer :: var3 => NULL()
   end type data_subtype
   !--- data type definition for use with GFDL FMS diagnostic manager until write component is working
   type gfdl_diag_type
@@ -1208,7 +1211,7 @@ module FV3GFS_io_mod
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
-      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dlwsfc(:)
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,19)
     enddo
 
     idx = idx + 1
@@ -1221,7 +1224,7 @@ module FV3GFS_io_mod
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
-      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%ulwsfc(:)
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,20)
     enddo
 
     idx = idx + 1
@@ -2194,47 +2197,66 @@ module FV3GFS_io_mod
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%sr(:)
     enddo
 
-!--- three-dimensional variables that need to be handled special when writing 
-!rab    do num = 1,6
-!rab      write (xtra,'(I1)') num 
-!rab      idx = idx + 1
-!rab      Diag(idx)%axes = 3
-!rab      Diag(idx)%name = 'dt3dt_'//trim(xtra)
-!rab      Diag(idx)%desc = 'temperature change due to physics '//trim(xtra)//''
-!rab      Diag(idx)%unit = 'XXX'
-!rab      Diag(idx)%mod_name = 'gfs_phys'
-!rab    enddo
-!rab
-!rab    do num = 1,5+Mdl_parms%pl_coeff
-!rab      write (xtra,'(I1)') num 
-!rab      idx = idx + 1
-!rab      Diag(idx)%axes = 3
-!rab      Diag(idx)%name = 'dq3dt_'//trim(xtra)
-!rab      Diag(idx)%desc = 'moisture change due to physics '//trim(xtra)//''
-!rab      Diag(idx)%unit = 'XXX'
-!rab      Diag(idx)%mod_name = 'gfs_phys'
-!rab    enddo
-!rab
-!rab    do num = 1,4
-!rab      write (xtra,'(I1)') num 
-!rab      idx = idx + 1
-!rab      Diag(idx)%axes = 3
-!rab      Diag(idx)%name = 'du3dt_'//trim(xtra)
-!rab      Diag(idx)%desc = 'u momentum change due to physics '//trim(xtra)//''
-!rab      Diag(idx)%unit = 'XXX'
-!rab      Diag(idx)%mod_name = 'gfs_phys'
-!rab    enddo
-!rab
-!rab    do num = 1,4
-!rab      write (xtra,'(I1)') num 
-!rab      idx = idx + 1
-!rab      Diag(idx)%axes = 3
-!rab      Diag(idx)%name = 'dv3dt_'//trim(xtra)
-!rab      Diag(idx)%desc = 'v momentum change due to physics '//trim(xtra)//''
-!rab      Diag(idx)%unit = 'XXX'
-!rab      Diag(idx)%mod_name = 'gfs_phys'
-!rab    enddo
-!rab
+    do num = 1,6
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 3
+      Diag(idx)%name = 'dt3dt_'//trim(xtra)
+      Diag(idx)%desc = 'temperature change due to physics '//trim(xtra)//''
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      Diag(idx)%time_avg = .TRUE.
+      allocate (Diag(idx)%data(nblks))
+      do nb = 1,nblks
+        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dt3dt(:,:,num)
+      enddo
+    enddo
+
+    do num = 1,5+oz_coeff
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 3
+      Diag(idx)%name = 'dq3dt_'//trim(xtra)
+      Diag(idx)%desc = 'moisture change due to physics '//trim(xtra)//''
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      Diag(idx)%time_avg = .TRUE.
+      allocate (Diag(idx)%data(nblks))
+      do nb = 1,nblks
+        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dq3dt(:,:,num)
+      enddo
+    enddo
+
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 3
+      Diag(idx)%name = 'du3dt_'//trim(xtra)
+      Diag(idx)%desc = 'u momentum change due to physics '//trim(xtra)//''
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      Diag(idx)%time_avg = .TRUE.
+      allocate (Diag(idx)%data(nblks))
+      do nb = 1,nblks
+        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%du3dt(:,:,num)
+      enddo
+    enddo
+
+    do num = 1,4
+      write (xtra,'(I1)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 3
+      Diag(idx)%name = 'dv3dt_'//trim(xtra)
+      Diag(idx)%desc = 'v momentum change due to physics '//trim(xtra)//''
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      Diag(idx)%time_avg = .TRUE.
+      allocate (Diag(idx)%data(nblks))
+      do nb = 1,nblks
+        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dv3dt(:,:,num)
+      enddo
+    enddo
+
 !rab    idx = idx + 1
 !rab    Diag(idx)%axes = 3
 !rab    !Requires lgocart = .T.
@@ -2809,7 +2831,7 @@ module FV3GFS_io_mod
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
   subroutine gfdl_diag_output(Time, Atm_block, &
-                             nx, ny, levs, ntcw, ntoz, dt, time_int)
+                             nx, ny, levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr)
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
 !rab    type(diagnostics),         intent(in) :: Gfs_diag
@@ -2819,6 +2841,7 @@ module FV3GFS_io_mod
     integer,                   intent(in) :: nx, ny, levs, ntcw, ntoz
     real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
+    real(kind=kind_phys),      intent(in) :: fhswr, fhlwr
 !--- local variables
     integer :: i, j, idx, nblks, nb, ix, ii, jj
     integer :: is_in, js_in, isc, jsc
@@ -2842,7 +2865,18 @@ module FV3GFS_io_mod
      do idx = 1,tot_diag_idx
        if (Diag(idx)%id > 0) then
          lcnvfac = Diag(idx)%cnvfac
-         if (Diag(idx)%time_avg) lcnvfac = lcnvfac*rtime_int
+         if (trim(Diag(idx)%name) == 'DLWRFsfc' .or. trim(Diag(idx)%name) == 'ULWRFsfc' .or. &
+             trim(Diag(idx)%name) == 'ULWRFtoa') then
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,1.0d0/fhlwr)
+         elseif (trim(Diag(idx)%name) == 'DSWRFsfc' .or. trim(Diag(idx)%name) == 'USWRFsfc' .or. &
+                 trim(Diag(idx)%name) == 'DSWRFtoa' .or. trim(Diag(idx)%name) == 'USWRFtoa') then
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,1.0d0/fhswr)
+         elseif (trim(Diag(idx)%name) == 'TCDCclm' .or. trim(Diag(idx)%name) == 'TCDChcl' .or. &
+                 trim(Diag(idx)%name) == 'TCDClcl' .or. trim(Diag(idx)%name) == 'TCDCmcl') then
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,max(1.0d0/fhswr,1.0d0/fhlwr))
+         else
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*rtime_int
+         endif
          if (Diag(idx)%axes == 2) then
            if (trim(Diag(idx)%name) == 'ALBDOsfc') then
              !--- albedos are actually a ratio of two radiation surface properties
@@ -2894,25 +2928,28 @@ module FV3GFS_io_mod
            endif
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
            used=send_data(Diag(idx)%id, var2, Time)
-         elseif (Diag(idx)%axes == 3) then
+         ! elseif (Diag(idx)%axes == 3) then
          !---
          !--- skipping the 3D variables with the following else statement
          !---
-#ifdef JUNK
          else
-           !--- dt3dt variables
-           do num = 1,6
-             write(xtra,'(i1)') num
-             if (trim(Diag(idx)%name) == 'dt3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
-             endif
+           !--- 3D variables
+           do j = 1, ny
+             jj = j + jsc -1
+             do i = 1, nx
+               ii = i + isc -1
+               nb = Atm_block%blkno(ii,jj)
+               ix = Atm_block%ixp(ii,jj)
+               var3(i,j,:) = Diag(idx)%data(nb)%var3(ix,levs:1:-1)*lcnvfac
+             enddo
            enddo
+           used=send_data(Diag(idx)%id, var3, Time) 
+#ifdef JUNK
            !--- dq3dt variables
            do num = 1,5+Mdl_parms%pl_coeff
              write(xtra,'(i1)') num
              if (trim(Diag(idx)%name) == 'dq3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dq3dt(1:ngptc,levs:1-1,num:num), (/nx,ny,levs/))
+               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dq3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
                used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
              endif
            enddo

@@ -323,6 +323,7 @@
       use module_radiation_clouds,   only: NF_CLDS, cld_init,           &
      &                                     progcld1, progcld2,          &
      &                                     progcld3, progcld4,          &
+     &                                     progcld5, progcld6,          &
      &                                     progclduni, diagcld1
 
       use module_radsw_parameters,   only: topfsw_type, sfcfsw_type,    &
@@ -490,6 +491,7 @@
 !              =1 zhao/carr/sundqvist microphysics scheme               !
 !              =3 zhao/carr/sundqvist microphysics+pdf cloud & cnvc,cnvw!
 !              =4 GFDL cloud microphysics                               !
+!              =5 GFDL cloud microphysics + pdf cloud & cnvc and cnvw   !
 !   iovrsw   : control flag for cloud overlap in sw radiation           !
 !   iovrlw   : control flag for cloud overlap in lw radiation           !
 !              =0: random overlapping clouds                            !
@@ -1165,6 +1167,7 @@
 !                        =1 zhao/carr/sundqvist microphysics scheme     !
 !                        =3 zhao/carr/sundqvist microphysics +pdf cloud !
 !                        =4 GFDL cloud microphysics                     !
+!                        =5 GFDL cloud microphysics + pdf cloud         !
 !                                                                       !
 !    module variables:                                                  !
 !     itsfc            : =0 use same sfc skin-air/ground temp           !
@@ -1174,7 +1177,7 @@
 !
 !  ---  local variables: (horizontal dimensioned by IM)
       !--- INTEGER VARIABLES
-      integer :: me, im, lm, nfxr, ntrac
+      integer :: me, im, lm, nfxr, nkld, ntrac
       integer :: i, j, k, k1, lv, itop, ibtc, nday, LP1, LMK, LMP, kd,  &
                  lla, llb, lya, lyb, kt, kb
       integer, dimension(size(Grid%xlon,1)) :: idxday
@@ -1214,6 +1217,7 @@
       LM = Model%levr
       IM = size(Grid%xlon,1)
       NFXR = Model%nfxr
+      nkld = Model%nkld
       NTRAC = Model%ntrac        ! tracers in grrad strip off sphum - start tracer1(2:NTRAC)
 
       LP1 = LM + 1               ! num of in/out levels
@@ -1561,6 +1565,25 @@
                          lmp,                                     &
                          clouds, cldsa, mtopa, mbota)                  !  ---  outputs
 
+        elseif (icmphys == 5) then           ! zhao/moorthi's prognostic cloud scheme + pdf cloud & cnvc and cnvw
+
+          if (.not. Model%cloud_gfdl) then
+          call progcld5 (plyr, plvl, tlyr, tvly, qlyr, qstl, rhly,&    !  ---  inputs
+                         clw, cnvw, cnvc, Grid%xlat, Grid%xlon,   &
+                         Sfcprop%slmsk, tracer1(:,1:lmk,Model%ntclamt),&
+                         im, lmk, lmp, clouds, cldsa, mtopa, mbota)    !  ---  outputs
+          else
+          call progcld6 (plyr, plvl, tlyr, tvly, qlyr, qstl, rhly,&    !  ---  inputs
+                         clw, cnvw, cnvc, Grid%xlat, Grid%xlon,   &
+                         tracer1(:,1:lmk,Model%ntcw), &
+                         tracer1(:,1:lmk,Model%ntrw), &
+                         tracer1(:,1:lmk,Model%ntiw), &
+                         tracer1(:,1:lmk,Model%ntsw), &
+                         tracer1(:,1:lmk,Model%ntgl), &
+                         Sfcprop%slmsk, tracer1(:,1:lmk,Model%ntclamt),&
+                         im, lmk, lmp, clouds, cldsa, mtopa, mbota)    !  ---  outputs
+          endif
+
         endif                            ! end if_icmphys
 
       else                               ! diagnostic cloud scheme
@@ -1823,6 +1846,10 @@
         if (Model%lsswr .or. Model%lslwr) then
           Diag%fluxr(:,17) = Diag%fluxr(:,17) + raddt * cldsa(:,4)
           Diag%fluxr(:,18) = Diag%fluxr(:,18) + raddt * cldsa(:,5)
+
+          do k = 1, nkld
+            Diag%cloud(:,:,k) = Diag%cloud(:,:,k) + raddt * clouds(:,:,k+1)
+          enddo
 
 !  ---  save cld frac,toplyr,botlyr and top temp, note that the order
 !       of h,m,l cloud is reversed for the fluxr output.

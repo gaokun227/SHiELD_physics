@@ -377,6 +377,7 @@ module GFS_typedefs
     integer              :: nslwr           !< integer trigger for longwave  radiation
     integer              :: levr            !< number of vertical levels for radiation calculations
     integer              :: nfxr            !< second dimension for fluxr diagnostic variable (radiation)
+    integer              :: nkld            !< second dimension for cloud diagnostic variable (radiation)
     logical              :: aero_in         !< aerosol flag for gbphys
     logical              :: lmfshal         !< parameter for radiation
     logical              :: lmfdeep2        !< parameter for radiation
@@ -466,6 +467,7 @@ module GFS_typedefs
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: cnvcld        
+    logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
     logical              :: shal_cnv        !< flag for calling shallow convection
     integer              :: imfshalcnv      !< flag for mass-flux shallow convection scheme
@@ -763,6 +765,8 @@ module GFS_typedefs
     !! Input/Output only in radiation
     real (kind=kind_phys), pointer :: fluxr (:,:)   => null()   !< to save time accumulated 2-d fields defined as:!
                                                                 !< hardcoded field indices, opt. includes aerosols!
+    real (kind=kind_phys), pointer :: cloud (:,:,:) => null()   !< to save time accumulated 3-d fields defined as:!
+                                                                !< hardcoded field indices
     type (topfsw_type),    pointer :: topfsw(:)     => null()   !< sw radiation fluxes at toa, components:        
                                                !       %upfxc    - total sky upward sw flux at toa (w/m**2)     
                                                !       %dnfxc    - total sky downward sw flux at toa (w/m**2)   
@@ -1393,6 +1397,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: fhlwr          = 3600.           !< frequency for longwave radiation (secs)
     integer              :: levr           = -99             !< number of vertical levels for radiation calculations
     integer              :: nfxr           = 39              !< second dimension of input/output array fluxr   
+    integer              :: nkld           = 8               !< second dimension of input/output array fluxr   
     logical              :: aero_in        = .false.         !< flag for initializing aero data 
     integer              :: iflip          =  1              !< iflip - is not the same as flipv
     integer              :: isol           =  0              !< use prescribed solar constant
@@ -1476,6 +1481,7 @@ module GFS_typedefs
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: cnvcld         = .false.
+    logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
     logical              :: shal_cnv       = .false.                  !< flag for calling shallow convection
     integer              :: imfshalcnv     =  1                       !< flag for mass-flux shallow convection scheme
@@ -1582,7 +1588,7 @@ module GFS_typedefs
                           !--- radiation parameters
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
-                               isubc_lw, crick_proof, ccnorm, lwhtr, swhtr,                 &
+                               isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                           !--- microphysical parameterizations
                                ncld, do_unif_gfdlmp, zhao_mic, psautco, prautco, evpco,     &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
@@ -1594,7 +1600,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,                                                   &
+                               dlqf, rbcr, cloud_gfdl,                                      &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1698,6 +1704,7 @@ module GFS_typedefs
       Model%levr           = levr
     endif
     Model%nfxr             = nfxr
+    Model%nkld             = nkld
     Model%aero_in          = aero_in
     Model%iflip            = iflip
     Model%isol             = isol
@@ -1760,6 +1767,7 @@ module GFS_typedefs
     Model%hybedmf          = hybedmf
     Model%dspheat          = dspheat
     Model%cnvcld           = cnvcld
+    Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
     Model%shal_cnv         = shal_cnv
     Model%imfshalcnv       = imfshalcnv
@@ -2036,7 +2044,11 @@ module GFS_typedefs
                                             ' mg_dcs=',Model%mg_dcs,' mg_qcvar=',Model%mg_qcvar, &
                                             ' mg_ts_auto_ice=',Model%mg_ts_auto_ice
     elseif (Model%ncld == 5) then
-      Model%npdf3d = 0
+      if (Model%pdfcld) then
+        Model%npdf3d = 3
+      else
+        Model%npdf3d = 0
+      endif
       Model%num_p3d = 4
       Model%num_p2d = 1
       Model%pdfcld  = .false.
@@ -2064,7 +2076,7 @@ module GFS_typedefs
                                     ' do_shoc=',Model%do_shoc,' nshoc3d=',Model%nshoc_3d,   &
                                     ' nshoc_2d=',Model%nshoc_2d,' shoc_cld=',Model%shoc_cld,& 
                                     ' ntot3d=',Model%ntot3d,' ntot2d=',Model%ntot2d,        &
-                                    ' shocaftcnv=',Model%shocaftcnv
+                                    ' shocaftcnv=',Model%shocaftcnv,' cloud_gfdl=',Model%cloud_gfdl
 
     !--- stochastic physics
     if (Model%sppt(1) > 0 ) Model%do_sppt = .true.
@@ -2160,6 +2172,7 @@ module GFS_typedefs
       print *, ' nslwr             : ', Model%nslwr
       print *, ' levr              : ', Model%levr
       print *, ' nfxr              : ', Model%nfxr
+      print *, ' nkld              : ', Model%nkld
       print *, ' aero_in           : ', Model%aero_in
       print *, ' lmfshal           : ', Model%lmfshal
       print *, ' lmfdeep2          : ', Model%lmfdeep2
@@ -2227,6 +2240,7 @@ module GFS_typedefs
       print *, ' hybedmf           : ', Model%hybedmf
       print *, ' dspheat           : ', Model%dspheat
       print *, ' cnvcld            : ', Model%cnvcld
+      print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds
       print *, ' shal_cnv          : ', Model%shal_cnv
       print *, ' imfshalcnv        : ', Model%imfshalcnv
@@ -2535,6 +2549,7 @@ module GFS_typedefs
 
     !--- Radiation
     allocate (Diag%fluxr   (IM,Model%nfxr))
+    allocate (Diag%cloud   (IM,Model%levs,Model%nkld))
     allocate (Diag%topfsw  (IM))
     allocate (Diag%topflw  (IM))
     !--- Physics
@@ -2635,6 +2650,7 @@ module GFS_typedefs
     type(GFS_control_type), intent(in) :: Model
 
     Diag%fluxr        = zero
+    Diag%cloud        = zero
     Diag%topfsw%upfxc = zero
     Diag%topfsw%dnfxc = zero
     Diag%topfsw%upfx0 = zero

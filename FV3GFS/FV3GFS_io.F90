@@ -1159,7 +1159,7 @@ module FV3GFS_io_mod
 !    13+NFXR - radiation
 !    76+pl_coeff - physics
 !-------------------------------------------------------------------------      
-  subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Atm_block, axes, NFXR)
+  subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Atm_block, axes, NFXR, nkld)
     use physcons,  only: con_g
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
@@ -1168,6 +1168,7 @@ module FV3GFS_io_mod
     type (block_control_type), intent(in) :: Atm_block
     integer, dimension(4),     intent(in) :: axes
     integer,                   intent(in) :: NFXR
+    integer,                   intent(in) :: nkld
 !--- local variables
     integer :: idx, num, nb, nblks, nx, ny, k
     integer, allocatable :: blksz(:)
@@ -1356,6 +1357,22 @@ module FV3GFS_io_mod
       allocate (Diag(idx)%data(nblks))
       do nb = 1,nblks
         Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,num)
+      enddo
+    enddo
+
+!--- averaged diagnostics ---
+    do num = 1,nkld
+      write (xtra,'(I2.2)') num 
+      idx = idx + 1
+      Diag(idx)%axes = 3
+      Diag(idx)%name = 'cloud_'//trim(xtra)
+      Diag(idx)%desc = 'cloud diagnostic '//trim(xtra)//' - GFS radiation'
+      Diag(idx)%unit = 'XXX'
+      Diag(idx)%mod_name = 'gfs_phys'
+      Diag(idx)%time_avg = .TRUE.
+      allocate (Diag(idx)%data(nblks))
+      do nb = 1,nblks
+        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%cloud(:,:,num)
       enddo
     enddo
 

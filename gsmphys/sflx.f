@@ -703,7 +703,7 @@
 
       sheat = -(ch*cp1*sfcprs) / (rd1*t2v) * (th2 - t1)
       !!! DEBUG CODE
-      if (lprnt) write(*,'( 7(f8.4, 2x))') ch, cp1, sfcprs,
+      if (lprnt) write(*,'( A, 6(f12.6, 2x))')'SFLX: ',sheat,ch,sfcprs,
      $     rd1, t2v, th2, t1
       !!! END DEBUG CODE
 

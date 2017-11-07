@@ -414,7 +414,8 @@
 !  --- ...  noah: prepare variables for return to parent mode
 !   6. output (o):
 !      -----------
-!    eta     - actual latent heat flux (w m-2: positive, if upward from sfc)
+!    eta     - actual water vapor flux ( kg WV m-2 s-1: positive, if upward from sfc)
+!              NOTE: conversion to latent heat flux NO LONGER DONE in sflx.f90 --- lmh 6 nov 17
 !    sheat   - sensible heat flux (w m-2: positive, if upward from sfc)
 !    beta    - ratio of actual/potential evap (dimensionless)
 !    etp     - potential evaporation (w m-2)

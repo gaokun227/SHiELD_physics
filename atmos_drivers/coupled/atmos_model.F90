@@ -240,7 +240,7 @@ subroutine update_atmos_radiation_physics (Atmos)
 !$OMP            shared   (Atm_block, IPD_Control, IPD_Data, IPD_Diag, IPD_Restart) &
 !$OMP            private  (nb)
       do nb = 1,Atm_block%nblks
-        call IPD_physics_step1 (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart, mpp_pe(), mpp_root_pe())
+        call IPD_physics_step1 (IPD_Control, IPD_Data(nb), IPD_Diag, IPD_Restart)
       enddo
       call mpp_clock_end(physClock)
 

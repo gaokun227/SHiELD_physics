@@ -20,7 +20,7 @@ module module_physics_driver
   use module_som,            only: update_som 
   use myj_pbl_mod,           only: myj_pbl
   use myj_jsfc_mod,          only: myj_jsfc
-
+  use wv_saturation,         only: estblf
   implicit none
 
 
@@ -391,7 +391,7 @@ module module_physics_driver
 
     subroutine GFS_physics_driver                         &
          (Model, Statein, Stateout, Sfcprop, Coupling,  &
-          Grid, Tbd, Cldprop, Radtend, Diag, this_pe, root_pe)
+          Grid, Tbd, Cldprop, Radtend, Diag)
 
       implicit none
 !
@@ -406,7 +406,6 @@ module module_physics_driver
       type(GFS_cldprop_type),         intent(inout) :: Cldprop
       type(GFS_radtend_type),         intent(inout) :: Radtend
       type(GFS_diag_type),            intent(inout) :: Diag
-      integer,                        intent(in)    :: this_pe, root_pe
 !
 !  ---  local variables
 
@@ -416,6 +415,7 @@ module module_physics_driver
                  trc_shft, tottracer, num2, num3, nshocm, nshoc, ntk
       integer :: seconds
       integer :: kflip
+      integer :: ntsd ! for myj
 
       integer, dimension(size(Grid%xlon,1)) ::                          &
            kbot, ktop, kcnv, soiltyp, vegtype, kpbl, slopetyp, kinver,  &
@@ -437,7 +437,7 @@ module module_physics_driver
       !--- REAL VARIABLES
       real(kind=kind_phys) ::                                           &
            dtf, dtp, rhbbot, rhbtop, rhpbl, frain, tem, tem1, tem2,     &
-           xcosz_loc, zsea1, zsea2, eng0, eng1, dpshc,                  &
+           xcosz_loc, zsea1, zsea2, eng0, eng1, dpshc, den,             &
            !--- experimental for shoc sub-stepping 
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
@@ -550,8 +550,8 @@ module module_physics_driver
       dtf    = Model%dtf
       dtp    = Model%dtp
       kdt    = Model%kdt
-!      lprnt  = Model%lprnt  
-      lprnt  = (this_pe == 24) !root_pe) .and. (this_pe > 0 ) !! DEBUG
+      lprnt  = Model%lprnt  
+!      lprnt  = (me == 24) !root_pe) .and. (this_pe > 0 ) !! DEBUG
       nvdiff = ntrac           ! vertical diffusion of all tracers!
       ipr    = min(im,10)
 
@@ -925,8 +925,18 @@ module module_physics_driver
                !Note that in the GFS driver, Qsfc is not yet computed.
                ! however it IS used by J-sfc. Need to add qsfc as a
                ! prognostic variable??
-               ! for now just use q2m
-               qsfc1(i,1) = Sfcprop%q2m(i) ! new
+               ! Do **NOT** use q2m over ocean, which will result in tiny fluxes.
+               ! Instead use 0.98% RH at lower boundary.
+               if (frland(i) < 0.5) then
+                  qsfc1(i,1) = estblf(tsfc1(i,1))*0.98 ! returns vapor pressure
+                  qsfc1(i,1) = qsfc1(i,1) / ( con_eps*Statein%prsi(i,1) - qsfc1(i,1)*(con_eps+1.) )
+               else
+                  qsfc1(i,1) = Sfcprop%q2m(i)
+                  ! convert moisture to specific humidity.
+                  qsfc1(i,1) = qsfc1(i,1) / (1. - qsfc1(i,1))
+               endif
+
+               !!!****ALSO**** does MYJ want SPECIFIC HUMIDITY or MIXING RATIO??
 
                thz01(i,1) = Sfcprop%thz0(i)
                qz01(i,1)  = Sfcprop%qz0(i)
@@ -954,7 +964,7 @@ module module_physics_driver
                   dz   (i,1,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
                   phmid(i,1,k) = Statein%prsl(i,kflip) ! new
                   phint(i,1,k) = Statein%prsi(i,kflip+1) ! new
-                  th   (i,1,k) = Statein%tgrs(i,kflip)*Statein%prslk(i,kflip) ! new
+                  th   (i,1,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip) ! new
                   pt   (i,1,k) = Statein%tgrs(i,kflip)
                   qv1  (i,1,k) = Statein%qgrs(i,kflip,1         )
                   ql1  (i,1,k) = Statein%qgrs(i,kflip,Model%ntcw)
@@ -965,6 +975,12 @@ module module_physics_driver
                end do
             enddo
             phint(:,1,levs+1) = Statein%prsi(:,1) ! new
+            !Need to set up the z01 variables on the first timestep
+            if (thz01(i,1) > 10.) then
+               ntsd=1
+            else
+               ntsd=0
+            endif
 
             !Discarded arguments: SNOWC, Z0BASE ("background" z0), RMOL, CHS2, CQS2, QFX
             !   FLHC, FLQC, *SHLTR
@@ -973,7 +989,7 @@ module module_physics_driver
             !Outputs: FLX_LH, HFX, AKHS, AKMS, PBLH, RIB, *Z0, CHS, CQS, USTAR, U10, V10, T2, Q2
             !Want to include improved z0 estimate over ocean
             !also want to compute epsQ2 here
-            call myj_jsfc(NTSD=1,EPSL=epsL,EPSQ2=epsQ2,HT=ht,DZ=dz    &
+            call myj_jsfc(NTSD=ntsd,EPSL=epsL,EPSQ2=epsQ2,HT=ht,DZ=dz &
                     ,PHMID=phmid,PHINT=phint,TH=th,T=pt               &
                     ,Q=qv1,QC=ql1,U=uin,V=vin,Q2=tke                  &
                     ,TSK=tsfc1,QSFC=qsfc1                             &
@@ -995,24 +1011,24 @@ module module_physics_driver
 
             !Restore values
             do i=1,im
-               !hflx(i) = hflx1(i,1) ! Don't use jsfc's fluxes??
-               !evap(i) = evap1(i,1)
-               sfcprop%uustar(i) = ustar1(i,1)
-               Sfcprop%ffmm(i) = ustar1(i,1)*0.4/akms1(i,1) ! 0.4 is Von Karman's constant
-               Sfcprop%ffhh(i) = ustar1(i,1)*0.4/akhs1(i,1)
-               Diag%hpbl(i) = pblh1(i,1)
-               rb(i) = rb1(i,1)
-               cd(i) = cd1(i,1)
-               cdq(i) = cdq1(i,1)
-               stress(i) = ustar1(i,1)*ustar1(i,1)
-               if (flag_iter1(i,1)) then
-                  wind(i) = max(sqrt(uin(i,1,1)*uin(i,1,1) + vin(i,1,1)*vin(i,1,1)) &
-                     + max(0.0, min(Tbd%phy_f2d(i,Model%num_p2d), 30.0)), 1.0) ! The Tbd%quantity appears to be zero
-               endif
-               Diag%u10m(i) = u10m1(i,1)
-               Diag%v10m(i) = v10m1(i,1) 
-               Sfcprop%t2m(i) = T2m1(i,1)  
-               Sfcprop%q2m(i) = Q2m1(i,1)  
+!!$               hflx(i) = hflx1(i,1) ! Don't use jsfc's fluxes??
+!!$               evap(i) = evap1(i,1) !NOTE: would want to convert from W/m**2 (in MYJ) to kg/m**2/s (in GFS)
+!!$               sfcprop%uustar(i) = ustar1(i,1)
+!!$               Sfcprop%ffmm(i) = ustar1(i,1)*0.4/akms1(i,1) ! 0.4 is Von Karman's constant
+!!$               Sfcprop%ffhh(i) = ustar1(i,1)*0.4/akhs1(i,1)
+!!$               Diag%hpbl(i) = pblh1(i,1)
+!!$               rb(i) = rb1(i,1)
+!!$               cd(i) = cd1(i,1)
+!!$               cdq(i) = cdq1(i,1)
+!!$               stress(i) = cd1(i,1)*ustar1(i,1)*ustar1(i,1)
+!!$               if (flag_iter1(i,1)) then
+!!$                  wind(i) = max(sqrt(uin(i,1,1)*uin(i,1,1) + vin(i,1,1)*vin(i,1,1)) &
+!!$                     + max(0.0, min(Tbd%phy_f2d(i,Model%num_p2d), 30.0)), 1.0) ! The Tbd%quantity appears to be zero
+!!$               endif
+!!$               Diag%u10m(i) = u10m1(i,1)
+!!$               Diag%v10m(i) = v10m1(i,1) 
+!!$               Sfcprop%t2m(i) = T2m1(i,1)  
+!!$               Sfcprop%q2m(i) = Q2m1(i,1)  
 
                Sfcprop%thz0(i) = thz01(i,1) 
                Sfcprop%qz0(i)  = qz01(i,1)  
@@ -1022,7 +1038,8 @@ module module_physics_driver
 !!$               if (lprnt) write(*,'(I, 6(2x, F8.3))') i, AKMS1(i,1), AKHS1(I,1), PBLH1(I,1), USTAR1(I,1), HFLX1(I,1), T2m1(I,1)
             enddo
             
-         else
+         !else
+         endif
 
             call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
                  Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
@@ -1033,9 +1050,9 @@ module module_physics_driver
                  sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
                  tsurf, flag_iter, Model%redrag)
      
-         endif
+         !endif
          do i=1,im
-            if (lprnt) write(*,'(I, 8(2x, F8.3))') i, cd(i), cdq(i), rb(i), Sfcprop%ffmm(i), Sfcprop%ffhh(i), Sfcprop%uustar(i), tsurf(i) , frland(i)
+            if (lprnt) write(*,'(I, 8(2x, F11.6))') i, cd(i), cdq(i), rb(i), Sfcprop%ffmm(i), Sfcprop%ffhh(i), Sfcprop%uustar(i), tsurf(i) , frland(i)
          enddo
 
 !  --- ...  lu: update flag_guess
@@ -1234,13 +1251,13 @@ module module_physics_driver
 
 !  --- ...  update near surface fields
 
-      if (.not. Model%myj_pbl) then
+      !if (.not. Model%myj_pbl) then
          call sfc_diag (im, Statein%pgr, Statein%ugrs, Statein%vgrs,     &
               Statein%tgrs, Statein%qgrs, Sfcprop%tsfc, qss,   &
               Sfcprop%f10m, Diag%u10m, Diag%v10m,        &
               Sfcprop%t2m, Sfcprop%q2m, work3, evap,           &
               Sfcprop%ffmm, Sfcprop%ffhh, fm10, fh2)
-      endif
+      !endif
 
       do i=1,im
          if (lprnt) write(*,'(I, 5(2x, F8.3))') i, tsurf(i), hflx(i), evap(i), frland(i), qss(i)
@@ -1364,6 +1381,11 @@ module module_physics_driver
 
 !     write(0,*)' before monin clstp=',clstp,' kdt=',kdt,' lat=',lat
 
+      dusfc1(:)  = 0.
+      dvsfc1(:) = 0.
+      dtsfc1(:) = 0.
+      dqsfc1(:) = 0.
+
       if (Model%do_shoc) then
         call moninshoc(ix, im, levs, ntrac, Model%ntcw, dvdt, dudt, dtdt, dqdt,  &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,   &
@@ -1392,21 +1414,20 @@ module module_physics_driver
        elseif ( Model%myj_pbl) then
           
           do i=1,im
-             land(i,1) = frland(i)
+             land(i,1) = 2. - frland(i) ! see note above
              vegfrac(i,1) = Sfcprop%vfrac(i) 
              ht(i,1) = Sfcprop%oro(i) 
              tsfc1(i,1) = Sfcprop%tsfc(i) 
-             qsfc1(i,1) = qss(i) 
+             qsfc1(i,1) = 0. !not used by MYJ !qss(i) ! this is actually q sfc after calling sfc_drv ! 
              ustar1(i,1) = Sfcprop%uustar(i) 
              z01(i,1) = Sfcprop%zorl(i)*0.01 ! convert cm --> m
              pblh1(i,1) = Diag%hpbl(i)
              one(i,1) = 1. 
              akms1(i,1) = ustar1(i,1)*0.4/Sfcprop%ffmm(i)  
              akhs1(i,1) = ustar1(i,1)*0.4/Sfcprop%ffhh(i)  ! 0.4 is Von Karman's constant in NAM
-             cd1(i,1) = cd(i) 
-             cdq1(i,1) = cdq(i) !
-             hflx1(i,1) = hflx(i) !units are M/m2
-             evap1(i,1) = evap(i) 
+             hflx1(i,1) = hflx(i)  !Not used by myj?!?
+             !den = phmid(i,1,levs)/(con_rd*pt(i,1,levs)*(1. + con_epsm1 * Statein%qgrs(i,levs,1) ) )
+             evap1(i,1) = evap(i) * con_hvap  !MYJ needs surface flux in the correct units
              rb1(i,1) = rb(i) 
 
              cice1(i,1) = Sfcprop%fice(i) ! new
@@ -1425,10 +1446,10 @@ module module_physics_driver
 
                 phmid(i,1,k) = Statein%prsl(i,kflip) 
                 phint(i,1,k) = Statein%prsi(i,kflip+1)
-                qv1  (i,1,k) = Statein%qgrs(i,kflip,1         )
+                qv1  (i,1,k) = Statein%qgrs(i,kflip,1         )/ (1. - Statein%qgrs(i,kflip,1         ))
                 ql1  (i,1,k) = Statein%qgrs(i,kflip,Model%ntcw)
                 pt   (i,1,k) = Statein%tgrs(i,kflip)
-                th   (i,1,k) = Statein%tgrs(i,kflip)*Statein%prslk(i,kflip)
+                th   (i,1,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip)
                 uin  (i,1,k) = Statein%ugrs(i,kflip)
                 vin  (i,1,k) = Statein%ugrs(i,kflip)
                 dz   (i,1,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
@@ -1449,6 +1470,7 @@ module module_physics_driver
           
           !Discarded arguments: STDH (currently not used), CT
           !output variables: MIXHT, PBLH, EL_MYJ, tendencies, AKHS, AKMS, *Z0, EXCH_H, tke, KPBL
+          !NOTE: Look at mixing length (mixh1)
           call myj_pbl(DT=dtp,NPHS=1,EPSL=epsL,EPSQ2=epsQ2,HT=ht,DZ=dz  &
                ,PMID=phmid,PINH=phint,TH=th,T=pt,EXNER=exner,Q=qv1 &
                ,CWM=ql1,U=uin,V=vin &
@@ -1462,7 +1484,7 @@ module module_physics_driver
                ,RQBLTEN=qv_dt,RQCBLTEN=ql_dt &
                ,IDS=1,IDE=im,JDS=1,JDE=1           &
                ,IMS=1,IME=im,JMS=1,JME=1           &
-               ,ITS=1,ITE=im,JTS=1,JTE=1,LM=levs)
+               ,ITS=1,ITE=im,JTS=1,JTE=1,LM=levs,LPRNT=lprnt)
 
           !Restore values
           !add up tendencies
@@ -1471,11 +1493,6 @@ module module_physics_driver
                kpbl(i) = pblk1(i,1)
                Sfcprop%ffmm(i) = ustar1(i,1)*0.4/akms1(i,1)
                Sfcprop%ffhh(i) = ustar1(i,1)*0.4/akhs1(i,1)
-               !These are to convert between lowest-layer tendencies and "surface" tendencies
-               dusfc1(i) = dusfc1(i) + onebg*del(i,levs)*udt(i,1,1) * dtp
-               dvsfc1(i) = dvsfc1(i) + onebg*del(i,levs)*vdt(i,1,1) * dtp
-               dtsfc1(i) = dtsfc1(i) + con_cp*onebg*del(i,levs)*pt_dt(i,1,1) / Statein%prslk(i,1) * dtp !DUMB!
-               dqsfc1(i) = dqsfc1(i) + con_hvap*onebg*del(i,levs)*qv_dt(i,1,1) * dtp
                Diag%hmix(i) = mixh1(i,1)
 
                Sfcprop%thz0(i) = thz01(i,1) 
@@ -1486,17 +1503,26 @@ module module_physics_driver
             do k=1,levs
                kflip = levs-k+1
                do i=1,im
-                  dqdt(i,k,1) = dqdt(i,k,1) + qv_dt(i,1,kflip)
+                  dqdt(i,k,1) = dqdt(i,k,1) + qv_dt(i,1,kflip)/ (1. + qv_dt(i,1,kflip))
                   dqdt(i,k,Model%ntcw) = dqdt(i,k,Model%ntcw) + ql_dt(i,1,kflip)
-                  dtdt(i,k) = dtdt(i,k) + pt_dt(i,1,kflip) / Statein%prslk(i,kflip) !!! NEED conversion from theta; doing STUPID thing for now
+                  dtdt(i,k) = dtdt(i,k) + pt_dt(i,1,kflip) * Statein%prslk(i,k) !!! NEED conversion from theta; doing STUPID thing for now
                   dudt(i,k) = dudt(i,k) + udt(i,1,kflip)
                   dvdt(i,k) = dvdt(i,k) + vdt(i,1,kflip)
                   dqdt(i,k,Model%ntke) = dqdt(i,k,Model%ntke) + (tke(i,1,kflip) - Statein%qgrs(i,k,Model%ntke)) / dtp
 
-!!$                  Stateout%gq0(i,k,Model%ntrw) = qr1(i,1,kflip) + qr_dt(i,1,kflip) * dtp
-!!$                  Stateout%gq0(i,k,Model%ntiw) = qi1(i,1,kflip) + qi_dt(i,1,kflip) * dtp
-!!$                  Stateout%gq0(i,k,Model%ntsw) = qs1(i,1,kflip) + qs_dt(i,1,kflip) * dtp
-!!$                  Stateout%gq0(i,k,Model%ntgl) = qg1(i,1,kflip) + qg_dt(i,1,kflip) * dtp
+                  !These are the surface tendencies
+                  ! which can be computed as the sum of the tendencies
+                  ! through the atmosphere
+                  ! (only mass/heat/mom source from PBL is the surface)
+                  dusfc1(i) = dusfc1(i) + onebg*del(i,k)*udt(i,1,kflip)
+                  dvsfc1(i) = dvsfc1(i) + onebg*del(i,k)*vdt(i,1,kflip)
+                  dtsfc1(i) = dtsfc1(i) + con_cp*onebg*del(i,k)*pt_dt(i,1,kflip) * Statein%prslk(i,k) !DUMB!
+                  dqsfc1(i) = dqsfc1(i) + con_hvap*onebg*del(i,k)*qv_dt(i,1,kflip)
+
+!$%!!$                  Stateout%gq0(i,k,Model%ntrw) = qr1(i,1,kflip) + qr_dt(i,1,kflip) * dtp
+!$%!!$                  Stateout%gq0(i,k,Model%ntiw) = qi1(i,1,kflip) + qi_dt(i,1,kflip) * dtp
+!$%!!$                  Stateout%gq0(i,k,Model%ntsw) = qs1(i,1,kflip) + qs_dt(i,1,kflip) * dtp
+!$%!!$                  Stateout%gq0(i,k,Model%ntgl) = qg1(i,1,kflip) + qg_dt(i,1,kflip) * dtp
                   Stateout%gq0(i,k,Model%ntke) = tke(i,1,kflip)
                   Statein%exch_h(i,k) = exchh1(i,1,kflip)
                   Diag%el_myj(i,k) = el1(i,1,kflip)
@@ -1537,9 +1563,16 @@ module module_physics_driver
         endif   ! end if_hybedmf
       endif   ! end if_do_shoc
 
-      do i=1,im
-         if (lprnt) write(*,'(I, 4(2x, F8.3))') i, dqsfc1(i), dtsfc1(i), del(i,levs), Statein%prslk(i,1)
-      enddo
+      if (Model%myj_pbl) then
+         do i=1,im
+            if (lprnt) write(*,'(I, 8(2x, G))') i, dqsfc1(i), dtsfc1(i), dqdt(i,1,1), Sfcprop%q2m(i), Sfcprop%t2m(i), Sfcprop%ffhh(i), Sfcprop%QZ0(i), Sfcprop%THZ0(i)
+         enddo
+      else
+         do i=1,im
+            if (lprnt) write(*,'(I, 6(2x, G))') i, dqsfc1(i), dtsfc1(i), dqdt(i,1,1), Sfcprop%q2m(i), Sfcprop%t2m(i), Sfcprop%ffhh(i)
+         enddo
+      endif
+
 
       if (Model%cplflx) then
         do i = 1, im

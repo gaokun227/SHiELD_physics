@@ -867,6 +867,13 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: det_mf (:,:)   => null()  !< instantaneous convective detrainment mass flux
     real (kind=kind_phys), pointer :: cldcov (:,:)   => null()  !< instantaneous 3D cloud fraction
 
+    real (kind=kind_phys), pointer :: delt   (:,:)   => null()  !< temperature change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqv   (:,:)   => null() !< water vapor change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delql   (:,:)   => null() !< cloud water change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqi   (:,:)   => null() !< cloud ice change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqr   (:,:)   => null() !< rain change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqs   (:,:)   => null() !< snow  change due to terrain induced lifting
+
     contains
       procedure create    => diag_create
       procedure rad_zero  => diag_rad_zero
@@ -2635,6 +2642,12 @@ module GFS_typedefs
       allocate (Diag%dwn_mf (IM,Model%levs))
       allocate (Diag%det_mf (IM,Model%levs))
       allocate (Diag%cldcov (IM,Model%levs))
+      allocate (Diag%delt   (IM,Model%levs))
+      allocate (Diag%delqv  (IM,Model%levs))
+      allocate (Diag%delql  (IM,Model%levs))
+      allocate (Diag%delqi  (IM,Model%levs))
+      allocate (Diag%delqr  (IM,Model%levs))
+      allocate (Diag%delqs  (IM,Model%levs))
     endif
 
     call Diag%rad_zero  (Model)
@@ -2752,6 +2765,12 @@ module GFS_typedefs
       Diag%upd_mf  = zero
       Diag%dwn_mf  = zero
       Diag%det_mf  = zero
+      Diag%delt    = zero
+      Diag%delqv   = zero
+      Diag%delql   = zero
+      Diag%delqi   = zero
+      Diag%delqr   = zero
+      Diag%delqs   = zero
     endif
 
   end subroutine diag_phys_zero

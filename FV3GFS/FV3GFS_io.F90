@@ -2286,6 +2286,18 @@ module FV3GFS_io_mod
       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%delqs(:,:)
     enddo
 
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'vvm'
+    Diag(idx)%desc = 'vertical velocity due to terrain induced lifting'
+    Diag(idx)%unit = 'm/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%time_avg = .TRUE.
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%vvm(:,:)
+    enddo
+
     do num = 1,6
       write (xtra,'(I1)') num 
       idx = idx + 1

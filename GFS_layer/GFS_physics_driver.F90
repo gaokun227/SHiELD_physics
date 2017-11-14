@@ -488,7 +488,7 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
            delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1,   &
            qs1, pt_dt, qa_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt,  &
-           qs_dt, qg_dt, delt, delqv, delql, delqi, delqr, delqs
+           qs_dt, qg_dt, delt, delqv, delql, delqi, delqr, delqs, vvm
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs,Model%ntrac) ::  &
            dqdt
@@ -2702,7 +2702,8 @@ module module_physics_driver
                                          ice0, graupel0, .false., .true.,   &
                                          1, im, 1, levs, 1, levs,           &
                                          seconds, elvmax, sigma, delt,      &
-                                         delqv, delql, delqi, delqr, delqs)
+                                         delqv, delql, delqi, delqr, delqs, &
+                                         vvm)
 
         rain1(:)   = (rain0(:)+snow0(:)+ice0(:)+graupel0(:))  &
                      * dtp * con_p001 / con_day
@@ -2734,6 +2735,7 @@ module module_physics_driver
           Diag%delqi(:,k) = Diag%delqi(:,k) + delqi(:,levs-k+1) * dtp
           Diag%delqr(:,k) = Diag%delqr(:,k) + delqr(:,levs-k+1) * dtp
           Diag%delqs(:,k) = Diag%delqs(:,k) + delqs(:,levs-k+1) * dtp
+          Diag%vvm  (:,k) = Diag%vvm  (:,k) + vvm  (:,levs-k+1) * dtp
         enddo
 
         endif

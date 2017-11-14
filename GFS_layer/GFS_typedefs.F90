@@ -868,11 +868,12 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: cldcov (:,:)   => null()  !< instantaneous 3D cloud fraction
 
     real (kind=kind_phys), pointer :: delt   (:,:)   => null()  !< temperature change due to terrain induced lifting
-    real (kind=kind_phys), pointer :: delqv   (:,:)   => null() !< water vapor change due to terrain induced lifting
-    real (kind=kind_phys), pointer :: delql   (:,:)   => null() !< cloud water change due to terrain induced lifting
-    real (kind=kind_phys), pointer :: delqi   (:,:)   => null() !< cloud ice change due to terrain induced lifting
-    real (kind=kind_phys), pointer :: delqr   (:,:)   => null() !< rain change due to terrain induced lifting
-    real (kind=kind_phys), pointer :: delqs   (:,:)   => null() !< snow  change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqv  (:,:)   => null()  !< water vapor change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delql  (:,:)   => null()  !< cloud water change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqi  (:,:)   => null()  !< cloud ice change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqr  (:,:)   => null()  !< rain change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: delqs  (:,:)   => null()  !< snow  change due to terrain induced lifting
+    real (kind=kind_phys), pointer :: vvm    (:,:)   => null()  !< vertical velocity due to terrain induced lifting
 
     contains
       procedure create    => diag_create
@@ -2648,6 +2649,7 @@ module GFS_typedefs
       allocate (Diag%delqi  (IM,Model%levs))
       allocate (Diag%delqr  (IM,Model%levs))
       allocate (Diag%delqs  (IM,Model%levs))
+      allocate (Diag%vvm    (IM,Model%levs))
     endif
 
     call Diag%rad_zero  (Model)
@@ -2771,6 +2773,7 @@ module GFS_typedefs
       Diag%delqi   = zero
       Diag%delqr   = zero
       Diag%delqs   = zero
+      Diag%vvm     = zero
     endif
 
   end subroutine diag_phys_zero

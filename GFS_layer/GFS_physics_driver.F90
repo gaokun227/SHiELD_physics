@@ -551,7 +551,7 @@ module module_physics_driver
       dtp    = Model%dtp
       kdt    = Model%kdt
       lprnt  = Model%lprnt  
-!      lprnt  = (me == 24) !root_pe) .and. (this_pe > 0 ) !! DEBUG
+!      lprnt  = (me == 3) !root_pe) .and. (this_pe > 0 )
       nvdiff = ntrac           ! vertical diffusion of all tracers!
       ipr    = min(im,10)
 
@@ -916,101 +916,101 @@ module module_physics_driver
 !
 !     if (lprnt) write(0,*)' tsea=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 
-         if ( Model%myj_pbl ) then
-            !Q2 needs to be saved between timesteps
-            !also new: thz0, qz0, uz0, vz0
-            do i=1,im
-               ht(i,1) = Sfcprop%oro(i) ! new
-               tsfc1(i,1) = Sfcprop%tsfc(i) ! new
-               !Note that in the GFS driver, Qsfc is not yet computed.
-               ! however it IS used by J-sfc. Need to add qsfc as a
-               ! prognostic variable??
-               ! Do **NOT** use q2m over ocean, which will result in tiny fluxes.
-               ! Instead use 0.98% RH at lower boundary.
-               if (frland(i) < 0.5) then
-                  qsfc1(i,1) = estblf(tsfc1(i,1))*0.98 ! returns vapor pressure
-                  qsfc1(i,1) = qsfc1(i,1) / ( con_eps*Statein%prsi(i,1) - qsfc1(i,1)*(con_eps+1.) )
-               else
-                  qsfc1(i,1) = Sfcprop%q2m(i)
-                  ! convert moisture to specific humidity.
-                  qsfc1(i,1) = qsfc1(i,1) / (1. - qsfc1(i,1))
-               endif
-
-               !!!****ALSO**** does MYJ want SPECIFIC HUMIDITY or MIXING RATIO??
-
-               thz01(i,1) = Sfcprop%thz0(i)
-               qz01(i,1)  = Sfcprop%qz0(i)
-               uz01(i,1)  = Sfcprop%uz0(i)
-               vz01(i,1)  = Sfcprop%vz0(i)
-
-               land(i,1) = 2. - frland(i) ! in NAM & WRF 2 = water, 1 = land :-(
-               vegfrac(i,1) = Sfcprop%vfrac(i) ! new
-               ustar1(i,1) = Sfcprop%uustar(i) ! new
-               z01(i,1) = Sfcprop%zorl(i)*.01 ! convert cm --> m
-               pblh1(i,1) = Diag%hpbl(i) !new
-               one(i,1) = 1. ! new
-               cd1(i,1) = cd(i) ! new
-               cdq1(i,1) = cdq(i) !new
-               hflx1(i,1) = hflx(i) !new; units are M/m2
-               evap1(i,1) = evap(i) ! new
-               rb1(i,1) = rb(i) ! new
-               flag_iter1(i,1) = flag_iter(i)
-            enddo
-
-            do k = 1, levs
-               kflip = levs-k+1
-               do i=1,im
-                  
-                  dz   (i,1,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
-                  phmid(i,1,k) = Statein%prsl(i,kflip) ! new
-                  phint(i,1,k) = Statein%prsi(i,kflip+1) ! new
-                  th   (i,1,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip) ! new
-                  pt   (i,1,k) = Statein%tgrs(i,kflip)
-                  qv1  (i,1,k) = Statein%qgrs(i,kflip,1         )
-                  ql1  (i,1,k) = Statein%qgrs(i,kflip,Model%ntcw)
-                  uin  (i,1,k) = Statein%ugrs(i,kflip)
-                  vin  (i,1,k) = Statein%vgrs(i,kflip)
-                  tke  (i,1,k) = Statein%qgrs(i,kflip,Model%ntke)
-               
-               end do
-            enddo
-            phint(:,1,levs+1) = Statein%prsi(:,1) ! new
-            !Need to set up the z01 variables on the first timestep
-            if (thz01(i,1) > 10.) then
-               ntsd=1
-            else
-               ntsd=0
-            endif
-
-            !Discarded arguments: SNOWC, Z0BASE ("background" z0), RMOL, CHS2, CQS2, QFX
-            !   FLHC, FLQC, *SHLTR
-            !New arguments: stress, wind, flag_iter, CQS
-            ! see how NAM computes wind in module_BL_GFSPBL.F90
-            !Outputs: FLX_LH, HFX, AKHS, AKMS, PBLH, RIB, *Z0, CHS, CQS, USTAR, U10, V10, T2, Q2
-            !Want to include improved z0 estimate over ocean
-            !also want to compute epsQ2 here
-            call myj_jsfc(NTSD=ntsd,EPSL=epsL,EPSQ2=epsQ2,HT=ht,DZ=dz &
-                    ,PHMID=phmid,PHINT=phint,TH=th,T=pt               &
-                    ,Q=qv1,QC=ql1,U=uin,V=vin,Q2=tke                  &
-                    ,TSK=tsfc1,QSFC=qsfc1                             &
-                    ,THZ0=thz01,QZ0=qz01,UZ0=uz01,VZ0=vz01            &
-                    ,XLAND=land                                       &
-                    ,VEGFRC=vegfrac                                   & 
-                    ,USTAR=ustar1,Z0=z01,PBLH=pblh1,MAVAIL=one        &
-                    ,AKHS=akhs1,AKMS=akms1                            &
-                    ,CHS=cd1,CQS=cdq1,HFX=hflx1,FLX_LH=evap1          &
-                    ,U10=u10m1,V10=v10m1,T02=t2m1,TH02=th2m1          &
-                    ,TSHLTR=tshelter1,TH10=th10m1                     &
-                    ,Q02=q2m1,QSHLTR=qshelter1,Q10=q10m1              &
-                    ,PSHLTR=pshelter1,RIB=rb1,FLAG_ITER=flag_iter1    &
-                    ,ITER=iter,REDRAG=Model%redrag,lprnt=lprnt        &
-                    ,IDS=1,IDE=im,JDS=1,JDE=1,KDS=1,KDE=levs          &
-                    ,IMS=1,IME=im,JMS=1,JME=1,KMS=1,KME=levs          &
-                    ,ITS=1,ITE=im,JTS=1,JTE=1,KTS=1,LM=levs)
+!!$         if ( Model%myj_pbl ) then
+!!$            !Q2 needs to be saved between timesteps
+!!$            !also new: thz0, qz0, uz0, vz0
+!!$            do i=1,im
+!!$               ht(i,1) = Sfcprop%oro(i) ! new
+!!$               tsfc1(i,1) = Sfcprop%tsfc(i) ! new
+!!$               !Note that in the GFS driver, Qsfc is not yet computed.
+!!$               ! however it IS used by J-sfc. Need to add qsfc as a
+!!$               ! prognostic variable??
+!!$               ! Do **NOT** use q2m over ocean, which will result in tiny fluxes.
+!!$               ! Instead use 0.98% RH at lower boundary.
+!!$               if (frland(i) < 0.5) then
+!!$                  qsfc1(i,1) = estblf(tsfc1(i,1))*0.98 ! returns vapor pressure
+!!$                  qsfc1(i,1) = qsfc1(i,1) / ( con_eps*Statein%prsi(i,1) - qsfc1(i,1)*(con_eps+1.) )
+!!$               else
+!!$                  qsfc1(i,1) = Sfcprop%q2m(i)
+!!$                  ! convert moisture to specific humidity.
+!!$                  qsfc1(i,1) = qsfc1(i,1) / (1. - qsfc1(i,1))
+!!$               endif
+!!$
+!!$               !!!****ALSO**** does MYJ want SPECIFIC HUMIDITY or MIXING RATIO??
+!!$
+!!$               thz01(i,1) = Sfcprop%thz0(i)
+!!$               qz01(i,1)  = Sfcprop%qz0(i)
+!!$               uz01(i,1)  = Sfcprop%uz0(i)
+!!$               vz01(i,1)  = Sfcprop%vz0(i)
+!!$
+!!$               land(i,1) = 2. - frland(i) ! in NAM & WRF 2 = water, 1 = land :-(
+!!$               vegfrac(i,1) = Sfcprop%vfrac(i) ! new
+!!$               ustar1(i,1) = Sfcprop%uustar(i) ! new
+!!$               z01(i,1) = Sfcprop%zorl(i)*.01 ! convert cm --> m
+!!$               pblh1(i,1) = Diag%hpbl(i) !new
+!!$               one(i,1) = 1. ! new
+!!$               cd1(i,1) = cd(i) ! new
+!!$               cdq1(i,1) = cdq(i) !new
+!!$               hflx1(i,1) = hflx(i) !new; units are M/m2
+!!$               evap1(i,1) = evap(i) ! new
+!!$               rb1(i,1) = rb(i) ! new
+!!$               flag_iter1(i,1) = flag_iter(i)
+!!$            enddo
+!!$
+!!$            do k = 1, levs
+!!$               kflip = levs-k+1
+!!$               do i=1,im
+!!$                  
+!!$                  dz   (i,1,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
+!!$                  phmid(i,1,k) = Statein%prsl(i,kflip) ! new
+!!$                  phint(i,1,k) = Statein%prsi(i,kflip+1) ! new
+!!$                  th   (i,1,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip) ! new
+!!$                  pt   (i,1,k) = Statein%tgrs(i,kflip)
+!!$                  qv1  (i,1,k) = Statein%qgrs(i,kflip,1         )
+!!$                  ql1  (i,1,k) = Statein%qgrs(i,kflip,Model%ntcw)
+!!$                  uin  (i,1,k) = Statein%ugrs(i,kflip)
+!!$                  vin  (i,1,k) = Statein%vgrs(i,kflip)
+!!$                  tke  (i,1,k) = Statein%qgrs(i,kflip,Model%ntke)
+!!$               
+!!$               end do
+!!$            enddo
+!!$            phint(:,1,levs+1) = Statein%prsi(:,1) ! new
+!!$            !Need to set up the z01 variables on the first timestep
+!!$            if (thz01(i,1) > 10.) then
+!!$               ntsd=1
+!!$            else
+!!$               ntsd=0
+!!$            endif
+!!$
+!!$            !Discarded arguments: SNOWC, Z0BASE ("background" z0), RMOL, CHS2, CQS2, QFX
+!!$            !   FLHC, FLQC, *SHLTR
+!!$            !New arguments: stress, wind, flag_iter, CQS
+!!$            ! see how NAM computes wind in module_BL_GFSPBL.F90
+!!$            !Outputs: FLX_LH, HFX, AKHS, AKMS, PBLH, RIB, *Z0, CHS, CQS, USTAR, U10, V10, T2, Q2
+!!$            !Want to include improved z0 estimate over ocean
+!!$            !also want to compute epsQ2 here
+!!$            call myj_jsfc(NTSD=ntsd,EPSL=epsL,EPSQ2=epsQ2,HT=ht,DZ=dz &
+!!$                    ,PHMID=phmid,PHINT=phint,TH=th,T=pt               &
+!!$                    ,Q=qv1,QC=ql1,U=uin,V=vin,Q2=tke                  &
+!!$                    ,TSK=tsfc1,QSFC=qsfc1                             &
+!!$                    ,THZ0=thz01,QZ0=qz01,UZ0=uz01,VZ0=vz01            &
+!!$                    ,XLAND=land                                       &
+!!$                    ,VEGFRC=vegfrac                                   & 
+!!$                    ,USTAR=ustar1,Z0=z01,PBLH=pblh1,MAVAIL=one        &
+!!$                    ,AKHS=akhs1,AKMS=akms1                            &
+!!$                    ,CHS=cd1,CQS=cdq1,HFX=hflx1,FLX_LH=evap1          &
+!!$                    ,U10=u10m1,V10=v10m1,T02=t2m1,TH02=th2m1          &
+!!$                    ,TSHLTR=tshelter1,TH10=th10m1                     &
+!!$                    ,Q02=q2m1,QSHLTR=qshelter1,Q10=q10m1              &
+!!$                    ,PSHLTR=pshelter1,RIB=rb1,FLAG_ITER=flag_iter1    &
+!!$                    ,ITER=iter,REDRAG=Model%redrag,lprnt=lprnt        &
+!!$                    ,IDS=1,IDE=im,JDS=1,JDE=1,KDS=1,KDE=levs          &
+!!$                    ,IMS=1,IME=im,JMS=1,JME=1,KMS=1,KME=levs          &
+!!$                    ,ITS=1,ITE=im,JTS=1,JTE=1,KTS=1,LM=levs)
 
 
             !Restore values
-            do i=1,im
+!!$            do i=1,im
 !!$               hflx(i) = hflx1(i,1) ! Don't use jsfc's fluxes??
 !!$               evap(i) = evap1(i,1) !NOTE: would want to convert from W/m**2 (in MYJ) to kg/m**2/s (in GFS)
 !!$               sfcprop%uustar(i) = ustar1(i,1)
@@ -1030,16 +1030,15 @@ module module_physics_driver
 !!$               Sfcprop%t2m(i) = T2m1(i,1)  
 !!$               Sfcprop%q2m(i) = Q2m1(i,1)  
 
-               Sfcprop%thz0(i) = thz01(i,1) 
-               Sfcprop%qz0(i)  = qz01(i,1)  
-               Sfcprop%uz0(i)  = uz01(i,1)  
-               Sfcprop%vz0(i)  = vz01(i,1)  
+!!$               Sfcprop%thz0(i) = thz01(i,1) 
+!!$               Sfcprop%qz0(i)  = qz01(i,1)  
+!!$               Sfcprop%uz0(i)  = uz01(i,1)  
+!!$               Sfcprop%vz0(i)  = vz01(i,1)  
 
-!!$               if (lprnt) write(*,'(I, 6(2x, F8.3))') i, AKMS1(i,1), AKHS1(I,1), PBLH1(I,1), USTAR1(I,1), HFLX1(I,1), T2m1(I,1)
-            enddo
+!!$            enddo
             
          !else
-         endif
+!!$         endif
 
             call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
                  Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
@@ -1051,9 +1050,6 @@ module module_physics_driver
                  tsurf, flag_iter, Model%redrag)
      
          !endif
-         do i=1,im
-            if (lprnt) write(*,'(I, 8(2x, F11.6))') i, cd(i), cdq(i), rb(i), Sfcprop%ffmm(i), Sfcprop%ffhh(i), Sfcprop%uustar(i), tsurf(i) , frland(i)
-         enddo
 
 !  --- ...  lu: update flag_guess
 
@@ -1220,7 +1216,6 @@ module module_physics_driver
           flag_iter(i)  = .false.
           flag_guess(i) = .false.
 
-!          if (iter == 1 .and. wind(i) < 2.0 .and. .not. Model%myj_pbl) then
           if (iter == 1 .and. wind(i) < 2.0) then
             if ((islmsk(i) == 1) .or. ((islmsk(i) == 0) .and.           &
                                        (Model%nstf_name(1) > 0))) then
@@ -1258,10 +1253,6 @@ module module_physics_driver
               Sfcprop%t2m, Sfcprop%q2m, work3, evap,           &
               Sfcprop%ffmm, Sfcprop%ffhh, fm10, fh2)
       !endif
-
-      do i=1,im
-         if (lprnt) write(*,'(I, 5(2x, F8.3))') i, tsurf(i), hflx(i), evap(i), frland(i), qss(i)
-      enddo
 
       Tbd%phy_f2d(:,Model%num_p2d) = 0.0
 
@@ -1451,7 +1442,7 @@ module module_physics_driver
                 pt   (i,1,k) = Statein%tgrs(i,kflip)
                 th   (i,1,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip)
                 uin  (i,1,k) = Statein%ugrs(i,kflip)
-                vin  (i,1,k) = Statein%ugrs(i,kflip)
+                vin  (i,1,k) = Statein%vgrs(i,kflip)
                 dz   (i,1,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
                 tke  (i,1,k) = Statein%qgrs(i,kflip,Model%ntke)
 
@@ -1525,6 +1516,7 @@ module module_physics_driver
 !$%!!$                  Stateout%gq0(i,k,Model%ntgl) = qg1(i,1,kflip) + qg_dt(i,1,kflip) * dtp
                   Stateout%gq0(i,k,Model%ntke) = tke(i,1,kflip)
                   Statein%exch_h(i,k) = exchh1(i,1,kflip)
+                  dkt(i,k) = exchh1(i,1,kflip)
                   Diag%el_myj(i,k) = el1(i,1,kflip)
                enddo
             enddo
@@ -1563,16 +1555,17 @@ module module_physics_driver
         endif   ! end if_hybedmf
       endif   ! end if_do_shoc
 
-      if (Model%myj_pbl) then
-         do i=1,im
-            if (lprnt) write(*,'(I, 8(2x, G))') i, dqsfc1(i), dtsfc1(i), dqdt(i,1,1), Sfcprop%q2m(i), Sfcprop%t2m(i), Sfcprop%ffhh(i), Sfcprop%QZ0(i), Sfcprop%THZ0(i)
+      if (Model%ldiag3d) then
+         !!! Diffusion coefficients
+         do i=1, im
+            Diag%dkt(i,1) = 0.
          enddo
-      else
+         do k=2,levs
          do i=1,im
-            if (lprnt) write(*,'(I, 6(2x, G))') i, dqsfc1(i), dtsfc1(i), dqdt(i,1,1), Sfcprop%q2m(i), Sfcprop%t2m(i), Sfcprop%ffhh(i)
+            Diag%dkt(i,k) = dkt(i,k)
+         enddo
          enddo
       endif
-
 
       if (Model%cplflx) then
         do i = 1, im
@@ -1691,7 +1684,11 @@ module module_physics_driver
             enddo
           enddo
           if (Model%ntoz > 0) then
-            Diag%dq3dt(:,:,5) = Diag%dq3dt(:,:,5) + dqdt(i,k,Model%ntoz) * dtf
+             do k=1,levs
+             do i=1,im
+                Diag%dq3dt(i,k,5) = Diag%dq3dt(i,k,5) + dqdt(i,k,Model%ntoz) * dtf
+             enddo
+             enddo
           endif
         endif
 
@@ -3287,11 +3284,6 @@ module module_physics_driver
                     CNV_DQLDT, clcn, cnv_fice, cnv_ndrop, cnv_nice)
         deallocate (qrn, qsnw, ncpr, ncps)
       endif
-
-      do i=1,im
-         if (lprnt) write(*,'(I, 4(2x, F8.3))') i, dqsfc1(i), dtsfc1(i), del(i,levs), Statein%prslk(i,1)
-      enddo
-
 
       return
 !...................................

@@ -2522,6 +2522,23 @@ module physics_diag_layer
       do nb = 1,nblks
         IPD_Diag(idx)%data(nb)%var3p => Diag(nb)%cldcov
       enddo
+
+      idx = idx + 1
+      IPD_Diag(idx)%name           = 'dkt_pbl'
+      IPD_Diag(idx)%output_name    = 'DKT_PBL'
+      IPD_Diag(idx)%mod_name       = 'physics'
+      IPD_Diag(idx)%file_name      = 'diag3d'
+      IPD_Diag(idx)%desc           = 'Turbulent heat diffusion coefficient'
+      IPD_Diag(idx)%unit           = 'm**2/s'
+      IPD_Diag(idx)%type_stat_proc = 'inst'
+      IPD_Diag(idx)%level_type     = 'model interfaces'
+      IPD_Diag(idx)%level          = 64
+      IPD_Diag(idx)%cnvfac         = cn_one
+      IPD_Diag(idx)%zhour          = Model%zhour
+      IPD_Diag(idx)%fcst_hour      = Model%fhour
+      do nb = 1,nblks
+        IPD_Diag(idx)%data(nb)%var3p => Diag(nb)%dkt
+      enddo
     endif
 
 

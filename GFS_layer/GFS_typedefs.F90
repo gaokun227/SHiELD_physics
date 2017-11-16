@@ -854,6 +854,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: dv3dt (:,:,:) => null()   !< v momentum change due to physics
     real (kind=kind_phys), pointer :: dt3dt (:,:,:) => null()   !< temperature change due to physics
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
+    real (kind=kind_phys), pointer :: dkt   (:,:)   => null()
  
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: upd_mf (:,:)   => null()  !< instantaneous convective updraft mass flux
@@ -2625,6 +2626,7 @@ module GFS_typedefs
       allocate (Diag%dv3dt  (IM,Model%levs,4))
       allocate (Diag%dt3dt  (IM,Model%levs,6))
       allocate (Diag%dq3dt  (IM,Model%levs,oz_coeff+5))
+      allocate (Diag%dkt    (IM,Model%levs))
       !--- needed to allocate GoCart coupling fields
       allocate (Diag%upd_mf (IM,Model%levs))
       allocate (Diag%dwn_mf (IM,Model%levs))
@@ -2743,6 +2745,7 @@ module GFS_typedefs
       Diag%dv3dt   = zero
       Diag%dt3dt   = zero
       Diag%dq3dt   = zero
+      Diag%dkt     = zero
       Diag%upd_mf  = zero
       Diag%dwn_mf  = zero
       Diag%det_mf  = zero

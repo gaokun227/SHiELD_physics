@@ -702,10 +702,6 @@
 !  --- ...  prepare sensible heat (h) for return to parent model
 
       sheat = -(ch*cp1*sfcprs) / (rd1*t2v) * (th2 - t1)
-      !!! DEBUG CODE
-      if (lprnt) write(*,'( A, 6(f12.6, 2x))')'SFLX: ',sheat,ch,sfcprs,
-     $     rd1, t2v, th2, t1
-      !!! END DEBUG CODE
 
 !  --- ...  convert units and/or sign of total evap (eta), potential evap (etp),
 !           subsurface heat flux (s), and runoffs for what parent model expects

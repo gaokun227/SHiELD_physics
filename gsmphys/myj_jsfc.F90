@@ -18,7 +18,6 @@
              G=>con_g, R_D=>con_rd, &
              R_V=>con_rv, elwv=>con_hvap, eliv=>con_hfus,       &
              PI=>con_pi 
-        use mpp_mod,            only: mpp_pe
 !
 !-----------------------------------------------------------------------
 !

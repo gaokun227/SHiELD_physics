@@ -1160,7 +1160,7 @@ module FV3GFS_io_mod
 !    13+NFXR - radiation
 !    76+pl_coeff - physics
 !-------------------------------------------------------------------------      
-  subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Atm_block, axes, NFXR)
+  subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Atm_block, axes, NFXR, ldiag3d)
     use physcons,  only: con_g
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
@@ -1169,6 +1169,7 @@ module FV3GFS_io_mod
     type (block_control_type), intent(in) :: Atm_block
     integer, dimension(4),     intent(in) :: axes
     integer,                   intent(in) :: NFXR
+    logical,                   intent(in) :: ldiag3d
 !--- local variables
     integer :: idx, num, nb, nblks, nx, ny, k
     integer, allocatable :: blksz(:)
@@ -2199,6 +2200,8 @@ module FV3GFS_io_mod
     enddo
 
 !--- three-dimensional variables that need to be handled special when writing 
+    if (ldiag3d) then
+
     do num = 1,6
       write (xtra,'(I1)') num 
       idx = idx + 1
@@ -2255,6 +2258,17 @@ module FV3GFS_io_mod
       enddo
     enddo
 
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'dkt_pbl'
+    Diag(idx)%desc = 'instantaneous heat diffusion coefficient'
+    Diag(idx)%unit = 'm**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dkt(:,:)
+    enddo
+
 !!$    idx = idx + 1
 !!$    Diag(idx)%axes = 3
 !!$    !Requires lgocart = .T.
@@ -2266,6 +2280,53 @@ module FV3GFS_io_mod
 !!$    do nb = 1,nblks
 !!$       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%Diag(nb)%dqdt_v(:,:,num)
 !!$    enddo
+
+!
+!--- prognostic variable tendencies (T, u, v, sph, clwmr, o3)
+!rab    idx = idx + 1
+!rab    Diag(idx)%axes = 3
+!rab    Diag(idx)%name = 'dtemp_dt'
+!rab    Diag(idx)%desc = 'GFS radiation/physics temperature tendency'
+!rab    Diag(idx)%unit = 'K/s'
+!rab    Diag(idx)%mod_name = 'gfs_phys'
+!rab
+!rab    idx = idx + 1
+!rab    Diag(idx)%axes = 3
+!rab    Diag(idx)%name = 'du_dt'
+!rab    Diag(idx)%desc = 'GFS radiation/physics horizontal wind component tendency'
+!rab    Diag(idx)%unit = 'm/s/s'
+!rab    Diag(idx)%mod_name = 'gfs_phys'
+!rab
+!rab    idx = idx + 1
+!rab    Diag(idx)%axes = 3
+!rab    Diag(idx)%name = 'dv_dt'
+!rab    Diag(idx)%desc = 'GFS radiation/physics meridional wind component tendency'
+!rab    Diag(idx)%unit = 'm/s/s'
+!rab    Diag(idx)%mod_name = 'gfs_phys'
+!rab
+!rab    idx = idx + 1
+!rab    Diag(idx)%axes = 3
+!rab    Diag(idx)%name = 'dsphum_dt'
+!rab    Diag(idx)%desc = 'GFS radiation/physics specific humidity tendency'
+!rab    Diag(idx)%unit = 'kg/kg/s'
+!rab    Diag(idx)%mod_name = 'gfs_phys'
+!rab
+!rab    idx = idx + 1
+!rab    Diag(idx)%axes = 3
+!rab    Diag(idx)%name = 'dclwmr_dt'
+!rab    Diag(idx)%desc = 'GFS radiation/radiation cloud water mixing ratio tendency'
+!rab    Diag(idx)%unit = 'kg/kg/s'
+!rab    Diag(idx)%mod_name = 'gfs_phys'
+!rab
+!rab    idx = idx + 1
+!rab    Diag(idx)%axes = 3
+!rab    Diag(idx)%name = 'do3mr_dt'
+!rab    Diag(idx)%desc = 'GFS radiation/radiation ozone mixing ratio tendency'
+!rab    Diag(idx)%unit = 'kg/kg/s'
+!rab    Diag(idx)%mod_name = 'gfs_phys'
+
+
+    endif
 
 !--- Surface diagnostics in gfs_sfc
     idx = idx + 1
@@ -2759,50 +2820,6 @@ module FV3GFS_io_mod
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%tclim_iano(:)
     enddo
 
-!
-!--- prognostic variable tendencies (T, u, v, sph, clwmr, o3)
-!rab    idx = idx + 1
-!rab    Diag(idx)%axes = 3
-!rab    Diag(idx)%name = 'dtemp_dt'
-!rab    Diag(idx)%desc = 'GFS radiation/physics temperature tendency'
-!rab    Diag(idx)%unit = 'K/s'
-!rab    Diag(idx)%mod_name = 'gfs_phys'
-!rab
-!rab    idx = idx + 1
-!rab    Diag(idx)%axes = 3
-!rab    Diag(idx)%name = 'du_dt'
-!rab    Diag(idx)%desc = 'GFS radiation/physics horizontal wind component tendency'
-!rab    Diag(idx)%unit = 'm/s/s'
-!rab    Diag(idx)%mod_name = 'gfs_phys'
-!rab
-!rab    idx = idx + 1
-!rab    Diag(idx)%axes = 3
-!rab    Diag(idx)%name = 'dv_dt'
-!rab    Diag(idx)%desc = 'GFS radiation/physics meridional wind component tendency'
-!rab    Diag(idx)%unit = 'm/s/s'
-!rab    Diag(idx)%mod_name = 'gfs_phys'
-!rab
-!rab    idx = idx + 1
-!rab    Diag(idx)%axes = 3
-!rab    Diag(idx)%name = 'dsphum_dt'
-!rab    Diag(idx)%desc = 'GFS radiation/physics specific humidity tendency'
-!rab    Diag(idx)%unit = 'kg/kg/s'
-!rab    Diag(idx)%mod_name = 'gfs_phys'
-!rab
-!rab    idx = idx + 1
-!rab    Diag(idx)%axes = 3
-!rab    Diag(idx)%name = 'dclwmr_dt'
-!rab    Diag(idx)%desc = 'GFS radiation/radiation cloud water mixing ratio tendency'
-!rab    Diag(idx)%unit = 'kg/kg/s'
-!rab    Diag(idx)%mod_name = 'gfs_phys'
-!rab
-!rab    idx = idx + 1
-!rab    Diag(idx)%axes = 3
-!rab    Diag(idx)%name = 'do3mr_dt'
-!rab    Diag(idx)%desc = 'GFS radiation/radiation ozone mixing ratio tendency'
-!rab    Diag(idx)%unit = 'kg/kg/s'
-!rab    Diag(idx)%mod_name = 'gfs_phys'
-
     tot_diag_idx = idx
 
     if (idx > DIAG_SIZE) then
@@ -2846,7 +2863,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys),      intent(in) :: time_int
 !--- local variables
     integer :: i, j, k, idx, nblks, nb, ix, ii, jj, kflip
-    integer :: is_in, js_in, isc, jsc, num
+    integer :: is_in, js_in, isc, jsc
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx*ny) :: var2p
     real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
@@ -2955,24 +2972,21 @@ module FV3GFS_io_mod
            end select
          elseif (Diag(idx)%axes == 3) then
            !--- dt3dt variables
-           do num = 1,6
-             write(xtra,'(i1)') num
-                do k=1,levs
-                kflip=levs+1-k
-                do j=1,ny
-                jj = j + jsc -1
-                do i=1,nx
-                   ii = i + isc - 1
-                   nb = Atm_block%blkno(ii,jj)
-                   ix = Atm_block%ixp(ii,jj)
-                   var3(i,j,k) = Diag(idx)%data(nb)%var3(ix,kflip)*lcnvfac
-                enddo
-                enddo
-                enddo
-                used=send_data(Diag(idx)%id, var3, Time)
+            do k=1,levs
+            kflip=levs+1-k
+            do j=1,ny
+            jj = j + jsc -1
+            do i=1,nx
+               ii = i + isc - 1
+               nb = Atm_block%blkno(ii,jj)
+               ix = Atm_block%ixp(ii,jj)
+               var3(i,j,k) = Diag(idx)%data(nb)%var3(ix,kflip)*lcnvfac
+            enddo
+            enddo
+            enddo
+            used=send_data(Diag(idx)%id, var3, Time)
 !!$               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
 !!$               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
-           enddo
         endif
        endif
      enddo

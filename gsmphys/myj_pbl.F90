@@ -229,8 +229,8 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       REAL(KIND=KFPT),INTENT(IN):: &
        DT
 !
-      real(kind=kfpt),dimension(1:lm-1),intent(in):: EPSL
-      real(kind=kfpt),dimension(1:lm),intent(in):: EPSQ2
+      real(kind=kfpt),dimension(1:lm-1),intent(inout):: EPSL
+      real(kind=kfpt),dimension(1:lm),intent(inout):: EPSQ2
       logical, intent(in) :: LPRNT
 !
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME),INTENT(IN):: &
@@ -286,7 +286,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       ,RDTTURBL,RG,RSQDT,RXNERS,RXNSFC &
       ,SEAMASK,SQ,SQS00K,SQS10K &
       ,THBT,THNEW,THOLD,TQ,TTH &
-      ,ULOW,VLOW,RSTDH,STDFAC,ZSF,ZSX,ZSY,ZUV
+      ,ULOW,VLOW,RSTDH,STDFAC,ZSF,ZSX,ZSY,ZUV,WIND
 !
       REAL(KIND=KFPT),DIMENSION(1:LM):: &
        CWMK,PK,PSK,Q2K,QK,RHOK,RXNERK,THEK,THK,THVK,TK,UK,VK
@@ -349,6 +349,23 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       ENDDO
       ENDDO
       ENDDO
+      DO K=1,LM
+         !At one time EPSL/EPSQ2 had a tapering function. Now they are just constant 0.02 and 0.1
+         !!           ARG=(PSINT(K)-PSINT(2))/(PSINT(LM)-PSINT(2))*PI
+         !         int_state%EPSQ2(K-1)=(1.+COS(ARG))*0.09+0.02
+         EPSQ2(K)=0.02
+      ENDDO
+      DO K=1,LM-1
+         EPSL(K) = 0.1
+      ENDDO
+!!$      if (LPRNT) print*, EPSQ2(:)
+!!$      if (LPRNT) print*, EPSL(:)
+      !
+      DO J=JTS,JTE
+      DO I=ITS,ITE
+            PBLH(I,J)=-1.
+      ENDDO
+      ENDDO
 !
       DO J=JTS,JTE
       DO I=ITS,ITE
@@ -372,10 +389,6 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
         ENDDO
       ENDDO
 
-!!$      !!! DEBUG CODE
-!!$      print*, ' MYJ TKE (before): MAX = ', maxval(Q2), maxloc(Q2), ' MIN = ', minval(Q2), minloc(Q2)
-!!$      !!! END DEBUG CODE
-!
 !----------------------------------------------------------------------
 !.......................................................................
 !ZJ$NO-MP PARALLEL DO &
@@ -518,6 +531,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
           CALL DIFCOF(LMH,LMXL,GM,GH,EL,TK,Q2K,ZHK,AKMK,AKHK,I,J,LM &
                      ,PRINT_DIAG)
 !
+
 !***  COUNTING DOWNWARD FROM THE TOP, THE EXCHANGE COEFFICIENTS AKH
 !***  ARE DEFINED ON THE BOTTOMS OF THE LAYERS 1 TO LM-1.  COUNTING
 !***  COUNTING UPWARD FROM THE BOTTOM, THOSE SAME COEFFICIENTS EXCH_H
@@ -595,7 +609,13 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !***  COUNTING DOWNWARD FROM THE TOP, THE EXCHANGE COEFFICIENTS AKH
 !***  ARE DEFINED ON THE BOTTOMS OF THE LAYERS 1 TO LM-1.  THESE COEFFICIENTS
 !***  ARE ALSO MULTIPLIED BY THE DENSITY AT THE BOTTOM INTERFACE LEVEL.
-!
+
+!***  REMOVED references to viscous sublayer to be more compatible with GFS 
+! **  surface driver, and instead lower BC are surface values for TH and Q, and
+! **  directional USTAR for U and V. Also removed distinction between land and sea,
+! **  which the GFS surface layer handles. Currently Qsfc has the effect of surface
+! **  moisture flux incorporated but TH, U, and V do not incorporate their
+! **  respective fluxes --- lmh 16 nov 17, gfdl
           DO K=1,LM-1
             AKHK(K)=AKH(I,J,K)*0.5*(RHOK(K)+RHOK(K+1))
           ENDDO
@@ -603,34 +623,35 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
           ZHK(LM+1)=ZINT(I,J,LM+1)
 !
           SEAMASK=XLAND(I,J)-1.
-          THZ0(I,J)=(1.-SEAMASK)*THSK(I,J)+SEAMASK*THZ0(I,J)
+          !THZ0(I,J)=(1.-SEAMASK)*THSK(I,J)+SEAMASK*THZ0(I,J)
+          THZ0(I,J) = THSK(I,J) ! want to include surface fluxes too?
 !
-          LLOW=LM
+          !LLOW=LM
           AKHS_DENS=AKHS(I,J)*RHOK(LM)
 !
-          IF(SEAMASK<0.5)THEN
-            QFC1=XLV*CHKLOWQ(I,J)*AKHS_DENS
+          QFC1=XLV*CHKLOWQ(I,J)*AKHS_DENS
+          QLOW=QK(LM)
+          QSFC(I,J)=QLOW+ELFLX(I,J)/QFC1
+!!$          IF(SEAMASK<0.5)THEN
+!!$            QFC1=XLV*CHKLOWQ(I,J)*AKHS_DENS
+!!$!
+!!$            IF(SNOW(I,J)>0..OR.SICE(I,J)>0.5)THEN
+!!$              QFC1=QFC1*RLIVWV
+!!$            ENDIF
+!!$!
+!!$            IF(QFC1>0.)THEN
+!!$              QLOW=QK(LM)
+!!$              QSFC(I,J)=QLOW+ELFLX(I,J)/QFC1
+!!$            ENDIF
+!!$!
+!!$          ELSE
+!!$            PSFC=PINH(I,J,LM+1)
+!!$            RXNSFC=(1.E5/PSFC)**CAPPA
+!!$
+!!$            QSFC(I,J)=PQ0SEA/PSFC                                      &
+!!$     &         *EXP(A2*(THSK(I,J)-A3*RXNSFC)/(THSK(I,J)-A4*RXNSFC)) 
+!!$          ENDIF
 !
-            IF(SNOW(I,J)>0..OR.SICE(I,J)>0.5)THEN
-              QFC1=QFC1*RLIVWV
-            ENDIF
-!
-            IF(QFC1>0.)THEN
-              QLOW=QK(LM)
-              QSFC(I,J)=QLOW+ELFLX(I,J)/QFC1
-            ENDIF
-!
-          ELSE
-            PSFC=PINH(I,J,LM+1)
-            RXNSFC=(1.E5/PSFC)**CAPPA
-
-            QSFC(I,J)=PQ0SEA/PSFC                                      &
-     &         *EXP(A2*(THSK(I,J)-A3*RXNSFC)/(THSK(I,J)-A4*RXNSFC)) 
-          ENDIF
-!
-      !DEBUG CODE
-      if (lprnt) write(1024, '(A, I4, F2.0, 7(2x, G) )') ' MYJ: ', I, SEAMASK, QZ0(I,J), QSFC(I,J), ELFLX(I,J), QK(LM), AKHS(I,J)
-      !END DEBUG CODE
           QZ0 (I,J)=QSFC(I,J)
 !          QZ0 (I,J)=(1.-SEAMASK)*QSFC(I,J)+SEAMASK*QZ0 (I,J)
 !
@@ -762,6 +783,10 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !***  VELOCITY COMPONENTS
 !----------------------------------------------------------------------
 !
+!   flux: stress/spd1
+          WIND = sqrt(UK(LM)*UK(LM) + VK(LM)*VK(LM))
+          UZ0(I,J) = USTAR(I,J)*UK(LM)/WIND
+          VZ0(I,J) = USTAR(I,J)*VK(LM)/WIND
           CALL VDIFV(LMH,DTDIF,UZ0(I,J),VZ0(I,J) &
      &              ,AKMS_DENS,DCOL,UK,VK,AKMK,ZHK,RHOK,I,J,LM)
 !
@@ -778,10 +803,6 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !----------------------------------------------------------------------
 !
       ENDDO main_integration
-
-!!$      !!! DEBUG CODE
-!!$      print*, ' MYJ TKE (AFTER): MAX = ', maxval(Q2), maxloc(Q2), ' MIN = ', minval(Q2), minloc(Q2)
-!!$      !!! END DEBUG CODE
 
 !JAA!ZJ$NO-MP END PARALLEL DO
 !
@@ -1543,9 +1564,6 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       RSCB=-RSC(LMH-1)*CF+CWM(LMH)*RHO(LMH)
 !----------------------------------------------------------------------
       TH(LMH) =(DTOZS*RKHS*THZ0+RSTB)/CMTB
-!!$      !DEBUG CODE
-!!$      if (lprnt) write(1024, '(A, 5(2x, G) )') ' VDIFH: ', Q(LMH), RKQS, QZ0, RSQB, (DTOZS*RKQS*QZ0 +RSQB)/CMQB
-!!$      !END DEBUG CODE
       Q(LMH)  =(DTOZS*RKQS*QZ0 +RSQB)/CMQB
       CWM(LMH)=(                RSCB)/CMCB
 

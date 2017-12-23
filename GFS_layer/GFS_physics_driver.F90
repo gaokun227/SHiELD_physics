@@ -2640,7 +2640,7 @@ module module_physics_driver
 
       elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
 
-        if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
+        if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
 
         rain1(:)   = (Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:))  &
                      * dtp * con_p001 / con_day
@@ -2853,7 +2853,7 @@ module module_physics_driver
               crain = 0.0
               csnow = Diag%rainc(i)
             endif
-            if (Model%do_unif_gfdlmp) then       ! GFDL Cloud microphysics
+            if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
             if ((Statein%pres(i)+Statein%prei(i)+Statein%preg(i)+csnow) .gt. (Statein%prer(i)+crain)) then
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
             endif

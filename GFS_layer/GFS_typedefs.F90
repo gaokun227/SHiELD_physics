@@ -418,7 +418,7 @@ module GFS_typedefs
     integer              :: ncld            !< cnoice of cloud scheme
 
     !--- GFDL microphysical parameters
-    logical              :: do_unif_gfdlmp  !< flag for GFDL cloud microphysics
+    logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
 
     !--- Z-C microphysical parameters
     logical              :: zhao_mic        !< flag for Zhao-Carr microphysics
@@ -1440,7 +1440,7 @@ module GFS_typedefs
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
 
     !--- GFDL microphysical parameters
-    logical              :: do_unif_gfdlmp = .false.         !< flag for GFDL cloud microphysics
+    logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
 
     !--- Z-C microphysical parameters
     integer              :: ncld           =  1                 !< cnoice of cloud scheme
@@ -1598,7 +1598,7 @@ module GFS_typedefs
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                           !--- microphysical parameterizations
-                               ncld, do_unif_gfdlmp, zhao_mic, psautco, prautco, evpco,     &
+                               ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
@@ -1733,7 +1733,7 @@ module GFS_typedefs
     !--- microphysical switch
     Model%ncld             = ncld
     !--- GFDL microphysical parameters
-    Model%do_unif_gfdlmp   = do_unif_gfdlmp
+    Model%do_inline_mp     = do_inline_mp
     !--- Zhao-Carr MP parameters
     Model%zhao_mic         = zhao_mic
     Model%psautco          = psautco
@@ -2205,7 +2205,7 @@ module GFS_typedefs
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
       print *, ' GFDL microphysical parameters'
-      print *, ' do_unif_gfdlmp    : ', Model%do_unif_gfdlmp
+      print *, ' do_inline_mp      : ', Model%do_inline_mp
       print *, ' Z-C microphysical parameters'
       print *, ' zhao_mic          : ', Model%zhao_mic
       print *, ' psautco           : ', Model%psautco

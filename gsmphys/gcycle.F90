@@ -138,13 +138,16 @@
 !     call mymaxmin(slifcs,len,len,1,'slifcs')
 !     call mymaxmin(slmask,len,len,1,'slmsk')
 !
+#ifndef INTERNAL_FILE_NML
       inquire (file=trim(Model%fn_nml),exist=exists)
       if (.not. exists) then
         write(6,*) 'gcycle:: namelist file: ',trim(Model%fn_nml),' does not exist'
         stop
       else
         open (unit=Model%nlunit, file=trim(Model%fn_nml), READONLY, status='OLD', iostat=ios)
+        rewind (Model%nlunit)
       endif
+#endif
       CALL SFCCYCLE (9998, npts, Model%lsoil, SIG1T, Model%fhcyc, &
                      Model%idate(4), Model%idate(2),              &
                      Model%idate(3), Model%idate(1),              &
@@ -156,8 +159,12 @@
                      SMCFC1, STCFC1, SLIFCS, AISFCS, F10MFCS,     &
                      VEGFCS, VETFCS, SOTFCS, ALFFC1, CVFCS,       &
                      CVBFCS, CVTFCS, Model%me, Model%nlunit,      &
+                     size(Model%input_nml_file),                  &
+                     Model%input_nml_file,                        &
                      Model%ialb, Model%isot, Model%ivegsrc)
+#ifndef INTERNAL_FILE_NML
       close (Model%nlunit)
+#endif
 
       len = 0 
       do nb = 1,nblks

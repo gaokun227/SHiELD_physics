@@ -2068,7 +2068,6 @@ module GFS_typedefs
       endif
       Model%num_p3d = 4
       Model%num_p2d = 1
-      Model%pdfcld  = .false.
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
       if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics'

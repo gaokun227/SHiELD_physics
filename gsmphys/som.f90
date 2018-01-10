@@ -89,6 +89,9 @@
 !===> ...  begin here
 !
 !--- read in the namelist
+#ifdef INTERNAL_FILE_NML
+      read (Model%input_nml_file, nml = som_nml)
+#else
       inquire (file=trim(Model%fn_nml), exist=exists)
       if (.not. exists) then
       write(6,*) 'GFS_namelist_read:: namelist file: ',trim(Model%fn_nml),' does not exist'
@@ -99,6 +102,7 @@
       rewind(Model%nlunit)
       read (Model%nlunit, nml=som_nml)
       close (Model%nlunit)
+#endif
       if (start_lat < -maxlat_4som) then
        write(*,*) 'start_lat should not be smaller than -60.'
        call abort

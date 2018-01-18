@@ -2445,7 +2445,7 @@
 
 !  ---  inputs:
      &     ( plyr,plvl,tlyr,tvly,qlyr,qstl,rhly,clw,cnvw,cnvc,          &
-     &       xlat,xlon,qw,qr,qi,qs,qg,slmsk,cldtot,                     &
+     &       xlat,xlon,qw,qr,qi,qs,qg,slmsk,snowd,cldtot,               &
      &       IX, NLAY, NLP1,                                            &
 !  ---  outputs:
      &       clouds,clds,mtop,mbot                                      &
@@ -2521,7 +2521,7 @@
 !                     =f: not normalize cloud condensate                !
 !                                                                       !
 !  ====================    end of description    =====================  !
-      use gfdl_cloud_microphys_mod, only: cloud_diagnosis
+      use cloud_diagnosis_mod, only: cloud_diagnosis
 !
       implicit none
 
@@ -2536,7 +2536,7 @@
       real (kind=kind_phys), dimension(:,:), intent(inout) :: cldtot
 
       real (kind=kind_phys), dimension(:),   intent(in) :: xlat, xlon,  &
-     &       slmsk
+     &       slmsk, snowd
 
 !  ---  outputs
       real (kind=kind_phys), dimension(:,:,:), intent(out) :: clouds
@@ -2574,14 +2574,14 @@
      &                      abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,   &
      &                      tlyr, qw, qi, qr, qs, qg, cwp, cip, crp,    &
      &                      csp, cgp, rew, rei, rer, res, reg, cldtot,  &
-     &                      cldtot, cnvw=cnvw)
+     &                      cldtot, snowd, cnvw=cnvw)
       cldcnv = cnvc
 #else
       call cloud_diagnosis (1, IX, 1, NLAY, slmsk, plyr*100,            &
      &                      abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,   &
      &                      tlyr, qw, qi, qr, qs, qg, cwp, cip, crp,    &
      &                      csp, cgp, rew, rei, rer, res, reg, cldtot,  &
-     &                      cldtot, cnvw=cnvw, cnvc=cnvc)
+     &                      cldtot, snowd, cnvw=cnvw, cnvc=cnvc)
       cldcnv = 0.0
 #endif
 

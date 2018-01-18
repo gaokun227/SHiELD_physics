@@ -1580,7 +1580,8 @@
                          tracer1(:,1:lmk,Model%ntiw), &
                          tracer1(:,1:lmk,Model%ntsw), &
                          tracer1(:,1:lmk,Model%ntgl), &
-                         Sfcprop%slmsk, tracer1(:,1:lmk,Model%ntclamt),&
+                         Sfcprop%slmsk, Sfcprop%snowd, &
+                         tracer1(:,1:lmk,Model%ntclamt),&
                          im, lmk, lmp, clouds, cldsa, mtopa, mbota)    !  ---  outputs
           endif
 

@@ -1418,7 +1418,7 @@ module module_physics_driver
              akhs1(i,1) = ustar1(i,1)*0.4/Sfcprop%ffhh(i)  ! 0.4 is Von Karman's constant in NAM
              hflx1(i,1) = hflx(i)  !Not used by myj?!?
              !den = phmid(i,1,levs)/(con_rd*pt(i,1,levs)*(1. + con_epsm1 * Statein%qgrs(i,levs,1) ) )
-             evap1(i,1) = evap(i) * con_hvap  !MYJ needs surface flux in the correct units
+             evap1(i,1) = evap(i) 
              rb1(i,1) = rb(i) 
 
              cice1(i,1) = Sfcprop%fice(i) ! new
@@ -1470,7 +1470,7 @@ module module_physics_driver
                ,XLAND=land,SICE=cice1,SNOW=csnow1 &
                ,Q2=tke,EXCH_H=exchh1,USTAR=ustar1&
                ,Z0=z01,EL_MYJ=el1,PBLH=pblh1,KPBL=pblk1 &
-               ,AKHS=akhs1,AKMS=akms1,ELFLX=evap1,MIXHT=mixh1 &
+               ,AKHS=akhs1,AKMS=akms1,ELFLX=evap1,MIXHT=mixh1,HFLX=hflx1 &
                ,RUBLTEN=udt,RVBLTEN=vdt,RTHBLTEN=pt_dt &
                ,RQBLTEN=qv_dt,RQCBLTEN=ql_dt &
                ,IDS=1,IDE=im,JDS=1,JDE=1           &

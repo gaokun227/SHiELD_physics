@@ -205,7 +205,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
                        ,TSK,QSFC,CHKLOWQ,THZ0,QZ0,UZ0,VZ0 &
                        ,XLAND,SICE,SNOW &
                        ,Q2,EXCH_H,USTAR,Z0,EL_MYJ,PBLH,KPBL &
-                       ,AKHS,AKMS,ELFLX,MIXHT &
+                       ,AKHS,AKMS,ELFLX,MIXHT,HFLX &
                        ,RUBLTEN,RVBLTEN,RTHBLTEN,RQBLTEN,RQCBLTEN &
                        ,IDS,IDE,JDS,JDE &
                        ,IMS,IME,JMS,JME &
@@ -236,7 +236,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME),INTENT(IN):: &
        HT,SICE,SNOW  &
       ,TSK,XLAND &
-      ,CHKLOWQ,ELFLX
+      ,CHKLOWQ,ELFLX,HFLX
 !
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME,1:LM),INTENT(IN):: &
        DZ,EXNER,PMID,Q,CWM,U,V,T,TH
@@ -624,12 +624,14 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !
           SEAMASK=XLAND(I,J)-1.
           !THZ0(I,J)=(1.-SEAMASK)*THSK(I,J)+SEAMASK*THZ0(I,J)
-          THZ0(I,J) = THSK(I,J) ! want to include surface fluxes too?
+          !THZ0(I,J) = THSK(I,J) ! want to include surface fluxes too?
 !
           !LLOW=LM
           AKHS_DENS=AKHS(I,J)*RHOK(LM)
 !
-          QFC1=XLV*CHKLOWQ(I,J)*AKHS_DENS
+          THZ0(I,J) = THSK(I,J)+HFLX(I,J)*((1.E5/PSFC)**CAPPA)/AKHS_DENS/CP
+!
+          QFC1=CHKLOWQ(I,J)*AKHS_DENS ! no longer using xlv conversion factor
           QLOW=QK(LM)
           QSFC(I,J)=QLOW+ELFLX(I,J)/QFC1
 !!$          IF(SEAMASK<0.5)THEN

@@ -110,6 +110,12 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: qgrs (:,:,:) => null()  !< layer mean tracer concentration
     real (kind=kind_phys), pointer :: exch_h (:,:)   => null()  !< 3D heat exchange coefficient
 
+    !--- precipitation
+    real (kind=kind_phys), pointer :: prer (:)     => null()  !< rain
+    real (kind=kind_phys), pointer :: prei (:)     => null()  !< ice
+    real (kind=kind_phys), pointer :: pres (:)     => null()  !< snow
+    real (kind=kind_phys), pointer :: preg (:)     => null()  !< graupel
+
     contains
       procedure :: create  => statein_create  !<   allocate array data
   end type GFS_statein_type
@@ -384,6 +390,7 @@ module GFS_typedefs
     integer              :: nslwr           !< integer trigger for longwave  radiation
     integer              :: levr            !< number of vertical levels for radiation calculations
     integer              :: nfxr            !< second dimension for fluxr diagnostic variable (radiation)
+    integer              :: nkld            !< second dimension for cloud diagnostic variable (radiation)
     logical              :: aero_in         !< aerosol flag for gbphys
     logical              :: lmfshal         !< parameter for radiation
     logical              :: lmfdeep2        !< parameter for radiation
@@ -422,6 +429,10 @@ module GFS_typedefs
 
     !--- microphysical switch
     integer              :: ncld            !< cnoice of cloud scheme
+
+    !--- GFDL microphysical parameters
+    logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
+
     !--- Z-C microphysical parameters
     logical              :: zhao_mic        !< flag for Zhao-Carr microphysics
     real(kind=kind_phys) :: psautco(2)      !< [in] auto conversion coeff from ice to snow
@@ -471,6 +482,7 @@ module GFS_typedefs
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: cnvcld        
+    logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
     logical              :: shal_cnv        !< flag for calling shallow convection
     integer              :: imfshalcnv      !< flag for mass-flux shallow convection scheme
@@ -769,6 +781,8 @@ module GFS_typedefs
     !! Input/Output only in radiation
     real (kind=kind_phys), pointer :: fluxr (:,:)   => null()   !< to save time accumulated 2-d fields defined as:!
                                                                 !< hardcoded field indices, opt. includes aerosols!
+    real (kind=kind_phys), pointer :: cloud (:,:,:) => null()   !< to save time accumulated 3-d fields defined as:!
+                                                                !< hardcoded field indices
     type (topfsw_type),    pointer :: topfsw(:)     => null()   !< sw radiation fluxes at toa, components:        
                                                !       %upfxc    - total sky upward sw flux at toa (w/m**2)     
                                                !       %dnfxc    - total sky downward sw flux at toa (w/m**2)   
@@ -858,9 +872,13 @@ module GFS_typedefs
 !
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: du3dt (:,:,:) => null()   !< u momentum change due to physics
+                                                                !< lz note: 1: pbl, 2: oro gwd, 3: rf, 4: con gwd
     real (kind=kind_phys), pointer :: dv3dt (:,:,:) => null()   !< v momentum change due to physics
+                                                                !< lz note: 1: pbl, 2: oro gwd, 3: rf, 4: con gwd
     real (kind=kind_phys), pointer :: dt3dt (:,:,:) => null()   !< temperature change due to physics
+                                                                !< lz note: 1: lw, 2: sw, 3: pbl, 4: deep con, 5: shal con, 6: mp 
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
+                                                                !< lz note: 1: pbl, 2: deep con, 3: shal con, 4: mp, 5: ozone
     real (kind=kind_phys), pointer :: dkt   (:,:)   => null()
  
     !--- accumulated quantities for 3D diagnostics
@@ -938,6 +956,16 @@ module GFS_typedefs
        Statein%exch_h = clear_val
     endif
 
+
+    allocate (Statein%prer(IM))
+    allocate (Statein%prei(IM))
+    allocate (Statein%pres(IM))
+    allocate (Statein%preg(IM))
+
+    Statein%prer = clear_val
+    Statein%prei = clear_val
+    Statein%pres = clear_val
+    Statein%preg = clear_val
 
   end subroutine statein_create
 
@@ -1409,6 +1437,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: fhlwr          = 3600.           !< frequency for longwave radiation (secs)
     integer              :: levr           = -99             !< number of vertical levels for radiation calculations
     integer              :: nfxr           = 39              !< second dimension of input/output array fluxr   
+    integer              :: nkld           = 8               !< second dimension of input/output array fluxr   
     logical              :: aero_in        = .false.         !< flag for initializing aero data 
     integer              :: iflip          =  1              !< iflip - is not the same as flipv
     integer              :: isol           =  0              !< use prescribed solar constant
@@ -1441,6 +1470,9 @@ module GFS_typedefs
     logical              :: norad_precip   = .false.         !< radiation precip flag for Ferrier/Moorthi
     logical              :: lwhtr          = .true.          !< flag to output lw heating rate (Radtend%lwhc)
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
+
+    !--- GFDL microphysical parameters
+    logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
 
     !--- Z-C microphysical parameters
     integer              :: ncld           =  1                 !< cnoice of cloud scheme
@@ -1491,6 +1523,7 @@ module GFS_typedefs
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: cnvcld         = .false.
+    logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
     logical              :: shal_cnv       = .false.                  !< flag for calling shallow convection
     integer              :: imfshalcnv     =  1                       !< flag for mass-flux shallow convection scheme
@@ -1599,10 +1632,10 @@ module GFS_typedefs
                           !--- radiation parameters
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
-                               isubc_lw, crick_proof, ccnorm, lwhtr, swhtr,                 &
+                               isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                           !--- microphysical parameterizations
-                               ncld, zhao_mic, psautco, prautco, evpco, wminco,             &
-                               fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,                     &
+                               ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
+                               wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
                           !--- physical parameterizations
@@ -1611,7 +1644,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,                         &
+                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,              &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1724,6 +1757,7 @@ module GFS_typedefs
       Model%levr           = levr
     endif
     Model%nfxr             = nfxr
+    Model%nkld             = nkld
     Model%aero_in          = aero_in
     Model%iflip            = iflip
     Model%isol             = isol
@@ -1743,6 +1777,8 @@ module GFS_typedefs
 
     !--- microphysical switch
     Model%ncld             = ncld
+    !--- GFDL microphysical parameters
+    Model%do_inline_mp     = do_inline_mp
     !--- Zhao-Carr MP parameters
     Model%zhao_mic         = zhao_mic
     Model%psautco          = psautco
@@ -1786,6 +1822,7 @@ module GFS_typedefs
     Model%ysupbl           = ysupbl 
     Model%dspheat          = dspheat
     Model%cnvcld           = cnvcld
+    Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
     Model%shal_cnv         = shal_cnv
     Model%imfshalcnv       = imfshalcnv
@@ -2065,10 +2102,13 @@ module GFS_typedefs
                                             ' mg_dcs=',Model%mg_dcs,' mg_qcvar=',Model%mg_qcvar, &
                                             ' mg_ts_auto_ice=',Model%mg_ts_auto_ice
     elseif (Model%ncld == 5) then
-      Model%npdf3d = 0
+      if (Model%pdfcld) then
+        Model%npdf3d = 3
+      else
+        Model%npdf3d = 0
+      endif
       Model%num_p3d = 4
       Model%num_p2d = 1
-      Model%pdfcld  = .false.
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
       if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics'
@@ -2093,7 +2133,7 @@ module GFS_typedefs
                                     ' do_shoc=',Model%do_shoc,' nshoc3d=',Model%nshoc_3d,   &
                                     ' nshoc_2d=',Model%nshoc_2d,' shoc_cld=',Model%shoc_cld,& 
                                     ' ntot3d=',Model%ntot3d,' ntot2d=',Model%ntot2d,        &
-                                    ' shocaftcnv=',Model%shocaftcnv
+                                    ' shocaftcnv=',Model%shocaftcnv,' cloud_gfdl=',Model%cloud_gfdl
 
     !--- stochastic physics
     if (Model%sppt(1) > 0 ) Model%do_sppt = .true.
@@ -2189,6 +2229,7 @@ module GFS_typedefs
       print *, ' nslwr             : ', Model%nslwr
       print *, ' levr              : ', Model%levr
       print *, ' nfxr              : ', Model%nfxr
+      print *, ' nkld              : ', Model%nkld
       print *, ' aero_in           : ', Model%aero_in
       print *, ' lmfshal           : ', Model%lmfshal
       print *, ' lmfdeep2          : ', Model%lmfdeep2
@@ -2212,6 +2253,8 @@ module GFS_typedefs
       print *, ' '
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
+      print *, ' GFDL microphysical parameters'
+      print *, ' do_inline_mp      : ', Model%do_inline_mp
       print *, ' Z-C microphysical parameters'
       print *, ' zhao_mic          : ', Model%zhao_mic
       print *, ' psautco           : ', Model%psautco
@@ -2256,6 +2299,7 @@ module GFS_typedefs
       print *, ' ysupbl            : ', Model%ysupbl 
       print *, ' dspheat           : ', Model%dspheat
       print *, ' cnvcld            : ', Model%cnvcld
+      print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds
       print *, ' shal_cnv          : ', Model%shal_cnv
       print *, ' imfshalcnv        : ', Model%imfshalcnv
@@ -2564,6 +2608,7 @@ module GFS_typedefs
 
     !--- Radiation
     allocate (Diag%fluxr   (IM,Model%nfxr))
+    allocate (Diag%cloud   (IM,Model%levs,Model%nkld))
     allocate (Diag%topfsw  (IM))
     allocate (Diag%topflw  (IM))
     !--- Physics
@@ -2669,6 +2714,7 @@ module GFS_typedefs
     type(GFS_control_type), intent(in) :: Model
 
     Diag%fluxr        = zero
+    Diag%cloud        = zero
     Diag%topfsw%upfxc = zero
     Diag%topfsw%dnfxc = zero
     Diag%topfsw%upfx0 = zero

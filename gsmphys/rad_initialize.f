@@ -165,7 +165,11 @@
             icmphys = 3                   ! zhao+ pdf cloud & cnvc and cnvw
           endif
         elseif ( num_p2d == 1 ) then
-          icmphys = 4                   ! lin's microphysics
+          if (npdf3d /= 3) then
+            icmphys = 4                   ! gfdl cloud microphysics
+          else
+            icmphys = 5                   ! gfdl cloud microphysics + pdf cloud & cnvc and cnvw
+          endif
         endif
       endif
 !     if (ncld == 2) icmphys = 1        ! MG 2m Morrison scheme

@@ -1402,6 +1402,20 @@ module module_physics_driver
                          Model%xkzminv, Model%moninq_fac)
 !     if (lprnt)  write(0,*)' dtdtm=',(dtdt(ipr,k),k=1,15)
 !     if (lprnt)  write(0,*)' dqdtm=',(dqdt(ipr,k,1),k=1,15)
+        elseif (Model%ysupbl) then
+          call ysupbl(ix, im, levs, nvdiff, Model%ntcw, Model%ntiw,             &
+                      dvdt, dudt, dtdt, dqdt,                                   &
+                      Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,   &
+                      Statein%prsi, Statein%prsl, Statein%prslk,                &
+                      Statein%phii, Statein%pgr,                                &
+                      Radtend%htrsw, Radtend%htrlw, xmu,                        &
+                      Sfcprop%zorl, Sfcprop%uustar, Diag%hpbl,                  &
+                      Sfcprop%ffmm, Sfcprop%ffhh,                               &
+                      islmsk, hflx, evap, wind, rb,                             &
+                      dusfc1, dvsfc1, dtsfc1, dqsfc1,                           &
+                      dtp, kpbl, Diag%u10m, Diag%v10m,                          &
+                      kinver,                                                   &
+                      Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv)
        elseif ( Model%myj_pbl) then
           
           do i=1,im

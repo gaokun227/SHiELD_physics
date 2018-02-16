@@ -468,6 +468,7 @@ module GFS_typedefs
     logical              :: redrag          !< flag for reduced drag coeff. over sea
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
+    logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: cnvcld        
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -1487,6 +1488,7 @@ module GFS_typedefs
     logical              :: redrag         = .false.                  !< flag for reduced drag coeff. over sea
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
+    logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: cnvcld         = .false.
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1609,7 +1611,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,myj_pbl,                                &
+                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,                         &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1781,6 +1783,7 @@ module GFS_typedefs
     Model%redrag           = redrag
     Model%hybedmf          = hybedmf
     Model%myj_pbl          = myj_pbl
+    Model%ysupbl           = ysupbl 
     Model%dspheat          = dspheat
     Model%cnvcld           = cnvcld
     Model%random_clds      = random_clds
@@ -1930,6 +1933,7 @@ module GFS_typedefs
       Model%shal_cnv   = .false.
       Model%imfshalcnv = -1
       Model%hybedmf    = .false.
+      Model%ysupbl     = .false.
       if (Model%me == Model%master) print *,' Simplified Higher Order Closure Model used for', &
                                             ' Boundary layer and Shallow Convection',          &
                                             ' nshoc_3d=',Model%nshoc_3d,                       &
@@ -2249,6 +2253,7 @@ module GFS_typedefs
       print *, ' redrag            : ', Model%redrag
       print *, ' hybedmf           : ', Model%hybedmf
       print *, ' myj_pbl           : ', Model%myj_pbl
+      print *, ' ysupbl            : ', Model%ysupbl 
       print *, ' dspheat           : ', Model%dspheat
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' random_clds       : ', Model%random_clds

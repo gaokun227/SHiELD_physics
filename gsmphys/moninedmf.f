@@ -373,7 +373,7 @@ c
           ptem       = qlx(i,k)
           ptem1      = hvap*max(q1(i,k,1),qmin)/(cp*t1(i,k))
           thetae(i,k)= theta(i,k)*(1.+ptem1)
-          thvx(i,k)  = theta(i,k)*(1.+fv*max(q1(i,k,1),qmin)-ptem)
+          thvx(i,k)  = theta(i,k)*(1.+fv*max(q1(i,k,1),qmin)-ptem) !lowest layer virtual potential temperature
           ptem2      = theta(i,k)-(hvap/cp)*ptem
           thlvx(i,k) = ptem2*(1.+fv*qtx(i,k))
         enddo
@@ -442,10 +442,10 @@ c
          flg(i) = .false.
          rbup(i) = rbsoil(i)
 !
-         if(pblflg(i)) then
+         if(pblflg(i)) then !unstable
            thermal(i) = thvx(i,1)
-           crb(i) = crbcon
-         else
+           crb(i) = crbcon 
+         else !stable (requires surface virtual temperature)
            thermal(i) = tsea(i)*(1.+fv*max(q1(i,1,1),qmin))
            tem = sqrt(u10m(i)**2+v10m(i)**2)
            tem = max(tem, 1.)

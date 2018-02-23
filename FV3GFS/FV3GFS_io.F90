@@ -68,9 +68,8 @@ module FV3GFS_io_mod
 !-RAB
   type data_subtype
     real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
-    real(kind=kind_phys), dimension(:,:),   pointer :: var3 => NULL()
-    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL()
     real(kind=kind_phys), dimension(:,:), pointer :: var3 => NULL()
+    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL()
   end type data_subtype
   !--- data type definition for use with GFDL FMS diagnostic manager until write component is working
   type gfdl_diag_type
@@ -3021,7 +3020,6 @@ module FV3GFS_io_mod
             used=send_data(Diag(idx)%id, var3, Time)
 !!$               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
 !!$               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
-        endif
 #ifdef JUNK
            !--- dq3dt variables
            do num = 1,5+Mdl_parms%pl_coeff
@@ -3088,14 +3086,17 @@ module FV3GFS_io_mod
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
              used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
-           endif
-       endif
-     enddo
+          endif
+#endif
+        endif
+     endif
+    enddo
 
 
   end subroutine gfdl_diag_output
 !-------------------------------------------------------------------------      
  subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac)
+  use physcons,    pi=>con_pi
   character(len=*), intent(in)::  qname
   integer, intent(in):: is, ie, js, je
   real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: a2

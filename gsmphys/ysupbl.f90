@@ -9,7 +9,7 @@
                   islmsk,heat,evap,wspd,br,                                    & 
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
-                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv)
+                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dkt)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
    use physcons, cp=>con_cp, g=>con_g, rovcp=>con_rocp, rd=>con_rd, rv=>con_rv,&
@@ -211,6 +211,8 @@
                                                                 sfcflg, &
                                                                 stable, &
                                                               cloudflg
+
+   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
 
    logical :: definebrup
 !
@@ -1187,6 +1189,15 @@
    do i = its,ite
      kpbl1d(i) = kpbl(i)
    enddo
+
+   if (present(dkt)) then
+      do k=kts,kte-1
+      do i=its,ite
+         dkt(i,k) = xkzm(i,k)
+      enddo
+      enddo
+   endif
+
 !
 !
    end subroutine ysupbl

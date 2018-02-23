@@ -1415,11 +1415,12 @@ module module_physics_driver
                       dusfc1, dvsfc1, dtsfc1, dqsfc1,                           &
                       dtp, kpbl, Diag%u10m, Diag%v10m,                          &
                       kinver,                                                   &
-                      Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv)
+                      Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
+                      dkt)
        elseif ( Model%myj_pbl) then
           
           do i=1,im
-             land(i,1) = 2. - frland(i) ! see note above
+             land(i) = 2. - frland(i) ! see note above
              vegfrac(i,1) = Sfcprop%vfrac(i) 
              ht(i,1) = Sfcprop%oro(i) 
              tsfc1(i,1) = Sfcprop%tsfc(i) 
@@ -1449,26 +1450,26 @@ module module_physics_driver
              kflip = levs-k+1
              do i=1,im
 
-                phmid(i,1,k) = Statein%prsl(i,kflip) 
+                phmid(i,k) = Statein%prsl(i,kflip) 
                 phint(i,1,k) = Statein%prsi(i,kflip+1)
-                qv1  (i,1,k) = Statein%qgrs(i,kflip,1         )/ (1. - Statein%qgrs(i,kflip,1         ))
-                ql1  (i,1,k) = Statein%qgrs(i,kflip,Model%ntcw)
-                pt   (i,1,k) = Statein%tgrs(i,kflip)
-                th   (i,1,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip)
-                uin  (i,1,k) = Statein%ugrs(i,kflip)
-                vin  (i,1,k) = Statein%vgrs(i,kflip)
-                dz   (i,1,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
-                tke  (i,1,k) = Statein%qgrs(i,kflip,Model%ntke)
+                qv1  (i,k) = Statein%qgrs(i,kflip,1         )/ (1. - Statein%qgrs(i,kflip,1         ))
+                ql1  (i,k) = Statein%qgrs(i,kflip,Model%ntcw)
+                pt   (i,k) = Statein%tgrs(i,kflip)
+                th   (i,k) = Statein%tgrs(i,kflip)/Statein%prslk(i,kflip)
+                uin  (i,k) = Statein%ugrs(i,kflip)
+                vin  (i,k) = Statein%vgrs(i,kflip)
+                dz   (i,k) = (Statein%phii(i,kflip+1)-Statein%phii(i,kflip))/con_g
+                tke  (i,k) = Statein%qgrs(i,kflip,Model%ntke)
 
-                exner(i,1,k)  = Statein%prslk(i,kflip) ! new
-                exchh1(i,1,k) = Statein%exch_h(i,kflip) ! new; needs to be a state variable
+                exner(i,k)  = Statein%prslk(i,kflip) ! new
+                exchh1(i,k) = Statein%exch_h(i,kflip) ! new; needs to be a state variable
 
-                pt_dt    (i,1,k) = 0.0 ! this will be the potential temperature increment??
-                udt      (i,1,k) = 0.0
-                vdt      (i,1,k) = 0.0
-                qv_dt    (i,1,k) = 0.0
-                ql_dt    (i,1,k) = 0.0
-                el1      (i,1,k) = 0. ! new; purely diagnostic
+                pt_dt    (i,k) = 0.0 ! this will be the potential temperature increment??
+                udt      (i,k) = 0.0
+                vdt      (i,k) = 0.0
+                qv_dt    (i,k) = 0.0
+                ql_dt    (i,k) = 0.0
+                el1      (i,k) = 0. ! new; purely diagnostic
              end do
           enddo
           phint(:,1,levs+1) = Statein%prsi(:,1) 
@@ -1508,30 +1509,30 @@ module module_physics_driver
             do k=1,levs
                kflip = levs-k+1
                do i=1,im
-                  dqdt(i,k,1) = dqdt(i,k,1) + qv_dt(i,1,kflip)/ (1. + qv_dt(i,1,kflip))
-                  dqdt(i,k,Model%ntcw) = dqdt(i,k,Model%ntcw) + ql_dt(i,1,kflip)
-                  dtdt(i,k) = dtdt(i,k) + pt_dt(i,1,kflip) * Statein%prslk(i,k) !!! NEED conversion from theta; doing STUPID thing for now
-                  dudt(i,k) = dudt(i,k) + udt(i,1,kflip)
-                  dvdt(i,k) = dvdt(i,k) + vdt(i,1,kflip)
-                  dqdt(i,k,Model%ntke) = dqdt(i,k,Model%ntke) + (tke(i,1,kflip) - Statein%qgrs(i,k,Model%ntke)) / dtp
+                  dqdt(i,k,1) = dqdt(i,k,1) + qv_dt(i,kflip)/ (1. + qv_dt(i,kflip))
+                  dqdt(i,k,Model%ntcw) = dqdt(i,k,Model%ntcw) + ql_dt(i,kflip)
+                  dtdt(i,k) = dtdt(i,k) + pt_dt(i,kflip) * Statein%prslk(i,k) !!! NEED conversion from theta; doing STUPID thing for now
+                  dudt(i,k) = dudt(i,k) + udt(i,kflip)
+                  dvdt(i,k) = dvdt(i,k) + vdt(i,kflip)
+                  dqdt(i,k,Model%ntke) = dqdt(i,k,Model%ntke) + (tke(i,kflip) - Statein%qgrs(i,k,Model%ntke)) / dtp
 
                   !These are the surface tendencies
                   ! which can be computed as the sum of the tendencies
                   ! through the atmosphere
                   ! (only mass/heat/mom source from PBL is the surface)
-                  dusfc1(i) = dusfc1(i) + onebg*del(i,k)*udt(i,1,kflip)
-                  dvsfc1(i) = dvsfc1(i) + onebg*del(i,k)*vdt(i,1,kflip)
-                  dtsfc1(i) = dtsfc1(i) + con_cp*onebg*del(i,k)*pt_dt(i,1,kflip) * Statein%prslk(i,k) !DUMB!
-                  dqsfc1(i) = dqsfc1(i) + con_hvap*onebg*del(i,k)*qv_dt(i,1,kflip)
+                  dusfc1(i) = dusfc1(i) + onebg*del(i,k)*udt(i,kflip)
+                  dvsfc1(i) = dvsfc1(i) + onebg*del(i,k)*vdt(i,kflip)
+                  dtsfc1(i) = dtsfc1(i) + con_cp*onebg*del(i,k)*pt_dt(i,kflip) * Statein%prslk(i,k) !DUMB!
+                  dqsfc1(i) = dqsfc1(i) + con_hvap*onebg*del(i,k)*qv_dt(i,kflip)
 
 !$%!!$                  Stateout%gq0(i,k,Model%ntrw) = qr1(i,1,kflip) + qr_dt(i,1,kflip) * dtp
 !$%!!$                  Stateout%gq0(i,k,Model%ntiw) = qi1(i,1,kflip) + qi_dt(i,1,kflip) * dtp
 !$%!!$                  Stateout%gq0(i,k,Model%ntsw) = qs1(i,1,kflip) + qs_dt(i,1,kflip) * dtp
 !$%!!$                  Stateout%gq0(i,k,Model%ntgl) = qg1(i,1,kflip) + qg_dt(i,1,kflip) * dtp
-                  Stateout%gq0(i,k,Model%ntke) = tke(i,1,kflip)
-                  Statein%exch_h(i,k) = exchh1(i,1,kflip)
-                  dkt(i,k) = exchh1(i,1,kflip)
-                  Diag%el_myj(i,k) = el1(i,1,kflip)
+                  Stateout%gq0(i,k,Model%ntke) = tke(i,kflip)
+                  Statein%exch_h(i,k) = exchh1(i,kflip)
+                  dkt(i,k) = exchh1(i,kflip)
+                  Diag%el_myj(i,k) = el1(i,kflip)
                enddo
             enddo
           

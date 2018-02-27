@@ -207,6 +207,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
                        ,Q2,EXCH_H,USTAR,Z0,EL_MYJ,PBLH,KPBL &
                        ,AKHS,AKMS,ELFLX,MIXHT,HFLX &
                        ,RUBLTEN,RVBLTEN,RTHBLTEN,RQBLTEN,RQCBLTEN &
+                       ,SPD1,DSPHEAT &
                        ,IDS,IDE,JDS,JDE &
                        ,IMS,IME,JMS,JME &
                        ,ITS,ITE,JTS,JTE,LM,LPRNT)
@@ -231,12 +232,12 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !
       real(kind=kfpt),dimension(1:lm-1),intent(inout):: EPSL
       real(kind=kfpt),dimension(1:lm),intent(inout):: EPSQ2
-      logical, intent(in) :: LPRNT
+      logical, intent(in) :: LPRNT, DSPHEAT
 !
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME),INTENT(IN):: &
        HT,SICE,SNOW  &
       ,TSK,XLAND &
-      ,CHKLOWQ,ELFLX,HFLX
+      ,CHKLOWQ,ELFLX,HFLX,SPD1
 !
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME,1:LM),INTENT(IN):: &
        DZ,EXNER,PMID,Q,CWM,U,V,T,TH
@@ -286,13 +287,14 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       ,RDTTURBL,RG,RSQDT,RXNERS,RXNSFC &
       ,SEAMASK,SQ,SQS00K,SQS10K &
       ,THBT,THNEW,THOLD,TQ,TTH &
+      ,TI,TEM,TEM1,TEM2,SFLUX,TTEND &
       ,ULOW,VLOW,RSTDH,STDFAC,ZSF,ZSX,ZSY,ZUV,WIND
 !
       REAL(KIND=KFPT),DIMENSION(1:LM):: &
        CWMK,PK,PSK,Q2K,QK,RHOK,RXNERK,THEK,THK,THVK,TK,UK,VK
 !
       REAL(KIND=KFPT),DIMENSION(1:LM-1):: &
-       AKHK,AKMK,DCOL,EL,GH,GM
+       AKHK,AKMK,DCOL,EL,GH,GM,DISS
 !
       REAL(KIND=KFPT),DIMENSION(1:LM+1):: &
        ZHK
@@ -301,7 +303,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
        THSK
 !
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME,1:LM):: &
-       RXNER,THV
+       RXNER,THV,EXCH_M
 !
       REAL(KIND=KFPT),DIMENSION(IMS:IME,JMS:JME,1:LM-1):: &
        AKH,AKM
@@ -542,6 +544,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
             AKM(I,J,K)=AKMK(K)
             DELTAZ=0.5*(ZHK(K)-ZHK(K+2))
             EXCH_H(I,J,K)=AKHK(K)*DELTAZ
+            EXCH_M(I,J,K)=AKMK(K)*DELTAZ
           ENDDO
 !
 !----------------------------------------------------------------------
@@ -800,6 +803,36 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
             RUBLTEN(I,J,K)=(UK(K)-U(I,J,K))*RDTTURBL
             RVBLTEN(I,J,K)=(VK(K)-V(I,J,K))*RDTTURBL
           ENDDO
+!
+!   compute tke dissipation rate
+!
+          if(dspheat) then
+!        
+          do k = 1,lm-1 ! equals to "k = levs,2,-1" in fv3 solver's k index
+            ti      = 2./(thk(k)+thk(k+1))
+            diss(k) = exch_m(i,j,k)*gm(k)-g*ti*exch_h(i,j,k)*gh(k)
+          enddo
+!
+!         add dissipative heating at the first model layer 
+!
+          sflux = hflx(i,j)/rhok(lm)/cp + elflx(i,j)/rhok(lm)*ep_1*thk(lm) ! Kms-1
+          tem   = g/thk(lm)*sflux
+          tem1  = tem + ustar(i,j)**2.*spd1(i,j)/(0.5*dz(i,j,lm))
+          tem2  = 0.5 * (tem1+diss(lm-1))    
+          tem2  = max(tem2, 0.)
+          ttend = tem2 / cp
+          rthblten(i,j,lm) = rthblten(i,j,lm) + 0.5*ttend
+!
+!         add dissipative heating above the first model layer
+!
+          do k = 2,lm-1 ! equals to "k = levs-1,2,-1" in fv3 solver's k index
+            tem = 0.5 * (diss(k-1)+diss(k)) 
+            tem  = max(tem, 0.)
+            ttend = tem / cp
+            rthblten(i,j,k) = rthblten(i,j,k) + 0.5*ttend
+          enddo
+!
+          endif ! endif dspheat
 !
         ENDDO
 !----------------------------------------------------------------------

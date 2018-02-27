@@ -1416,6 +1416,7 @@ module module_physics_driver
                       dtp, kpbl, Diag%u10m, Diag%v10m,                          &
                       kinver,                                                   &
                       Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
+                      Model%dspheat,                                            &
                       dkt)
        elseif ( Model%myj_pbl) then
           
@@ -1488,6 +1489,7 @@ module module_physics_driver
                ,AKHS=akhs1,AKMS=akms1,ELFLX=evap1,MIXHT=mixh1,HFLX=hflx1 &
                ,RUBLTEN=udt,RVBLTEN=vdt,RTHBLTEN=pt_dt &
                ,RQBLTEN=qv_dt,RQCBLTEN=ql_dt &
+               ,SPD1=wind,DSPHEAT=Model%dspheat&
                ,IDS=1,IDE=im,JDS=1,JDE=1           &
                ,IMS=1,IME=im,JMS=1,JME=1           &
                ,ITS=1,ITE=im,JTS=1,JTE=1,LM=levs,LPRNT=lprnt)

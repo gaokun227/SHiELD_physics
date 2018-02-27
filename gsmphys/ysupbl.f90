@@ -9,7 +9,7 @@
                   islmsk,heat,evap,wspd,br,                                    & 
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
-                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dkt)
+                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dspheat,dkt)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
    use physcons, cp=>con_cp, g=>con_g, rovcp=>con_rocp, rd=>con_rd, rv=>con_rv,&
@@ -75,6 +75,9 @@
 !
 !-------------------------------------------------------------------------------
 !
+   integer,parameter :: nqci   = 2
+   integer,parameter :: imvdif = 1
+   integer,parameter :: ysu_topdown_pblmix  = 1
    real(kind=kind_phys),parameter :: karman = 0.4
    real(kind=kind_phys),parameter :: xkzminm = 0.1,xkzminh = 0.01
    real(kind=kind_phys),parameter :: xkzmin = 0.01,xkzmax = 1000.
@@ -92,10 +95,8 @@
    real(kind=kind_phys),parameter :: tmin=1.e-2
    real(kind=kind_phys),parameter :: gamcrt = 3.,gamcrq = 2.e-3
    real(kind=kind_phys),parameter :: xka = 2.4e-5
-   integer,parameter :: nqci   = 2
-   integer,parameter :: imvdif = 1
-   integer,parameter :: ysu_topdown_pblmix  = 1
    real(kind=kind_phys),parameter :: rcl=1.0
+   real(kind=kind_phys),parameter :: dw2min=0.0001
 !
    integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw
 !
@@ -149,6 +150,7 @@
 !
    integer,dimension(   1:im  ),intent(in   ) ::                kinver
    integer,dimension(   1:im  ),intent(out  ) ::                kpbl1d
+   logical,intent(in   ) ::                                    dspheat
 !
 ! local vars
 !
@@ -213,6 +215,7 @@
                                                               cloudflg
 
    real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
+   real(kind=kind_phys),dimension(   1:im ,   1:km  ) ::          diss
 
    logical :: definebrup
 !
@@ -249,6 +252,7 @@
    real(kind=kind_phys),dimension(   1:im  ) ::                uox,vox
    real(kind=kind_phys) :: ptem
    real(kind=kind_phys) :: xkzm_m,xkzm_h,xkzm_fac
+   real(kind=kind_phys) :: dw2,shr2,ti,bf,tem,tem2
 !
    real(kind=kind_phys) :: prnumfac,bfx0,hfx0,qfx0,delb,dux,dvx,        &
             dsdzu,dsdzv,wm3,dthx,dqx,wspd10,ross,tem1,dsig,tvcon,conpr, &
@@ -1185,6 +1189,46 @@
 !--->hns
 !
 !---- end of vertical diffusion
+!
+!
+!   compute tke dissipation rate
+!
+   if(dspheat) then
+!
+      do k = kts,kte-1
+        do i = its,ite
+          rdz  = 1./dza(i,k+1)
+          dw2  = (ux(i,k)-ux(i,k+1))**2.+(vx(i,k)-vx(i,k+1))**2.
+          shr2 = max(dw2,dw2min)*rdz*rdz
+          ti   = 2./(tx(i,k)+tx(i,k+1))
+          bf   = (thvx(i,k+1)-thvx(i,k))*rdz
+          diss(i,k) = xkzm(i,k)*shr2-g*ti*xkzh(i,k)*bf
+        enddo
+      enddo
+!
+!     add dissipative heating at the first model layer
+!
+      do i = its,ite
+         tem   = govrth(i)*sflux(i)
+         tem1  = tem + ust(i)**2.*wspd1(i)/za(i,1)
+         tem2  = 0.5 * (tem1+diss(i,1))
+         tem2  = max(tem2, 0.)
+         ttend = tem2 / cp
+         ttnp(i,1) = ttnp(i,1)+0.5*ttend
+      enddo
+!
+!     add dissipative heating above the first model layer
+!
+      do k = kts+1,kte-1
+        do i = its,ite
+          tem = 0.5 * (diss(i,k-1)+diss(i,k))
+          tem  = max(tem, 0.)
+          ttend = tem / cp
+          ttnp(i,k) = ttnp(i,k) + 0.5*ttend
+        enddo
+      enddo
+!
+   endif
 !
    do i = its,ite
      kpbl1d(i) = kpbl(i)

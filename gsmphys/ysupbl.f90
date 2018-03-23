@@ -12,6 +12,7 @@
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dspheat,dkt)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
+!   use mpp_mod, only: mpp_pe
    use physcons, cp=>con_cp, g=>con_g, rovcp=>con_rocp, rd=>con_rd, rv=>con_rv,&
                  rovg=>con_rog, ep1=>con_fvirt, ep2=>con_eps, xlv=>con_hvap
 !-------------------------------------------------------------------------------
@@ -64,6 +65,8 @@
 !              ==> kzo = 0.1 for momentum and = 0.01 for mass to account for
 !                  internal wave mixing of large et al. (1994), songyou hong, feb 2016
 !              ==> alleviate superious excessive mixing when delz is large
+!              Added minimum diffusion (a bound, not additional background) and
+!              dissipative heating from the GFS EDMF scheme. Hailey Shin, feb 2018.
 !
 !     references:
 !
@@ -363,12 +366,13 @@
    enddo
 !
 !
-!-----initialize vertical tendencies and
+!-----initialize vertical tendencies
 !
-   utnp(its:ite,:) = 0.
-   vtnp(its:ite,:) = 0.
-   ttnp(its:ite,:) = 0.
-   qtnp(its:ite,:) = 0.
+!NO NO NO!!
+!!$   utnp(its:ite,:) = 0.
+!!$   vtnp(its:ite,:) = 0.
+!!$   ttnp(its:ite,:) = 0.
+!!$   qtnp(its:ite,:) = 0.
 !
    do i = its,ite
      wspd1(i) = sqrt( (ux(i,1)-uox(i))*(ux(i,1)-uox(i)) + (vx(i,1)-vox(i))*(vx(i,1)-vox(i)) )+1.e-9
@@ -851,8 +855,14 @@
 !
 !     compute diffusion coefficients over pbl (free atmosphere)
 !
+!   if (lprnt) then
+!      i = im/2
+!      write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i), sfcflg(i)
+!   endif
+#ifndef GFS_FREE_DIFF
    do k = kts,kte-1
      do i = its,ite
+        !prnum = 0. ! DEBUG
        if(k.ge.kpbl(i)) then
          ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
               +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
@@ -871,12 +881,12 @@
            endif
          endif
          zk = karman*zq(i,k+1)
-         rlamdz = min(max(0.1*dza(i,k+1),rlam),300.)
+         rlamdz = min(max(0.1*dza(i,k+1),rlam),300.) ! was constant 150 in EDMF
          rlamdz = min(dza(i,k+1),rlamdz)
          rl2 = (zk*rlamdz/(rlamdz+zk))**2
          dk = rl2*sqrt(ss)
          if(ri.lt.0.)then
-! unstable regime
+! unstable regime (same as in EDMF?)
            ri = max(ri, rimin)
            sri = sqrt(-ri)
            xkzm(i,k) = dk*(1+8.*(-ri)/(1+1.746*sri))
@@ -884,7 +894,7 @@
          else
 ! stable regime
            xkzh(i,k) = dk/(1+5.*ri)**2
-           prnum = 1.0+2.1*ri
+           prnum = 1.0+2.1*ri ! set to 1 above PBL in EDMF
            prnum = min(prnum,prmax)
            xkzm(i,k) = xkzh(i,k)*prnum
          endif
@@ -895,9 +905,94 @@
          xkzh(i,k) = min(xkzh(i,k),xkzmax)
          xkzml(i,k) = xkzm(i,k)
          xkzhl(i,k) = xkzh(i,k)
+!!! DEBUG CODE
+!   if (lprnt) then
+!      if (i == im/2) then
+!         write(mpp_pe()+1000,'(I, 5(2x, G))') k, ri, rlamdz, rl2, xkzh(i,k), prnum
+!      endif
+!      !write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i)
+!      !do k=1,km-1
+!      !   write(mpp_pe()+1000,*) k, ttnp(i,k), xkzh(i,k), qtnp(i,k), &
+!      !        pi2d(i,k), qx(i,k), entfac(i,k)
+!      !enddo
+!   endif
+!!! END DEBUG CODE
        endif
      enddo
    enddo
+#else
+   do k = kts,kte-1
+     do i = its,ite
+        !prnum = 0. ! DEBUG
+       if(k.ge.kpbl(i)) then
+         ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
+              +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
+              /(dza(i,k+1)*dza(i,k+1))+1.e-9
+         !govrthv = g/(0.5*(thvx(i,k+1)+thvx(i,k)))
+         govrthv = g/(0.5*(tx(i,k+1)+tx(i,k)))
+         ri = govrthv*(thvx(i,k+1)-thvx(i,k))/(ss*dza(i,k+1))
+         if(imvdif.eq.1.and.ndiff.ge.3)then
+           if((qxci(i,k,1)+qxci(i,k,2)).gt.0.01e-3.and.(qxci(i           &
+             ,k+1,1)+qxci(i,k+1,2)).gt.0.01e-3)then
+!      in cloud
+             qmean = 0.5*(qx(i,k)+qx(i,k+1))
+             tmean = 0.5*(tx(i,k)+tx(i,k+1))
+             alph  = xlv*qmean/rd/tmean
+             chi   = xlv*xlv*qmean/cp/rv/tmean/tmean
+             ri    = (1.+alph)*(ri-g*g/ss/tmean/cp*((chi-alph)/(1.+chi)))
+           endif
+         endif
+         zk = karman*zq(i,k+1)
+         !rlamdz = min(max(0.1*dza(i,k+1),rlam),300.) ! was constant 30 in EDMF
+         !rlamdz = min(dza(i,k+1),rlamdz)
+         rl2 = (zk*rlam/(rlam+zk))**2
+         dk = rl2*sqrt(ss)
+         if(ri.lt.0.)then
+! unstable regime (same as in EDMF?)
+           ri = max(ri, rimin)
+           sri = sqrt(-ri)
+           xkzm(i,k) = dk*(1+8.*(-ri)/(1+1.746*sri))
+           xkzh(i,k) = dk*(1+8.*(-ri)/(1+1.286*sri))
+         else
+! stable regime
+           xkzh(i,k) = dk/(1+5.*ri)**2
+           !prnum = 1.0+2.1*ri ! set to 1 above PBL in EDMF
+           !prnum = min(prnum,prmax)
+           xkzm(i,k) = xkzh(i,k)
+         endif
+!
+         xkzm(i,k) = max(xkzm(i,k),xkzom(i,k))
+         xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
+         xkzm(i,k) = min(xkzm(i,k),xkzmax)
+         xkzh(i,k) = min(xkzh(i,k),xkzmax)
+         xkzml(i,k) = xkzm(i,k)
+         xkzhl(i,k) = xkzh(i,k)
+!!!! DEBUG CODE
+!   if (lprnt) then
+!      if (i == im/2) then
+!         write(mpp_pe()+1000,'(I, 5(2x, G))') k, ri, rlam, rl2, xkzh(i,k), prnum
+!      endif
+!      !write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i)
+!      !do k=1,km-1
+!      !   write(mpp_pe()+1000,*) k, ttnp(i,k), xkzh(i,k), qtnp(i,k), &
+!      !        pi2d(i,k), qx(i,k), entfac(i,k)
+!      !enddo
+!   endif
+!!! END DEBUG CODE
+       endif
+     enddo
+   enddo
+#endif
+!!! DEBUG CODE
+!   if (lprnt) then
+!      write(mpp_pe()+1000,*) 
+!      !write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i)
+!      !do k=1,km-1
+!      !   write(mpp_pe()+1000,*) k, ttnp(i,k), xkzh(i,k), qtnp(i,k), &
+!      !        pi2d(i,k), qx(i,k), entfac(i,k)
+!      !enddo
+!   endif
+!!! END DEBUG CODE
 !
 !     compute tridiagonal matrix elements for heat
 !
@@ -960,10 +1055,18 @@
    do k = kte,kts,-1
      do i = its,ite
        ttend = (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
-       ttnp(i,k) = ttnp(i,k)+ttend
+       ttnp(i,k) = ttnp(i,k)+ttend 
        dtsfc(i) = dtsfc(i)+ttend*cont*del(i,k)/pi2d(i,k)
      enddo
    enddo
+
+   if (present(dkt)) then
+      do k=kts,kte-1
+      do i=its,ite
+         dkt(i,k) = xkzh(i,k)
+      enddo
+      enddo
+   endif
 !
 !     compute tridiagonal matrix elements for moisture, clouds, and gases
 !
@@ -1233,15 +1336,6 @@
    do i = its,ite
      kpbl1d(i) = kpbl(i)
    enddo
-
-   if (present(dkt)) then
-      do k=kts,kte-1
-      do i=its,ite
-         dkt(i,k) = xkzm(i,k)
-      enddo
-      enddo
-   endif
-
 !
 !
    end subroutine ysupbl

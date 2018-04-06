@@ -99,7 +99,6 @@
       use funcphys , only : fpvs
       use physcons, grav => con_g, rd => con_rd, cp => con_cp
      &,             hvap => con_hvap, fv => con_fvirt
-      use mpp_mod, only: mpp_pe
       implicit none
 !
 !     arguments
@@ -804,11 +803,6 @@ c
 !!  l=\frac{l_0kz}{l_0+kz}
 !!  \f]
 !!  where \f$l_0\f$ is currently 30 m for stable conditions and 150 m for unstable. Finally, the diffusion coefficients are kept in a range bounded by the background diffusion and the maximum allowable values.
-      if (lprnt) then
-         i = im/2
-         write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i),
-     $        ublflg(i), pcnvflg(i)
-      endif
       do k = 1, km1
          do i=1,im
             if(k >= kpbl(i)) then
@@ -847,35 +841,11 @@ c
                dkt(i,k) = min(dkt(i,k),dkmax)
                dkt(i,k) = max(dkt(i,k),xkzo(i,k))
 !
-!!!   DEBUG CODE
-               if (lprnt) then
-                  if (i == im/2) then
-                     write(mpp_pe()+1000,'(I, 5(2x, G))')
-     $                    k, ri, rlamun, rl2*rl2,
-     $                    dkt(i,k), prnum
-                  endif
-               endif
-      !write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i)
-      !do k=1,km-1
-      !   write(mpp_pe()+1000,*) k, ttnp(i,k), xkzh(i,k), qtnp(i,k), &
-      !        pi2d(i,k), qx(i,k), entfac(i,k)
-      !enddo
             endif
-!!! END DEBUG CODE
 !
          enddo
       enddo
 !
-!!! DEBUG CODE
-      if (lprnt) then
-         write(mpp_pe()+1000,*) 
-!write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i)
-!do k=1,km-1
-!   write(mpp_pe()+1000,*) k, ttnp(i,k), xkzh(i,k), qtnp(i,k), &
-!        pi2d(i,k), qx(i,k), entfac(i,k)
-!enddo
-      endif
-!!! END DEBUG CODE
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !  compute components for mass flux mixing by large thermals
@@ -1096,16 +1066,6 @@ c
           enddo
         enddo
       endif
-c$$$!!! DEBUG CODE
-c$$$      if (lprnt) then
-c$$$         i = im/2
-c$$$         write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pcnvflg(i), ublflg(i)
-c$$$         do k=1,km1
-c$$$            write(mpp_pe()+1000,*) k, tau(i,k), dkT(i,k), rtg(i,k,1),
-c$$$     $           prslk(i,k), q1(i,k,1)
-c$$$         enddo
-c$$$      endif
-c$$$!!! END DEBUG CODE
 !
 !   compute tke dissipation rate
 !

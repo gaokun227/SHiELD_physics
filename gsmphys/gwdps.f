@@ -184,7 +184,7 @@
      &               PRSI,DEL,PRSL,PRSLK,PHII, PHIL,DELTIM,KDT,         &
      &               HPRIME,OC,OA4,CLX4,THETA,SIGMA,GAMMA,ELVMAX,       &
      &               DUSFC,DVSFC,G, CP, RD, RV, IMX,                    &
-     &               nmtvr, cdmbgwd, me, lprnt, ipr)
+     &               nmtvr, cdmbgwd, me, lprnt, ipr, p_crit)
 !
 !   ********************************************************************
 ! ----->  I M P L E M E N T A T I O N    V E R S I O N   <----------
@@ -281,7 +281,7 @@
       implicit none
       integer im, iy, ix, km, imx, kdt, ipr, me
       integer KPBL(IM)                 ! Index for the PBL top layer!
-      real(kind=kind_phys) deltim, G, CP, RD, RV,      cdmbgwd(2)
+      real(kind=kind_phys) deltim, G, CP, RD, RV,  cdmbgwd(2), p_crit
       real(kind=kind_phys) A(IY,KM),    B(IY,KM),      C(IY,KM),        &
      &                     U1(IX,KM),   V1(IX,KM),     T1(IX,KM),       &
      &                     Q1(IX,KM),   PRSI(IX,KM+1), DEL(IX,KM),      &
@@ -306,6 +306,7 @@
       PARAMETER (DW2MIN=1., RIMIN=-100., RIC=0.25, BNV2MIN=1.0E-5)
 !     PARAMETER (EFMIN=0.0, EFMAX=10.0, hpmax=200.0)
       PARAMETER (EFMIN=0.0, EFMAX=10.0, hpmax=2400.0, hpmin=1.0)
+!      PARAMETER (P_CRIT=30.E2)
 !
       real(kind=kind_phys) FRC,    CE,     CEOFRC, frmax, CG, GMAX
      &,                    VELEPS, FACTOP, RLOLEV, RDI
@@ -656,8 +657,11 @@
 !! where \f$\psi\f$, which is derived from THETA, is the angle between 
 !! the incident flow direction and the normal ridge direcion. 
 !! \f$\gamma\f$ is the orographic anisotropy (GAMMA).
-                R = (cos(ANG(I,K))**2 + GAMMA(J) * sin(ANG(I,K))**2) / 
-     &              (gamma(J) * cos(ANG(I,K))**2 + sin(ANG(I,K))**2)
+                R = cos(ANG(I,K))**2 + GAMMA(J) * sin(ANG(I,K))**2
+                if (abs(R) .lt. 1.E-20) then
+                DB(I,K) = 0.0
+                else
+                R = (gamma(J) * cos(ANG(I,K))**2 + sin(ANG(I,K))**2) / R
 ! --- (negitive of DB -- see sign at tendency)
 !> - In each model layer below the dividing streamlines, a drag from 
 !! the blocked flow is exerted by the obstacle on the large scale flow.
@@ -670,10 +674,11 @@
 !! orographic slope. 
 
                 DBTMP = 0.25 *  CDmb *
-     &                  MAX( 2. - 1. / R, 0. ) * sigma(J) *
+     &                  MAX( 2. - R, 0. ) * sigma(J) *
      &                  MAX(cos(ANG(I,K)), gamma(J)*sin(ANG(I,K))) *
      &                  ZLEN / hprime(J) 
                 DB(I,K) =  DBTMP * UDS(I,K)    
+                endif
 !
 !               if(lprnt .and. i .eq. npr) then 
 !                 print *,' in gwdps_lmi.f 10 npt=',npt,i,j,idxzb(i)
@@ -1108,6 +1113,24 @@
             ENDDO
          ENDDO
       ENDIF
+! SJL: linear decay above p_crit, becoming constant at 1 mb
+! Angular momentum conservation is ensured, except the top leakage
+!----------------------- SJL mod ------------------------------
+      if (p_crit > 1.e-10) then
+      do i = 1,npt
+         j = ipt(i)
+         do k = km/2, km+1
+           if ( prsi(j,k) < p_crit ) then  ! scale it to zero @ top
+              taup(i,k) = taup(i,k) * (prsi(j,k) - prsi(j,km+1)) /
+     &                                (p_crit    - prsi(j,km+1))
+           elseif ( prsi(j,k) < 1.e2) then
+              taup(i,k) = taup(i,k-1)  ! constant stress-> zero Drag
+           endif
+         enddo
+      enddo
+      endif
+!----------------------- SJL mod ------------------------------
+
 !
 !     Calculate - (g/p*)*d(tau)/d(sigma) and Decel terms DTAUX, DTAUY
 !
@@ -1120,11 +1143,13 @@
 !------LIMIT DE-ACCELERATION (MOMENTUM DEPOSITION ) AT TOP TO 1/2 VALUE
 !------THE IDEA IS SOME STUFF MUST GO OUT THE 'TOP'
 !
+      if (p_crit <= 1.e-10) then
       DO KLCAP = LCAP, KM
          DO I = 1,npt
             TAUD(I,KLCAP) = TAUD(I,KLCAP) * FACTOP
          ENDDO
       ENDDO
+      endif
 !
 !------IF THE GRAVITY WAVE DRAG WOULD FORCE A CRITICAL LINE IN THE
 !------LAYERS BELOW SIGMA=RLOLEV DURING THE NEXT DELTIM TIMESTEP,
@@ -1166,8 +1191,8 @@
 !          if ( ABS(DBIM * U1(J,K)) .gt. .01 ) 
 !    & print *,' in gwdps_lmi.f KDT=',KDT,I,K,DB(I,K),
 !    &                      dbim,idxzb(I),U1(J,K),V1(J,K),me
-            DUSFC(J)   = DUSFC(J) - DBIM * V1(J,K) * DEL(J,K)
-            DVSFC(J)   = DVSFC(J) - DBIM * U1(J,K) * DEL(J,K)
+            DUSFC(J)   = DUSFC(J) - DBIM * U1(J,K) * DEL(J,K)
+            DVSFC(J)   = DVSFC(J) - DBIM * V1(J,K) * DEL(J,K)
           else
 !
             A(J,K)     = DTAUY     + A(J,K)

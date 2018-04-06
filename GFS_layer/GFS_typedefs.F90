@@ -506,6 +506,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ccwf(2)         !< multiplication factor for critical cloud
                                             !< workfunction for RAS
     real(kind=kind_phys) :: cdmbgwd(2)      !< multiplication factors for cdmb and gwd
+    real(kind=kind_phys) :: gwd_p_crit      !< Optional level above which GWD stress decays with height
     real(kind=kind_phys) :: sup             !< supersaturation in pdf cloud when t is very low
     real(kind=kind_phys) :: ctei_rm(2)      !< critical cloud top entrainment instability criteria 
                                             !< (used if mstrat=.true.)
@@ -1546,6 +1547,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ccwf(2)        = (/1.0d0,1.0d0/)          !< multiplication factor for critical cloud
                                                                       !< workfunction for RAS
     real(kind=kind_phys) :: cdmbgwd(2)     = (/2.0d0,0.25d0/)         !< multiplication factors for cdmb and gwd
+    real(kind=kind_phys) :: gwd_p_crit     = 0.                       !< Optional level above which GWD stress decays with height
     real(kind=kind_phys) :: sup            = 1.1                      !< supersaturation in pdf cloud when t is very low
     real(kind=kind_phys) :: ctei_rm(2)     = (/10.0d0,10.0d0/)        !< critical cloud top entrainment instability criteria 
                                                                       !< (used if mstrat=.true.)
@@ -1644,7 +1646,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,              &
+                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1836,6 +1838,7 @@ module GFS_typedefs
     Model%cgwf             = cgwf
     Model%ccwf             = ccwf
     Model%cdmbgwd          = cdmbgwd
+    Model%gwd_p_crit       = gwd_p_crit
     Model%sup              = sup
     Model%ctei_rm          = ctei_rm
     Model%crtrh            = crtrh
@@ -2312,6 +2315,7 @@ module GFS_typedefs
       print *, ' cgwf              : ', Model%cgwf
       print *, ' ccwf              : ', Model%ccwf
       print *, ' cdmbgwd           : ', Model%cdmbgwd
+      print *, ' gwd_p_crit        : ', Model%gwd_p_crit
       print *, ' sup               : ', Model%sup
       print *, ' ctei_rm           : ', Model%ctei_rm
       print *, ' crtrh             : ', Model%crtrh

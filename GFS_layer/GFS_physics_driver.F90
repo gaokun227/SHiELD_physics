@@ -1763,7 +1763,8 @@ module module_physics_driver
                  Sfcprop%hprime(1,1), oc, oa4, clx, theta,  &
                  sigma, gamma, elvmax, dusfcg, dvsfcg,      &
                  con_g, con_cp, con_rd, con_rv, Model%lonr, &
-                 Model%nmtvr, Model%cdmbgwd, me, lprnt,ipr)
+                 Model%nmtvr, Model%cdmbgwd, me, lprnt,ipr, &
+                 Model%gwd_p_crit )
 
 !     if (lprnt)  print *,' dudtg=',dudt(ipr,:)
 

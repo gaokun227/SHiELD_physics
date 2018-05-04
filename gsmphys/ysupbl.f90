@@ -9,7 +9,7 @@
                   islmsk,heat,evap,wspd,br,                                    & 
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
-                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dspheat,dkt)
+                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dspheat,ent_fac,dkt)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
 !   use mpp_mod, only: mpp_pe
@@ -104,7 +104,7 @@
    integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw
 !
    real(kind=kind_phys),intent(in   ) :: dt
-   real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv
+   real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac
 !
    real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & !! Statein%ugrs (ix,km)
                         intent(in   ) ::                            ux, & !! 
@@ -135,9 +135,8 @@
                         intent(in   ) ::                           ust, & !! Sfcprop%zorl
                                                                   z0rl, &
                                                                    xmu
-   real(kind=kind_phys),dimension(   1:im  )                          , & !! islmsk (local:xland)
-                        intent(in   ) ::                        islmsk, & !!
-                                                                  heat, &
+   real(kind=kind_phys),dimension(   1:im  )                          , & 
+                        intent(in   ) ::                          heat, &
                                                                   evap
    real(kind=kind_phys),dimension(   1:im  )                          , & !! rb
                         intent(in   ) ::                            br, & !! Sfcprop%ffmm
@@ -151,7 +150,7 @@
                                                            dusfc,dvsfc, & !! dtsfc1, dqsfc1
                                                            dtsfc,dqsfc
 !
-   integer,dimension(   1:im  ),intent(in   ) ::                kinver
+   integer,dimension(   1:im  ),intent(in   ) ::                kinver, islmsk !(local:xland)
    integer,dimension(   1:im  ),intent(out  ) ::                kpbl1d
    logical,intent(in   ) ::                                    dspheat
 !
@@ -708,7 +707,8 @@
        k = kpbl(i) - 1
        wm3       = wstar3(i) + 5. * ust3(i)
        wm2(i)    = wm3**h2
-       bfxpbl(i) = -0.15*thvx(i,1)/g*wm3/hpbl(i)
+       bfxpbl(i) = -ent_fac*thvx(i,1)/g*wm3/hpbl(i)
+!       bfxpbl(i) = -0.15*thvx(i,1)/g*wm3/hpbl(i)
        dthvx(i)  = max(thvx(i,k+1)-thvx(i,k),tmin)
        we(i) = max(bfxpbl(i)/dthvx(i),-sqrt(wm2(i)))
        if((qxci(i,k,1)+qxci(i,k,2)).gt.0.01e-3.and.ysu_topdown_pblmix.eq.1)then
@@ -741,7 +741,8 @@
                 bfx0 = max(sflux(i),0.0)
                 wm3 = (govrth(i)*bfx0*hpbl(i))+5. * ust3(i)
                 wm2(i)    = wm3**h2
-                bfxpbl(i) = -0.15*thvx(i,1)/g*wm3/hpbl(i)
+                bfxpbl(i) = -ent_fac*thvx(i,1)/g*wm3/hpbl(i)
+!                bfxpbl(i) = -0.15*thvx(i,1)/g*wm3/hpbl(i)
                 dthvx(i)  = max(thvx(i,k+1)-thvx(i,k),tmin)
                 we(i) = max(bfxpbl(i)/dthvx(i),-sqrt(wm2(i)))
 

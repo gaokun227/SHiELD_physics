@@ -1416,7 +1416,7 @@ module module_physics_driver
                       dtp, kpbl, Diag%u10m, Diag%v10m,                          &
                       kinver,                                                   &
                       Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
-                      Model%dspheat, dkt)
+                      Model%dspheat, Model%ysu_ent_fac, dkt)
        elseif ( Model%myj_pbl) then
           
           do i=1,im

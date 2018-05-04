@@ -481,6 +481,12 @@ module GFS_typedefs
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: dspheat         !< flag for tke dissipative heating
+    real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
+    real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
+    real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
+    real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
+    real(kind=kind_phys) :: ysu_ent_fac     !< Entrainment factor in YSU scheme
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -558,9 +564,6 @@ module GFS_typedefs
     !--- near surface temperature model
     logical              :: nst_anl         !< flag for NSSTM analysis in gcycle/sfcsub
     integer              :: lsea           
-    real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
-    real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     integer              :: nstf_name(5)    !< flag 0 for no nst  1 for uncoupled nst  and 2 for coupled NST
                                             !< nstf_name contains the NSST related parameters
                                             !< nstf_name(1) : 0 = NSSTM off, 1 = NSSTM on but uncoupled, 2 =
@@ -568,8 +571,6 @@ module GFS_typedefs
                                             !< nstf_name(3) : 1 = NSST analysis on, 0 = NSSTM analysis off
                                             !< nstf_name(4) : zsea1 in mm
                                             !< nstf_name(5) : zsea2 in mm
-    real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
-    real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
      
     !--- stochastic physics control parameters
     logical              :: do_sppt
@@ -1523,6 +1524,12 @@ module GFS_typedefs
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
+    real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
+    real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
+    real(kind=kind_phys) :: xkzminv        = 0.3                      !< diffusivity in inversion layers
+    real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
+    real(kind=kind_phys) :: ysu_ent_fac    = 0.15                     !< Entrainment factor in YSU scheme
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1597,9 +1604,6 @@ module GFS_typedefs
     !--- near surface temperature model
     logical              :: nst_anl        = .false.         !< flag for NSSTM analysis in gcycle/sfcsub
     integer              :: lsea           = 0 
-    real(kind=kind_phys) :: xkzm_m         = 1.0d0           !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h         = 1.0d0           !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
-    real(kind=kind_phys) :: xkzm_s         = 1.0d0           !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     integer              :: nstf_name(5)   = (/0,0,1,0,5/)   !< flag 0 for no nst  1 for uncoupled nst  and 2 for coupled NST
                                                              !< nstf_name contains the NSSTM related parameters
                                                              !< nstf_name(1) : 0 = NSSTM off, 1 = NSSTM on but uncoupled
@@ -1608,8 +1612,6 @@ module GFS_typedefs
                                                              !< nstf_name(3) : 1 = NSSTM analysis on, 0 = NSSTM analysis off
                                                              !< nstf_name(4) : zsea1 in mm
                                                              !< nstf_name(5) : zsea2 in mm
-    real(kind=kind_phys) :: xkzminv        = 0.3             !< diffusivity in inversion layers
-    real(kind=kind_phys) :: moninq_fac     = 1.0             !< turbulence diffusion coefficient factor
      
     !--- stochastic physics options
     real(kind=kind_phys) :: sppt(5)        = -999.           !< stochastic physics tendency amplitude
@@ -1644,6 +1646,7 @@ module GFS_typedefs
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
+                               xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1656,8 +1659,7 @@ module GFS_typedefs
                           !--- mass flux shallow convection
                                clam_shal, c0s_shal, c1_shal, pgcon_shal, asolfac_shal,      &
                           !--- near surface temperature model
-                               nst_anl, lsea, xkzm_m, xkzm_h, xkzm_s, nstf_name,            &
-                               xkzminv, moninq_fac,                                         &
+                               nst_anl, lsea, nstf_name,                                    &
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
@@ -1823,6 +1825,12 @@ module GFS_typedefs
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl 
     Model%dspheat          = dspheat
+    Model%xkzm_m           = xkzm_m
+    Model%xkzm_h           = xkzm_h
+    Model%xkzm_s           = xkzm_s
+    Model%xkzminv          = xkzminv
+    Model%moninq_fac       = moninq_fac
+    Model%ysu_ent_fac      = ysu_ent_fac
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -1871,12 +1879,7 @@ module GFS_typedefs
     !--- near surface temperature model
     Model%nst_anl          = nst_anl
     Model%lsea             = lsea
-    Model%xkzm_m           = xkzm_m
-    Model%xkzm_h           = xkzm_h
-    Model%xkzm_s           = xkzm_s
     Model%nstf_name        = nstf_name
-    Model%xkzminv          = xkzminv
-    Model%moninq_fac       = moninq_fac
 
     !--- stochastic physics options
     Model%sppt             = sppt
@@ -2301,6 +2304,12 @@ module GFS_typedefs
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl 
       print *, ' dspheat           : ', Model%dspheat
+      print *, ' xkzm_m            : ', Model%xkzm_m
+      print *, ' xkzm_h            : ', Model%xkzm_h
+      print *, ' xkzm_s            : ', Model%xkzm_s
+      print *, ' xkzminv           : ', Model%xkzminv
+      print *, ' moninq_fac        : ', Model%moninq_fac
+      print *, ' ysu_ent_fac       : ', Model%ysu_ent_fac
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds
@@ -2348,12 +2357,7 @@ module GFS_typedefs
       print *, 'near surface temperature model'
       print *, ' nst_anl           : ', Model%nst_anl
       print *, ' lsea              : ', Model%lsea
-      print *, ' xkzm_m            : ', Model%xkzm_m
-      print *, ' xkzm_h            : ', Model%xkzm_h
-      print *, ' xkzm_s            : ', Model%xkzm_s
       print *, ' nstf_name         : ', Model%nstf_name
-      print *, ' xkzminv           : ', Model%xkzminv
-      print *, ' moninq_fac        : ', Model%moninq_fac
       print *, ' '
       print *, 'stochastic physics'
       print *, ' do_sppt           : ', Model%do_sppt

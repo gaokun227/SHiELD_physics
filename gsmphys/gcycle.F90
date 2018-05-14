@@ -26,6 +26,7 @@
         TSFFCS (Model%nx*Model%ny),             &
         TSCLIM (Model%nx*Model%ny),             & 
         MLDCLIM (Model%nx*Model%ny),            & 
+        QFLUXADJ(Model%nx*Model%ny),            &
         SNOFCS (Model%nx*Model%ny),             &
         ZORFCS (Model%nx*Model%ny),             &
         TG3FCS (Model%nx*Model%ny),             &
@@ -74,7 +75,7 @@
           OROG    (len)          = Sfcprop(nb)%oro    (ix)
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
-          if (Model%do_som) then
+          if (Model%do_ocean) then
            if (Model%kdt == 1) then
             TSFFCS  (len)        = Sfcprop(nb)%tsfc   (ix)
            else
@@ -155,7 +156,7 @@
                      OROG, OROG_UF, Model%USE_UFO, Model%nst_anl, &
                      SIHFCS, SICFCS, SITFCS, SWDFCS, SLCFC1,      &
                      VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS, TSCLIM,      &
-                     SNOFCS, ZORFCS, ALBFC1, MLDCLIM, TG3FCS, CNPFCS,      &
+                     SNOFCS, ZORFCS, ALBFC1, MLDCLIM, QFLUXADJ, TG3FCS, CNPFCS,      &
                      SMCFC1, STCFC1, SLIFCS, AISFCS, F10MFCS,     &
                      VEGFCS, VETFCS, SOTFCS, ALFFC1, CVFCS,       &
                      CVBFCS, CVTFCS, Model%me, Model%nlunit,      &
@@ -173,9 +174,10 @@
           Sfcprop(nb)%slmsk  (ix) = SLIFCS  (len)
 !
           Sfcprop(nb)%ts_clim_iano  (ix) = TSFFCS  (len) 
-          if (Model%do_som) then
+          if (Model%do_ocean) then
            Sfcprop(nb)%tsclim (ix)  = TSCLIM  (len)
            Sfcprop(nb)%mldclim (ix) = MLDCLIM  (len)
+           Sfcprop(nb)%qfluxadj (ix)= QFLUXADJ  (len)
           else
            Sfcprop(nb)%tsfc    (ix) = TSFFCS  (len) 
           endif

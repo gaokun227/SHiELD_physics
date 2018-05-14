@@ -38,6 +38,9 @@ module FV3GFS_io_mod
 !--- IPD typdefs
   use IPD_typedefs,       only: IPD_control_type, IPD_data_type, &
                                 IPD_restart_type
+!--- GFS physics constants
+  use physcons,           only: pi => con_pi, RADIUS => con_rerth
+!
 !--- needed for dq3dt output
   use ozne_def,           only: oz_coeff
 !
@@ -2595,6 +2598,17 @@ module FV3GFS_io_mod
 
     idx = idx + 1
     Diag(idx)%axes = 2
+    Diag(idx)%name = 'qsfc'
+    Diag(idx)%desc = 'surface specific humidity [kg/kg]'
+    Diag(idx)%unit = 'kg/kg'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Sfcprop(nb)%qsfc(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
     Diag(idx)%name = 'tg3'
     Diag(idx)%desc = 'deep soil temperature'
     Diag(idx)%unit = 'XXX'
@@ -2821,17 +2835,6 @@ module FV3GFS_io_mod
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'qflux_adj'
-    Diag(idx)%desc = 'adjusted flux'
-    Diag(idx)%unit = 'W/m**2'
-    Diag(idx)%mod_name = 'gfs_phys'
-    allocate (Diag(idx)%data(nblks))
-    do nb = 1,nblks
-      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%qflux_adj(:)
-    enddo
-
-    idx = idx + 1
-    Diag(idx)%axes = 2
     Diag(idx)%name = 'tclim_iano'
     Diag(idx)%desc = 'climatological SST plus initial anomaly'
     Diag(idx)%unit = 'degree C'
@@ -2839,6 +2842,19 @@ module FV3GFS_io_mod
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%tclim_iano(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'MLD'
+    Diag(idx)%desc = 'ocean mixed layer depth'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_one
+    Diag(idx)%time_avg = .TRUE.
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%mld(:)
     enddo
 
     tot_diag_idx = idx

@@ -17,7 +17,7 @@ module module_physics_driver
                                    GFS_radtend_type, GFS_diag_type
   use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
   use funcphys,              only: ftdp
-  use module_som,            only: update_som 
+  use module_ocean,          only: update_ocean
   use myj_pbl_mod,           only: myj_pbl
   use myj_jsfc_mod,          only: myj_jsfc
   use wv_saturation,         only: estblf
@@ -1243,6 +1243,7 @@ module module_physics_driver
       Diag%q1(:)      = Statein%qgrs(:,1,1)
       Diag%u1(:)      = Statein%ugrs(:,1)
       Diag%v1(:)      = Statein%vgrs(:,1)
+      Sfcprop%qsfc(:) = qss(:)
 
 !  --- ...  update near surface fields
 
@@ -1618,11 +1619,10 @@ module module_physics_driver
         Coupling%dqsfci_cpl(:) = dqsfc1(:)
       endif
 
-!  use for slab ocean model (SOM)
+!  use for slab/mixed layer ocean model 
         netswsfc = 0.
         netflxsfc = 0.
         qflux_restore = 0.
-        qflux_adj = 0.
         do i = 1, im
          if (islmsk(i) == 0 ) then
 !  ---  compute open water albedo
@@ -1634,27 +1634,34 @@ module module_physics_driver
           ocalvisdf_cpl(i) = 0.06
           ocalvisbm_cpl(i) = ocalnirbm_cpl(i)
 !
-          netswsfc (i) = adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i) +   &
-                         adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i) +   &
-                         adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i) +   &
-                         adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
-
-          netflxsfc (i) = netswsfc(i)                                +   &
+!          netswsfc (i) = adjnirbmd(i)-adjnirbmd(i)*ocalnirbm_cpl(i) +   &
+!                         adjnirdfd(i)-adjnirdfd(i)*ocalnirdf_cpl(i) +   &
+!                         adjvisbmd(i)-adjvisbmd(i)*ocalvisbm_cpl(i) +   &
+!                         adjvisdfd(i)-adjvisdfd(i)*ocalvisdf_cpl(i)
+          netswsfc  (i) = adjsfcnsw(i)
+          netflxsfc (i) = netswsfc(i)                                +   & !net shortwave
                           adjsfcdlw(i)-adjsfculw(i)                  +   & !net longwave
                           dtsfc1(i) * (-1.)                          +   & !sensible heat flux
                           dqsfc1(i) * (-1.)                                !latent heat flux
          endif
         enddo
-        if (Model%do_som) then
-         call update_som (im, dtf, Grid, islmsk, netflxsfc, qflux_restore, qflux_adj,  &
-                          Sfcprop%mldclim, Sfcprop%tsclim, Sfcprop%ts_clim_iano, Sfcprop%tsfc)
+        if (Model%do_ocean) then
+           call update_ocean (im, dtp, Grid, islmsk, kdt, Model%kdt_prev, netflxsfc, dusfc1*(-1.), dvsfc1*(-1.),  &
+                           Sfcprop%tprcp, Statein%tgrs(:,1), qflux_restore, Sfcprop%qfluxadj,                     &
+                           Sfcprop%mldclim, Sfcprop%tsclim,Sfcprop%ts_clim_iano, Statein%sst, Sfcprop%ts_som,     &
+                           Sfcprop%tsfc, Sfcprop%tml, Sfcprop%tml0, Sfcprop%mld, Sfcprop%mld0,                    &
+                           Sfcprop%huml, Sfcprop%hvml, Sfcprop%tmoml, Sfcprop%tmoml0)
         endif
-         Diag%netflxsfc(:) = netflxsfc(:)
-         Diag%qflux_restore(:) = qflux_restore(:)
-!         Diag%qflux_adj(:) = Sfcprop%tsclim(:)
-!         Diag%qflux_adj(:) = Sfcprop%mldclim(:)
-         Diag%tclim_iano(:) = Sfcprop%ts_clim_iano(:)
-
+         Diag%netflxsfc    (:) = Diag%netflxsfc(:) + netflxsfc(:)*dtf
+         Diag%qflux_restore(:) = Diag%qflux_restore(:) + qflux_restore(:)*dtf
+         Diag%tclim_iano   (:) = Diag%tclim_iano(:) + Sfcprop%ts_clim_iano(:)*dtf
+         Diag%MLD          (:) = Diag%MLD(:) + Sfcprop%mld(:)*dtf
+!
+        if (Model%use_ec_sst) then
+         do i = 1, im 
+          if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
+         enddo
+        endif 
 !-------------------------------------------------------lssav if loop ----------
       if (Model%lssav) then
         Diag%dusfc (:) = Diag%dusfc(:) + dusfc1(:)*dtf
@@ -1682,9 +1689,11 @@ module module_physics_driver
             enddo
           endif
           Diag%du3dt(:,:,1) = Diag%du3dt(:,:,1) + dudt(:,:) * dtf
-          Diag%du3dt(:,:,2) = Diag%du3dt(:,:,2) - dudt(:,:) * dtf
           Diag%dv3dt(:,:,1) = Diag%dv3dt(:,:,1) + dvdt(:,:) * dtf
-          Diag%dv3dt(:,:,2) = Diag%dv3dt(:,:,2) - dvdt(:,:) * dtf
+          if (Model%orogwd) then         !        call orographic gravity wave drag
+            Diag%du3dt(:,:,2) = Diag%du3dt(:,:,2) - dudt(:,:) * dtf
+            Diag%dv3dt(:,:,2) = Diag%dv3dt(:,:,2) - dvdt(:,:) * dtf
+          endif
 ! update dqdt_v to include moisture tendency due to vertical diffusion
 !         if (lgocart) then
 !           do k = 1, levs
@@ -1710,6 +1719,7 @@ module module_physics_driver
 
       endif   ! end if_lssav
 !-------------------------------------------------------lssav if loop ----------
+      if (Model%orogwd) then         !        call orographic gravity wave drag
 !
 !            Orographic gravity wave drag parameterization
 !            ---------------------------------------------
@@ -1781,6 +1791,8 @@ module module_physics_driver
           Diag%dt3dt(:,:,2) = Diag%dt3dt(:,:,2) + dtdt(:,:) * dtf
         endif
       endif
+
+      endif   ! end if_orogwd (orographic gravity wave drag)
 
 !    Rayleigh damping  near the model top
       if( .not. Model%lsidea .and. Model%ral_ts > 0.0) then

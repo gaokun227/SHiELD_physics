@@ -48,7 +48,7 @@ module physics_restart_layer
     nblks = size(Init_parm%blksz)
     max_rstrt = size(IPD_Restart%name2d)
 
-    IPD_Restart%num2d = 3 + Model%ntot2d + Model%nctp
+    IPD_Restart%num2d = 3 + 2 + Model%ntot2d + Model%nctp
     IPD_Restart%num3d = Model%ntot3d
 
     allocate (IPD_Restart%name2d(IPD_Restart%num2d))
@@ -68,8 +68,20 @@ module physics_restart_layer
       IPD_Restart%data(nb,3)%var2p => Cldprop(nb)%cvb(:)
     enddo
 
-    !--- phy_f2d variables
     offset = 3
+    IPD_Restart%name2d(1+offset) = 'ts_som'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%ts_som(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'ts_clim_iano'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%ts_clim_iano(:)
+    enddo
+
+    !--- phy_f2d variables
+    offset = offset + 1
     do num = 1,Model%ntot2d
        !--- set the variable name
       write(c2,'(i2.2)') num

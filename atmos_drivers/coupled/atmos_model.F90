@@ -88,6 +88,7 @@ use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_IPD_checksum,                       &
                               gfdl_diag_register, gfdl_diag_output
+use module_ocean,       only: ocean_init
 !-----------------------------------------------------------------------
 
 implicit none
@@ -136,7 +137,7 @@ logical :: dycore_only     = .false.
 logical :: debug           = .false.
 logical :: sync            = .false.
 logical :: first_time_step = .true.
-real, dimension(2048) :: fdiag = 0.
+real, dimension(4096) :: fdiag = 0. ! xic: TODO: this is hard coded, space can run out in some cases. Should make it allocatable.
 namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag
 type (time_type) :: diag_time
 
@@ -289,7 +290,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   type (time_type), intent(in) :: Time_init, Time, Time_step
 !--- local variables ---
   integer :: unit, ntdiag, ntfamily, i, j, k
-  integer :: mlon, mlat, nlon, nlat, nlev, sec, dt
+  integer :: mlon, mlat, nlon, nlat, nlev, sec, dt, sec_prev
   integer :: ierr, io, logunit
   integer :: idx
   integer :: isc, iec, jsc, jec
@@ -305,6 +306,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   type(IPD_init_type) :: Init_parm
   integer :: bdat(8), cdat(8)
   integer :: ntracers
+  integer :: kdt_prev
   character(len=32), allocatable, target :: tracer_names(:)
 !-----------------------------------------------------------------------
 
@@ -314,7 +316,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Atmos % Time      = Time
    Atmos % Time_step = Time_step
    call get_time (Atmos % Time_step, sec)
+   call get_time (Atmos%Time - Atmos%Time_init, sec_prev)
    dt_phys = real(sec)      ! integer seconds
+   kdt_prev = int(sec_prev / dt_phys)
 
    logunit = stdlog()
 
@@ -411,6 +415,15 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 #endif
 
    call IPD_initialize (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart, Init_parm)
+
+   IPD_Control%kdt_prev = kdt_prev
+
+!--- initialize slab ocean model or mixed layer ocean model
+#ifdef INTERNAL_FILE_NML
+   if (IPD_Control%do_ocean) call ocean_init (IPD_Control, Init_parm%logunit, input_nml_file)
+#else
+   if (IPD_Control%do_ocean) call ocean_init (IPD_Control, Init_parm%logunit)
+#endif
 
    Init_parm%blksz           => null()
    Init_parm%ak              => null()

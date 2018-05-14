@@ -116,6 +116,9 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: pres (:)     => null()  !< snow
     real (kind=kind_phys), pointer :: preg (:)     => null()  !< graupel
 
+    !--- sea surface temperature
+    real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
+
     contains
       procedure :: create  => statein_create  !<   allocate array data
   end type GFS_statein_type
@@ -148,10 +151,22 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: slmsk  (:)   => null()  !< sea/land mask array (sea:0,land:1,sea-ice:2)
     real (kind=kind_phys), pointer :: tsfc   (:)   => null()  !< surface temperature in k 
                                                               !< [tsea in gbphys.f]
+    real (kind=kind_phys), pointer :: qsfc   (:)   => null()  !< surface specific humidity in kg/kg
 !
-    real (kind=kind_phys), pointer :: tsclim   (:)   => null()  !< climatological SST in k 
-    real (kind=kind_phys), pointer :: mldclim   (:)   => null()  !< climatological SST in k 
-    real (kind=kind_phys), pointer :: ts_clim_iano   (:)   => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: tsclim   (:)    => null()  !< climatological SST in k 
+    real (kind=kind_phys), pointer :: mldclim  (:)    => null()  !< climatological ocean mixed layer depth in m
+    real (kind=kind_phys), pointer :: qfluxadj (:)    => null()  !< climatological qflux used for SOM
+    real (kind=kind_phys), pointer :: ts_som   (:)    => null()  !< predicted SST in SOM or MLM
+    real (kind=kind_phys), pointer :: ts_clim_iano  (:)   => null()  !< climatological SST plus initial anomaly with decay
+
+    real (kind=kind_phys), pointer :: tml    (:)   => null()  !< ocean mixed layer temp
+    real (kind=kind_phys), pointer :: tml0   (:)   => null()  !< ocean mixed layer temp at initial or previous time step
+    real (kind=kind_phys), pointer :: mld    (:)   => null()  !< ocean mixed layer depth (MLD)
+    real (kind=kind_phys), pointer :: mld0   (:)   => null()  !< MLD at initial or previous time step
+    real (kind=kind_phys), pointer :: huml   (:)   => null()  !< ocean zonal current * MLD
+    real (kind=kind_phys), pointer :: hvml   (:)   => null()  !< ocean meridional current *MLD
+    real (kind=kind_phys), pointer :: tmoml  (:)   => null()  !< ocean temp at the above 200 m
+    real (kind=kind_phys), pointer :: tmoml0 (:)   => null()  !< ocean temp at the above 200 m at initial or previous time step
 !
     real (kind=kind_phys), pointer :: tisfc  (:)   => null()  !< surface temperature over ice fraction 
     real (kind=kind_phys), pointer :: snowd  (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
@@ -463,6 +478,7 @@ module GFS_typedefs
                                             !< .true. implies surface at k=1
     logical              :: trans_trac      !< flag for convective transport of tracers (RAS only)
     logical              :: old_monin       !< flag for diff monin schemes
+    logical              :: orogwd          !< flag for orog gravity wave drag
     logical              :: cnvgwd          !< flag for conv gravity wave drag
     logical              :: mstrat          !< flag for moorthi approach for stratus
     logical              :: moist_adj       !< flag for moist convective adjustment
@@ -615,7 +631,8 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug         
     logical              :: pre_rad         !< flag for testing purpose
-    logical              :: do_som          !< flag for slab ocean model 
+    logical              :: do_ocean        !< flag for slab ocean model 
+    logical              :: use_ec_sst      !< flag for using EC SST forcing
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
@@ -633,6 +650,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: fhour           !< curent forecast hour
     real(kind=kind_phys) :: zhour           !< previous hour diagnostic buckets emptied
     integer              :: kdt             !< current forecast iteration
+    integer              :: kdt_prev        !< last step
     integer              :: jdat(1:8)       !< current forecast date and time
                                             !< (yr, mon, day, t-zone, hr, min, sec, mil-sec)
 
@@ -865,8 +883,8 @@ module GFS_typedefs
 !
     real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
     real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !restoring term for diagnosis only
-    real (kind=kind_phys), pointer :: qflux_adj     (:)    => null()   !Q-flux (to be developed)
     real (kind=kind_phys), pointer :: tclim_iano    (:)    => null()   !climatological SST with initial anomaly
+    real (kind=kind_phys), pointer :: MLD           (:)    => null()   !ocean mixed layer depth 
 !
     ! Output - MYJ diagnostics
     real (kind=kind_phys), pointer :: hmix    (:)    => null()   ! Mixed layer height
@@ -969,6 +987,10 @@ module GFS_typedefs
     Statein%pres = clear_val
     Statein%preg = clear_val
 
+    allocate (Statein%sst(IM))
+
+    Statein%sst = clear_val
+
   end subroutine statein_create
 
 
@@ -1010,9 +1032,20 @@ module GFS_typedefs
     !--- physics and radiation
     allocate (Sfcprop%slmsk  (IM))
     allocate (Sfcprop%tsfc   (IM))
-    allocate (Sfcprop%tsclim   (IM)) 
-    allocate (Sfcprop%mldclim   (IM)) 
-    allocate (Sfcprop%ts_clim_iano  (IM)) 
+    allocate (Sfcprop%qsfc   (IM))
+    allocate (Sfcprop%tsclim (IM))
+    allocate (Sfcprop%mldclim(IM))
+    allocate (Sfcprop%qfluxadj(IM))
+    allocate (Sfcprop%ts_som (IM))
+    allocate (Sfcprop%ts_clim_iano  (IM))
+    allocate (Sfcprop%tml    (IM))
+    allocate (Sfcprop%tml0   (IM))
+    allocate (Sfcprop%mld    (IM))
+    allocate (Sfcprop%mld0   (IM))
+    allocate (Sfcprop%huml   (IM))
+    allocate (Sfcprop%hvml   (IM))
+    allocate (Sfcprop%tmoml  (IM))
+    allocate (Sfcprop%tmoml0 (IM))
     allocate (Sfcprop%tisfc  (IM))
     allocate (Sfcprop%snowd  (IM))
     allocate (Sfcprop%zorl   (IM))
@@ -1022,9 +1055,20 @@ module GFS_typedefs
 
     Sfcprop%slmsk   = clear_val
     Sfcprop%tsfc    = clear_val
-    Sfcprop%tsclim    = clear_val 
-    Sfcprop%mldclim    = clear_val 
-    Sfcprop%ts_clim_iano    = clear_val 
+    Sfcprop%qsfc    = clear_val
+    Sfcprop%tsclim  = clear_val
+    Sfcprop%mldclim = clear_val
+    Sfcprop%qfluxadj= clear_val
+    Sfcprop%ts_som  = clear_val
+    Sfcprop%ts_clim_iano = clear_val
+    Sfcprop%tml     = clear_val
+    Sfcprop%tml0    = clear_val
+    Sfcprop%mld     = clear_val
+    Sfcprop%mld0    = clear_val
+    Sfcprop%huml    = clear_val
+    Sfcprop%hvml    = clear_val
+    Sfcprop%tmoml   = clear_val
+    Sfcprop%tmoml0  = clear_val
     Sfcprop%tisfc   = clear_val
     Sfcprop%snowd   = clear_val
     Sfcprop%zorl    = clear_val
@@ -1507,6 +1551,7 @@ module GFS_typedefs
                                                                       !< .true. implies surface at k=1
     logical              :: trans_trac     = .false.                  !< flag for convective transport of tracers (RAS only)
     logical              :: old_monin      = .false.                  !< flag for diff monin schemes
+    logical              :: orogwd         = .true.                   !< flag for oro gravity wave drag
     logical              :: cnvgwd         = .false.                  !< flag for conv gravity wave drag
     logical              :: mstrat         = .false.                  !< flag for moorthi approach for stratus
     logical              :: moist_adj      = .false.                  !< flag for moist convective adjustment
@@ -1624,7 +1669,8 @@ module GFS_typedefs
     logical              :: debug          = .false.
     logical              :: lprnt          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
-    logical              :: do_som         = .false.         !< flag for slab ocean model 
+    logical              :: do_ocean       = .false.         !< flag for slab ocean model 
+    logical              :: use_ec_sst     = .false.         !< flag for using EC SST forcing
     !--- END NAMELIST VARIABLES
 
     NAMELIST /gfs_physics_nml/                                                              &
@@ -1663,7 +1709,7 @@ module GFS_typedefs
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
-                               debug, pre_rad, do_som, lprnt
+                               debug, pre_rad, do_ocean, use_ec_sst, lprnt
 
     !--- other parameters 
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -1808,6 +1854,7 @@ module GFS_typedefs
     Model%flipv            = flipv
     Model%trans_trac       = trans_trac
     Model%old_monin        = old_monin
+    Model%orogwd           = orogwd
     Model%cnvgwd           = cnvgwd
     Model%mstrat           = mstrat
     Model%moist_adj        = moist_adj
@@ -1918,7 +1965,8 @@ module GFS_typedefs
     !--- debug flag
     Model%debug            = debug
     Model%pre_rad          = pre_rad
-    Model%do_som           = do_som 
+    Model%do_ocean         = do_ocean
+    Model%use_ec_sst       = use_ec_sst
     Model%lprnt            = lprnt
 
     !--- set initial values for time varying properties
@@ -1938,6 +1986,7 @@ module GFS_typedefs
     Model%fhour            = (rinc(4) + Model%dtp)/con_hr
     Model%zhour            = mod(Model%phour,Model%fhzero)
     Model%kdt              = 0
+    Model%kdt_prev         = 0
     Model%jdat(1:8)        = jdat(1:8)
 
     !--- stored in wam_f107_kp module
@@ -2054,6 +2103,7 @@ module GFS_typedefs
           Model%imfshalcnv = -1
         endif
       endif
+      if (Model%orogwd)      print *,' Orographic GWD parameterization used'
       if (Model%cnvgwd)      print *,' Convective GWD parameterization used'
       if (Model%crick_proof) print *,' CRICK-Proof cloud water used in radiation '
       if (Model%ccnorm)      print *,' Cloud condensate normalized by cloud cover for radiation'
@@ -2286,6 +2336,7 @@ module GFS_typedefs
       print *, ' flipv             : ', Model%flipv
       print *, ' trans_trac        : ', Model%trans_trac
       print *, ' old_monin         : ', Model%old_monin
+      print *, ' orogwd            : ', Model%orogwd
       print *, ' cnvgwd            : ', Model%cnvgwd
       print *, ' mstrat            : ', Model%mstrat
       print *, ' moist_adj         : ', Model%moist_adj
@@ -2402,7 +2453,8 @@ module GFS_typedefs
       print *, 'debug flags'
       print *, ' debug             : ', Model%debug 
       print *, ' pre_rad           : ', Model%pre_rad
-      print *, ' do_som            : ', Model%do_som 
+      print *, ' do_ocean          : ', Model%do_ocean
+      print *, ' use_ec_sst        : ', Model%use_ec_sst
       print *, ' '
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt
@@ -2640,7 +2692,7 @@ module GFS_typedefs
     allocate (Diag%dlwsfc  (IM))
     allocate (Diag%netflxsfc     (IM)) 
     allocate (Diag%qflux_restore (IM)) 
-    allocate (Diag%qflux_adj     (IM)) 
+    allocate (Diag%MLD     (IM)) 
     allocate (Diag%tclim_iano    (IM)) 
     if (Model%myj_pbl) then
        allocate (Diag%hmix   (IM))
@@ -2762,7 +2814,7 @@ module GFS_typedefs
     Diag%dlwsfc  = zero
     Diag%netflxsfc     = zero 
     Diag%qflux_restore = zero 
-    Diag%qflux_adj     = zero 
+    Diag%MLD     = zero 
     Diag%tclim_iano    = zero 
     Diag%ulwsfc  = zero
     Diag%suntim  = zero

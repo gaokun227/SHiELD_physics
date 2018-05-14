@@ -6,7 +6,7 @@
 !
       integer kpdtsf,kpdwet,kpdsno,kpdzor,kpdais,kpdtg3,kpdplr,kpdgla,
      &        kpdmxi,kpdscv,kpdsmc,kpdoro,kpdmsk,kpdstc,kpdacn,kpdveg,
-     &        kpdvet,kpdsot,kpdmld
+     &        kpdvet,kpdsot,kpdmld, kpdqflux
      &,       kpdvmn,kpdvmx,kpdslp,kpdabs
      &,       kpdsnd, kpdabs_0, kpdabs_1, kpdalb(4)
       parameter(kpdtsf=11,  kpdwet=86, kpdsno=65,  kpdzor=83,
@@ -17,7 +17,7 @@
 !cbosu  max snow albedo uses a grib id number of 159, not 255.
      &          kpdvmn=255, kpdvmx=255,kpdslp=236, kpdabs_0=255,    
      &          kpdvet=225, kpdsot=224,kpdmld=11,  kpdabs_1=159,
-     &          kpdsnd=66 )
+     &          kpdsnd=66 , kpdqflux=11)
 !
       integer, parameter :: kpdalb_0(4)=(/212,215,213,216/)
       integer, parameter :: kpdalb_1(4)=(/189,190,191,192/)
@@ -36,7 +36,8 @@
      &,                   swdfcs,slcfcs      
      &,                   vmnfcs,vmxfcs,slpfcs,absfcs
 !    &,                   tsffcs,snofcs,zorfcs,albfcs,tg3fcs
-     &,                   tsffcs,tsfclm, snofcs,zorfcs,albfcs,mldclm 
+     &,                   tsffcs,tsfclm, snofcs,zorfcs,albfcs
+     &,                   mldclm,qfluxadj
      &,                   tg3fcs,cnpfcs,smcfcs,stcfcs,slifcs,aisfcs,f10m
      &,                   vegfcs,vetfcs,sotfcs,alffcs
      &,                   cvfcs,cvbfcs,cvtfcs,me,nlunit
@@ -431,7 +432,8 @@
       character*500 fntsfc,fnwetc,fnsnoc,fnzorc,fnalbc,fnaisc,
      &              fnplrc,fntg3c,fnscvc,fnsmcc,fnstcc,fnacnc,
      &              fnvegc,fnvetc,fnsotc
-     &,             fnvmnc,fnvmxc,fnslpc,fnabsc, fnalbc2, fnmldc 
+     &,             fnvmnc,fnvmxc,fnslpc,fnabsc, fnalbc2, fnmldc,
+     &              fnqfluxc 
       real (kind=kind_io8) tsfclm(len), wetclm(len),   snoclm(len),
      &     zorclm(len), albclm(len,4), aisclm(len),
      &     tg3clm(len), acnclm(len),   cnpclm(len),
@@ -441,7 +443,7 @@
      &     smcclm(len,lsoil), stcclm(len,lsoil)
      &,    sihclm(len), sicclm(len)
      &,    vmnclm(len), vmxclm(len), slpclm(len), absclm(len)
-     &,    mldclm(len)
+     &,    mldclm(len), qfluxadj(len)
 !
 !  analyzed surface fields (last character 'a' or 'anl' indicate analysis)
 !
@@ -567,7 +569,7 @@
       namelist/namsfc/fnglac,fnmxic,
      &                fntsfc,fnwetc,fnsnoc,fnzorc,fnalbc,fnaisc,
      &                fnplrc,fntg3c,fnscvc,fnsmcc,fnstcc,fnacnc,
-     &                fnvegc,fnvetc,fnsotc,fnalbc2, fnmldc,
+     &                fnvegc,fnvetc,fnsotc,fnalbc2, fnmldc,fnqfluxc,
      &                fnvmnc,fnvmxc,fnslpc,fnabsc,
      &                fntsfa,fnweta,fnsnoa,fnzora,fnalba,fnaisa,
      &                fnplra,fntg3a,fnscva,fnsmca,fnstca,fnacna,
@@ -622,6 +624,7 @@
 !
       data fnwetc/'        '/
       data fnmldc/'        '/
+      data fnqfluxc/'        '/
       data fnplrc/'        '/
       data fnstcc/'        '/
       data fnscvc/'        '/
@@ -702,7 +705,7 @@
      &     fntsfa,fnweta,fnsnoa,fnzora,fnalba,fnaisa,
      &     fnplra,fntg3a,fnscva,fnsmca,fnstca,fnacna,fnvega,
      &     fnvetc,fnveta,
-     &     fnsotc,fnsota, fnmldc,
+     &     fnsotc,fnsota, fnmldc,fnqfluxc,
 !clu [+2l] add fn()c and fn()a for vmn, vmx, slp, abs
      &     fnvmnc,fnvmxc,fnabsc,fnslpc,
      &     fnvmna,fnvmxa,fnabsa,fnslpa,
@@ -1052,16 +1055,16 @@
      &           fntsfc,fnwetc,fnsnoc,fnzorc,fnalbc,fnaisc,
      &           fntg3c,fnscvc,fnsmcc,fnstcc,fnacnc,fnvegc,
      &           fnvetc,fnsotc,
-     &           fnvmnc,fnvmxc,fnslpc,fnabsc,fnmldc,
+     &           fnvmnc,fnvmxc,fnslpc,fnabsc,fnmldc,fnqfluxc,
      &           tsfclm,tsfcl2,wetclm,snoclm,zorclm,albclm,aisclm,
      &           tg3clm,cvclm ,cvbclm,cvtclm,
      &           cnpclm,smcclm,stcclm,sliclm,scvclm,acnclm,vegclm,
      &           vetclm,sotclm,alfclm,
-     &           vmnclm,vmxclm,slpclm,absclm,mldclm,
+     &           vmnclm,vmxclm,slpclm,absclm,mldclm,qfluxadj,
      &           kpdtsf,kpdwet,kpdsno,kpdzor,kpdalb,kpdais,
      &           kpdtg3,kpdscv,kpdacn,kpdsmc,kpdstc,kpdveg,
      &           kpdvet,kpdsot,kpdalf,tsfcl0,
-     &           kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,
+     &           kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,kpdqflux,
      &           deltsfc, lanom
      &,          imsk, jmsk, slmskh, rla, rlo, gausm, blnmsk, bltmsk,me
      &,          lprnt, iprnt, fnalbc2, ialb)
@@ -6793,16 +6796,16 @@ cjfe
      &                 slmask,fntsfc,fnwetc,fnsnoc,fnzorc,fnalbc,fnaisc,
      &                 fntg3c,fnscvc,fnsmcc,fnstcc,fnacnc,fnvegc,
      &                 fnvetc,fnsotc,
-     &                 fnvmnc,fnvmxc,fnslpc,fnabsc,fnmldc,
+     &                 fnvmnc,fnvmxc,fnslpc,fnabsc,fnmldc,fnqfluxc,
      &                 tsfclm,tsfcl2,wetclm,snoclm,zorclm,albclm,aisclm,
      &                 tg3clm,cvclm ,cvbclm,cvtclm,
      &                 cnpclm,smcclm,stcclm,sliclm,scvclm,acnclm,vegclm,
      &                 vetclm,sotclm,alfclm,
-     &                 vmnclm,vmxclm,slpclm,absclm,mldclm,
+     &                 vmnclm,vmxclm,slpclm,absclm,mldclm,qfluxadj,
      &                 kpdtsf,kpdwet,kpdsno,kpdzor,kpdalb,kpdais,
      &                 kpdtg3,kpdscv,kpdacn,kpdsmc,kpdstc,kpdveg,
      &                 kpdvet,kpdsot,kpdalf,tsfcl0,
-     &                 kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,
+     &                 kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,kpdqflux,
      &                 deltsfc, lanom
      &,                imsk, jmsk, slmskh, outlat, outlon
      &,                gaus, blno, blto, me,lprnt,iprnt, fnalbc2, ialb)
@@ -6818,12 +6821,12 @@ cjfe
      &        kpdzor,kpdtsf,kpdwet,kpdscv,kpdacn,kpdais,kpdtg3,im,id,
      &        lugb,iy,len,lsoil,ih,kpdsmc,iprnt,me,m1,m2,k1,k2,
      &        kpdvet,kpdsot,kpdstc,kpdveg,jmsk,imsk,j,ialb
-     &,       kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,landice_cat
+     &,       kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,kpdqflux,landice_cat
       integer kpdalb(4), kpdalf(2)
 !
       character*500 fntsfc,fnwetc,fnsnoc,fnzorc,fnalbc,fnaisc,
      &             fntg3c,fnscvc,fnsmcc,fnstcc,fnacnc,fnvegc,
-     &             fnvetc,fnsotc,fnalbc2, fnmldc,
+     &             fnvetc,fnsotc,fnalbc2, fnmldc, fnqfluxc,
      &             fnvmnc,fnvmxc,fnslpc,fnabsc
       real (kind=kind_io8) tsfclm(len),tsfcl2(len),
      &     wetclm(len),snoclm(len),
@@ -6835,7 +6838,7 @@ cjfe
      &     sliclm(len),scvclm(len),vegclm(len),
      &     vetclm(len),sotclm(len),alfclm(len,2)
      &,    vmnclm(len),vmxclm(len),slpclm(len),absclm(len)
-     &,    mldclm(len)
+     &,    mldclm(len), qfluxadj(len)
       real (kind=kind_io8) slmskh(imsk,jmsk)
       real (kind=kind_io8) outlat(len), outlon(len)
 !
@@ -6878,7 +6881,8 @@ cjfe
      &                     tg3(:),   alb(:,:,:), alf(:,:),
      &                     vet(:),   sot(:),     tsf2(:),
      &                     veg(:,:), stc(:,:,:)
-     &,                    vmn(:), vmx(:),  slp(:), abs(:), mld(:,:)
+     &,                    vmn(:), vmx(:),  slp(:), abs(:), 
+     &                     mld(:,:), qflux(:,:)
 !
       integer mon1s, mon2s, sea1s, sea2s, sea1, sea2, hyr1, hyr2
       data first/.true./
@@ -6886,7 +6890,7 @@ cjfe
 !
       save first, tsf, sno, zor, wet,  ais, acn, scv, smc, tg3,
      &     alb,   alf, vet, sot, tsf2, veg, stc,
-     &     vmn,   vmx, slp, abs, mld,
+     &     vmn,   vmx, slp, abs, mld, qflux,
      &     mon1s, mon2s, sea1s, sea2s, dayhf, k1, k2, m1, m2,
      &     landice_cat
 !
@@ -6912,6 +6916,7 @@ cjfe
         slpclm(i) = 0.0
         absclm(i) = 0.0
         mldclm(i) = 0.0
+        qfluxadj(i) = 0.0
       enddo
       do k=1,lsoil
         do i=1,len
@@ -6944,7 +6949,8 @@ cjfe
      &           vet(len),   sot(len), tsf2(len),
 !clu [+1l] add vmn, vmx, slp, abs
      &           vmn(len),   vmx(len), slp(len), abs(len),
-     &           veg(len,2), mld(len,2), stc(len,lsoil,2))
+     &           veg(len,2), mld(len,2), qflux(len,2),
+     &           stc(len,lsoil,2))
 !
 !     get tsf climatology for the begining of the forecast
 !
@@ -7448,6 +7454,19 @@ cjfe
 
         endif
 !
+!
+!  qflux for slab ocean model
+!
+        if(fnqfluxc(1:8).ne.'        ') then
+          kpd7=-1
+          call fixrdc(lugb,fnqfluxc,kpdqflux,kpd7,mon,slmask,
+     &                qflux(1,nn),len,iret
+     &,               imsk, jmsk, slmskh, gaus,blno, blto
+     &,               outlat, outlon, me)
+          if (me .eq. 0) write(6,*) 'climatological ocean 
+     &                           mixed layer depth read in.'
+
+        endif
 
 !  surface roughness
 !

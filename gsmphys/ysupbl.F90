@@ -1017,9 +1017,9 @@
        dtodsu = dt2/del(i,k+1)
        dsig   = p2d(i,k)-p2d(i,k+1)
        rdz    = 1./dza(i,k+1)
-       tem1   = dsig*xkzh(i,k)*rdz
+       tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
-         dsdzt = tem1*(-hgamt(i)/hpbl(i)-hfxpbl(i)*zfacent(i,k)/xkzh(i,k))
+         dsdzt = tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -1115,9 +1115,9 @@
        dtodsu = dt2/del(i,k+1)
        dsig   = p2d(i,k)-p2d(i,k+1)
        rdz    = 1./dza(i,k+1)
-       tem1   = dsig*xkzq(i,k)*rdz
+       tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
-         dsdzq = tem1*(-qfxpbl(i)*zfacent(i,k)/xkzq(i,k))
+         dsdzq = tem1*(-qfxpbl(i)*zfacent(i,k))
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -1226,10 +1226,10 @@
        dtodsu = dt2/del(i,k+1)
        dsig   = p2d(i,k)-p2d(i,k+1)
        rdz    = 1./dza(i,k+1)
-       tem1   = dsig*xkzm(i,k)*rdz
+       tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i))then
-         dsdzu     = tem1*(-hgamu(i)/hpbl(i)-ufxpbl(i)*zfacent(i,k)/xkzm(i,k))
-         dsdzv     = tem1*(-hgamv(i)/hpbl(i)-vfxpbl(i)*zfacent(i,k)/xkzm(i,k))
+         dsdzu     = tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
+         dsdzv     = tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv

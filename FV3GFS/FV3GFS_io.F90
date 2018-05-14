@@ -1240,7 +1240,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
-    ! fix for fhdiag < raddt --- lmh 21 Sep 17 ! Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,4)
@@ -1253,7 +1253,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
-    ! fix for fhdiag < raddt --- lmh 21 Sep 17 ! Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,3)
@@ -1266,7 +1266,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
-    ! fix for fhdiag < raddt --- lmh 21 Sep 17 ! Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,23)
@@ -1279,7 +1279,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
-! fix for fhdiag < raddt --- lmh 21 Sep 17 !     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,2)
@@ -1292,7 +1292,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
-! fix for fhdiag < raddt --- lmh 21 Sep 17 !     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,1)
@@ -1305,7 +1305,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
-! fix for fhdiag < raddt --- lmh 21 Sep 17 !     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,17)
@@ -1318,7 +1318,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
-! fix for fhdiag < raddt --- lmh 21 Sep 17 !     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,5)
@@ -1331,7 +1331,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
-! fix for fhdiag < raddt --- lmh 21 Sep 17 !     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,7)
@@ -1344,7 +1344,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
-! fix for fhdiag < raddt --- lmh 21 Sep 17 !     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,6)

@@ -122,7 +122,7 @@
 !      close (Model%nlunit)
 
 #ifdef INTERNAL_FILE_NML
-        read(input_nml_file, nml=ocean_nml, iostat=ios)
+        read(input_nml_file, nml=ocean_nml)
 #else
 !       print *,' in sfcsub nlunit=',nlunit,' me=',me,' ialb=',ialb
        inquire (file=trim(Model%fn_nml), exist=exists)
@@ -285,15 +285,15 @@
          mld(i)   =  mldclim(i)
         elseif (ocean_option == "MLM") then
          tmlp    =  tml(i)
-         if (use_old_mlm) then
-          mldp    =  mld(i)
-         else
+!         if (use_old_mlm) then
+!          mldp    =  mld(i)
+!         else
          if(do_mld_restore) then
           mldp  = (mld(i) + mldclim(i)/taum*dtp)/alpham 
          else
           mldp  =  mld(i)
          endif
-        endif
+!        endif
         humlp   =  huml(i)
         hvmlp   =  hvml(i)
 !        tsfcp   =  tsfc(i)

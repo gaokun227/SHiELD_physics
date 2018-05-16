@@ -288,11 +288,11 @@
 !         if (use_old_mlm) then
 !          mldp    =  mld(i)
 !         else
-         if(do_mld_restore) then
-          mldp  = (mld(i) + mldclim(i)/taum*dtp)/alpham 
-         else
+!         if(do_mld_restore) then
+!          mldp  = (mld(i) + mldclim(i)/taum*dtp)/alpham 
+!         else
           mldp  =  mld(i)
-         endif
+!         endif
 !        endif
         humlp   =  huml(i)
         hvmlp   =  hvml(i)
@@ -308,8 +308,8 @@
 !         mldn    = (mldp + mldclim(i)/taum*dtp)/alpham
 !        endif
 !        write(0,*) 'mld1=',mldp,mldn
-         call MLM1D(dtp, fcor, qsfc(i), taux(i), tauy(i),     &
-             tmlp, tmln, tmomln, mldp, mldn, humlp, hvmlp)
+         call MLM1D(dtp, fcor, taum, alpham, qsfc(i), taux(i), tauy(i),     &
+             tmlp, tmln, tmomln, mldp, mldn, mldclim(i), humlp, hvmlp)
          tml(i)   =  tmlp
          mld(i)   =  mldp
          huml(i)  =  humlp
@@ -383,8 +383,8 @@
       end subroutine update_ocean
 !-----------------------------------
 
-      subroutine MLM1D(dt, F, qsfc, taux, tauy,           &
-                       tml, tml0, tmoml, H, H0, huml, hvml)
+      subroutine MLM1D(dt, F, taum, alpham, qsfc, taux, tauy,           &
+                       tml, tml0, tmoml, H, H0, HCLIM, huml, hvml)
 !----------------------------------------------------------------
       IMPLICIT NONE
 !----------------------------------------------------------------
@@ -395,6 +395,8 @@
 !
 !-- DT          time step (second)
 !-- F           Coriolis parameter
+!-- taum        MLD restoring time scale
+!-- alpham      MLD restoring parameter
 !-- qsfc        net surface heat flux
 !-- taux        wind stress at zonal direction 
 !-- tauy        wind stress at meridional direction 
@@ -403,6 +405,7 @@
 !-- tmoml       top 200 m ocean mean temperature (K) at initial time or previous time step
 !-- H           ocean mixed layer depth (m)
 !-- H0          ocean mixed layer depth (m) at initial time or nudged MLD toward climatology
+!-- HCLIM       climatological ocean mixed layer depth (m) 
 !-- huml        ocean mixed layer u component of wind
 !-- hvml        ocean mixed layer v component of wind
 !
@@ -411,8 +414,8 @@
 
       REAL,    INTENT(INOUT)    :: tml, H, huml, hvml
 
-      REAL,    INTENT(IN   )    :: dt, F, qsfc, taux, tauy,      &
-                                   tml0, tmoml, H0
+      REAL,    INTENT(IN   )    :: dt, F, taum, alpham, qsfc, taux, tauy,      &
+                                   tml0, tmoml, H0, HCLIM
 ! Local
       REAL ::  alp, BV2, A1, A2, A3, B2, u, v,  &
            hu1, hv1, hu2, hv2, q, hold, &
@@ -468,19 +471,27 @@
        h=sqrt(max(hsqrd,0.0))
        h=min(h, 500.0)
 
-! limit to positive h change
-       if (use_old_mlm) then
-        if(h.lt.hold) h=hold  
-       else
-        if(h.lt.hold) h=h0    
+       if(do_mld_restore) then
+         h  = (h + hclim/taum*dt)/alpham 
        endif
+! limit to posit ive h change
+!       if (use_old_mlm) then
+!        if(h.lt.hold) h=hold  
+!       else
+!        if(h.lt.hold) h=h0    
+!       endif
 ! no change unless tml is warmer than layer mean temp tmol or tsk-5 (see omlinit)
        if(tml.ge.tmoml .and. h.ne.0.)then
 
 ! no change unless tml is warmer than layer mean temp tmoml or tsk-5 (see omlinit)
          if(tml.ge.tmoml)then
           if (use_old_mlm) then
-           tml=max(tml0 - Gam*(h-h0) + 0.5*Gam*h + A2/h, tmoml) 
+! if MLD does not deepen, we only consider the surface heat flux effect
+           if (h <= hold) then
+            tml=max(tml + q*dt/h, tmoml) 
+           else
+            tml=max(tml0 - Gam*(h-h0) + 0.5*Gam*h + A2/h, tmoml) 
+           endif
           else
            tml=max(tml0 -0.5* Gam*(h-h0)*abs(h-h0)/h + A2/h, tmoml) 
           endif

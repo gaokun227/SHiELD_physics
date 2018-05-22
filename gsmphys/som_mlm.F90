@@ -288,7 +288,7 @@
          mld(i)   =  mldc
         elseif (ocean_option == "MLM") then
          tmlp    =  tml(i)
-         mldp  =  mld(i)
+         mldp    =  mld(i)
          humlp   =  huml(i)
          hvmlp   =  hvml(i)
          tmln    = tml0(i)
@@ -296,12 +296,6 @@
          mldn    = mld0(i)
          call MLM1D(dtp, fcor, taum, alpham, qsfc(i), taux(i), tauy(i),     &
              tmlp, tmln, tmomln, mldp, mldn, mldc, humlp, hvmlp)
-         tml(i)   =  tmlp
-         mld(i)   =  mldp
-         huml(i)  =  humlp
-         hvml(i)  =  hvmlp
-         tmoml(i) =  tml(i) - 5. ! not used
-         tsfc1(i) =  tml(i)
         endif !end ocean_option
 
         if (restore_method == 1) then 
@@ -314,7 +308,12 @@
            tsfc1(i) = (ts_som(i) + qsfc(i)/mlcp*dtp + tsclim(i)/taut*dtp ) / alphat
           endif
          elseif (ocean_option == "MLM") then
-          tsfc1(i) = (tsfc1(i) + tsclim(i)/taut*dtp)/alphat
+          tsfc1(i) = (tmlp + tsclim(i)/taut*dtp)/alphat
+          tml(i)   =  tsfc1(i)
+          mld(i)   =  mldp
+          huml(i)  =  humlp
+          hvml(i)  =  hvmlp
+          tmoml(i) =  tml(i) - 5. ! not used
          else
           write(*,*) 'ocean_option can only be SOM or MLM'
           call abort
@@ -329,7 +328,12 @@
            tsfc1(i) = (ts_som(i) + qsfc(i)/mlcp*dtp + ts_clim_iano(i)/taut*dtp ) / alphat 
           endif
          elseif (ocean_option == "MLM") then
-          tsfc1(i) = (tsfc1(i) + ts_clim_iano(i)/taut*dtp)/alphat
+          tsfc1(i) = (tmlp + ts_clim_iano(i)/taut*dtp)/alphat
+          tml(i)   =  tsfc1(i)
+          mld(i)   =  mldp
+          huml(i)  =  humlp
+          hvml(i)  =  hvmlp
+          tmoml(i) =  tml(i) - 5. ! not used
          endif
 !          tsfc(i) = tsfc(i) + (qflux_restore(i)+qsfc(i))/mlcp*dtp  ! explicit
          qflux_restore(i) = (ts_clim_iano(i) - tsfc1(i)) * mlcp / taut  ! for diagnosis purpose only

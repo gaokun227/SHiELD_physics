@@ -63,6 +63,7 @@
       logical               :: do_mld_restore     = .false.   ! restoring MLD toward observed climatology
       real(kind=kind_phys)  :: const_mld          = 40.       ! constant ocean MLD (meter)
       real(kind=kind_phys)  :: Gam                = 0.14      ! ocean temp lapese rate at the bottom of MLD (degree per m)
+      real(kind=kind_phys)  :: eps_day            = 10.       ! damping time scale of ocean current (days)
       real(kind=kind_phys)  :: sst_restore_tscale = 3.        ! restoring time scale for sst (day)
       real(kind=kind_phys)  :: mld_restore_tscale = 1.        ! restoring time scale for mld (day)
       real(kind=kind_phys)  :: start_lat          = -30.      ! latitude starting from? Note that this value should not be smaller than -60.
@@ -73,7 +74,7 @@
       namelist /ocean_nml/   &
        ocean_option, mld_option, mld_obs_ratio, stress_ratio, restore_method,  &
        use_old_mlm, use_rain_flux, use_qflux, do_mld_restore, const_mld, Gam,  &
-       sst_restore_tscale, mld_restore_tscale, start_lat, end_lat
+       eps_day, sst_restore_tscale, mld_restore_tscale, start_lat, end_lat
 
 ! =================
       contains
@@ -207,8 +208,8 @@
 
 !  ---  locals:
       real (kind=kind_phys)                              ::   &
-           lat, mlcp, taut, taum, & 
-           alphat,alpham, bufzs, &
+           lat, mlcp, mldc, taut, taum, & 
+           alphat,alpham, bufzs,        &
            bufzn, fcor, c1, c2, r1, r2
       real (kind=kind_phys), dimension (size(tsfc,1))    :: tsfc1, tsfc2
       real (kind=kind_phys), dimension (size(tsfc,1))    :: qsfc
@@ -271,8 +272,10 @@
 !
        if (mld_option == 'const') then
         mlcp = const_mld * rhowater * cpwater    ! rho*Cp*mld
+        mldc = const_mld
        elseif (mld_option == 'obs') then
         mlcp =  max(minmld, mld_obs_ratio* mldclim(i)) * rhowater *cpwater   ! rho*Cp*mld
+        mldc =  mld_obs_ratio* mldclim(i)
        else
         write(*,*) ' mld_option can only be const or obs now'
         call abort
@@ -282,34 +285,17 @@
 
        if ( islmsk(i) ==0 ) then
         if (ocean_option == "SOM") then
-         mld(i)   =  mldclim(i)
+         mld(i)   =  mldc
         elseif (ocean_option == "MLM") then
          tmlp    =  tml(i)
-!         if (use_old_mlm) then
-!          mldp    =  mld(i)
-!         else
-!         if(do_mld_restore) then
-!          mldp  = (mld(i) + mldclim(i)/taum*dtp)/alpham 
-!         else
-          mldp  =  mld(i)
-!         endif
-!        endif
-        humlp   =  huml(i)
-        hvmlp   =  hvml(i)
-!        tsfcp   =  tsfc(i)
-!        if (use_old_mlm) then
-        tmln    = tml0(i)
-        tmomln  = tmoml0(i)
-!        mldn    = (mld0(i) + mldclim(i)/taum*dtp)/alpham ! not exactly as WRF
-        mldn    = mld0(i)
-!        else
-!         tmln    = tml(i)
-!         tmomln  = tmoml(i)
-!         mldn    = (mldp + mldclim(i)/taum*dtp)/alpham
-!        endif
-!        write(0,*) 'mld1=',mldp,mldn
+         mldp  =  mld(i)
+         humlp   =  huml(i)
+         hvmlp   =  hvml(i)
+         tmln    = tml0(i)
+         tmomln  = tmoml0(i)
+         mldn    = mld0(i)
          call MLM1D(dtp, fcor, taum, alpham, qsfc(i), taux(i), tauy(i),     &
-             tmlp, tmln, tmomln, mldp, mldn, mldclim(i), humlp, hvmlp)
+             tmlp, tmln, tmomln, mldp, mldn, mldc, humlp, hvmlp)
          tml(i)   =  tmlp
          mld(i)   =  mldp
          huml(i)  =  humlp
@@ -337,8 +323,6 @@
         elseif (restore_method == 2) then
          tsfc2(i) = ts_clim_iano(i)
          if (ocean_option == "SOM") then
-!          write(0,*) 'ts_som=',ts_som(i),ts_clim_iano(i),qsfc(i)
-!          tsfc1(i) = (tsfc(i) + qsfc(i)/mlcp*dtp + ts_clim_iano(i)/taut*dtp ) / alphat 
           if (use_qflux) then
            tsfc1(i) = ts_som(i) + qsfc(i)/mlcp*dtp 
           else
@@ -384,7 +368,7 @@
 !-----------------------------------
 
       subroutine MLM1D(dt, F, taum, alpham, qsfc, taux, tauy,           &
-                       tml, tml0, tmoml, H, H0, HCLIM, huml, hvml)
+                       tml, tml0, tmoml, H, H0, HC, huml, hvml)
 !----------------------------------------------------------------
       IMPLICIT NONE
 !----------------------------------------------------------------
@@ -405,7 +389,7 @@
 !-- tmoml       top 200 m ocean mean temperature (K) at initial time or previous time step
 !-- H           ocean mixed layer depth (m)
 !-- H0          ocean mixed layer depth (m) at initial time or nudged MLD toward climatology
-!-- HCLIM       climatological ocean mixed layer depth (m) 
+!-- HC          climatological or constant ocean mixed layer depth (m) 
 !-- huml        ocean mixed layer u component of wind
 !-- hvml        ocean mixed layer v component of wind
 !
@@ -415,11 +399,11 @@
       REAL,    INTENT(INOUT)    :: tml, H, huml, hvml
 
       REAL,    INTENT(IN   )    :: dt, F, taum, alpham, qsfc, taux, tauy,      &
-                                   tml0, tmoml, H0, HCLIM
+                                   tml0, tmoml, H0, HC
 ! Local
       REAL ::  alp, BV2, A1, A2, A3, B2, u, v,  &
-           hu1, hv1, hu2, hv2, q, hold, &
-           hsqrd, thp, taux2, tauy2, fdt
+           hu1, hv1, hu2, hv2, q, hold,         &
+           hsqrd, thp, taux2, tauy2, fdt, damp
 
       hu1=huml
       hv1=hvml
@@ -447,8 +431,11 @@
        q=qsfc/(rhowater*cpwater)
 ! note: forward-backward coriolis force for effective time-centering
        if (use_old_mlm) then
-        hu2=hu1+dt*( f*hv1 + taux2/rhowater)
-        hv2=hv1+dt*(-f*hu2 + tauy2/rhowater)
+!        hu2=hu1+dt*( f*hv1 + taux2/rhowater - damp*hu1)
+!        hv2=hv1+dt*(-f*hu2 + tauy2/rhowater - damp*hv1)
+         damp = 1. / 86400./eps_day
+        hu2=( hu1+dt*( f*hv1 + taux2/rhowater ) )/(1.0+damp*dt)
+        hv2=( hv1+dt*(-f*hu2 + tauy2/rhowater ) )/(1.0+damp*dt)
        else
         hu2=( (1-fdt**2/4.)*hu1+fdt*hv1+taux2/rhowater*dt+f*dt**2/2./rhowater*tauy2 ) / &
              (1.+fdt**2/4.)
@@ -471,9 +458,11 @@
        h=sqrt(max(hsqrd,0.0))
        h=min(h, 500.0)
 
+!       write(0,*) 'test0',h,hc,taum,alpham,dt
        if(do_mld_restore) then
-         h  = (h + hclim/taum*dt)/alpham 
+         h  = (h + HC/taum*dt)/alpham 
        endif
+!       write(0,*) 'test1',h,hc,taum,alpham,dt
 ! limit to posit ive h change
 !       if (use_old_mlm) then
 !        if(h.lt.hold) h=hold  

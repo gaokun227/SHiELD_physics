@@ -291,9 +291,12 @@
          mldp    =  mld(i)
          humlp   =  huml(i)
          hvmlp   =  hvml(i)
-         tmln    = tml0(i)
-         tmomln  = tmoml0(i)
-         mldn    = mld0(i)
+         tmln    =  tml0(i)
+!
+!         tmomln  =  tmoml0(i)
+         tmomln  =  tmoml(i)
+!
+         mldn    =  mld0(i)
          call MLM1D(dtp, fcor, taum, alpham, qsfc(i), taux(i), tauy(i),     &
              tmlp, tmln, tmomln, mldp, mldn, mldc, humlp, hvmlp)
         endif !end ocean_option

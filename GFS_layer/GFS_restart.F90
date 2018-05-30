@@ -48,7 +48,7 @@ module physics_restart_layer
     nblks = size(Init_parm%blksz)
     max_rstrt = size(IPD_Restart%name2d)
 
-    IPD_Restart%num2d = 3 + 2 + Model%ntot2d + Model%nctp
+    IPD_Restart%num2d = 3 + 10 + Model%ntot2d + Model%nctp
     IPD_Restart%num3d = Model%ntot3d
 
     allocate (IPD_Restart%name2d(IPD_Restart%num2d))
@@ -78,6 +78,54 @@ module physics_restart_layer
     IPD_Restart%name2d(1+offset) = 'ts_clim_iano'
     do nb = 1,nblks
       IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%ts_clim_iano(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'tml'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%tml(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'tml0'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%tml0(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'mld'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%mld(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'mld0'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%mld0(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'huml'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%huml(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'hvml'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%hvml(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'tmoml'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%tmoml(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'tmoml0'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%tmoml0(:)
     enddo
 
     !--- phy_f2d variables

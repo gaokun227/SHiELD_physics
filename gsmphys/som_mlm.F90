@@ -234,8 +234,6 @@
        do i=1, im
         ts_som(i)=tsfc(i)
        enddo
-      endif
-      if (kdt == kdt_prev + 1) then
        if (ocean_option == "MLM") then
         do i=1, im
         tml(i)=tsfc(i)

@@ -135,7 +135,7 @@
                         intent(in   ) ::                           ust, & !! Sfcprop%zorl
                                                                   z0rl, &
                                                                    xmu
-   real(kind=kind_phys),dimension(   1:im  )                          , & 
+   real(kind=kind_phys),dimension(   1:im  )                          , &
                         intent(in   ) ::                          heat, &
                                                                   evap
    real(kind=kind_phys),dimension(   1:im  )                          , & !! rb
@@ -150,7 +150,7 @@
                                                            dusfc,dvsfc, & !! dtsfc1, dqsfc1
                                                            dtsfc,dqsfc
 !
-   integer,dimension(   1:im  ),intent(in   ) ::                kinver, islmsk !(local:xland)
+   integer,dimension(   1:im  ),intent(in   ) ::                islmsk, kinver
    integer,dimension(   1:im  ),intent(out  ) ::                kpbl1d
    logical,intent(in   ) ::                                    dspheat
 !
@@ -217,7 +217,10 @@
                                                               cloudflg
 
    real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
-   real(kind=kind_phys),dimension(   1:im ,   1:km  ) ::          diss
+! Local:
+   real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
+! SJL
+   real(kind=kind_phys),dimension(   1:ix ,   1:km  ) :: p2m
 
    logical :: definebrup
 !
@@ -332,6 +335,8 @@
        if(k.eq.kte) zq(i,k+1) =  phi2di(i,k+1)/g
        tvcon = (1.+ep1*qx(i,k))
        rhox2(i,k) = p2d(i,k)/(rd*tx(i,k)*tvcon)
+! SJL
+       p2m(i,k) = 0.5*(p2di(i,k) + p2di(i,k+1))
      enddo
    enddo
 !
@@ -860,14 +865,16 @@
 !      i = im/2
 !      write(mpp_pe()+1000,*) kpbl(i), hpbl(i), pblflg(i), sfcflg(i)
 !   endif
-#ifndef GFS_FREE_DIFF
+#ifndef YSU_FREE_DIFF
    do k = kts,kte-1
      do i = its,ite
         !prnum = 0. ! DEBUG
        if(k.ge.kpbl(i)) then
-         ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
-              +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
-              /(dza(i,k+1)*dza(i,k+1))+1.e-9
+!        ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
+!             +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
+!             /(dza(i,k+1)*dza(i,k+1))+1.e-9
+         ss = ((ux(i,k+1)-ux(i,k))**2 + (vx(i,k+1)-vx(i,k))**2) / dza(i,k+1)**2
+         ss = max(ss, 1.e-8)
          govrthv = g/(0.5*(thvx(i,k+1)+thvx(i,k)))
          ri = govrthv*(thvx(i,k+1)-thvx(i,k))/(ss*dza(i,k+1))
          if(imvdif.eq.1.and.ndiff.ge.3)then
@@ -878,7 +885,8 @@
              tmean = 0.5*(tx(i,k)+tx(i,k+1))
              alph  = xlv*qmean/rd/tmean
              chi   = xlv*xlv*qmean/cp/rv/tmean/tmean
-             ri    = (1.+alph)*(ri-g*g/ss/tmean/cp*((chi-alph)/(1.+chi)))
+!            ri    = (1.+alph)*(ri-g*g/ss/tmean/cp*((chi-alph)/(1.+chi)))
+             ri = (1.+alph) * (ri - g*g/(ss*tmean*cp)*(chi-alph)/(1.+chi))
            endif
          endif
          zk = karman*zq(i,k+1)
@@ -926,9 +934,11 @@
      do i = its,ite
         !prnum = 0. ! DEBUG
        if(k.ge.kpbl(i)) then
-         ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
-              +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
-              /(dza(i,k+1)*dza(i,k+1))+1.e-9
+!        ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
+!             +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
+!             /(dza(i,k+1)*dza(i,k+1))+1.e-9
+         ss = ((ux(i,k+1)-ux(i,k))**2 + (vx(i,k+1)-vx(i,k))**2) / dza(i,k+1)**2
+         ss = max(ss, 1.e-8)
          !govrthv = g/(0.5*(thvx(i,k+1)+thvx(i,k)))
          govrthv = g/(0.5*(tx(i,k+1)+tx(i,k)))
          ri = govrthv*(thvx(i,k+1)-thvx(i,k))/(ss*dza(i,k+1))
@@ -940,7 +950,8 @@
              tmean = 0.5*(tx(i,k)+tx(i,k+1))
              alph  = xlv*qmean/rd/tmean
              chi   = xlv*xlv*qmean/cp/rv/tmean/tmean
-             ri    = (1.+alph)*(ri-g*g/ss/tmean/cp*((chi-alph)/(1.+chi)))
+!            ri    = (1.+alph)*(ri-g*g/ss/tmean/cp*((chi-alph)/(1.+chi)))
+             ri    = (1.+alph)*(ri-g*g/(ss*tmean*cp)*((chi-alph)/(1.+chi)))
            endif
          endif
          zk = karman*zq(i,k+1)
@@ -1015,7 +1026,8 @@
      do i = its,ite
        dtodsd = dt2/del(i,k)
        dtodsu = dt2/del(i,k+1)
-       dsig   = p2d(i,k)-p2d(i,k+1)
+! SJL       dsig   = p2d(i,k)-p2d(i,k+1)
+       dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
@@ -1113,7 +1125,8 @@
      do i = its,ite
        dtodsd = dt2/del(i,k)
        dtodsu = dt2/del(i,k+1)
-       dsig   = p2d(i,k)-p2d(i,k+1)
+! SJL       dsig   = p2d(i,k)-p2d(i,k+1)
+       dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
@@ -1224,7 +1237,8 @@
      do i = its,ite
        dtodsd = dt2/del(i,k)
        dtodsu = dt2/del(i,k+1)
-       dsig   = p2d(i,k)-p2d(i,k+1)
+! SJL       dsig   = p2d(i,k)-p2d(i,k+1)
+       dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i))then

@@ -160,15 +160,13 @@
       IF (RJDAY .LT. oz_time(1)) RJDAY = RJDAY+365.
 !
       n2 = timeoz + 1
-      do j=1,timeoz
+      do j=2,timeoz
         if (rjday .lt. oz_time(j)) then
           n2 = j
           exit
         endif
       enddo
       n1 = n2 - 1
-      if (n1 <= 0)     n1 = n1 + timeoz
-      if (n2 > timeoz) n2 = n2 - timeoz
 
 !
 !     if (me .eq. 0) print *,' n1=',n1,' n2=',n2,' rjday=',rjday
@@ -177,6 +175,8 @@
 
       tx1 = (oz_time(n2) - rjday) / (oz_time(n2) - oz_time(n1))
       tx2 = 1.0 - tx1
+
+      if (n2 > timeoz) n2 = n2 - timeoz
 !
       do nc=1,oz_coeff
         DO L=1,levozp

@@ -152,7 +152,7 @@
       CALL SFCCYCLE (9998, npts, Model%lsoil, SIG1T, Model%fhcyc, &
                      Model%idate(4), Model%idate(2),              &
                      Model%idate(3), Model%idate(1),              &
-                     Model%fhour, RLA, RLO, SLMASK,               &
+                     Model%phour, RLA, RLO, SLMASK,               &
                      OROG, OROG_UF, Model%USE_UFO, Model%nst_anl, &
                      SIHFCS, SICFCS, SITFCS, SWDFCS, SLCFC1,      &
                      VMNFCS, VMXFCS, SLPFCS, ABSFCS, TSFFCS, TSCLIM,      &

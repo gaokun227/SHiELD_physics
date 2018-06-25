@@ -126,7 +126,7 @@
       integer  idat(8),jdat(8)
 !
       real(kind=kind_phys) ddy(npts)
-      real(kind=kind_phys) h2oplout(levh2o,npts,h2o_coeff)
+      real(kind=kind_phys) h2oplout(npts,levh2o,h2o_coeff)
       real(kind=kind_phys) rinc(5), rjday
       integer              jdow, jdoy, jday
       real(4)              rinc4(5)
@@ -155,15 +155,13 @@
       if (rjday < h2o_time(1)) rjday = rjday+365.
 !
       n2 = timeh2o + 1
-      do j=1,timeh2o
+      do j=2,timeh2o
         if (rjday < h2o_time(j)) then
           n2 = j
           exit
         endif
       enddo
       n1 = n2 - 1
-      if (n1 <= 0)      n1 = n1 + timeh2o
-      if (n2 > timeh2o) n2 = n2 - timeh2o
 
 !
 !     if (me .eq. 0) print *,' n1=',n1,' n2=',n2,' rjday=',rjday
@@ -172,6 +170,7 @@
 
       tx1 = (h2o_time(n2) - rjday) / (h2o_time(n2) - h2o_time(n1))
       tx2 = 1.0 - tx1
+      if (n2 > timeh2o) n2 = n2 - timeh2o
 !
       do nc=1,h2o_coeff
         do l=1,levh2o

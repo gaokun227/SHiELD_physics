@@ -503,6 +503,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: ysu_ent_fac     !< Entrainment factor in YSU scheme
+    real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -1575,6 +1576,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzminv        = 0.3                      !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: ysu_ent_fac    = 0.15                     !< Entrainment factor in YSU scheme
+    real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1693,6 +1695,7 @@ module GFS_typedefs
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
+                               ysu_pfac_q,                                                  &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1878,6 +1881,7 @@ module GFS_typedefs
     Model%xkzminv          = xkzminv
     Model%moninq_fac       = moninq_fac
     Model%ysu_ent_fac      = ysu_ent_fac
+    Model%ysu_pfac_q       = ysu_pfac_q
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -2361,6 +2365,7 @@ module GFS_typedefs
       print *, ' xkzminv           : ', Model%xkzminv
       print *, ' moninq_fac        : ', Model%moninq_fac
       print *, ' ysu_ent_fac       : ', Model%ysu_ent_fac
+      print *, ' ysu_pfac_q        : ', Model%ysu_pfac_q
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds

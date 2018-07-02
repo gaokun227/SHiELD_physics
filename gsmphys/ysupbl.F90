@@ -9,7 +9,8 @@
                   islmsk,heat,evap,wspd,br,                                    & 
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
-                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,dspheat,ent_fac,dkt)
+                  kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
+                  dspheat,ent_fac,dkt,pfac_q)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
 !   use mpp_mod, only: mpp_pe
@@ -89,7 +90,7 @@
    real(kind=kind_phys),parameter :: brcr_ub = 0.0,brcr_sb = 0.25
    real(kind=kind_phys),parameter :: cori = 1.e-4
    real(kind=kind_phys),parameter :: afac = 6.8,bfac = 6.8
-   real(kind=kind_phys),parameter :: pfac = 2.0,pfac_q = 2.0
+   real(kind=kind_phys),parameter :: pfac = 2.0 !,pfac_q = 2.0
    real(kind=kind_phys),parameter :: phifac = 8.,sfcfrac = 0.1
    real(kind=kind_phys),parameter :: d1 = 0.02, d2 = 0.05, d3 = 0.001
    real(kind=kind_phys),parameter :: h1 = 0.33333335, h2 = 0.6666667
@@ -104,7 +105,7 @@
    integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw
 !
    real(kind=kind_phys),intent(in   ) :: dt
-   real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac
+   real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
 !
    real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & !! Statein%ugrs (ix,km)
                         intent(in   ) ::                            ux, & !! 
@@ -916,60 +917,6 @@
        endif
      enddo
    enddo
-#else
-   do k = kts,kte-1
-     do i = its,ite
-        !prnum = 0. ! DEBUG
-       if(k.ge.kpbl(i)) then
-!        ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
-!             +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
-!             /(dza(i,k+1)*dza(i,k+1))+1.e-9
-         ss = ((ux(i,k+1)-ux(i,k))**2 + (vx(i,k+1)-vx(i,k))**2) / dza(i,k+1)**2
-         ss = max(ss, 1.e-8)
-         !govrthv = g/(0.5*(thvx(i,k+1)+thvx(i,k)))
-         govrthv = g/(0.5*(tx(i,k+1)+tx(i,k)))
-         ri = govrthv*(thvx(i,k+1)-thvx(i,k))/(ss*dza(i,k+1))
-         if(imvdif.eq.1.and.ndiff.ge.3)then
-           if((qxci(i,k,1)+qxci(i,k,2)).gt.0.01e-3.and.(qxci(i           &
-             ,k+1,1)+qxci(i,k+1,2)).gt.0.01e-3)then
-!      in cloud
-             qmean = 0.5*(qx(i,k)+qx(i,k+1))
-             tmean = 0.5*(tx(i,k)+tx(i,k+1))
-             alph  = xlv*qmean/rd/tmean
-             chi   = xlv*xlv*qmean/cp/rv/tmean/tmean
-!            ri    = (1.+alph)*(ri-g*g/ss/tmean/cp*((chi-alph)/(1.+chi)))
-             ri    = (1.+alph)*(ri-g*g/(ss*tmean*cp)*((chi-alph)/(1.+chi)))
-           endif
-         endif
-         zk = karman*zq(i,k+1)
-         !rlamdz = min(max(0.1*dza(i,k+1),rlam),300.) ! was constant 30 in EDMF
-         !rlamdz = min(dza(i,k+1),rlamdz)
-         rl2 = (zk*rlam/(rlam+zk))**2
-         dk = rl2*sqrt(ss)
-         if(ri.lt.0.)then
-! unstable regime (same as in EDMF?)
-           ri = max(ri, rimin)
-           sri = sqrt(-ri)
-           xkzm(i,k) = dk*(1+8.*(-ri)/(1+1.746*sri))
-           xkzh(i,k) = dk*(1+8.*(-ri)/(1+1.286*sri))
-         else
-! stable regime
-           xkzh(i,k) = dk/(1+5.*ri)**2
-           !prnum = 1.0+2.1*ri ! set to 1 above PBL in EDMF
-           !prnum = min(prnum,prmax)
-           xkzm(i,k) = xkzh(i,k)
-         endif
-!
-         xkzm(i,k) = max(xkzm(i,k),xkzom(i,k))
-         xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
-         xkzm(i,k) = min(xkzm(i,k),xkzmax)
-         xkzh(i,k) = min(xkzh(i,k),xkzmax)
-         xkzml(i,k) = xkzm(i,k)
-         xkzhl(i,k) = xkzh(i,k)
-       endif
-     enddo
-   enddo
-#endif
 !
 !     compute tridiagonal matrix elements for heat
 !

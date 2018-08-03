@@ -56,7 +56,7 @@ use fms_mod,            only: file_exist, error_mesg
 use fms_mod,            only: close_file, write_version_number, stdlog, stdout
 use fms_mod,            only: clock_flag_default
 use fms_mod,            only: check_nml_error
-use diag_manager_mod,   only: diag_send_complete_extra
+use diag_manager_mod,   only: diag_send_complete_instant
 use time_manager_mod,   only: time_type, get_time, get_date, &
                               operator(+), operator(-)
 use field_manager_mod,  only: MODEL_ATMOS
@@ -118,6 +118,7 @@ public atmos_model_restart
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
                                                          ! to calculate gradient on cubic sphere grid.
      integer                       :: layout(2)          ! computer task laytout
+     logical                       :: regional           ! true if domain is regional
      real(kind=8), pointer, dimension(:) :: ak
      real(kind=8), pointer, dimension(:) :: bk
      real(kind=8), pointer, dimension(:,:,:) :: layer_hgt
@@ -347,7 +348,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
    call alloc_atmos_data_type (nlon, nlat, Atmos)
-   call atmosphere_domain (Atmos%domain, Atmos%layout)
+   call atmosphere_domain (Atmos%domain, Atmos%layout, Atmos%regional)
    call atmosphere_diag_axes (Atmos%axes)
    call atmosphere_etalvls (Atmos%ak, Atmos%bk, flip=.true.)
    call atmosphere_grid_bdry (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
@@ -534,7 +535,7 @@ subroutine update_atmos_model_state (Atmos)
       call atmosphere_nggps_diag(Atmos%Time)
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int, IPD_Control%fhswr, IPD_Control%fhlwr)
-      call diag_send_complete_extra (Atmos%Time)
+      call diag_send_complete_instant (Atmos%Time)
       if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
 

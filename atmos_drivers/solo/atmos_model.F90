@@ -58,6 +58,7 @@ use  field_manager_mod, only: MODEL_ATMOS
 use tracer_manager_mod, only: register_tracers
 use       memutils_mod, only: print_memuse_stats
 use   constants_mod,    only: SECONDS_PER_HOUR,  SECONDS_PER_MINUTE
+use sat_vapor_pres_mod, only: sat_vapor_pres_init
 
 implicit none
 
@@ -104,6 +105,7 @@ character(len=128), parameter :: tag = &
 !#######################################################################
 
  call fms_init ( )
+ call sat_vapor_pres_init
  call atmos_model_init 
 
 !   ------ atmosphere integration loop -------

@@ -10,7 +10,7 @@
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,pfac_q)
+                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
 !   use mpp_mod, only: mpp_pe
@@ -86,8 +86,10 @@
    real(kind=kind_phys),parameter :: xkzminm = 0.1,xkzminh = 0.01
    real(kind=kind_phys),parameter :: xkzmin = 0.01,xkzmax = 1000.
    real(kind=kind_phys),parameter :: rimin = -100.
-   real(kind=kind_phys),parameter :: rlam = 30.,prmin = 0.25,prmax = 4.
-   real(kind=kind_phys),parameter :: brcr_ub = 0.0,brcr_sb = 0.25
+!   real(kind=kind_phys),parameter :: rlam = 30.,prmin = 0.25,prmax = 4.
+   real(kind=kind_phys),parameter :: prmin = 0.25,prmax = 4.
+!   real(kind=kind_phys),parameter :: brcr_ub = 0.0,brcr_sb = 0.25
+   real(kind=kind_phys),parameter :: brcr_sb = 0.25
    real(kind=kind_phys),parameter :: cori = 1.e-4
    real(kind=kind_phys),parameter :: afac = 6.8,bfac = 6.8
    real(kind=kind_phys),parameter :: pfac = 2.0 !,pfac_q = 2.0
@@ -106,6 +108,7 @@
 !
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
+   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam
 !
    real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & !! Statein%ugrs (ix,km)
                         intent(in   ) ::                            ux, & !! 

@@ -549,6 +549,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ral_ts          !< time scale for Rayleigh damping in days
 
     !--- mass flux deep convection
+    logical              :: ext_rain_deep   !< Whether to extract rain water from the deep convection
     real(kind=kind_phys) :: clam_deep       !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -567,6 +568,7 @@ module GFS_typedefs
                                             !< as Nccn=100 for sea and Nccn=7000 for land 
 
     !--- mass flux shallow convection
+    logical              :: ext_rain_shal   !< Whether to extract rain water from the shallow convection
     real(kind=kind_phys) :: clam_shal       !< c_e for shallow convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_shal        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_shal         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -579,6 +581,8 @@ module GFS_typedefs
                                             !< Nccn: CCN number concentration in cm^(-3)
                                             !< Until a realistic Nccn is provided, typical Nccns are assumed
                                             !< as Nccn=100 for sea and Nccn=7000 for land 
+    real(kind=kind_phys) :: evfact_shal     !< rain evaporation efficiency over the ocean
+    real(kind=kind_phys) :: evfactl_shal    !< rain evaporation efficiency over the land
 
     !--- near surface temperature model
     logical              :: nst_anl         !< flag for NSSTM analysis in gcycle/sfcsub
@@ -1584,7 +1588,7 @@ module GFS_typedefs
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
-    logical              :: shal_cnv       = .false.                  !< flag for calling shallow convection
+    logical              :: shal_cnv       = .true.                   !< flag for calling shallow convection
     integer              :: imfshalcnv     =  1                       !< flag for mass-flux shallow convection scheme
                                                                       !<     1: July 2010 version of mass-flux shallow conv scheme
                                                                       !<         current operational version as of 2016
@@ -1621,6 +1625,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ral_ts         = 0.0d0           !< time scale for Rayleigh damping in days
 
     !--- mass flux deep convection
+    logical              :: ext_rain_deep  = .false.         !< Whether to extract rain water from the deep convection
     real(kind=kind_phys) :: clam_deep      = 0.1             !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep        = 0.002           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -1639,6 +1644,7 @@ module GFS_typedefs
                                                              !< as Nccn=100 for sea and Nccn=7000 for land 
 
     !--- mass flux shallow convection
+    logical              :: ext_rain_shal  = .false.         !< Whether to extract rain water from the shallow convection
     real(kind=kind_phys) :: clam_shal      = 0.3             !< c_e for shallow convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_shal       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_shal        = 5.e-4           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
@@ -1651,6 +1657,8 @@ module GFS_typedefs
                                                              !< Nccn: CCN number concentration in cm^(-3)
                                                              !< Until a realistic Nccn is provided, typical Nccns are assumed
                                                              !< as Nccn=100 for sea and Nccn=7000 for land 
+    real(kind=kind_phys) :: evfact_shal    = 0.3             !< rain evaporation efficiency over the ocean
+    real(kind=kind_phys) :: evfactl_shal   = 0.3             !< rain evaporation efficiency over the land
 
     !--- near surface temperature model
     logical              :: nst_anl        = .false.         !< flag for NSSTM analysis in gcycle/sfcsub
@@ -1703,15 +1711,16 @@ module GFS_typedefs
                                ysu_brcr_ub, ysu_rlam,                                       &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
+                               dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
                                clam_deep, c0s_deep, c1_deep, betal_deep,                    &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
-                               asolfac_deep,                                                &
+                               asolfac_deep, ext_rain_deep,                                 &
                           !--- mass flux shallow convection
                                clam_shal, c0s_shal, c1_shal, pgcon_shal, asolfac_shal,      &
+                               ext_rain_shal, evfact_shal, evfactl_shal,                    &
                           !--- near surface temperature model
                                nst_anl, lsea, nstf_name,                                    &
                           !--- stochastic physics
@@ -1917,6 +1926,7 @@ module GFS_typedefs
     Model%ral_ts           = ral_ts
 
     !--- mass flux deep convection
+    Model%ext_rain_deep    = ext_rain_deep
     Model%clam_deep        = clam_deep
     Model%c0s_deep         = c0s_deep
     Model%c1_deep          = c1_deep
@@ -1928,11 +1938,14 @@ module GFS_typedefs
     Model%asolfac_deep     = asolfac_deep
 
     !--- mass flux shallow convection
+    Model%ext_rain_shal    = ext_rain_shal
     Model%clam_shal        = clam_shal
     Model%c0s_shal         = c0s_shal
     Model%c1_shal          = c1_shal
     Model%pgcon_shal       = pgcon_shal
     Model%asolfac_shal     = asolfac_shal
+    Model%evfact_shal      = evfact_shal
+    Model%evfactl_shal     = evfactl_shal
 
     !--- near surface temperature model
     Model%nst_anl          = nst_anl
@@ -2402,6 +2415,7 @@ module GFS_typedefs
       print *, ' ral_ts            : ', Model%ral_ts
       print *, ' '
       print *, 'mass flux deep convection'
+      print *, ' ext_rain_deep     : ', Model%ext_rain_deep
       print *, ' clam_deep         : ', Model%clam_deep
       print *, ' c0s_deep          : ', Model%c0s_deep
       print *, ' c1_deep           : ', Model%c1_deep
@@ -2413,11 +2427,14 @@ module GFS_typedefs
       print *, ' asolfac_deep      : ', Model%asolfac_deep
       print *, ' '
       print *, 'mass flux shallow convection'
+      print *, ' ext_rain_shal     : ', Model%ext_rain_shal
       print *, ' clam_shal         : ', Model%clam_shal
       print *, ' c0s_shal          : ', Model%c0s_shal
       print *, ' c1_shal           : ', Model%c1_shal
       print *, ' pgcon_shal        : ', Model%pgcon_shal
       print *, ' asolfac_shal      : ', Model%asolfac_shal
+      print *, ' evfact_shal       : ', Model%evfact_shal
+      print *, ' evfactl_shal      : ', Model%evfactl_shal
       print *, ' '
       print *, 'near surface temperature model'
       print *, ' nst_anl           : ', Model%nst_anl

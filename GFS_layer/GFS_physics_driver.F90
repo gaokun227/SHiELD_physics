@@ -623,12 +623,13 @@ module module_physics_driver
                  CNV_DQLDT(im,levs), clcn(im,levs),  cnv_fice(im,levs), &
                  cnv_ndrop(im,levs), cnv_nice(im,levs))
         allocate (cn_prc(im),   cn_snr(im))
-        allocate (qrn(im,levs), qsnw(im,levs), ncpr(im,levs), ncps(im,levs))
+        allocate (qsnw(im,levs), ncpr(im,levs), ncps(im,levs))
       else
         allocate (qlcn(1,1), qicn(1,1), w_upi(1,1), cf_upi(1,1),  &
                   CNV_MFD(1,1), CNV_PRC3(1,1), CNV_DQLDT(1,1),    &
                   clcn(1,1), cnv_fice(1,1), cnv_ndrop(1,1), cnv_nice(1,1))
       endif
+      allocate (qrn(im,levs))
 
 
 #ifdef GFS_HYDRO
@@ -2103,10 +2104,14 @@ module module_physics_driver
                           Model%evfact_deep, Model%evfactl_deep,                 &
                           Model%pgcon_deep)
           elseif (Model%imfdeepcnv == 2) then
+            if (Model%ncld == 5) then
+                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            endif
             call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
                             Statein%pgr, Statein%phil, clw(:,:,1:2),      &
                             Stateout%gq0(:,:,1),                        &
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            Model%ext_rain_deep, qrn,                     &
                             cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                             garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
                             dt_mf, cnvw, cnvc,                            &
@@ -2115,6 +2120,9 @@ module module_physics_driver
                             Model%evfact_deep, Model%evfactl_deep,                 &
                             Model%pgcon_deep, Model%asolfac_deep)
 !           if (lprnt) print *,' rain1=',rain1(ipr)
+            if (Model%ncld == 5) then
+                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
+            endif
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
                          Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
@@ -2555,15 +2563,20 @@ module module_physics_driver
             endif
 
           elseif (Model%imfshalcnv == 2) then
+            if (Model%ncld == 5) then
+                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            endif
             call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
                             Statein%pgr, Statein%phil, clw(:,:,1:2),      &
                             Stateout%gq0(:,:,1:1),                        &
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            Model%ext_rain_shal, qrn,                     &
                             rain1, kbot, ktop, kcnv, islmsk, garea,       &
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
                             dt_mf, cnvw, cnvc,                            &
                             Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
-                            Model%pgcon_shal, Model%asolfac_shal)
+                            Model%pgcon_shal, Model%asolfac_shal,         &
+                            Model%evfact_shal, Model%evfactl_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
@@ -2579,6 +2592,9 @@ module module_physics_driver
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
               num2 = Model%num_p3d + 1
               Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
+            endif
+            if (Model%ncld == 5) then
+                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
 
           elseif (Model%imfshalcnv == 0) then    ! modified Tiedtke Shallow convecton
@@ -3338,8 +3354,9 @@ module module_physics_driver
 
         deallocate (qlcn, qicn, w_upi, cf_upi, CNV_MFD, CNV_PRC3, &
                     CNV_DQLDT, clcn, cnv_fice, cnv_ndrop, cnv_nice)
-        deallocate (qrn, qsnw, ncpr, ncps)
+        deallocate (qsnw, ncpr, ncps)
       endif
+      deallocate (qrn)
 
       return
 !...................................

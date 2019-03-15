@@ -313,7 +313,8 @@
    do k = kts,kte
      do i = its,ite
        thx(i,k) = tx(i,k)/pi2d(i,k)
-       thlix(i,k) = (tx(i,k)-xlv*qxci(i,k,1)/cp-2.834E6*qxci(i,k,2)/cp)/pi2d(i,k)
+!      thlix(i,k) = (tx(i,k)-xlv*qxci(i,k,1)/cp-2.834E6*qxci(i,k,2)/cp)/pi2d(i,k)
+       thlix(i,k) = (tx(i,k)-(xlv*qxci(i,k,1)+2.834E6*qxci(i,k,2))/cp) / pi2d(i,k)
      enddo
    enddo
 !
@@ -383,7 +384,8 @@
 !!$   qtnp(its:ite,:) = 0.
 !
    do i = its,ite
-     wspd1(i) = sqrt( (ux(i,1)-uox(i))*(ux(i,1)-uox(i)) + (vx(i,1)-vox(i))*(vx(i,1)-vox(i)) )+1.e-9
+!    wspd1(i) = sqrt( (ux(i,1)-uox(i))*(ux(i,1)-uox(i)) + (vx(i,1)-vox(i))*(vx(i,1)-vox(i)) )+1.e-9
+     wspd1(i) = max(1.e-9, sqrt((ux(i,1)-uox(i))**2 + (vx(i,1)-vox(i))**2))
    enddo
 !
 !---- compute vertical diffusion
@@ -392,7 +394,8 @@
 !     compute preliminary variables
 !
    dtstep = dt
-   dt2 = 2.*dtstep
+!  dt2 = 2.*dtstep
+   dt2 = dtstep
    rdt = 1./dt2
 !
    do i = its,ite
@@ -494,7 +497,8 @@
      thermalli(i) = thlix(i,1)
      pblflg(i) = .true.
      sfcflg(i) = .true.
-     sflux(i) = hfx(i)/rhox(i)/cp + qfx(i)/rhox(i)*ep1*thx(i,1)
+!    sflux(i) = hfx(i)/rhox(i)/cp + qfx(i)/rhox(i)*ep1*thx(i,1)
+     sflux(i) = hfx(i)/(rhox(i)*cp) + qfx(i)/rhox(i)*ep1*thx(i,1)
      if(br(i).gt.0.0) sfcflg(i) = .false.
    enddo
 !
@@ -511,7 +515,8 @@
        if(.not.stable(i))then
          brdn(i) = brup(i)
          spdk2   = max(ux(i,k)**2+vx(i,k)**2,1.)
-         brup(i) = (thvx(i,k)-thermal(i))*(g*za(i,k)/thvx(i,1))/spdk2
+!        brup(i) = (thvx(i,k)-thermal(i))*(g*za(i,k)/thvx(i,1))/spdk2
+         brup(i) = (thvx(i,k)-thermal(i))*g*za(i,k)/(thvx(i,1)*spdk2)
          kpbl(i) = k
          stable(i) = brup(i).gt.brcr(i)
        endif
@@ -546,8 +551,14 @@
        phim(i) = (1.-aphi16*hol1)**(-1./4.)
        phih(i) = (1.-aphi16*hol1)**(-1./2.)
        bfx0 = max(sflux(i),0.)
+<<<<<<< HEAD
        hfx0 = max(hfx(i)/rhox(i)/cp,0.) ! not used
        qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.) ! not used
+=======
+!      hfx0 = max(hfx(i)/rhox(i)/cp,0.)
+       hfx0 = max(hfx(i)/(rhox(i)*cp), 0.)
+       qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.)
+>>>>>>> origin/ljz_rt2019
        wstar3(i) = (govrth(i)*bfx0*hpbl(i))
        wstar(i) = (wstar3(i))**h1
      else
@@ -567,7 +578,8 @@
 !
    do i = its,ite
      if(sfcflg(i).and.sflux(i).gt.0.0)then
-       gamfac   = bfac/rhox(i)/wscale(i)
+!      gamfac   = bfac/rhox(i)/wscale(i)
+       gamfac   = bfac / (rhox(i)*wscale(i))
        hgamt(i) = min(gamfac*hfx(i)/cp,gamcrt)
        hgamq(i) = min(gamfac*qfx(i),gamcrq)
        vpert = (hgamt(i)+ep1*thx(i,1)*hgamq(i))/bfac*afac
@@ -575,7 +587,8 @@
        thermalli(i)= thermalli(i)+max(vpert,0.)*min(za(i,1)/(sfcfrac*hpbl(i)),1.0)
        hgamt(i) = max(hgamt(i),0.0)
        hgamq(i) = max(hgamq(i),0.0)
-       brint    = -15.9*ust(i)*ust(i)/wspd(i)*wstar3(i)/(wscale(i)**4.)
+!      brint    = -15.9*ust(i)*ust(i)/wspd(i)*wstar3(i)/(wscale(i)**4.)
+       brint    = -15.9*ust(i)*ust(i)*wstar3(i)/(wspd(i)*wscale(i)**4.)
        hgamu(i) = brint*ux(i,1)
        hgamv(i) = brint*vx(i,1)
      else
@@ -605,7 +618,8 @@
        if(.not.stable(i).and.pblflg(i))then
          brdn(i) = brup(i)
          spdk2   = max(ux(i,k)**2+vx(i,k)**2,1.)
-         brup(i) = (thvx(i,k)-thermal(i))*(g*za(i,k)/thvx(i,1))/spdk2
+!        brup(i) = (thvx(i,k)-thermal(i))*(g*za(i,k)/thvx(i,1))/spdk2
+         brup(i) = (thvx(i,k)-thermal(i))*g*za(i,k)/(thvx(i,1)*spdk2)
          kpbl(i) = k
          stable(i) = brup(i).gt.brcr(i)
        endif
@@ -620,7 +634,8 @@
         definebrup=.false.
         do k = kpblold(i), kte-1
            spdk2   = max(ux(i,k)**2+vx(i,k)**2,1.)
-           bruptmp = (thlix(i,k)-thermalli(i))*(g*za(i,k)/thlix(i,1))/spdk2
+!          bruptmp = (thlix(i,k)-thermalli(i))*(g*za(i,k)/thlix(i,1))/spdk2
+           bruptmp = (thlix(i,k)-thermalli(i))*g*za(i,k)/(thlix(i,1)*spdk2)
            stable(i) = bruptmp.ge.brcr(i)
            if (definebrup) then
            kpbl(i) = k
@@ -687,7 +702,8 @@
        if(.not.stable(i))then
          brdn(i) = brup(i)
          spdk2   = max(ux(i,k)**2+vx(i,k)**2,1.)
-         brup(i) = (thvx(i,k)-thermal(i))*(g*za(i,k)/thvx(i,1))/spdk2
+!        brup(i) = (thvx(i,k)-thermal(i))*(g*za(i,k)/thvx(i,1))/spdk2
+         brup(i) = (thvx(i,k)-thermal(i))*g*za(i,k)/(thvx(i,1)*spdk2)
          kpbl(i) = k
          stable(i) = brup(i).gt.brcr(i)
        endif
@@ -718,8 +734,9 @@
        k = kpbl(i) - 1
        wm3       = wstar3(i) + 5. * ust3(i)
        wm2(i)    = wm3**h2
-       bfxpbl(i) = -ent_fac*thvx(i,1)/g*wm3/hpbl(i)
+!       bfxpbl(i) = -ent_fac*thvx(i,1)/g*wm3/hpbl(i)
 !       bfxpbl(i) = -0.15*thvx(i,1)/g*wm3/hpbl(i)
+       bfxpbl(i) = -ent_fac*thvx(i,1)*wm3/(g*hpbl(i))
        dthvx(i)  = max(thvx(i,k+1)-thvx(i,k),tmin)
        we(i) = max(bfxpbl(i)/dthvx(i),-sqrt(wm2(i)))
        if((qxci(i,k,1)+qxci(i,k,2)).gt.0.01e-3.and.ysu_topdown_pblmix.eq.1)then
@@ -752,8 +769,9 @@
                 bfx0 = max(sflux(i),0.0)
                 wm3 = (govrth(i)*bfx0*hpbl(i))+5. * ust3(i)
                 wm2(i)    = wm3**h2
-                bfxpbl(i) = -ent_fac*thvx(i,1)/g*wm3/hpbl(i)
+!                bfxpbl(i) = -ent_fac*thvx(i,1)/g*wm3/hpbl(i)
 !                bfxpbl(i) = -0.15*thvx(i,1)/g*wm3/hpbl(i)
+                bfxpbl(i) = -ent_fac*thvx(i,1)*wm3/(g*hpbl(i))
                 dthvx(i)  = max(thvx(i,k+1)-thvx(i,k),tmin)
                 we(i) = max(bfxpbl(i)/dthvx(i),-sqrt(wm2(i)))
 
@@ -1331,15 +1349,17 @@
    do it = 1,nt
      do k = kts+1,n-1
        do i = its,l
-         fk = 1./(cm(i,k)-cl(i,k)*au(i,k-1))
-         f2(i,k,it) = fk*(r2(i,k,it)-cl(i,k)*f2(i,k-1,it))
+!        fk = 1./(cm(i,k)-cl(i,k)*au(i,k-1))
+!        f2(i,k,it) = fk*(r2(i,k,it)-cl(i,k)*f2(i,k-1,it))
+         f2(i,k,it) = (r2(i,k,it)-cl(i,k)*f2(i,k-1,it)) / (cm(i,k)-cl(i,k)*au(i,k-1))
        enddo
      enddo
    enddo
 !
    do i = its,l
-     fk = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
-     f1(i,n) = fk*(r1(i,n)-cl(i,n)*f1(i,n-1))
+!    fk = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
+!    f1(i,n) = fk*(r1(i,n)-cl(i,n)*f1(i,n-1))
+     f1(i,n) = (r1(i,n)-cl(i,n)*f1(i,n-1)) / (cm(i,n)-cl(i,n)*au(i,n-1))
    enddo
 !
    do it = 1,nt
@@ -1418,8 +1438,9 @@
 !
    do it = 1,nt
      do i = its,l
-       fk = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
-       f2(i,n,it) = fk*(r2(i,n,it)-cl(i,n)*f2(i,n-1,it))
+!      fk = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
+!      f2(i,n,it) = fk*(r2(i,n,it)-cl(i,n)*f2(i,n-1,it))
+       f2(i,n,it) = (r2(i,n,it)-cl(i,n)*f2(i,n-1,it))/(cm(i,n)-cl(i,n)*au(i,n-1))
      enddo
    enddo
 !

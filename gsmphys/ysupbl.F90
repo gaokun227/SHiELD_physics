@@ -551,14 +551,9 @@
        phim(i) = (1.-aphi16*hol1)**(-1./4.)
        phih(i) = (1.-aphi16*hol1)**(-1./2.)
        bfx0 = max(sflux(i),0.)
-<<<<<<< HEAD
-       hfx0 = max(hfx(i)/rhox(i)/cp,0.) ! not used
-       qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.) ! not used
-=======
 !      hfx0 = max(hfx(i)/rhox(i)/cp,0.)
-       hfx0 = max(hfx(i)/(rhox(i)*cp), 0.)
-       qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.)
->>>>>>> origin/ljz_rt2019
+       hfx0 = max(hfx(i)/(rhox(i)*cp), 0.) ! not used
+       qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.) ! not used
        wstar3(i) = (govrth(i)*bfx0*hpbl(i))
        wstar(i) = (wstar3(i))**h1
      else

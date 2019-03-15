@@ -154,7 +154,7 @@
                                                            dusfc,dvsfc, & !! dtsfc1, dqsfc1
                                                            dtsfc,dqsfc
 !
-   integer,dimension(   1:im  ),intent(in   ) ::                islmsk, kinver
+   integer,dimension(   1:im  ),intent(in   ) ::                islmsk, kinver ! kinver = levs for most purposes
    integer,dimension(   1:im  ),intent(out  ) ::                kpbl1d
    logical,intent(in   ) ::                                    dspheat
 !
@@ -216,7 +216,7 @@
    integer, dimension(   1:im  ) ::                                kx1
 !
    logical, dimension(   1:im  ) ::                             pblflg, &
-                                                                sfcflg, &
+                                                                sfcflg, & ! br <= 0 
                                                                 stable, &
                                                               cloudflg
 
@@ -448,6 +448,7 @@
          tem1       = tem1 * tem1 * 10.0
          xkzoh(i,k) = xkzm_h * min(1.0, exp(-tem1))
          if (ptem.ge.xkzm_s) then
+            !constant xkzm_m below xkzm_s (default 1.0)
            xkzom(i,k) = xkzm_m
            kx1(i)     = k + 1
          else
@@ -457,6 +458,7 @@
              tem1 = 1.0 - p2di(i,k+1)/p2di(i,kts)
            endif
            tem1 = tem1 * tem1 * 5.0
+           !xkzm_m * exp(-5.0*(1.-dp_rat)**2) < xkzm_m
            xkzom(i,k) = xkzm_m * min(1.0, exp(-tem1))
          endif
        endif
@@ -544,8 +546,8 @@
        phim(i) = (1.-aphi16*hol1)**(-1./4.)
        phih(i) = (1.-aphi16*hol1)**(-1./2.)
        bfx0 = max(sflux(i),0.)
-       hfx0 = max(hfx(i)/rhox(i)/cp,0.)
-       qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.)
+       hfx0 = max(hfx(i)/rhox(i)/cp,0.) ! not used
+       qfx0 = max(ep1*thx(i,1)*qfx(i)/rhox(i),0.) ! not used
        wstar3(i) = (govrth(i)*bfx0*hpbl(i))
        wstar(i) = (wstar3(i))**h1
      else

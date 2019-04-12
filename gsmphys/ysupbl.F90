@@ -10,7 +10,7 @@
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam)
+                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam,afac,bfac)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
 !   use mpp_mod, only: mpp_pe
@@ -91,7 +91,7 @@
 !   real(kind=kind_phys),parameter :: brcr_ub = 0.0,brcr_sb = 0.25
    real(kind=kind_phys),parameter :: brcr_sb = 0.25
    real(kind=kind_phys),parameter :: cori = 1.e-4
-   real(kind=kind_phys),parameter :: afac = 6.8,bfac = 6.8
+!   real(kind=kind_phys),parameter :: afac = 6.8,bfac = 6.8
    real(kind=kind_phys),parameter :: pfac = 2.0 !,pfac_q = 2.0
    real(kind=kind_phys),parameter :: phifac = 8.,sfcfrac = 0.1
    real(kind=kind_phys),parameter :: d1 = 0.02, d2 = 0.05, d3 = 0.001
@@ -108,7 +108,7 @@
 !
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
-   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam
+   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac
 !
    real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & !! Statein%ugrs (ix,km)
                         intent(in   ) ::                            ux, & !! 
@@ -373,15 +373,10 @@
       hfx(i) = heat(i)*rhox(i)*cp
       qfx(i) = evap(i)*rhox(i)
    enddo
+
 !
 !
 !-----initialize vertical tendencies
-!
-!NO NO NO!!
-!!$   utnp(its:ite,:) = 0.
-!!$   vtnp(its:ite,:) = 0.
-!!$   ttnp(its:ite,:) = 0.
-!!$   qtnp(its:ite,:) = 0.
 !
    do i = its,ite
 !    wspd1(i) = sqrt( (ux(i,1)-uox(i))*(ux(i,1)-uox(i)) + (vx(i,1)-vox(i))*(vx(i,1)-vox(i)) )+1.e-9
@@ -1122,6 +1117,8 @@
        dqsfc(i) = dqsfc(i)+qtend*conq*del(i,k)
      enddo
    enddo
+
+
 !
    if(ndiff.ge.2) then
      do ic = 2,ndiff

@@ -392,7 +392,7 @@
 !     compute preliminary variables
 !
    dtstep = dt
-   dt2 = 2.*dtstep
+   dt2 = dtstep
    rdt = 1./dt2
 !
    do i = its,ite

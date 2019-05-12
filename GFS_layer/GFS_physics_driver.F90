@@ -2975,11 +2975,15 @@ module module_physics_driver
 
         if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
 
-        rain1(:)   = (Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:))  &
-                     * dtp * con_p001 / con_day
-        Diag%ice(:)     = Statein%prei(:) * dtp * con_p001 / con_day
-        Diag%snow(:)    = Statein%pres(:) * dtp * con_p001 / con_day
-        Diag%graupel(:) = Statein%preg(:) * dtp * con_p001 / con_day
+        tem = dtp * con_p001 / con_day
+        Statein%prer(:) = Statein%prer(:) * tem
+        Statein%pres(:) = Statein%pres(:) * tem
+        Statein%prei(:) = Statein%prei(:) * tem
+        Statein%preg(:) = Statein%preg(:) * tem
+        rain1(:)   = Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:)
+        Diag%ice(:)     = Statein%prei(:)
+        Diag%snow(:)    = Statein%pres(:)
+        Diag%graupel(:) = Statein%preg(:)
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
@@ -3036,11 +3040,15 @@ module module_physics_driver
                                          1, im, 1, levs, 1, levs,           &
                                          seconds)
 
-        rain1(:)   = (rain0(:)+snow0(:)+ice0(:)+graupel0(:))  &
-                     * dtp * con_p001 / con_day
-        Diag%ice(:)     = ice0    (:) * dtp * con_p001 / con_day
-        Diag%snow(:)    = snow0   (:) * dtp * con_p001 / con_day
-        Diag%graupel(:) = graupel0(:) * dtp * con_p001 / con_day
+        tem = dtp * con_p001 / con_day
+        rain0(:)    = rain0(:)    * tem
+        snow0(:)    = snow0(:)    * tem
+        ice0(:)     = ice0(:)     * tem
+        graupel0(:) = graupel0(:) * tem
+        rain1(:)   = rain0(:)+snow0(:)+ice0(:)+graupel0(:)
+        Diag%ice(:)     = ice0    (:)
+        Diag%snow(:)    = snow0   (:)
+        Diag%graupel(:) = graupel0(:)
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  =              (snow0(i) + ice0(i) + graupel0(i)) &

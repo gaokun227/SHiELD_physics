@@ -497,6 +497,7 @@ module GFS_typedefs
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: dspheat         !< flag for tke dissipative heating
+    logical              :: do_moon_z0      !< flag for Moon et al. 2007 z0
     real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
@@ -506,6 +507,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub     !< critical bulk Richardson number in YSU scheme
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
+    real(kind=kind_phys) :: z0_cap          !< z0 cap for Moon et al. 2007 roughness length over the ocean
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -1572,6 +1574,7 @@ module GFS_typedefs
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
+    logical              :: do_moon_z0     = .false.                  !< flag for Moon et al. 2007 z0
     real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
@@ -1581,10 +1584,11 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub    = 0.0                    
     real(kind=kind_phys) :: ysu_rlam       = 30.0                 
+    real(kind=kind_phys) :: z0_cap         = 2.82e-3                  !< z0 cap for Moon et al. 2007 roughness length over the ocean
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
-    logical              :: shal_cnv       = .false.                  !< flag for calling shallow convection
+    logical              :: shal_cnv       = .true.                   !< flag for calling shallow convection
     integer              :: imfshalcnv     =  1                       !< flag for mass-flux shallow convection scheme
                                                                       !<     1: July 2010 version of mass-flux shallow conv scheme
                                                                       !<         current operational version as of 2016
@@ -1700,10 +1704,10 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam,                                       &
+                               ysu_brcr_ub, ysu_rlam, do_moon_z0, z0_cap,                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
+                               dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1880,6 +1884,7 @@ module GFS_typedefs
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl 
     Model%dspheat          = dspheat
+    Model%do_moon_z0       = do_moon_z0
     Model%xkzm_m           = xkzm_m
     Model%xkzm_h           = xkzm_h
     Model%xkzm_s           = xkzm_s
@@ -1889,6 +1894,7 @@ module GFS_typedefs
     Model%ysu_pfac_q       = ysu_pfac_q
     Model%ysu_brcr_ub      = ysu_brcr_ub
     Model%ysu_rlam         = ysu_rlam
+    Model%z0_cap           = z0_cap
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -2366,6 +2372,7 @@ module GFS_typedefs
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl 
       print *, ' dspheat           : ', Model%dspheat
+      print *, ' do_moon_z0        : ', Model%do_moon_z0
       print *, ' xkzm_m            : ', Model%xkzm_m
       print *, ' xkzm_h            : ', Model%xkzm_h
       print *, ' xkzm_s            : ', Model%xkzm_s
@@ -2375,6 +2382,7 @@ module GFS_typedefs
       print *, ' ysu_pfac_q        : ', Model%ysu_pfac_q
       print *, ' ysu_brcr_ub       : ', Model%ysu_brcr_ub
       print *, ' ysu_rlam          : ', Model%ysu_rlam
+      print *, ' z0_cap            : ', Model%z0_cap
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds

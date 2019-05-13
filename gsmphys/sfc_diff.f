@@ -4,7 +4,7 @@
      &                    stress,fm,fh,
      &                    ustar,wind,ddvel,fm10,fh2,
      &                    sigmaf,vegtype,shdmax,ivegsrc,
-     &                    tsurf,flag_iter,redrag)
+     &                    tsurf,flag_iter,redrag,do_moon_z0,z0_cap)
 !
       use machine , only : kind_phys
       use funcphys, only : fpvs    
@@ -22,9 +22,11 @@
      &,                                      fm10, fh2, sigmaf, shdmax
      &,                                      tsurf, snwdph
       integer, dimension(im)              ::  vegtype, islimsk
+      real(kind=kind_phys) :: z0_cap ! z0 cap for Moon et al. 2007 roughness length over the ocean
 
       logical   flag_iter(im) ! added by s.lu
       logical   redrag        ! reduced drag coeff. flag for high wind over sea (j.han)
+      logical   do_moon_z0    ! true: replace z0 with the Moon et al. 2007 scheme
 !
 !     locals
 !
@@ -35,7 +37,8 @@
      &                     thv1,   tvs,    z1i,    z0,  z0max, ztmax,
      &                     fms,    fhs,    hl0,    hl0inf, hlinf,
      &                     hl110,  hlt,    hltinf, olinf,
-     &                     restar, czilc,  tem1,   tem2, ztmax1
+     &                     restar, czilc,  tem1,   tem2, ztmax1,
+     &                     ws, z0_adj, wind_th, ustar_th, a,b,c ! kgao  
 !
       real(kind=kind_phys), parameter ::
      &              charnock=.014, ca=.4  ! ca - von karman constant
@@ -290,6 +293,25 @@
 !           pp = cc / (1. + cc)
 !           ff = grav * arnu / (charnock * ustar(i) ** 3)
 !           z0 = arnu / (ustar(i) * ff ** pp)
+
+            if (do_moon_z0) then
+! kgao change - modify z0 based on Moon et al. 2007 
+                wind_th = 20. 
+                a = 0.56
+                b = -20.255
+                c = wind_th - 2.458
+                ustar_th = (-b-sqrt(b*b-4*a*c))/(2*a)
+                
+                z0_adj = 0.001*(0.085*wind_th - 0.58) - 
+     &                   (charnock/grav)*ustar_th*ustar_th 
+                
+                ws = 2.458 + ustar(i)*(20.255-0.56*ustar(i))  ! Eq(7) Moon et al. 2007 
+                if ( ws > wind_th ) then                      ! No modification in low wind conditions 
+                   z0 = 0.001*(0.085*ws - 0.58) - z0_adj      ! Eq(8b) Moon et al. 2007 modified by kgao
+                   z0 = min(z0, z0_cap)                      ! cap z0 as in HiRAM   
+                endif
+            endif
+! kgao change - end
 
             if (redrag) then
               z0rl(i) = 100.0 * max(min(z0, z0s_max), 1.e-7)

@@ -493,6 +493,12 @@ module GFS_typedefs
     logical              :: pdfcld          !< flag for pdfcld
     logical              :: shcnvcw         !< flag for shallow convective cloud
     logical              :: redrag          !< flag for reduced drag coeff. over sea
+    real(kind=kind_phys) :: z0s_max         !< a limiting value for z0 under high winds  
+    logical              :: do_z0_moon      !< flag for using z0 scheme in Moon et al. 2007
+    logical              :: do_z0_hwrf15    !< flag for using z0 scheme in 2015 HWRF 
+    logical              :: do_z0_hwrf17    !< flag for using z0 scheme in 2017 HWRF
+    logical              :: do_z0_hwrf17_hwonly !< flag for using z0 scheme in 2017 HWRF only under high wind
+    real(kind=kind_phys) :: wind_th_hwrf    !< wind speed threshold when z0 level off as in HWRF  
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
@@ -1572,6 +1578,12 @@ module GFS_typedefs
     logical              :: pdfcld         = .false.                  !< flag for pdfcld
     logical              :: shcnvcw        = .false.                  !< flag for shallow convective cloud
     logical              :: redrag         = .false.                  !< flag for reduced drag coeff. over sea
+    real(kind=kind_phys) :: z0s_max        = .317e-2                  !< a limiting value for z0 under high winds  
+    logical              :: do_z0_moon     = .false.                  !< flag for using z0 scheme in Moon et al. 2007
+    logical              :: do_z0_hwrf15   = .false.                  !< flag for using z0 scheme in 2015 HWRF 
+    logical              :: do_z0_hwrf17   = .false.                  !< flag for using z0 scheme in 2017 HWRF
+    logical              :: do_z0_hwrf17_hwonly = .false.             !< flag for using z0 scheme in 2017 HWRF only under high wind
+    real(kind=kind_phys) :: wind_th_hwrf   = 33.                      !< wind speed threshold when z0 level off as in HWRF
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
@@ -1705,7 +1717,10 @@ module GFS_typedefs
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
-                               h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
+                               h2o_phys, pdfcld, shcnvcw, redrag, z0s_max,                  &
+                               do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
+                               do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
+                               hybedmf, dspheat, cnvcld,                                    &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
                                ysu_brcr_ub, ysu_rlam,                                       &
@@ -1885,6 +1900,12 @@ module GFS_typedefs
     Model%pdfcld           = pdfcld
     Model%shcnvcw          = shcnvcw
     Model%redrag           = redrag
+    Model%z0s_max          = z0s_max
+    Model%do_z0_moon       = do_z0_moon
+    Model%do_z0_hwrf15     = do_z0_hwrf15
+    Model%do_z0_hwrf17     = do_z0_hwrf17
+    Model%do_z0_hwrf17_hwonly = do_z0_hwrf17_hwonly
+    Model%wind_th_hwrf     = wind_th_hwrf
     Model%hybedmf          = hybedmf
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl 
@@ -2375,6 +2396,12 @@ module GFS_typedefs
       print *, ' pdfcld            : ', Model%pdfcld
       print *, ' shcnvcw           : ', Model%shcnvcw
       print *, ' redrag            : ', Model%redrag
+      print *, ' z0s_max           : ', Model%z0s_max
+      print *, ' do_z0_moon        : ', Model%do_z0_moon
+      print *, ' do_z0_hwrf15      : ', Model%do_z0_hwrf15
+      print *, ' do_z0_hwrf17      : ', Model%do_z0_hwrf17
+      print *, ' do_z0_hwrf17_hwonly : ', Model%do_z0_hwrf17_hwonly
+      print *, ' wind_th_hwrf      : ', Model%wind_th_hwrf
       print *, ' hybedmf           : ', Model%hybedmf
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl 

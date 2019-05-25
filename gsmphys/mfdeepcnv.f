@@ -1,5 +1,5 @@
       subroutine mfdeepcnv(im,ix,km,delt,delp,prslp,psp,phil,ql,
-     &     q1,t1,u1,v1,cldwrk,rn,kbot,ktop,kcnv,islimsk,garea,
+     &     q1,t1,u1,v1,er,qr,cldwrk,rn,kbot,ktop,kcnv,islimsk,garea,
      &     dot,ncloud,ud_mf,dd_mf,dt_mf,cnvw,cnvc,
      &     clam,c0s,c1,betal,betas,evfact,evfactl,pgcon,asolfac)
 !
@@ -11,6 +11,7 @@
      &,             eps => con_eps, epsm1 => con_epsm1
       implicit none
 !
+      logical, intent(in) :: er
       integer, intent(in)  :: im, ix,  km, ncloud
       integer, intent(in)  :: islimsk(im)
       real(kind=kind_phys), intent(in) ::  delt
@@ -19,7 +20,7 @@
 
       integer, intent(inout)  :: kcnv(im)        
       real(kind=kind_phys), intent(inout) ::   ql(ix,km,2),    
-     &   q1(ix,km), t1(ix,km),   u1(ix,km), v1(ix,km)
+     &   q1(ix,km), t1(ix,km),   u1(ix,km), v1(ix,km), qr(ix,km)
 
       integer, intent(out) :: kbot(im), ktop(im) 
       real(kind=kind_phys), intent(out) :: cldwrk(im), 
@@ -147,6 +148,7 @@ c  cloud water
      &                     tx1(im),        sumx(im),      cnvwt(im,km)
 !    &,                    rhbar(im)
 !
+      logical :: rain_ext(im)
       logical totflg, cnvflg(im), asqecflg(im), flg(im)
 !
 !    asqecflg: flag for the quasi-equilibrium assumption of Arakawa-Schubert
@@ -2063,6 +2065,7 @@ c
         delqev(i) = 0.
         delq2(i) = 0.
         flg(i) = cnvflg(i)
+        rain_ext(i) = .false.
       enddo
       do k = km, 1, -1
         do i = 1, im
@@ -2073,6 +2076,13 @@ c
               adw = 1.
               if(k >= jmin(i)) adw = 0.
               rain =  aup * pwo(i,k) + adw * edto(i) * pwdo(i,k)
+              ! the following 6 lines extract all rain water, Linjiong Zhou
+              if (er) then
+                dp = 1000. * del(i,k)
+                qr(i,k) = qr(i,k) + rain * xmb(i) * dt2 * g / dp
+                if (rain .gt. 0.0) rain_ext(i) = .true.
+                rain = 0.0
+              endif
               rntot(i) = rntot(i) + rain * xmb(i) * .001 * dt2
             endif
           endif
@@ -2090,6 +2100,8 @@ c
               adw = 1.
               if(k >= jmin(i)) adw = 0.
               rain =  aup * pwo(i,k) + adw * edto(i) * pwdo(i,k)
+              ! the following line extract all rain water, Linjiong Zhou
+              if (er) rain = 0.0
               rn(i) = rn(i) + rain * xmb(i) * .001 * dt2
             endif
             if(flg(i) .and. k < ktcon(i)) then
@@ -2147,7 +2159,7 @@ c    moistening, rn can become negative, in this case, we back out of the
 c    heating and the moistening
 c
           if(rn(i) < 0. .and. .not.flg(i)) rn(i) = 0.
-          if(rn(i) <= 0.) then
+          if(rn(i) <= 0. .and. (.not. rain_ext(i))) then
             rn(i) = 0.
           else
             ktop(i) = ktcon(i)
@@ -2162,7 +2174,7 @@ c  convective cloud water
 c
       do k = 1, km
         do i = 1, im
-          if (cnvflg(i) .and. rn(i) > 0.) then
+          if (cnvflg(i) .and. (rn(i) > 0. .or. rain_ext(i))) then
             if (k >= kbcon(i) .and. k < ktcon(i)) then
               cnvw(i,k) = cnvwt(i,k) * xmb(i) * dt2
             endif
@@ -2174,7 +2186,7 @@ c  convective cloud cover
 c
       do k = 1, km
         do i = 1, im
-          if (cnvflg(i) .and. rn(i) > 0.) then
+          if (cnvflg(i) .and. (rn(i) > 0. .or. rain_ext(i))) then
             if (k >= kbcon(i) .and. k < ktcon(i)) then
               cnvc(i,k) = 0.04 * log(1. + 675. * eta(i,k) * xmb(i)) 
               cnvc(i,k) = min(cnvc(i,k), 0.6)
@@ -2191,7 +2203,7 @@ c
 !
       do k = 1, km
         do i = 1, im
-          if (cnvflg(i) .and. rn(i) > 0.) then
+          if (cnvflg(i) .and. (rn(i) > 0. .or. rain_ext(i))) then
 !           if (k > kb(i) .and. k <= ktcon(i)) then
             if (k >= kbcon(i) .and. k <= ktcon(i)) then
               tem  = dellal(i,k) * xmb(i) * dt2
@@ -2211,7 +2223,7 @@ c
 c
       do k = 1, km
         do i = 1, im
-          if(cnvflg(i) .and. rn(i) <= 0.) then
+          if(cnvflg(i) .and. rn(i) <= 0. .and. (.not. rain_ext(i))) then
             if (k <= kmax(i)) then
               t1(i,k) = to(i,k)
               q1(i,k) = qo(i,k)
@@ -2226,7 +2238,7 @@ c
 !
       do k = 1, km
         do i = 1, im
-          if(cnvflg(i) .and. rn(i) > 0.) then
+          if(cnvflg(i) .and. (rn(i) > 0. .or. rain_ext(i))) then
             if(k >= kb(i) .and. k < ktop(i)) then
               ud_mf(i,k) = eta(i,k) * xmb(i) * dt2
             endif
@@ -2234,14 +2246,14 @@ c
         enddo
       enddo
       do i = 1, im
-        if(cnvflg(i) .and. rn(i) > 0.) then
+        if(cnvflg(i) .and. (rn(i) > 0. .or. rain_ext(i))) then
            k = ktop(i)-1
            dt_mf(i,k) = ud_mf(i,k)
         endif
       enddo
       do k = 1, km
         do i = 1, im
-          if(cnvflg(i) .and. rn(i) > 0.) then
+          if(cnvflg(i) .and. (rn(i) > 0. .or. rain_ext(i))) then
             if(k >= 1 .and. k <= jmin(i)) then
               dd_mf(i,k) = edto(i) * etad(i,k) * xmb(i) * dt2
             endif

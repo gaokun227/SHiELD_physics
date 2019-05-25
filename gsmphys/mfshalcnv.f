@@ -1,8 +1,8 @@
       subroutine mfshalcnv(im,ix,km,delt,delp,prslp,psp,phil,ql,
-     &     q1,t1,u1,v1,rn,kbot,ktop,kcnv,islimsk,garea,
+     &     q1,t1,u1,v1,er,qr,rn,kbot,ktop,kcnv,islimsk,garea,
      &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,
 !    &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,me)
-     &     clam,c0s,c1,pgcon,asolfac)
+     &     clam,c0s,c1,pgcon,asolfac,evfact,evfactl)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -12,6 +12,7 @@
      &,             eps => con_eps, epsm1 => con_epsm1
       implicit none
 !
+      logical, intent(in) :: er
       integer            im, ix,  km, ncloud,
      &                   kbot(im), ktop(im), kcnv(im) 
 !    &,                  me
@@ -19,7 +20,7 @@
       real(kind=kind_phys) psp(im),    delp(ix,km), prslp(ix,km)
       real(kind=kind_phys) ps(im),     del(ix,km),  prsl(ix,km),
      &                     ql(ix,km,2),q1(ix,km),   t1(ix,km),
-     &                     u1(ix,km),  v1(ix,km),
+     &                     u1(ix,km),  v1(ix,km),   qr(ix,km),
 !    &                     u1(ix,km),  v1(ix,km),   rcs(im),
      &                     rn(im),     garea(im),
      &                     dot(ix,km), phil(ix,km), hpbl(im),
@@ -212,8 +213,8 @@ c  model tunable parameters are all here
 !     clam    = .3
       aafac   = .1
 c     evef    = 0.07
-      evfact  = 0.3
-      evfactl = 0.3
+!     evfact  = 0.3
+!     evfactl = 0.3
 !
 !     pgcon   = 0.7     ! Gregory et al. (1997, QJRMS)
 !     pgcon   = 0.55    ! Zhang & Wu (2003,JAS)
@@ -1289,6 +1290,12 @@ c
         do i = 1, im
           if (cnvflg(i)) then
             if(k < ktcon(i) .and. k > kb(i)) then
+              ! the following 5 lines extract all rain water, Linjiong Zhou
+              if (er) then
+                dp = 1000. * del(i,k)
+                qr(i,k) = qr(i,k) + pwo(i,k) * xmb(i) * dt2 * g / dp
+                pwo(i,k) = 0.0
+              endif
               rntot(i) = rntot(i) + pwo(i,k) * xmb(i) * .001 * dt2
             endif
           endif
@@ -1305,6 +1312,8 @@ c
             qevap(i) = 0.
             if(cnvflg(i)) then
               if(k < ktcon(i) .and. k > kb(i)) then
+                ! the following line extract all rain water, Linjiong Zhou
+                if (er) pwo(i,k) = 0.0
                 rn(i) = rn(i) + pwo(i,k) * xmb(i) * .001 * dt2
               endif
             endif

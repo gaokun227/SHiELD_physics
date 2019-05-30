@@ -1163,7 +1163,7 @@ module module_physics_driver
             islmsk, Tbd%phy_f2d(1,Model%num_p2d), slopetyp,            &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess, Model%isot,          &
-            Model%ivegsrc, lprnt,                                      &
+            Model%ivegsrc, lprnt,Model%lheatstrg,                      &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
             Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &

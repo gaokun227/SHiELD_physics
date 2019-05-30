@@ -503,6 +503,7 @@ module GFS_typedefs
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: dspheat         !< flag for tke dissipative heating
+    logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
@@ -1588,6 +1589,7 @@ module GFS_typedefs
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
+    logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
@@ -1720,7 +1722,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, z0s_max,                  &
                                do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
-                               hybedmf, dspheat, cnvcld,                                    &
+                               hybedmf, dspheat, lheatstrg, cnvcld,                         &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
                                ysu_brcr_ub, ysu_rlam,                                       &
@@ -1910,6 +1912,7 @@ module GFS_typedefs
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl 
     Model%dspheat          = dspheat
+    Model%lheatstrg        = lheatstrg
     Model%xkzm_m           = xkzm_m
     Model%xkzm_h           = xkzm_h
     Model%xkzm_s           = xkzm_s
@@ -2406,6 +2409,7 @@ module GFS_typedefs
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl 
       print *, ' dspheat           : ', Model%dspheat
+      print *, ' lheatstrg         : ', Model%lheatstrg
       print *, ' xkzm_m            : ', Model%xkzm_m
       print *, ' xkzm_h            : ', Model%xkzm_h
       print *, ' xkzm_s            : ', Model%xkzm_s

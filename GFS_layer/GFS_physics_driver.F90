@@ -1043,6 +1043,16 @@ module module_physics_driver
          !else
 !!$         endif
 
+!            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
+!                 Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
+!                 Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
+!                 cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
+!                 Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
+!                 wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
+!                 sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
+!                 tsurf, flag_iter, Model%redrag)  
+
+! sfc_diff modified by kgao
             call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
                  Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
                  Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
@@ -1050,8 +1060,10 @@ module module_physics_driver
                  Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
                  wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
                  sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
-                 tsurf, flag_iter, Model%redrag)
-     
+                 tsurf, flag_iter, Model%redrag, Model%z0s_max,     &
+                 Model%do_z0_moon, Model%do_z0_hwrf15,              &
+                 Model%do_z0_hwrf17, Model%do_z0_hwrf17_hwonly,     &
+                 Model%wind_th_hwrf)
          !endif
 
 !  --- ...  lu: update flag_guess
@@ -1153,7 +1165,7 @@ module module_physics_driver
             islmsk, Tbd%phy_f2d(1,Model%num_p2d), slopetyp,            &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess, Model%isot,          &
-            Model%ivegsrc, lprnt,                                      &
+            Model%ivegsrc, lprnt,Model%lheatstrg,                      &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
             Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &

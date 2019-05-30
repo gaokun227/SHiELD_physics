@@ -493,11 +493,16 @@ module GFS_typedefs
     logical              :: pdfcld          !< flag for pdfcld
     logical              :: shcnvcw         !< flag for shallow convective cloud
     logical              :: redrag          !< flag for reduced drag coeff. over sea
+    real(kind=kind_phys) :: z0s_max         !< a limiting value for z0 under high winds  
+    logical              :: do_z0_moon      !< flag for using z0 scheme in Moon et al. 2007
+    logical              :: do_z0_hwrf15    !< flag for using z0 scheme in 2015 HWRF 
+    logical              :: do_z0_hwrf17    !< flag for using z0 scheme in 2017 HWRF
+    logical              :: do_z0_hwrf17_hwonly !< flag for using z0 scheme in 2017 HWRF only under high wind
+    real(kind=kind_phys) :: wind_th_hwrf    !< wind speed threshold when z0 level off as in HWRF  
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: dspheat         !< flag for tke dissipative heating
-    logical              :: do_moon_z0      !< flag for Moon et al. 2007 z0
     real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
@@ -507,7 +512,6 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub     !< critical bulk Richardson number in YSU scheme
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
-    real(kind=kind_phys) :: z0_cap          !< z0 cap for Moon et al. 2007 roughness length over the ocean
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -1574,11 +1578,16 @@ module GFS_typedefs
     logical              :: pdfcld         = .false.                  !< flag for pdfcld
     logical              :: shcnvcw        = .false.                  !< flag for shallow convective cloud
     logical              :: redrag         = .false.                  !< flag for reduced drag coeff. over sea
+    real(kind=kind_phys) :: z0s_max        = .317e-2                  !< a limiting value for z0 under high winds  
+    logical              :: do_z0_moon     = .false.                  !< flag for using z0 scheme in Moon et al. 2007
+    logical              :: do_z0_hwrf15   = .false.                  !< flag for using z0 scheme in 2015 HWRF 
+    logical              :: do_z0_hwrf17   = .false.                  !< flag for using z0 scheme in 2017 HWRF
+    logical              :: do_z0_hwrf17_hwonly = .false.             !< flag for using z0 scheme in 2017 HWRF only under high wind
+    real(kind=kind_phys) :: wind_th_hwrf   = 33.                      !< wind speed threshold when z0 level off as in HWRF
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
-    logical              :: do_moon_z0     = .false.                  !< flag for Moon et al. 2007 z0
     real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
@@ -1588,7 +1597,6 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub    = 0.0                    
     real(kind=kind_phys) :: ysu_rlam       = 30.0                 
-    real(kind=kind_phys) :: z0_cap         = 2.82e-3                  !< z0 cap for Moon et al. 2007 roughness length over the ocean
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1709,10 +1717,13 @@ module GFS_typedefs
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
-                               h2o_phys, pdfcld, shcnvcw, redrag, hybedmf, dspheat, cnvcld, &
+                               h2o_phys, pdfcld, shcnvcw, redrag, z0s_max,                  &
+                               do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
+                               do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
+                               hybedmf, dspheat, cnvcld,                                    &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam, do_moon_z0, z0_cap,                               &
+                               ysu_brcr_ub, ysu_rlam,                                       &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1889,11 +1900,16 @@ module GFS_typedefs
     Model%pdfcld           = pdfcld
     Model%shcnvcw          = shcnvcw
     Model%redrag           = redrag
+    Model%z0s_max          = z0s_max
+    Model%do_z0_moon       = do_z0_moon
+    Model%do_z0_hwrf15     = do_z0_hwrf15
+    Model%do_z0_hwrf17     = do_z0_hwrf17
+    Model%do_z0_hwrf17_hwonly = do_z0_hwrf17_hwonly
+    Model%wind_th_hwrf     = wind_th_hwrf
     Model%hybedmf          = hybedmf
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl 
     Model%dspheat          = dspheat
-    Model%do_moon_z0       = do_moon_z0
     Model%xkzm_m           = xkzm_m
     Model%xkzm_h           = xkzm_h
     Model%xkzm_s           = xkzm_s
@@ -1903,7 +1919,6 @@ module GFS_typedefs
     Model%ysu_pfac_q       = ysu_pfac_q
     Model%ysu_brcr_ub      = ysu_brcr_ub
     Model%ysu_rlam         = ysu_rlam
-    Model%z0_cap           = z0_cap
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -2381,11 +2396,16 @@ module GFS_typedefs
       print *, ' pdfcld            : ', Model%pdfcld
       print *, ' shcnvcw           : ', Model%shcnvcw
       print *, ' redrag            : ', Model%redrag
+      print *, ' z0s_max           : ', Model%z0s_max
+      print *, ' do_z0_moon        : ', Model%do_z0_moon
+      print *, ' do_z0_hwrf15      : ', Model%do_z0_hwrf15
+      print *, ' do_z0_hwrf17      : ', Model%do_z0_hwrf17
+      print *, ' do_z0_hwrf17_hwonly : ', Model%do_z0_hwrf17_hwonly
+      print *, ' wind_th_hwrf      : ', Model%wind_th_hwrf
       print *, ' hybedmf           : ', Model%hybedmf
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl 
       print *, ' dspheat           : ', Model%dspheat
-      print *, ' do_moon_z0        : ', Model%do_moon_z0
       print *, ' xkzm_m            : ', Model%xkzm_m
       print *, ' xkzm_h            : ', Model%xkzm_h
       print *, ' xkzm_s            : ', Model%xkzm_s
@@ -2395,7 +2415,6 @@ module GFS_typedefs
       print *, ' ysu_pfac_q        : ', Model%ysu_pfac_q
       print *, ' ysu_brcr_ub       : ', Model%ysu_brcr_ub
       print *, ' ysu_rlam          : ', Model%ysu_rlam
-      print *, ' z0_cap            : ', Model%z0_cap
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds

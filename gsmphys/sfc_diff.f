@@ -4,7 +4,10 @@
      &                    stress,fm,fh,
      &                    ustar,wind,ddvel,fm10,fh2,
      &                    sigmaf,vegtype,shdmax,ivegsrc,
-     &                    tsurf,flag_iter,redrag,do_moon_z0,z0_cap)
+     &                    tsurf,flag_iter,redrag,
+     &                    z0s_max,
+     &                    do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,
+     &                    do_z0_hwrf17_hwonly, wind_th_hwrf)
 !
       use machine , only : kind_phys
       use funcphys, only : fpvs    
@@ -26,7 +29,8 @@
 
       logical   flag_iter(im) ! added by s.lu
       logical   redrag        ! reduced drag coeff. flag for high wind over sea (j.han)
-      logical   do_moon_z0    ! true: replace z0 with the Moon et al. 2007 scheme
+      logical   do_z0_moon, do_z0_hwrf15, do_z0_hwrf17 
+     &,         do_z0_hwrf17_hwonly ! added by kgao 
 !
 !     locals
 !
@@ -38,12 +42,14 @@
      &                     fms,    fhs,    hl0,    hl0inf, hlinf,
      &                     hl110,  hlt,    hltinf, olinf,
      &                     restar, czilc,  tem1,   tem2, ztmax1,
-     &                     ws, z0_adj, wind_th, ustar_th, a,b,c ! kgao  
+     &                     z0_adj, wind_th_moon, ustar_th, a,b,c, !kgao 
+     &                     u10m, v10m, ws10m !kgao
 !
+
+      real(kind=kind_phys),intent(in   ) :: z0s_max, wind_th_hwrf ! kgao 
+
       real(kind=kind_phys), parameter ::
      &              charnock=.014, ca=.4  ! ca - von karman constant
-     &,             z0s_max=.317e-2       ! a limiting value at high winds over sea
-
      &,             alpha=5.,   a0=-3.975, a1=12.32, alpha4=4.0*alpha
      &,             b1=-7.755,  b2=6.041,  alpha2=alpha+alpha, beta=1.0
      &,             a0p=-7.941, a1p=24.75, b1p=-8.705, b2p=7.899
@@ -51,6 +57,38 @@
 
      &,             log01=log(0.01), log05=log(0.05), log07=log(0.07)
      &,             ztmin1=-999.0
+! following is added by kgao 
+     &,         bs0=-8.367276172397277e-12 
+     &,         bs1=1.7398510865876079e-09
+     &,         bs2=-1.331896578363359e-07
+     &,         bs3=4.507055294438727e-06
+     &,         bs4=-6.508676881906914e-05
+     &,         bs5=0.00044745137674732834
+     &,         bs6=-0.0010745704660847233
+     &,         cf0=2.1151080765239772e-13
+     &,         cf1=-3.2260663894433345e-11
+     &,         cf2=-3.329705958751961e-10
+     &,         cf3=1.7648562021709124e-07
+     &,         cf4=7.107636825694182e-06
+     &,         cf5=-0.0013914681964973246
+     &,         cf6=0.0406766967657759
+     &,         p13=-1.296521881682694e-02
+     &,         p12= 2.855780863283819e-01
+     &,         p11=-1.597898515251717e+00
+     &,         p10=-8.396975715683501e+00
+     &,         p25= 3.790846746036765e-10
+     &,         p24= 3.281964357650687e-09
+     &,         p23= 1.962282433562894e-07
+     &,         p22=-1.240239171056262e-06
+     &,         p21=1.739759082358234e-07
+     &,         p20=2.147264020369413e-05
+     &,         p35=1.840430200185075e-07
+     &,         p34=-2.793849676757154e-05
+     &,         p33=1.735308193700643e-03
+     &,         p32=-6.139315534216305e-02
+     &,         p31=1.255457892775006e+00
+     &,         p30=-1.663993561652530e+01
+     &,         p40=4.579369142033410e-04
 
 !     parameter (charnock=.014,ca=.4)!c ca is the von karman constant
 !     parameter (alpha=5.,a0=-3.975,a1=12.32,b1=-7.755,b2=6.041)
@@ -284,6 +322,7 @@
 !  update z0 over ocean
 !
           if(islimsk(i) == 0) then
+
             z0 = (charnock / grav) * ustar(i) * ustar(i)
 
 ! mbek -- toga-coare flux algorithm
@@ -294,24 +333,80 @@
 !           ff = grav * arnu / (charnock * ustar(i) ** 3)
 !           z0 = arnu / (ustar(i) * ff ** pp)
 
-            if (do_moon_z0) then
-! kgao change - modify z0 based on Moon et al. 2007 
-                wind_th = 20. 
-                a = 0.56
-                b = -20.255
-                c = wind_th - 2.458
-                ustar_th = (-b-sqrt(b*b-4*a*c))/(2*a)
-                
-                z0_adj = 0.001*(0.085*wind_th - 0.58) - 
-     &                   (charnock/grav)*ustar_th*ustar_th 
-                
-                ws = 2.458 + ustar(i)*(20.255-0.56*ustar(i))  ! Eq(7) Moon et al. 2007 
-                if ( ws > wind_th ) then                      ! No modification in low wind conditions 
-                   z0 = 0.001*(0.085*ws - 0.58) - z0_adj      ! Eq(8b) Moon et al. 2007 modified by kgao
-                   z0 = min(z0, z0_cap)                      ! cap z0 as in HiRAM   
-                endif
+! -------------------------- modify z0 by kgao
+
+! diagnose 10m wind (same as sfc_diag.f)
+ 
+            u10m = u1(i) * fm10(i) / fm(i)
+            v10m = v1(i) * fm10(i) / fm(i)
+            ws10m = sqrt(u10m*u10m + v10m*v10m) 
+
+! option - URI/GFDL (HWRF 2015)
+! note there is discontinuity at 10m/s in original formulation
+! needs to be fixed
+
+            if (do_z0_hwrf15) then
+              if (ws10m <= 5.0) then
+                 z0 = 0.0185/9.8*(7.59e-4*ws10m**2+2.46e-2*ws10m)**2
+              elseif (ws10m > 5.0 .and. ws10m <= 10.) then
+                 z0 = 0.00000235*(ws10m**2-25.)+3.805129199617346e-05
+              elseif (ws10m > 10.0 .and. ws10m <= 60.) then
+                 z0 = bs6 + bs5*ws10m + bs4*ws10m**2 + bs3*ws10m**3 
+     &              + bs2*ws10m**4 + bs1*ws10m**5 + bs0*ws10m**6
+              else
+                 z0 = cf6 + cf5*ws10m + cf4*ws10m**2 + cf3*ws10m**3
+     &              + cf2*ws10m**4 + cf1*ws10m**5 + cf0*ws10m**6
+              endif
             endif
-! kgao change - end
+
+! option - HWRF 2017
+
+            if (do_z0_hwrf17) then
+              if (ws10m <= 6.5) then
+                z0 = exp( p10 + p11*ws10m + p12*ws10m**2 + p13*ws10m**3)
+              elseif (ws10m > 6.5 .and. ws10m <= 15.7) then
+                z0 = p25*ws10m**5 + p24*ws10m**4 + p23*ws10m**3 
+     &             + p22*ws10m**2 + p21*ws10m + p20
+              elseif (ws10m > 15.7 .and. ws10m <= 53.) then
+                z0 = exp( p35*ws10m**5 + p34*ws10m**4 + p33*ws10m**3 
+     &                  + p32*ws10m**2 + p31*ws10m + p30 )
+              else
+                z0 = p40
+              endif
+            endif
+
+! option - GFS (low wind) + HWRF 2017 (high wind)
+
+            if (do_z0_hwrf17_hwonly) then
+
+              if (ws10m > wind_th_hwrf .and. ws10m <= 53.) then
+                z0 = exp( p35*ws10m**5 + p34*ws10m**4 + p33*ws10m**3
+     &                  + p32*ws10m**2 + p31*ws10m + p30 )
+              elseif (ws10m > 53.) then
+                z0 = p40
+              endif
+
+            endif
+
+! option - GFS (low wind) + Moon et al (high wind)
+
+            if (do_z0_moon) then
+              wind_th_moon = 20. 
+              a = 0.56
+              b = -20.255
+              c = wind_th_moon - 2.458
+              ustar_th = (-b-sqrt(b*b-4*a*c))/(2*a)
+
+              z0_adj = 0.001*(0.085*wind_th_moon - 0.58) - 
+     &                 (charnock/grav)*ustar_th*ustar_th 
+
+              ws10m = 2.458 + ustar(i)*(20.255-0.56*ustar(i))  ! Eq(7) Moon et al. 2007 
+              if ( ws10m > wind_th_moon ) then                 ! No modification in low wind conditions 
+                 z0 = 0.001*(0.085*ws10m - 0.58) - z0_adj      ! Eq(8b) Moon et al. 2007 modified by kgao
+              endif
+            endif
+
+! ----------------------------  modify z0 end
 
             if (redrag) then
               z0rl(i) = 100.0 * max(min(z0, z0s_max), 1.e-7)

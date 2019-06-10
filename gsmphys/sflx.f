@@ -6,7 +6,7 @@
      &       swdn, swnet, lwdn, sfcems, sfcprs, sfctmp,                 &
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, ivegsrc,             &
      &       vegtyp, soiltyp, slopetyp, shdmin, alb, snoalb, lprnt,     &
-     &       lheatstrg,                                                 &
+     &       lheatstrg, num_step, hour_canopy, afac_canopy,             &
 !  ---  input/outputs:
      &       tbot, cmc, t1, stc, smc, sh2o, sneqv, ch, cm,z0,           &
 !  ---  outputs:
@@ -64,6 +64,7 @@
 !                       module physcons, and added program documentation!               !
 !    sep  2009 -- s. moorthi minor fixes                                !
 !    nov  2018 -- j. han add canopy heat storage parameterization       !
+!    jun  2019 -- k. gao modify canopy heat storage parameterization    !
 !                                                                       !
 !  ====================  defination of variables  ====================  !
 !                                                                       !
@@ -98,6 +99,11 @@
 !     snoalb   - real, max albedo over deep snow     (fraction)    1    !
 !     lheatstrg- logical, flag for canopy heat storage             1    !
 !                         parameterization                              !
+!     num_step - integer, number of physics time step                   !
+!     hour_canopy - real, tunable time scale for the canopy heat    1   !
+!                         storage parameterization                      !
+!     afac_canopy - real, tunable enhancement factor for            1   ! 
+!                         the canopy heat storage parameterization      ! 
 !                                                                       !
 !  input/outputs:                                                       !
 !     tbot     - real, bottom soil temp (k)                        1    !
@@ -205,6 +211,8 @@
 
       logical, intent(in) :: lprnt
       logical, intent(in) :: lheatstrg
+      integer, intent(in) :: num_step 
+      real (kind=kind_phys), intent(in) :: hour_canopy, afac_canopy
 
 !  ---  input/outputs:
       real (kind=kind_phys), intent(inout) :: tbot, cmc, t1, sneqv,     &
@@ -240,6 +248,7 @@
       real (kind=kind_phys)            :: cpx, cpx1, cpfac, xx1, xx2
       real (kind=kind_phys), parameter :: z0min=0.2_kind_phys,          &
      &                                    z0max=1.0_kind_phys
+      real (kind=kind_phys)            :: xx2_adj, hour 
 !
 !===> ...  begin here
 !
@@ -651,7 +660,19 @@
         if ((ivegsrc == 1 .and. vegtyp /= 13)
      &                    .or.  ivegsrc == 2) then
           xx1   = (z0 - z0min) / (z0max - z0min)
-          xx2   = 1.0 + min(max(xx1, 0.0), 1.0)
+          !xx2   = 1.0 + min(max(xx1, 0.0), 1.0)
+
+          ! xx2 is time dependent if hour_canopy > 0
+          hour = num_step * dt / 3600.
+          !hour_canopy = max(hour_canopy, 1e-6)
+          if (hour < hour_canopy) then
+             xx2_adj = hour/hour_canopy 
+          else
+             xx2_adj = 1.
+          endif
+          xx2_adj = min(xx2_adj, 1.)
+          xx2   = 1.0 + afac_canopy * xx2_adj * min(max(xx1, 0.0), 1.0)
+ 
           cpx   = cp  * xx2
           cpx1  = cp1 * xx2
           cpfac = cp / cpx

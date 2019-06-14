@@ -471,6 +471,7 @@ module GFS_typedefs
                                             !< isot = 1   => STATSGO soil type (19 category)
     logical              :: mom4ice         !< flag controls mom4 sea ice
     logical              :: use_ufo         !< flag for gcycle surface option
+    real(kind=kind_phys) :: czil_sfc        !< Zilintkinivich constant
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras             !< flag for ras convection scheme
@@ -1554,6 +1555,7 @@ module GFS_typedefs
                                                              !< isot = 1   => STATSGO soil type (19 category)
     logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
     logical              :: use_ufo        = .false.         !< flag for gcycle surface option
+    real(kind=kind_phys) :: czil_sfc       = 0.8             !< Zilintkivitch constant
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras            = .false.                  !< flag for ras convection scheme
@@ -1706,7 +1708,7 @@ module GFS_typedefs
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
-                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
+                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
@@ -1870,6 +1872,7 @@ module GFS_typedefs
     Model%isot             = isot
     Model%mom4ice          = mom4ice
     Model%use_ufo          = use_ufo
+    Model%czil_sfc         = czil_sfc
 
     !--- tuning parameters for physical parameterizations
     Model%ras              = ras
@@ -2084,6 +2087,7 @@ module GFS_typedefs
         stop
       endif
       print *,' nst_anl=',Model%nst_anl,' use_ufo=',Model%use_ufo
+      print*, ' czil_sfc=', Model%czil_sfc
       if (Model%nstf_name(1) > 0 ) then 
         print *,' NSSTM is active '
         print *,' nstf_name(1)=',Model%nstf_name(1)
@@ -2361,6 +2365,7 @@ module GFS_typedefs
       print *, ' isot              : ', Model%isot
       print *, ' mom4ice           : ', Model%mom4ice
       print *, ' use_ufo           : ', Model%use_ufo
+      print *, ' czil_sfc          : ', Model%czil_sfc
       print *, ' '
       print *, 'tuning parameters for physical parameterizations'
       print *, ' ras               : ', Model%ras

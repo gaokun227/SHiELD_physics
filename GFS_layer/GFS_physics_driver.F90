@@ -1050,7 +1050,7 @@ module module_physics_driver
                  Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
                  wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
                  sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
-                 tsurf, flag_iter, Model%redrag)
+                 tsurf, flag_iter, Model%redrag, Model%czil_sfc)
      
          !endif
 

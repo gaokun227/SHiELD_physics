@@ -515,6 +515,11 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub     !< critical bulk Richardson number in YSU scheme
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_afac        !< afac parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_bfac        !< bfac parameter in YSU scheme
+    real(kind=kind_phys) :: tnl_fac         !< controls nonlocal mixing of t in YSU scheme (1. or 0.)
+    real(kind=kind_phys) :: qnl_fac         !< controls nonlocal mixing of q in YSU scheme (1. or 0.)
+    real(kind=kind_phys) :: unl_fac         !< controls nonlocal mixing of wind in YSU scheme (1. or 0.)
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -1602,7 +1607,13 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_ent_fac    = 0.15                     !< Entrainment factor in YSU scheme
     real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub    = 0.0                    
-    real(kind=kind_phys) :: ysu_rlam       = 30.0                 
+    real(kind=kind_phys) :: ysu_rlam       = 30.0                
+    real(kind=kind_phys) :: ysu_afac       = 6.8
+    real(kind=kind_phys) :: ysu_bfac       = 6.8
+    real(kind=kind_phys) :: tnl_fac        = 1.0
+    real(kind=kind_phys) :: qnl_fac        = 1.0
+    real(kind=kind_phys) :: unl_fac        = 1.0
+ 
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1730,7 +1741,8 @@ module GFS_typedefs
                                cnvcld,                                                      &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam,                                       &
+                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac,                   &
+                               tnl_fac, qnl_fac, unl_fac,                                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1929,6 +1941,11 @@ module GFS_typedefs
     Model%ysu_pfac_q       = ysu_pfac_q
     Model%ysu_brcr_ub      = ysu_brcr_ub
     Model%ysu_rlam         = ysu_rlam
+    Model%ysu_afac         = ysu_afac
+    Model%ysu_bfac         = ysu_bfac
+    Model%tnl_fac          = tnl_fac
+    Model%qnl_fac          = qnl_fac
+    Model%unl_fac          = unl_fac
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -2428,6 +2445,11 @@ module GFS_typedefs
       print *, ' ysu_pfac_q        : ', Model%ysu_pfac_q
       print *, ' ysu_brcr_ub       : ', Model%ysu_brcr_ub
       print *, ' ysu_rlam          : ', Model%ysu_rlam
+      print *, ' ysu_afac          : ', Model%ysu_afac
+      print *, ' ysu_bfac          : ', Model%ysu_bfac
+      print *, ' tnl_fac           : ', Model%tnl_fac
+      print *, ' qnl_fac           : ', Model%qnl_fac
+      print *, ' unl_fac           : ', Model%unl_fac
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds

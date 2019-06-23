@@ -5,12 +5,13 @@
                   ux,vx,tx,qx,p2di,p2d,pi2d,                                   &
                   phi2di,psfcpa,                                               &
                   htrsw,htrlw,xmu,                                             &
-                  z0rl,ust,hpbl,psim,psih,                                     & 
+                  z0rl,ust,hpbl,hgamt,hfxpbl,psim,psih,                        & 
                   islmsk,heat,evap,wspd,br,                                    & 
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam,afac,bfac,           &
+                  dspheat,ent_fac,dkt,                                         &
+                  pfac_q,brcr_ub,rlam,afac,bfac,                               &
                   tnl_fac, qnl_fac, unl_fac)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
@@ -224,6 +225,9 @@
                                                               cloudflg
 
    real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
+!   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: flux_cg
+!   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: flux_en
+
 ! Local:
    real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
 ! SJL
@@ -951,6 +955,7 @@
      !a1 = t1(i,1) + beta(i)*heat(i)
    enddo
 !
+
    do k = kts,kte-1
      do i = its,ite
        dtodsd = dt2/del(i,k)
@@ -961,6 +966,12 @@
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
+
+         !if (present(flux_cg)) then
+         !   flux_cg(i,k) = hgamt(i)*xkzh(i,k)/hpbl(i)
+         !   flux_en(i,k) = hfxpbl(i)*zfacent(i,k)
+         !endif
+
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then

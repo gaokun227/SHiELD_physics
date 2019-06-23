@@ -880,6 +880,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: zlvl   (:)    => null()   !< layer 1 height (m)
     real (kind=kind_phys), pointer :: psurf  (:)    => null()   !< surface pressure (Pa)
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
+    real (kind=kind_phys), pointer :: hgamt  (:)    => null()   !< ysu counter-gradient flux 
+    real (kind=kind_phys), pointer :: hfxpbl (:)    => null()   !< ysu entrainment flux 
     real (kind=kind_phys), pointer :: pwat   (:)    => null()   !< precipitable water
     real (kind=kind_phys), pointer :: t1     (:)    => null()   !< layer 1 temperature (K)
     real (kind=kind_phys), pointer :: q1     (:)    => null()   !< layer 1 specific humidity (kg/kg)
@@ -921,6 +923,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
                                                                 !< lz note: 1: pbl, 2: deep con, 3: shal con, 4: mp, 5: ozone
     real (kind=kind_phys), pointer :: dkt   (:,:)   => null()
+    real (kind=kind_phys), pointer :: flux_cg(:,:)  => null()
+    real (kind=kind_phys), pointer :: flux_en(:,:)  => null()
  
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: upd_mf (:,:)   => null()  !< instantaneous convective updraft mass flux
@@ -2819,6 +2823,8 @@ module GFS_typedefs
     allocate (Diag%zlvl    (IM))
     allocate (Diag%psurf   (IM))
     allocate (Diag%hpbl    (IM))
+    allocate (Diag%hgamt   (IM))
+    allocate (Diag%hfxpbl  (IM))
     allocate (Diag%pwat    (IM))
     allocate (Diag%t1      (IM))
     allocate (Diag%q1      (IM))
@@ -2847,6 +2853,8 @@ module GFS_typedefs
       allocate (Diag%dt3dt  (IM,Model%levs,6))
       allocate (Diag%dq3dt  (IM,Model%levs,oz_coeff+5))
       allocate (Diag%dkt    (IM,Model%levs))
+      allocate (Diag%flux_cg(IM,Model%levs))
+      allocate (Diag%flux_en(IM,Model%levs))
       !--- needed to allocate GoCart coupling fields
       allocate (Diag%upd_mf (IM,Model%levs))
       allocate (Diag%dwn_mf (IM,Model%levs))
@@ -2939,6 +2947,8 @@ module GFS_typedefs
     Diag%zlvl    = zero
     Diag%psurf   = zero
     Diag%hpbl    = zero
+    Diag%hgamt   = zero
+    Diag%hfxpbl  = zero
     Diag%pwat    = zero
     Diag%t1      = zero
     Diag%q1      = zero
@@ -2967,6 +2977,8 @@ module GFS_typedefs
       Diag%dt3dt   = zero
       Diag%dq3dt   = zero
       Diag%dkt     = zero
+      Diag%flux_cg = zero
+      Diag%flux_en = zero
       Diag%upd_mf  = zero
       Diag%dwn_mf  = zero
       Diag%det_mf  = zero

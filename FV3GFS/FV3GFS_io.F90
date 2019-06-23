@@ -1990,6 +1990,28 @@ module FV3GFS_io_mod
 
     idx = idx + 1
     Diag(idx)%axes = 2
+    Diag(idx)%name = 'hgamt'
+    Diag(idx)%desc = 'ysu counter-gradient heat flux factor'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%hgamt(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'hfxpbl'
+    Diag(idx)%desc = 'ysu entrainment heat flux factor'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%hfxpbl(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
     Diag(idx)%name = 'pwat'
     Diag(idx)%desc = 'atmos column precipitable water [kg/m**2]'
     Diag(idx)%unit = 'kg/m**2'
@@ -2291,6 +2313,28 @@ module FV3GFS_io_mod
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dkt(:,:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'flux_cg'
+    Diag(idx)%desc = 'instantaneous counter-gradient heat flux in ysu'
+    Diag(idx)%unit = 'K*m/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%flux_cg(:,:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'flux_en'
+    Diag(idx)%desc = 'instantaneous entrainment heat flux in ysu'
+    Diag(idx)%unit = 'K*m/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%flux_en(:,:)
     enddo
 
 !!$    idx = idx + 1

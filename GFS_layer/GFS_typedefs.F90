@@ -518,6 +518,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
     real(kind=kind_phys) :: ysu_afac       
     real(kind=kind_phys) :: ysu_bfac       
+    real(kind=kind_phys) :: nl_fac       
+    integer              :: ysu_topdown_pblmix
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -1610,6 +1612,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_rlam       = 30.0                 
     real(kind=kind_phys) :: ysu_afac       = 6.8                 
     real(kind=kind_phys) :: ysu_bfac       = 6.8                 
+    real(kind=kind_phys) :: nl_fac         = 1.0
+    integer              :: ysu_topdown_pblmix = 1
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1736,8 +1740,8 @@ module GFS_typedefs
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld,                                                      &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
-                               ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac,                   &
+                               ysu_pfac_q, ysu_topdown_pblmix,                              &
+                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, nl_fac,           &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1939,6 +1943,8 @@ module GFS_typedefs
     Model%ysu_rlam         = ysu_rlam
     Model%ysu_afac         = ysu_afac
     Model%ysu_bfac         = ysu_bfac
+    Model%nl_fac           = nl_fac
+    Model%ysu_topdown_pblmix = ysu_topdown_pblmix
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -2442,6 +2448,8 @@ module GFS_typedefs
       print *, ' ysu_rlam          : ', Model%ysu_rlam
       print *, ' ysu_afac          : ', Model%ysu_afac
       print *, ' ysu_bfac          : ', Model%ysu_bfac
+      print *, ' nl_fac            : ', Model%nl_fac
+      print *, ' ysu_topdown_pblmix: ', Model%ysu_topdown_pblmix
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds

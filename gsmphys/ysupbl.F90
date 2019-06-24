@@ -10,7 +10,8 @@
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam,afac,bfac)
+                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam,afac,bfac,nl_fac,    &
+                  ysu_topdown_pblmix)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
 !   use mpp_mod, only: mpp_pe
@@ -81,7 +82,7 @@
 !
    integer,parameter :: nqci   = 2
    integer,parameter :: imvdif = 1
-   integer,parameter :: ysu_topdown_pblmix  = 1
+   !integer,parameter :: ysu_topdown_pblmix  = 1
    real(kind=kind_phys),parameter :: karman = 0.4
    real(kind=kind_phys),parameter :: xkzminm = 0.1,xkzminh = 0.01
    real(kind=kind_phys),parameter :: xkzmin = 0.01,xkzmax = 1000.
@@ -104,55 +105,55 @@
    real(kind=kind_phys),parameter :: rcl=1.0
    real(kind=kind_phys),parameter :: dw2min=0.0001
 !
-   integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw
+   integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw, ysu_topdown_pblmix
 !
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
-   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac
+   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac,nl_fac
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & !! Statein%ugrs (ix,km)
-                        intent(in   ) ::                            ux, & !! 
-                                                                    vx, & !!
-                                                                    tx, & !! Radtend%htrsw (ix,km)
-                                                                 htrsw, & !!
-                                                                 htrlw
+   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & 
+                        intent(in   ) ::                            ux, & !! Statein%ugrs (ix,km)   
+                                                                    vx, & !!                        
+                                                                    tx, & !!                        
+                                                                 htrsw, & !! Radtend%htrsw (ix,km)  
+                                                                 htrlw    !!                        
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km *ndiff )           , & !! 
-                        intent(in   ) ::                            qx
+   real(kind=kind_phys),dimension(   1:ix ,   1:km *ndiff )           , & 
+                        intent(in   ) ::                            qx    !! qgrs
 !
-   real(kind=kind_phys),dimension(   1:im ,   1:km  )                 , & !! dvdt (im,km)
-                        intent(inout) ::                          vtnp, & !!
+   real(kind=kind_phys),dimension(   1:im ,   1:km  )                 , & 
+                        intent(inout) ::                          vtnp, & !! dvdt (im,km)
                                                                   utnp, & !!
                                                                   ttnp
    real(kind=kind_phys),dimension(   1:im ,   1:km *ndiff )           , &
                         intent(inout) ::                          qtnp
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km +1 )               , & !! Statein%prsi
-                        intent(in   ) ::                          p2di, &
-                                                                phi2di
+   real(kind=kind_phys),dimension(   1:ix ,   1:km +1 )               , & 
+                        intent(in   ) ::                          p2di, & !! Statein%prsi
+                                                                phi2di    !! Statein%phii
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & !! Statein%prsl
-                        intent(in   ) ::                           p2d, & !! Statein%prslk
-                                                                  pi2d
+   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & 
+                        intent(in   ) ::                           p2d, & !! Statein%prsl
+                                                                  pi2d    !! Statein%prslk
 !
-   real(kind=kind_phys),dimension(   1:im  )                          , & !! Sfcprop%uustar
-                        intent(in   ) ::                           ust, & !! Sfcprop%zorl
-                                                                  z0rl, &
-                                                                   xmu
+   real(kind=kind_phys),dimension(   1:im  )                          , & 
+                        intent(in   ) ::                           ust, & !! Sfcprop%uustar
+                                                                  z0rl, & !! Sfcprop%zorl
+                                                                   xmu    !! zenith angle adjustment
    real(kind=kind_phys),dimension(   1:im  )                          , &
-                        intent(in   ) ::                          heat, &
-                                                                  evap
-   real(kind=kind_phys),dimension(   1:im  )                          , & !! rb
-                        intent(in   ) ::                            br, & !! Sfcprop%ffmm
-                                                                  psim, & !! Sfcprop%ffhh
-                                                                  psih, & !! wind
-                                                                  wspd, &
-                                                                psfcpa
+                        intent(in   ) ::                          heat, & !! heat flux
+                                                                  evap    !! moisture flux
+   real(kind=kind_phys),dimension(   1:im  )                          , & 
+                        intent(in   ) ::                            br, & !! rb
+                                                                  psim, & !! Sfcprop%ffmm
+                                                                  psih, & !! Sfcprop%ffhh
+                                                                  wspd, & !! wind
+                                                                psfcpa    !! pgr
 !
-   real(kind=kind_phys),dimension(   1:im  )                          , & !! Diag%hpbl
-                        intent(inout) ::                          hpbl, & !! dusfc1, dvsfc1
-                                                           dusfc,dvsfc, & !! dtsfc1, dqsfc1
-                                                           dtsfc,dqsfc
+   real(kind=kind_phys),dimension(   1:im  )                          , & 
+                        intent(inout) ::                          hpbl, & !! Diag%hpbl
+                                                           dusfc,dvsfc, & !! dusfc1, dvsfc1
+                                                           dtsfc,dqsfc    !! dtsfc1, dqsfc1
 !
    integer,dimension(   1:im  ),intent(in   ) ::                islmsk, kinver ! kinver = levs for most purposes
    integer,dimension(   1:im  ),intent(out  ) ::                kpbl1d
@@ -418,7 +419,7 @@
      enddo
    enddo
 !
-!<--- background vertical diffusivity
+!<--- background vertical diffusivity (same as in GFS)
 !
 !   do k = kts,klpbl-1
 !     do i = its,ite
@@ -567,7 +568,7 @@
 !     under unstable conditions
 !
    do i = its,ite
-     if(sfcflg(i).and.sflux(i).gt.0.0)then
+     if(sfcflg(i).and.sflux(i).gt.0.0)then ! rb < 0 .and. sflux > 0
 !      gamfac   = bfac/rhox(i)/wscale(i)
        gamfac   = bfac / (rhox(i)*wscale(i))
        hgamt(i) = min(gamfac*hfx(i)/cp,gamcrt)
@@ -657,7 +658,7 @@
      endif
    enddo
 !
-!     stable boundary layer
+!     stable boundary layer (rb > 0 .and. hpbl < zq(2) )
 !
    do i = its,ite
      if((.not.sfcflg(i)).and.hpbl(i).lt.zq(i,2)) then
@@ -669,7 +670,7 @@
    enddo
 !
    do i = its,ite
-     if((.not.stable(i)).and.((xland(i)-1.5).ge.0))then
+     if((.not.stable(i)).and.((xland(i)-1.5).ge.0))then ! ocean
        wspd10 = u10(i)*u10(i) + v10(i)*v10(i)
        wspd10 = sqrt(wspd10)
        ross = wspd10 / (cori*znt(i))
@@ -679,8 +680,8 @@
 !
    do i = its,ite
      if(.not.stable(i))then
-       if((xland(i)-1.5).ge.0)then
-         brcr(i) = brcr_sbro(i)
+       if((xland(i)-1.5).ge.0)then ! ocean
+         brcr(i) = brcr_sbro(i) 
        else
          brcr(i) = brcr_sb
        endif
@@ -851,9 +852,9 @@
            wscalek(i,k) = max(wscalek(i,k),0.001)
          endif
          prnum0 = (phih(i)/phim(i)+prfac)
-         prnum0 = max(min(prnum0,prmax),prmin)
-           xkzm(i,k) = wscalek(i,k) *karman*    zq(i,k+1)      *    zfac(i,k)**pfac+ &
-                       wscalek2(i,k)*karman*(hpbl(i)-zq(i,k+1))*(1-zfac(i,k))**pfac
+         prnum0 = max(min(prnum0,prmax),prmin) 
+           xkzm(i,k) = wscalek(i,k) *karman*    zq(i,k+1)      *    zfac(i,k)**pfac+ &   !!! MUCH MORE COMPLICATED
+                       wscalek2(i,k)*karman*(hpbl(i)-zq(i,k+1))*(1-zfac(i,k))**pfac      !!! THAN EDMF
          !Do not include xkzm at kpbl-1 since it changes entrainment
          if (k.eq.kpbl(i)-1.and.cloudflg(i).and.we(i).lt.0.0) then
            xkzm(i,k) = 0.0
@@ -861,7 +862,7 @@
          prnum =  1. + (prnum0-1.)*exp(prnumfac)
          xkzq(i,k) = xkzm(i,k)/prnum*zfac(i,k)**(pfac_q-pfac)
          prnum0 = prnum0/(1.+prfac2*karman*sfcfrac)
-         prnum =  1. + (prnum0-1.)*exp(prnumfac)
+         prnum =  1. + (prnum0-1.)*exp(prnumfac)  !!! ALSO MORE COMPLICATED
          xkzh(i,k) = xkzm(i,k)/prnum
          xkzm(i,k) = max(xkzm(i,k),xkzom(i,k))
          xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
@@ -945,18 +946,19 @@
    do i = its,ite
      ad(i,1) = 1.
      f1(i,1) = thx(i,1)-300.+hfx(i)/cont/del(i,1)*dt2
+     !a1 = t1(i,1) + beta(i)*heat(i)
    enddo
 !
    do k = kts,kte-1
      do i = its,ite
        dtodsd = dt2/del(i,k)
        dtodsu = dt2/del(i,k+1)
-! SJL       dsig   = p2d(i,k)-p2d(i,k+1)
-       dsig   = p2m(i,k) - p2m(i,k+1)
+! SJL       dsig   = p2d(i,k)-p2d(i,k+1) ! ?!?
+       dsig   = p2m(i,k) - p2m(i,k+1) 
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
-         dsdzt = tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
+         dsdzt = tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))*nl_fac
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -997,6 +999,35 @@
        dtsfc(i) = dtsfc(i)+ttend*cont*del(i,k)/pi2d(i,k)
      enddo
    enddo
+   !!! DEBUG CODE
+   k=kts
+   do i=its,ite
+   if (tx(i,k) +ttnp(i,k) > 325.) then
+      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
+      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
+      write(*,'(A, 2F, I, 2L)') '  ',  hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
+      write(*,'(A, 3F)') '  ',  xkzh(i,1:3)
+      write(*,'(A, 3F)') '  ',  tx(i,1:3)+ttnp(i,1:3)
+      write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
+      write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
+      write(*,'(A, 4F)') '  ',  wscale(i), wstar3(i)**h1, wstar3_2(i)**h1, hfx(i)/cp
+   endif
+   enddo
+
+   do k=kts+1,kte-1
+   do i=its,ite
+   if (tx(i,k) +ttnp(i,k) > 325.) then
+      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
+      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
+      write(*,'(A, 3F, I, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
+      write(*,'(A, 3F)') '  ',  xkzh(i,k-1:k+1)
+      write(*,'(A, 3F)') '  ',  tx(i,k-1:k+1)+ttnp(i,k-1:k+1)
+      write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
+      write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
+   endif
+   enddo
+   enddo
+   !!! END DEBUG CODE
 
    if (present(dkt)) then
       do k=kts,kte-1
@@ -1027,6 +1058,7 @@
    do i = its,ite
      ad(i,1) = 1.
      f3(i,1,1) = qx(i,1)+qfx(i)*g/del(i,1)*dt2
+     !a2(i,1) = q1(i,1,1) + beta(i) * evap(i) 
    enddo
 !
    if(ndiff.ge.2) then

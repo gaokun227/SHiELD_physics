@@ -1018,7 +1018,6 @@
    !!! DEBUG CODE
    k=kts
    do i=its,ite
-<<<<<<< HEAD
    if (tx(i,k) +ttnp(i,k) > 325.) then
       write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
       write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
@@ -1028,21 +1027,11 @@
       write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
       write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
       write(*,'(A, 4F)') '  ',  wscale(i), wstar3(i)**h1, wstar3_2(i)**h1, hfx(i)/cp
-=======
-   if (ttnp(i,k) > 325.) then
-      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, ttnp(i,k)
-      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
-      write(*,'(A, 2F, I, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
-      write(*,'(A, 3F)') '  ',  xkzh(i,1:3)
-      write(*,'(A, 3F)') '  ',  tx(i,1:3)
-      write(*,'(A, 3F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
->>>>>>> origin/kng_dev
    endif
    enddo
 
    do k=kts+1,kte-1
    do i=its,ite
-<<<<<<< HEAD
    if (tx(i,k) +ttnp(i,k) > 325.) then
       write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
       write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
@@ -1051,15 +1040,6 @@
       write(*,'(A, 3F)') '  ',  tx(i,k-1:k+1)+ttnp(i,k-1:k+1)
       write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
       write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
-=======
-   if (ttnp(i,k) > 325.) then
-      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, ttnp(i,k)
-      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
-      write(*,'(A, 2F, I, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
-      write(*,'(A, 3F)') '  ',  xkzh(i,k-1:k+1)
-      write(*,'(A, 3F)') '  ',  tx(i,k-1:k+1)
-      write(*,'(A, 3F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
->>>>>>> origin/kng_dev
    endif
    enddo
    enddo

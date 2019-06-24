@@ -158,6 +158,7 @@
                         intent(inout) ::                          hpbl, & !! Diag%hpbl
                                                            dusfc,dvsfc, & !! dusfc1, dvsfc1
                                                            dtsfc,dqsfc    !! dtsfc1, dqsfc1
+   real(kind=kind_phys),dimension(   1:im  ),intent(out  ) ::   hgamt, hfxpbl
 !
    integer,dimension(   1:im  ),intent(in   ) ::                islmsk, kinver ! kinver = levs for most purposes
    integer,dimension(   1:im  ),intent(out  ) ::                kpbl1d
@@ -189,7 +190,7 @@
                                                                 govrth, &
                                                            zl1,thermal, &
                                                                 wscale, &
-                                                           hgamt,hgamq, &
+                                                                 hgamq, &
                                                              brdn,brup, &
                                                              phim,phih, &
                                                                  prpbl, &
@@ -262,7 +263,7 @@
                                                            hgamu,hgamv, &
                                                                wm2, we, &
                                                                 bfxpbl, &
-                                                         hfxpbl,qfxpbl, &
+                                                                qfxpbl, &
                                                          ufxpbl,vfxpbl, &
                                                                  dthvx
 !

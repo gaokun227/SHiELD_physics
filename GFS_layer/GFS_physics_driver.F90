@@ -483,7 +483,8 @@ module module_physics_driver
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
-          ud_mf, dd_mf, dt_mf, prnum, dkt, sigmatot, sigmafrac
+          ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en,            &
+          sigmatot, sigmafrac
 
       !--- GFDL modification for FV3 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs+1) ::&
@@ -1428,15 +1429,19 @@ module module_physics_driver
                       Statein%phii, Statein%pgr,                                &
                       Radtend%htrsw, Radtend%htrlw, xmu,                        &
                       Sfcprop%zorl, Sfcprop%uustar, Diag%hpbl,                  &
+                      Diag%hgamt, Diag%hfxpbl,                                  &
                       Sfcprop%ffmm, Sfcprop%ffhh,                               &
                       islmsk, hflx, evap, wind, rb,                             &
                       dusfc1, dvsfc1, dtsfc1, dqsfc1,                           &
                       dtp, kpbl, Diag%u10m, Diag%v10m,                          &
                       kinver,                                                   &
                       Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
-                      Model%dspheat, Model%ysu_ent_fac, dkt, Model%ysu_pfac_q,  &
+                      Model%dspheat, Model%ysu_ent_fac, dkt,                    &
+                      flux_cg, flux_en,                                         &
+                      Model%ysu_pfac_q,                                         &
                       Model%ysu_brcr_ub, Model%ysu_rlam, Model%ysu_afac,        &
-                      Model%ysu_bfac, Model%nl_fac, Model%ysu_topdown_pblmix)
+                      Model%ysu_bfac, Model%tnl_fac, Model%qnl_fac,             &
+                      Model%unl_fac, Model%ysu_topdown_pblmix)
        elseif ( Model%myj_pbl) then
           
           do i=1,im
@@ -1601,6 +1606,19 @@ module module_physics_driver
             Diag%dkt(i,k) = dkt(i,k)
          enddo
          enddo
+
+         !!! nonlocal fluxes 
+         do i=1, im
+            Diag%flux_cg(i,1) = 0.
+            Diag%flux_en(i,1) = 0.
+         enddo
+         do k=2,levs
+         do i=1,im
+            Diag%flux_cg(i,k) = flux_cg(i,k)
+            Diag%flux_en(i,k) = flux_en(i,k)
+         enddo
+         enddo
+
       endif
 
       if (Model%cplflx) then

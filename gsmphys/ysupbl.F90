@@ -5,12 +5,14 @@
                   ux,vx,tx,qx,p2di,p2d,pi2d,                                   &
                   phi2di,psfcpa,                                               &
                   htrsw,htrlw,xmu,                                             &
-                  z0rl,ust,hpbl,psim,psih,                                     & 
+                  z0rl,ust,hpbl,hgamt,hfxpbl,psim,psih,                        & 
                   islmsk,heat,evap,wspd,br,                                    & 
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,pfac_q,brcr_ub,rlam,afac,bfac,nl_fac,    &
+                  dspheat,ent_fac,dkt,flux_cg,flux_en,                         &
+                  pfac_q,brcr_ub,rlam,afac,bfac,                               &
+                  tnl_fac, qnl_fac, unl_fac,                                   &
                   ysu_topdown_pblmix)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
@@ -109,7 +111,9 @@
 !
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
-   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac,nl_fac
+   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac
+   real(kind=kind_phys),intent(in   ) :: tnl_fac, qnl_fac, unl_fac ! controls non-local mixing 
+
 !
    real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & 
                         intent(in   ) ::                            ux, & !! Statein%ugrs (ix,km)   
@@ -222,6 +226,9 @@
                                                               cloudflg
 
    real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
+   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: flux_cg
+   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: flux_en
+
 ! Local:
    real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
 ! SJL
@@ -949,6 +956,7 @@
      !a1 = t1(i,1) + beta(i)*heat(i)
    enddo
 !
+
    do k = kts,kte-1
      do i = its,ite
        dtodsd = dt2/del(i,k)
@@ -958,7 +966,15 @@
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
-         dsdzt = tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))*nl_fac
+         dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
+
+         if (present(flux_cg)) then
+            flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         endif
+         if (present(flux_en)) then
+            flux_en(i,k) = -hfxpbl(i)*zfacent(i,k)
+         endif
+
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -1002,6 +1018,7 @@
    !!! DEBUG CODE
    k=kts
    do i=its,ite
+<<<<<<< HEAD
    if (tx(i,k) +ttnp(i,k) > 325.) then
       write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
       write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
@@ -1011,11 +1028,21 @@
       write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
       write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
       write(*,'(A, 4F)') '  ',  wscale(i), wstar3(i)**h1, wstar3_2(i)**h1, hfx(i)/cp
+=======
+   if (ttnp(i,k) > 325.) then
+      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, ttnp(i,k)
+      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
+      write(*,'(A, 2F, I, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
+      write(*,'(A, 3F)') '  ',  xkzh(i,1:3)
+      write(*,'(A, 3F)') '  ',  tx(i,1:3)
+      write(*,'(A, 3F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
+>>>>>>> origin/kng_dev
    endif
    enddo
 
    do k=kts+1,kte-1
    do i=its,ite
+<<<<<<< HEAD
    if (tx(i,k) +ttnp(i,k) > 325.) then
       write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
       write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
@@ -1024,6 +1051,15 @@
       write(*,'(A, 3F)') '  ',  tx(i,k-1:k+1)+ttnp(i,k-1:k+1)
       write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
       write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
+=======
+   if (ttnp(i,k) > 325.) then
+      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, ttnp(i,k)
+      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
+      write(*,'(A, 2F, I, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
+      write(*,'(A, 3F)') '  ',  xkzh(i,k-1:k+1)
+      write(*,'(A, 3F)') '  ',  tx(i,k-1:k+1)
+      write(*,'(A, 3F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
+>>>>>>> origin/kng_dev
    endif
    enddo
    enddo
@@ -1087,7 +1123,7 @@
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i)) then
-         dsdzq = tem1*(-qfxpbl(i)*zfacent(i,k))
+         dsdzq = qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k)) ! no gama term ?
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -1201,8 +1237,8 @@
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
        if(pblflg(i).and.k.lt.kpbl(i))then
-         dsdzu     = tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
-         dsdzv     = tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
+         dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
+         dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv

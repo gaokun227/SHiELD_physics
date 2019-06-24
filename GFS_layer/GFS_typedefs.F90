@@ -516,9 +516,11 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub     !< critical bulk Richardson number in YSU scheme
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
-    real(kind=kind_phys) :: ysu_afac       
-    real(kind=kind_phys) :: ysu_bfac       
-    real(kind=kind_phys) :: nl_fac       
+    real(kind=kind_phys) :: ysu_afac        !< afac parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_bfac        !< bfac parameter in YSU scheme
+    real(kind=kind_phys) :: tnl_fac         !< controls nonlocal mixing of t in YSU scheme (1. or 0.)
+    real(kind=kind_phys) :: qnl_fac         !< controls nonlocal mixing of q in YSU scheme (1. or 0.)
+    real(kind=kind_phys) :: unl_fac         !< controls nonlocal mixing of wind in YSU scheme (1. or 0.)
     integer              :: ysu_topdown_pblmix
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
@@ -881,6 +883,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: zlvl   (:)    => null()   !< layer 1 height (m)
     real (kind=kind_phys), pointer :: psurf  (:)    => null()   !< surface pressure (Pa)
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
+    real (kind=kind_phys), pointer :: hgamt  (:)    => null()   !< ysu counter-gradient flux 
+    real (kind=kind_phys), pointer :: hfxpbl (:)    => null()   !< ysu entrainment flux 
     real (kind=kind_phys), pointer :: pwat   (:)    => null()   !< precipitable water
     real (kind=kind_phys), pointer :: t1     (:)    => null()   !< layer 1 temperature (K)
     real (kind=kind_phys), pointer :: q1     (:)    => null()   !< layer 1 specific humidity (kg/kg)
@@ -922,6 +926,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
                                                                 !< lz note: 1: pbl, 2: deep con, 3: shal con, 4: mp, 5: ozone
     real (kind=kind_phys), pointer :: dkt   (:,:)   => null()
+    real (kind=kind_phys), pointer :: flux_cg(:,:)  => null()
+    real (kind=kind_phys), pointer :: flux_en(:,:)  => null()
  
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: upd_mf (:,:)   => null()  !< instantaneous convective updraft mass flux
@@ -1609,11 +1615,13 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_ent_fac    = 0.15                     !< Entrainment factor in YSU scheme
     real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub    = 0.0                    
-    real(kind=kind_phys) :: ysu_rlam       = 30.0                 
-    real(kind=kind_phys) :: ysu_afac       = 6.8                 
-    real(kind=kind_phys) :: ysu_bfac       = 6.8                 
-    real(kind=kind_phys) :: nl_fac         = 1.0
-    integer              :: ysu_topdown_pblmix = 1
+    real(kind=kind_phys) :: ysu_rlam       = 30.0                
+    real(kind=kind_phys) :: ysu_afac       = 6.8
+    real(kind=kind_phys) :: ysu_bfac       = 6.8
+    real(kind=kind_phys) :: tnl_fac        = 1.0
+    real(kind=kind_phys) :: qnl_fac        = 1.0
+    real(kind=kind_phys) :: unl_fac        = 1.0
+    integer              :: ysu_topdown_pblmix = 1 
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1741,7 +1749,8 @@ module GFS_typedefs
                                cnvcld,                                                      &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q, ysu_topdown_pblmix,                              &
-                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, nl_fac,           &
+                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac,                   &
+                               tnl_fac, qnl_fac, unl_fac,                                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1943,7 +1952,9 @@ module GFS_typedefs
     Model%ysu_rlam         = ysu_rlam
     Model%ysu_afac         = ysu_afac
     Model%ysu_bfac         = ysu_bfac
-    Model%nl_fac           = nl_fac
+    Model%tnl_fac          = tnl_fac
+    Model%qnl_fac          = qnl_fac
+    Model%unl_fac          = unl_fac
     Model%ysu_topdown_pblmix = ysu_topdown_pblmix
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
@@ -2448,7 +2459,9 @@ module GFS_typedefs
       print *, ' ysu_rlam          : ', Model%ysu_rlam
       print *, ' ysu_afac          : ', Model%ysu_afac
       print *, ' ysu_bfac          : ', Model%ysu_bfac
-      print *, ' nl_fac            : ', Model%nl_fac
+      print *, ' tnl_fac           : ', Model%tnl_fac
+      print *, ' qnl_fac           : ', Model%qnl_fac
+      print *, ' unl_fac           : ', Model%unl_fac
       print *, ' ysu_topdown_pblmix: ', Model%ysu_topdown_pblmix
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
@@ -2819,6 +2832,8 @@ module GFS_typedefs
     allocate (Diag%zlvl    (IM))
     allocate (Diag%psurf   (IM))
     allocate (Diag%hpbl    (IM))
+    allocate (Diag%hgamt   (IM))
+    allocate (Diag%hfxpbl  (IM))
     allocate (Diag%pwat    (IM))
     allocate (Diag%t1      (IM))
     allocate (Diag%q1      (IM))
@@ -2847,6 +2862,8 @@ module GFS_typedefs
       allocate (Diag%dt3dt  (IM,Model%levs,6))
       allocate (Diag%dq3dt  (IM,Model%levs,oz_coeff+5))
       allocate (Diag%dkt    (IM,Model%levs))
+      allocate (Diag%flux_cg(IM,Model%levs))
+      allocate (Diag%flux_en(IM,Model%levs))
       !--- needed to allocate GoCart coupling fields
       allocate (Diag%upd_mf (IM,Model%levs))
       allocate (Diag%dwn_mf (IM,Model%levs))
@@ -2939,6 +2956,8 @@ module GFS_typedefs
     Diag%zlvl    = zero
     Diag%psurf   = zero
     Diag%hpbl    = zero
+    Diag%hgamt   = zero
+    Diag%hfxpbl  = zero
     Diag%pwat    = zero
     Diag%t1      = zero
     Diag%q1      = zero
@@ -2967,6 +2986,8 @@ module GFS_typedefs
       Diag%dt3dt   = zero
       Diag%dq3dt   = zero
       Diag%dkt     = zero
+      Diag%flux_cg = zero
+      Diag%flux_en = zero
       Diag%upd_mf  = zero
       Diag%dwn_mf  = zero
       Diag%det_mf  = zero

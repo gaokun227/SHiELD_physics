@@ -1437,11 +1437,11 @@ module module_physics_driver
                       kinver,                                                   &
                       Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
                       Model%dspheat, Model%ysu_ent_fac, dkt,                    &
-                      flux_cg, flux_en,                                         &
+                      !flux_cg, flux_en,                                         &
                       Model%ysu_pfac_q,                                         &
                       Model%ysu_brcr_ub, Model%ysu_rlam, Model%ysu_afac,        &
-                      Model%ysu_bfac, Model%tnl_fac, Model%qnl_fac,             &
-                      Model%unl_fac, Model%ysu_topdown_pblmix)
+                      Model%ysu_bfac, Model%ysu_hpbl_cr,                        &
+                      Model%tnl_fac, Model%qnl_fac, Model%unl_fac)
        elseif ( Model%myj_pbl) then
           
           do i=1,im

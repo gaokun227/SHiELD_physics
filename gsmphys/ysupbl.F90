@@ -10,10 +10,9 @@
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,flux_cg,flux_en,                         &
-                  pfac_q,brcr_ub,rlam,afac,bfac,                               &
-                  tnl_fac, qnl_fac, unl_fac,                                   &
-                  ysu_topdown_pblmix)
+                  dspheat,ent_fac,dkt,                                         &
+                  pfac_q,brcr_ub,rlam,afac,bfac,hpbl_cr,                       &
+                  tnl_fac, qnl_fac, unl_fac)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
 !   use mpp_mod, only: mpp_pe
@@ -84,7 +83,7 @@
 !
    integer,parameter :: nqci   = 2
    integer,parameter :: imvdif = 1
-   !integer,parameter :: ysu_topdown_pblmix  = 1
+   integer,parameter :: ysu_topdown_pblmix  = 1
    real(kind=kind_phys),parameter :: karman = 0.4
    real(kind=kind_phys),parameter :: xkzminm = 0.1,xkzminh = 0.01
    real(kind=kind_phys),parameter :: xkzmin = 0.01,xkzmax = 1000.
@@ -107,11 +106,11 @@
    real(kind=kind_phys),parameter :: rcl=1.0
    real(kind=kind_phys),parameter :: dw2min=0.0001
 !
-   integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw, ysu_topdown_pblmix
+   integer,intent(in   ) :: ix,im,km,ndiff,ntcw,ntiw
 !
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
-   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac
+   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac,hpbl_cr
    real(kind=kind_phys),intent(in   ) :: tnl_fac, qnl_fac, unl_fac ! controls non-local mixing 
 
 !
@@ -226,8 +225,8 @@
                                                                 stable, &
                                                               cloudflg
 
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT)::flux_cg, flux_en
+   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT):: dkt
+   !real(kind=kind_phys),dimension(   1:im, 1:km),   intent(OUT):: flux_cg, flux_en
 
 ! Local:
    real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
@@ -957,9 +956,8 @@
    enddo
 !
 
-   flux_cg = 0.
-   flux_en = 0.
-
+   !flux_cg = 0.
+   !flux_en = 0.
    do k = kts,kte-1
      do i = its,ite
        dtodsd = dt2/del(i,k)
@@ -969,15 +967,21 @@
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
 
-       if(pblflg(i).and.k.lt.kpbl(i)) then
+! kgao - add hpbl_cr option
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
-
-         flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
-         flux_en(i,k) = -hfxpbl(i)*zfacent(i,k)
+         !flux_cg(i,k+1) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         !flux_en(i,k+1) = -hfxpbl(i)*zfacent(i,k)
+         f1(i,k)   = f1(i,k)+dtodsd*dsdzt
+         f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+         dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
+         !flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         !flux_en(i,k) = 0. 
 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzh(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzh(i,k) = sqrt(xkzh(i,k)*xkzhl(i,k))
          xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
@@ -1045,13 +1049,11 @@
    enddo
    !!! END DEBUG CODE
 
-   if (present(dkt)) then
-      do k=kts,kte-1
-      do i=its,ite
-         dkt(i,k) = xkzh(i,k)
-      enddo
-      enddo
-   endif
+   do k=kts,kte-1
+   do i=its,ite
+      dkt(i,k) = xkzh(i,k)
+   enddo
+   enddo
 !
 !     compute tridiagonal matrix elements for moisture, clouds, and gases
 !
@@ -1102,11 +1104,15 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i)) then
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
          dsdzq = qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k)) ! no gama term ?
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+         dsdzq = 0. !qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k))
+         f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
+         f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzq(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzq(i,k) = sqrt(xkzq(i,k)*xkzhl(i,k))
          xkzq(i,k) = max(xkzq(i,k),xkzoh(i,k))
@@ -1216,9 +1222,16 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i))then
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr)then
          dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
          dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
+         f1(i,k)   = f1(i,k)+dtodsd*dsdzu
+         f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
+         f2(i,k)   = f2(i,k)+dtodsd*dsdzv
+         f2(i,k+1) = vx(i,k+1)-dtodsu*dsdzv
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr)then
+         dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i))!-ufxpbl(i)*zfacent(i,k))
+         dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i))!-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv

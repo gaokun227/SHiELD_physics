@@ -517,6 +517,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
     real(kind=kind_phys) :: ysu_afac        !< afac parameter in YSU scheme
     real(kind=kind_phys) :: ysu_bfac        !< bfac parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_hpbl_cr     !< critical hpbl for turning on entrainment fluxes in YSU
     real(kind=kind_phys) :: tnl_fac         !< controls nonlocal mixing of t in YSU scheme (1. or 0.)
     real(kind=kind_phys) :: qnl_fac         !< controls nonlocal mixing of q in YSU scheme (1. or 0.)
     real(kind=kind_phys) :: unl_fac         !< controls nonlocal mixing of wind in YSU scheme (1. or 0.)
@@ -1614,6 +1615,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_rlam       = 30.0                
     real(kind=kind_phys) :: ysu_afac       = 6.8
     real(kind=kind_phys) :: ysu_bfac       = 6.8
+    real(kind=kind_phys) :: ysu_hpbl_cr    = 0.0
     real(kind=kind_phys) :: tnl_fac        = 1.0
     real(kind=kind_phys) :: qnl_fac        = 1.0
     real(kind=kind_phys) :: unl_fac        = 1.0
@@ -1745,7 +1747,7 @@ module GFS_typedefs
                                cnvcld,                                                      &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac,                   &
+                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
                                tnl_fac, qnl_fac, unl_fac,                                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
@@ -1947,6 +1949,7 @@ module GFS_typedefs
     Model%ysu_rlam         = ysu_rlam
     Model%ysu_afac         = ysu_afac
     Model%ysu_bfac         = ysu_bfac
+    Model%ysu_hpbl_cr      = ysu_hpbl_cr
     Model%tnl_fac          = tnl_fac
     Model%qnl_fac          = qnl_fac
     Model%unl_fac          = unl_fac
@@ -2451,6 +2454,7 @@ module GFS_typedefs
       print *, ' ysu_rlam          : ', Model%ysu_rlam
       print *, ' ysu_afac          : ', Model%ysu_afac
       print *, ' ysu_bfac          : ', Model%ysu_bfac
+      print *, ' ysu_hpbl_cr       : ', Model%ysu_hpbl_cr
       print *, ' tnl_fac           : ', Model%tnl_fac
       print *, ' qnl_fac           : ', Model%qnl_fac
       print *, ' unl_fac           : ', Model%unl_fac

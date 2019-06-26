@@ -11,7 +11,7 @@
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
                   dspheat,ent_fac,dkt,flux_cg,flux_en,                         &
-                  pfac_q,brcr_ub,rlam,afac,bfac,                               &
+                  pfac_q,brcr_ub,rlam,afac,bfac,hpbl_cr,                       &
                   tnl_fac, qnl_fac, unl_fac)
 !-------------------------------------------------------------------------------
    use machine, only : kind_phys
@@ -110,7 +110,7 @@
 !
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
-   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac
+   real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac,hpbl_cr
    real(kind=kind_phys),intent(in   ) :: tnl_fac, qnl_fac, unl_fac ! controls non-local mixing 
 
 !
@@ -967,12 +967,17 @@
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
 
-       if(pblflg(i).and.k.lt.kpbl(i)) then
+! kgao - add hpbl_cr option
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
-
          flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
          flux_en(i,k) = -hfxpbl(i)*zfacent(i,k)
-
+         f1(i,k)   = f1(i,k)+dtodsd*dsdzt
+         f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+         dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
+         flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         flux_en(i,k) = 0. 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -1097,8 +1102,12 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i)) then
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
          dsdzq = qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k)) ! no gama term ?
+         f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
+         f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+         dsdzq = 0. !qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k))
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
@@ -1211,9 +1220,16 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i))then
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr)then
          dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
          dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
+         f1(i,k)   = f1(i,k)+dtodsd*dsdzu
+         f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
+         f2(i,k)   = f2(i,k)+dtodsd*dsdzv
+         f2(i,k+1) = vx(i,k+1)-dtodsu*dsdzv
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr)then
+         dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i))!-ufxpbl(i)*zfacent(i,k))
+         dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i))!-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv

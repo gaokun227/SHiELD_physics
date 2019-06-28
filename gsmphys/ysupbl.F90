@@ -980,7 +980,7 @@
          flux_en(i,k) = 0. 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzh(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzh(i,k) = sqrt(xkzh(i,k)*xkzhl(i,k))
          xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
@@ -1110,7 +1110,7 @@
          dsdzq = 0. !qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k))
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzq(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzq(i,k) = sqrt(xkzq(i,k)*xkzhl(i,k))
          xkzq(i,k) = max(xkzq(i,k),xkzoh(i,k))
@@ -1234,7 +1234,7 @@
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv
          f2(i,k+1) = vx(i,k+1)-dtodsu*dsdzv
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzm(i,k) = prpbl(i)*xkzh(i,k)
          xkzm(i,k) = sqrt(xkzm(i,k)*xkzml(i,k))
          xkzm(i,k) = max(xkzm(i,k),xkzom(i,k))

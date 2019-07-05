@@ -224,8 +224,8 @@
                                                                 stable, &
                                                               cloudflg
 
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT)::flux_cg, flux_en
+   real(kind=kind_phys),dimension(   1:im, 1:km), intent(OUT), OPTIONAL :: dkt
+   real(kind=kind_phys),dimension(   1:im, 1:km), intent(OUT)::flux_cg, flux_en
 
 ! Local:
    real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
@@ -936,6 +936,18 @@
        endif
      enddo
    enddo
+
+!
+!    add hpbl_cr control by kgao - only use non-local fluxes if hbpl is greater than hpbl_cr
+!
+
+!   do i = its,ite
+!      if(hpbl(i).lt.hpbl_cr) then
+!        pblflg(i) = .false.
+!     endif
+!   enddo
+
+
 !
 !     compute tridiagonal matrix elements for heat
 !
@@ -1046,7 +1058,7 @@
    !!! END DEBUG CODE
 
    if (present(dkt)) then
-      do k=kts,kte-1
+      do k=kts,kte
       do i=its,ite
          dkt(i,k) = xkzh(i,k)
       enddo

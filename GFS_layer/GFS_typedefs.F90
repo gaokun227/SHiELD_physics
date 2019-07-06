@@ -502,6 +502,8 @@ module GFS_typedefs
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
+    logical              :: satmedmf        !< flag for scale-aware TKE-based moist edmf
+                                            !< vertical turbulent mixing scheme
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
@@ -1600,6 +1602,8 @@ module GFS_typedefs
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
+    logical              :: satmedmf       = .false.                  !< flag for scale-aware TKE-based moist edmf
+                                                                      !< vertical turbulent mixing scheme
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
@@ -1751,7 +1755,8 @@ module GFS_typedefs
                                tnl_fac, qnl_fac, unl_fac,                                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
-                               dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
+                               dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,satmedmf,         &
+                               cloud_gfdl,gwd_p_crit,                                       &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1933,7 +1938,8 @@ module GFS_typedefs
     Model%wind_th_hwrf     = wind_th_hwrf
     Model%hybedmf          = hybedmf
     Model%myj_pbl          = myj_pbl
-    Model%ysupbl           = ysupbl 
+    Model%ysupbl           = ysupbl
+    Model%satmedmf         = satmedmf 
     Model%dspheat          = dspheat
     Model%lheatstrg        = lheatstrg
     Model%hour_canopy      = hour_canopy
@@ -2105,6 +2111,7 @@ module GFS_typedefs
       Model%imfshalcnv = -1
       Model%hybedmf    = .false.
       Model%ysupbl     = .false.
+      Model%satmedmf   = .false.
       if (Model%me == Model%master) print *,' Simplified Higher Order Closure Model used for', &
                                             ' Boundary layer and Shallow Convection',          &
                                             ' nshoc_3d=',Model%nshoc_3d,                       &
@@ -2438,7 +2445,8 @@ module GFS_typedefs
       print *, ' wind_th_hwrf      : ', Model%wind_th_hwrf
       print *, ' hybedmf           : ', Model%hybedmf
       print *, ' myj_pbl           : ', Model%myj_pbl
-      print *, ' ysupbl            : ', Model%ysupbl 
+      print *, ' ysupbl            : ', Model%ysupbl
+      print *, ' satmedmf          : ', Model%satmedmf
       print *, ' dspheat           : ', Model%dspheat
       print *, ' lheatstrg         : ', Model%lheatstrg
       print *, ' hour_canopy       : ', Model%hour_canopy

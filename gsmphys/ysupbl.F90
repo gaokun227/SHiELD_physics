@@ -224,8 +224,8 @@
                                                                 stable, &
                                                               cloudflg
 
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT), OPTIONAL :: dkt
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT)::flux_cg, flux_en
+   real(kind=kind_phys),dimension(   1:im, 1:km), intent(OUT), OPTIONAL :: dkt
+   real(kind=kind_phys),dimension(   1:im, 1:km), intent(OUT)::flux_cg, flux_en
 
 ! Local:
    real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
@@ -936,6 +936,18 @@
        endif
      enddo
    enddo
+
+!
+!    add hpbl_cr control by kgao - only use non-local fluxes if hbpl is greater than hpbl_cr
+!
+
+!   do i = its,ite
+!      if(hpbl(i).lt.hpbl_cr) then
+!        pblflg(i) = .false.
+!     endif
+!   enddo
+
+
 !
 !     compute tridiagonal matrix elements for heat
 !
@@ -980,7 +992,7 @@
          flux_en(i,k) = 0. 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzh(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzh(i,k) = sqrt(xkzh(i,k)*xkzhl(i,k))
          xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
@@ -1046,7 +1058,7 @@
    !!! END DEBUG CODE
 
    if (present(dkt)) then
-      do k=kts,kte-1
+      do k=kts,kte
       do i=its,ite
          dkt(i,k) = xkzh(i,k)
       enddo
@@ -1110,7 +1122,7 @@
          dsdzq = 0. !qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k))
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzq(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzq(i,k) = sqrt(xkzq(i,k)*xkzhl(i,k))
          xkzq(i,k) = max(xkzq(i,k),xkzoh(i,k))
@@ -1234,7 +1246,7 @@
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv
          f2(i,k+1) = vx(i,k+1)-dtodsu*dsdzv
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzm(i,k) = prpbl(i)*xkzh(i,k)
          xkzm(i,k) = sqrt(xkzm(i,k)*xkzml(i,k))
          xkzm(i,k) = max(xkzm(i,k),xkzom(i,k))

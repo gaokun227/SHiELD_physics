@@ -1024,7 +1024,7 @@
            diss(i,k) = rle(i,k) * tke(i,k) * tem
            tem1 = prod(i,k) + tke(i,k) / dtn
            diss(i,k)=max(min(diss(i,k), tem1), 0.)
-           tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k))
+           tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)) ! no diffusion yet
            tke(i,k) = max(tke(i,k), tkmin)
         enddo
       enddo
@@ -1126,11 +1126,13 @@ c
          do i = 1,im
 !           f1(i,k) = max(f1(i,k), tkmin)
             qtend = (f1(i,k)-q1(i,k,ntke))*rdt
-            rtg(i,k,ntke) = rtg(i,k,ntke)+qtend
+! kgao limit tke
+!           rtg(i,k,ntke) = rtg(i,k,ntke)+qtend
+            rtg(i,k,ntke) = max(rtg(i,k,ntke)+qtend, tkmin)
          enddo
       enddo
 c
-c     compute tridiagonal matrix elements for heat and moisture
+c     compute tridiagonal matrix elements for heat and moisture (and other tracers, except tke)
 c
       do i=1,im
          ad(i,1) = 1.

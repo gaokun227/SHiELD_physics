@@ -15,7 +15,7 @@
 !
 !----------------------------------------------------------------------
       subroutine satmedmfvdif(ix,im,km,ntrac,ntcw,ntiw,ntke,
-     &     dv,du,tdt,rtg,u1,v1,t1,q1,swh,hlw,xmu,garea,
+     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
@@ -32,7 +32,7 @@
       implicit none
 !
 !----------------------------------------------------------------------
-      integer ix, im, km, ntrac, ntcw, ntiw, ntke
+      integer ix, im, km, ntrac, ntcw, ntiw, ntke, ntcw_new
       integer kpbl(im), kinver(im)
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s
@@ -53,7 +53,11 @@
      &                     phii(ix,km+1), phil(ix,km),
      &                     dusfc(im),     dvsfc(im),
      &                     dtsfc(im),     dqsfc(im),
-     &                     hpbl(im) 
+     &                     hpbl(im),
+     &                     q1_in(ix,km,ntrac),  
+     &                     rtg_in(im,km,ntrac)
+! kgao note - q1 and rtg are local var now
+
 !
       logical dspheat
 !          flag for tke dissipative heating
@@ -183,11 +187,32 @@
       parameter(rchck=1.5,cdtn=25.)
 !
 !************************************************************************
+!
+! kgao note (jul 2019) 
+! the code was originally written assuming ntke=ntrac
+! in this version ntke does not need to be equal to ntrac
+! in the following we rearrange q1 (and rtg) so that tke is the last tracer
+!
+      !if(ntrac >= 3 ) then
+        if(ntke == ntrac) then ! tke is the last tracer
+          q1(:,:,:)  = q1_in(:,:,:)
+          rtg(:,:,:) = rtg_in(:,:,:)
+        else                   ! tke is not
+          do kk = 1, ntke-1
+             q1(:,:,kk)  = q1_in(:,:,kk)
+             rtg(:,:,kk) = rtg_in(:,:,kk)
+          enddo
+          do kk = ntke+1, ntrac
+             q1(:,:,kk-1)  = q1_in(:,:,kk)
+             rtg(:,:,kk-1) = rtg_in(:,:,kk)
+          enddo
+          q1(:,:,ntrac)  = q1_in(:,:,ntke)
+          rtg(:,:,ntrac) = rtg_in(:,:,ntke)
+        endif
+      !endif
+!
       dt2  = delt
       rdt = 1. / dt2
-!
-! the code is written assuming ntke=ntrac
-! if ntrac > ntke, the code needs to be modified
 !
       ntrac1 = ntrac - 1
       km1 = km - 1
@@ -221,7 +246,7 @@
 !
       do k=1,km
         do i=1,im
-          tke(i,k) = max(q1(i,k,ntke), tkmin) ! tke at layer centers
+          tke(i,k) = max(q1_in(i,k,ntke), tkmin) ! tke at layer centers
         enddo
       enddo
       do k=1,km1
@@ -312,13 +337,13 @@
           pix(i,k)   = psk(i) / prslk(i,k)
           theta(i,k) = t1(i,k) * pix(i,k)
           if(ntiw > 0) then
-            tem = max(q1(i,k,ntcw),qlmin)
-            tem1 = max(q1(i,k,ntiw),qlmin)
+            tem = max(q1_in(i,k,ntcw),qlmin)
+            tem1 = max(q1_in(i,k,ntiw),qlmin)
             qlx(i,k) = tem + tem1
             ptem = hvap*tem + (hvap+hfus)*tem1
             slx(i,k)   = cp * t1(i,k) + phil(i,k) - ptem
           else
-            qlx(i,k) = max(q1(i,k,ntcw),qlmin)
+            qlx(i,k) = max(q1_in(i,k,ntcw),qlmin)
             slx(i,k)   = cp * t1(i,k) + phil(i,k) - hvap*qlx(i,k)
           endif
           tem2       = 1.+fv*max(q1(i,k,1),qmin)-qlx(i,k)
@@ -671,13 +696,20 @@
         enddo
       enddo
       enddo
-! EDMF parameterization Siebesma et al.(2007)
-      call mfpblt(im,ix,km,kmpbl,ntcw,ntrac1,dt2,
+
+! kgao note - change ntcw if q1 is rearranged
+      if (ntke > ntcw) then
+         ntcw_new = ntcw
+      else
+         ntcw_new = ntcw-1
+      endif
+! EDMF parameterization Siebesma et al.(2007) 
+      call mfpblt(im,ix,km,kmpbl,ntcw_new,ntrac1,dt2,
      &    pcnvflg,zl,zm,q1,t1,u1,v1,plyr,pix,thlx,thvx,
      &    gdx,hpbl,kpbl,vpert,buou,xmf,
      &    tcko,qcko,ucko,vcko,xlamue)
 ! mass-flux parameterization for stratocumulus-top-induced turbulence mixing
-      call mfscu(im,ix,km,kmscu,ntcw,ntrac1,dt2,
+      call mfscu(im,ix,km,kmscu,ntcw_new,ntrac1,dt2,
      &    scuflg,zl,zm,q1,t1,u1,v1,plyr,pix,
      &    thlx,thvx,thlvx,gdx,thetae,radj,
      &    krad,mrad,radmin,buod,xmfd,
@@ -1035,10 +1067,14 @@
       do k = 1, km
         do i = 1, im
           if(pcnvflg(i)) then
-            qcko(i,k,ntke) = tke(i,k)
+! kgao change
+!            qcko(i,k,ntke) = tke(i,k)
+            qcko(i,k,ntrac) = tke(i,k)
           endif
           if(scuflg(i)) then
-            qcdo(i,k,ntke) = tke(i,k)
+! kgao change
+!            qcdo(i,k,ntke) = tke(i,k)
+            qcdo(i,k,ntrac) = tke(i,k)
           endif
         enddo
       enddo
@@ -1048,8 +1084,12 @@
              dz   = zl(i,k) - zl(i,k-1)
              tem  = 0.5 * xlamue(i,k-1) * dz
              factor = 1. + tem
-             qcko(i,k,ntke)=((1.-tem)*qcko(i,k-1,ntke)+tem*
+! kgao change
+!             qcko(i,k,ntke)=((1.-tem)*qcko(i,k-1,ntke)+tem*
+!     &                (tke(i,k)+tke(i,k-1)))/factor
+             qcko(i,k,ntrac)=((1.-tem)*qcko(i,k-1,ntrac)+tem*
      &                (tke(i,k)+tke(i,k-1)))/factor
+
           endif
         enddo
       enddo
@@ -1060,7 +1100,10 @@
               dz = zl(i,k+1) - zl(i,k)
               tem  = 0.5 * xlamde(i,k) * dz
               factor = 1. + tem
-              qcdo(i,k,ntke)=((1.-tem)*qcdo(i,k+1,ntke)+tem*
+! kgao change
+!              qcdo(i,k,ntke)=((1.-tem)*qcdo(i,k+1,ntke)+tem*
+!     &                 (tke(i,k)+tke(i,k+1)))/factor
+              qcdo(i,k,ntrac)=((1.-tem)*qcdo(i,k+1,ntrac)+tem*
      &                 (tke(i,k)+tke(i,k+1)))/factor
             endif
           endif
@@ -1094,7 +1137,9 @@
              ptem1     = dtodsd * ptem
              ptem2     = dtodsu * ptem
              tem       = tke(i,k) + tke(i,k+1)
-             ptem      = qcko(i,k,ntke) + qcko(i,k+1,ntke)
+! kgao change
+!             ptem      = qcko(i,k,ntke) + qcko(i,k+1,ntke)
+             ptem      = qcko(i,k,ntrac) + qcko(i,k+1,ntrac) 
              f1(i,k)   = f1(i,k)-(ptem-tem)*ptem1
              f1(i,k+1) = tke(i,k+1)+(ptem-tem)*ptem2
           else
@@ -1107,7 +1152,9 @@
               ptem1     = dtodsd * ptem
               ptem2     = dtodsu * ptem
               tem       = tke(i,k) + tke(i,k+1)
-              ptem      = qcdo(i,k,ntke) + qcdo(i,k+1,ntke)
+! kgao change
+!              ptem      = qcdo(i,k,ntke) + qcdo(i,k+1,ntke)
+              ptem      = qcdo(i,k,ntrac) + qcdo(i,k+1,ntrac)
               f1(i,k)   = f1(i,k) + (ptem - tem) * ptem1
               f1(i,k+1) = f1(i,k+1) - (ptem - tem) * ptem2
             endif
@@ -1124,11 +1171,13 @@ c     recover tendency of tke
 c
       do k = 1,km
          do i = 1,im
-!           f1(i,k) = max(f1(i,k), tkmin)
-            qtend = (f1(i,k)-q1(i,k,ntke))*rdt
-! kgao limit tke
-!           rtg(i,k,ntke) = rtg(i,k,ntke)+qtend
-            rtg(i,k,ntke) = max(rtg(i,k,ntke)+qtend, tkmin)
+! fix negative tke 
+           f1(i,k) = max(f1(i,k), tkmin)
+! kgao change
+!            qtend = (f1(i,k)-q1(i,k,ntke))*rdt
+!            rtg(i,k,ntke) = rtg(i,k,ntke)+qtend
+            qtend = (f1(i,k)-q1(i,k,ntrac))*rdt
+            rtg(i,k,ntrac) = rtg(i,k,ntrac)+qtend
          enddo
       enddo
 c
@@ -1269,6 +1318,22 @@ c
           enddo
         enddo
       endif
+!
+! kgao note - rearrange tracer tendencies 
+!
+      !if(ntrac >= 3 ) then 
+        if(ntke == ntrac) then ! tke is the last tracer
+          rtg_in(:,:,:) = rtg(:,:,:) 
+        else                   ! tke is not
+          do kk = 1, ntke-1
+             rtg_in(:,:,kk) = rtg(:,:,kk)
+          enddo
+          rtg_in(:,:,ntke) = rtg(:,:,ntrac)
+          do kk = ntke+1, ntrac
+             rtg_in(:,:,kk) = rtg(:,:,kk-1)
+          enddo
+        endif
+      !endif
 !
 !     add tke dissipative heating to temperature tendency
 !

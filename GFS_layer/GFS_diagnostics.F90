@@ -1732,42 +1732,6 @@ module physics_diag_layer
       IPD_Diag(idx)%data(nb)%var2p => Diag(nb)%hpbl
     enddo
 
-    !---hgamt
-    idx = idx + 1
-    IPD_Diag(idx)%name           = 'hgamt'
-    IPD_Diag(idx)%output_name    = 'hgamt'
-    IPD_Diag(idx)%mod_name       = 'physics'
-    IPD_Diag(idx)%file_name      = ' '
-    IPD_Diag(idx)%desc           = 'ysu counter-gradient heat flux factor'
-    IPD_Diag(idx)%unit           = ' '
-    IPD_Diag(idx)%type_stat_proc = 'inst'
-    IPD_Diag(idx)%level_type     = 'sfc'
-    IPD_Diag(idx)%level          = 1
-    IPD_Diag(idx)%cnvfac         = cn_one
-    IPD_Diag(idx)%zhour          = Model%zhour
-    IPD_Diag(idx)%fcst_hour      = Model%fhour
-    do nb = 1,nblks
-      IPD_Diag(idx)%data(nb)%var2p => Diag(nb)%hgamt
-    enddo
-
-    !---hfxpbl
-    idx = idx + 1
-    IPD_Diag(idx)%name           = 'hfxpbl'
-    IPD_Diag(idx)%output_name    = 'hfxpbl'
-    IPD_Diag(idx)%mod_name       = 'physics'
-    IPD_Diag(idx)%file_name      = ' '
-    IPD_Diag(idx)%desc           = 'ysu entrainment heat flux factor'
-    IPD_Diag(idx)%unit           = ' '
-    IPD_Diag(idx)%type_stat_proc = 'inst'
-    IPD_Diag(idx)%level_type     = 'sfc'
-    IPD_Diag(idx)%level          = 1
-    IPD_Diag(idx)%cnvfac         = cn_one
-    IPD_Diag(idx)%zhour          = Model%zhour
-    IPD_Diag(idx)%fcst_hour      = Model%fhour
-    do nb = 1,nblks
-      IPD_Diag(idx)%data(nb)%var2p => Diag(nb)%hfxpbl
-    enddo
-
     !---pwat
     idx = idx + 1
     IPD_Diag(idx)%name           = 'pwat'
@@ -2574,40 +2538,6 @@ module physics_diag_layer
       IPD_Diag(idx)%fcst_hour      = Model%fhour
       do nb = 1,nblks
         IPD_Diag(idx)%data(nb)%var3p => Diag(nb)%dkt
-      enddo
-
-      idx = idx + 1
-      IPD_Diag(idx)%name           = 'flux_cg'
-      IPD_Diag(idx)%output_name    = 'flux_cg'
-      IPD_Diag(idx)%mod_name       = 'physics'
-      IPD_Diag(idx)%file_name      = 'diag3d'
-      IPD_Diag(idx)%desc           = 'Counter-gradient heat flux in YSU'
-      IPD_Diag(idx)%unit           = 'K*m/s'
-      IPD_Diag(idx)%type_stat_proc = 'inst'
-      IPD_Diag(idx)%level_type     = 'model interfaces'
-      IPD_Diag(idx)%level          = 64
-      IPD_Diag(idx)%cnvfac         = cn_one
-      IPD_Diag(idx)%zhour          = Model%zhour
-      IPD_Diag(idx)%fcst_hour      = Model%fhour
-      do nb = 1,nblks
-        IPD_Diag(idx)%data(nb)%var3p => Diag(nb)%flux_cg
-      enddo
-
-      idx = idx + 1
-      IPD_Diag(idx)%name           = 'flux_en'
-      IPD_Diag(idx)%output_name    = 'flux_en'
-      IPD_Diag(idx)%mod_name       = 'physics'
-      IPD_Diag(idx)%file_name      = 'diag3d'
-      IPD_Diag(idx)%desc           = 'Entrainment heat flux in YSU'
-      IPD_Diag(idx)%unit           = 'K*m/s'
-      IPD_Diag(idx)%type_stat_proc = 'inst'
-      IPD_Diag(idx)%level_type     = 'model interfaces'
-      IPD_Diag(idx)%level          = 64
-      IPD_Diag(idx)%cnvfac         = cn_one
-      IPD_Diag(idx)%zhour          = Model%zhour
-      IPD_Diag(idx)%fcst_hour      = Model%fhour
-      do nb = 1,nblks
-        IPD_Diag(idx)%data(nb)%var3p => Diag(nb)%flux_cg
       enddo
     endif
 

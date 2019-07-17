@@ -236,7 +236,7 @@ module GFS_driver
     endif
 
     !--- initialize soil vegetation
-    call set_soilveg(Model%me, Model%isot, Model%ivegsrc, Model%nlunit)
+    call set_soilveg(Model, Model%isot, Model%ivegsrc, Init_parm%logunit, size(Model%input_nml_file), Model%input_nml_file)
 !
     !--- lsidea initialization
     if (Model%lsidea) then

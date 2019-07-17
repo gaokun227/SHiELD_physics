@@ -471,6 +471,7 @@ module GFS_typedefs
                                             !< isot = 1   => STATSGO soil type (19 category)
     logical              :: mom4ice         !< flag controls mom4 sea ice
     logical              :: use_ufo         !< flag for gcycle surface option
+    real(kind=kind_phys) :: czil_sfc        !< Zilintkinivich constant
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras             !< flag for ras convection scheme
@@ -517,6 +518,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
     real(kind=kind_phys) :: ysu_afac        !< afac parameter in YSU scheme
     real(kind=kind_phys) :: ysu_bfac        !< bfac parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_hpbl_cr     !< critical hpbl for turning on entrainment fluxes in YSU
     real(kind=kind_phys) :: tnl_fac         !< controls nonlocal mixing of t in YSU scheme (1. or 0.)
     real(kind=kind_phys) :: qnl_fac         !< controls nonlocal mixing of q in YSU scheme (1. or 0.)
     real(kind=kind_phys) :: unl_fac         !< controls nonlocal mixing of wind in YSU scheme (1. or 0.)
@@ -691,6 +693,7 @@ module GFS_typedefs
                                                                 !! or -pi -> +pi ranges   
     real (kind=kind_phys), pointer :: xlat   (:)    => null()   !< grid latitude in radians, default to pi/2 ->  
                                                                 !! -pi/2 range, otherwise adj in subr called   
+
     real (kind=kind_phys), pointer :: xlat_d (:)    => null()   !< grid latitude in degrees, default to 90 -> 
                                                                 !! -90 range, otherwise adj in subr called   
     real (kind=kind_phys), pointer :: sinlat (:)    => null()   !< sine of the grids corresponding latitudes   
@@ -1569,6 +1572,7 @@ module GFS_typedefs
                                                              !< isot = 1   => STATSGO soil type (19 category)
     logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
     logical              :: use_ufo        = .false.         !< flag for gcycle surface option
+    real(kind=kind_phys) :: czil_sfc       = 0.8             !< Zilintkivitch constant
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras            = .false.                  !< flag for ras convection scheme
@@ -1614,10 +1618,10 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_rlam       = 30.0                
     real(kind=kind_phys) :: ysu_afac       = 6.8
     real(kind=kind_phys) :: ysu_bfac       = 6.8
+    real(kind=kind_phys) :: ysu_hpbl_cr    = 0.0
     real(kind=kind_phys) :: tnl_fac        = 1.0
     real(kind=kind_phys) :: qnl_fac        = 1.0
     real(kind=kind_phys) :: unl_fac        = 1.0
- 
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1734,7 +1738,7 @@ module GFS_typedefs
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
-                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
+                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
@@ -1745,7 +1749,7 @@ module GFS_typedefs
                                cnvcld,                                                      &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac,                   &
+                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
                                tnl_fac, qnl_fac, unl_fac,                                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
@@ -1903,6 +1907,7 @@ module GFS_typedefs
     Model%isot             = isot
     Model%mom4ice          = mom4ice
     Model%use_ufo          = use_ufo
+    Model%czil_sfc         = czil_sfc
 
     !--- tuning parameters for physical parameterizations
     Model%ras              = ras
@@ -1947,6 +1952,7 @@ module GFS_typedefs
     Model%ysu_rlam         = ysu_rlam
     Model%ysu_afac         = ysu_afac
     Model%ysu_bfac         = ysu_bfac
+    Model%ysu_hpbl_cr      = ysu_hpbl_cr
     Model%tnl_fac          = tnl_fac
     Model%qnl_fac          = qnl_fac
     Model%unl_fac          = unl_fac
@@ -2129,6 +2135,7 @@ module GFS_typedefs
         stop
       endif
       print *,' nst_anl=',Model%nst_anl,' use_ufo=',Model%use_ufo
+      print*, ' czil_sfc=', Model%czil_sfc
       if (Model%nstf_name(1) > 0 ) then 
         print *,' NSSTM is active '
         print *,' nstf_name(1)=',Model%nstf_name(1)
@@ -2406,6 +2413,7 @@ module GFS_typedefs
       print *, ' isot              : ', Model%isot
       print *, ' mom4ice           : ', Model%mom4ice
       print *, ' use_ufo           : ', Model%use_ufo
+      print *, ' czil_sfc          : ', Model%czil_sfc
       print *, ' '
       print *, 'tuning parameters for physical parameterizations'
       print *, ' ras               : ', Model%ras
@@ -2451,6 +2459,7 @@ module GFS_typedefs
       print *, ' ysu_rlam          : ', Model%ysu_rlam
       print *, ' ysu_afac          : ', Model%ysu_afac
       print *, ' ysu_bfac          : ', Model%ysu_bfac
+      print *, ' ysu_hpbl_cr       : ', Model%ysu_hpbl_cr
       print *, ' tnl_fac           : ', Model%tnl_fac
       print *, ' qnl_fac           : ', Model%qnl_fac
       print *, ' unl_fac           : ', Model%unl_fac

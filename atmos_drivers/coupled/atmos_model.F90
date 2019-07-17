@@ -76,7 +76,6 @@ use atmosphere_mod,     only: atmosphere_etalvls, atmosphere_hgt
 use atmosphere_mod,     only: atmosphere_nggps_diag
 use atmosphere_mod,     only: atmosphere_scalar_field_halo
 use atmosphere_mod,     only: set_atmosphere_pelist
-use atmosphere_mod,     only: Atm, mytile
 use block_control_mod,  only: block_control_type, define_blocks_packed
 use IPD_typedefs,       only: IPD_init_type, IPD_control_type, &
                               IPD_data_type, IPD_diag_type,    &

@@ -471,6 +471,7 @@ module GFS_typedefs
                                             !< isot = 1   => STATSGO soil type (19 category)
     logical              :: mom4ice         !< flag controls mom4 sea ice
     logical              :: use_ufo         !< flag for gcycle surface option
+    real(kind=kind_phys) :: czil_sfc        !< Zilintkinivich constant
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras             !< flag for ras convection scheme
@@ -515,8 +516,12 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub     !< critical bulk Richardson number in YSU scheme
     real(kind=kind_phys) :: ysu_rlam        !< mixing length parameter in YSU scheme
-    real(kind=kind_phys) :: ysu_afac       
-    real(kind=kind_phys) :: ysu_bfac       
+    real(kind=kind_phys) :: ysu_afac        !< afac parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_bfac        !< bfac parameter in YSU scheme
+    real(kind=kind_phys) :: ysu_hpbl_cr     !< critical hpbl for turning on entrainment fluxes in YSU
+    real(kind=kind_phys) :: tnl_fac         !< controls nonlocal mixing of t in YSU scheme (1. or 0.)
+    real(kind=kind_phys) :: qnl_fac         !< controls nonlocal mixing of q in YSU scheme (1. or 0.)
+    real(kind=kind_phys) :: unl_fac         !< controls nonlocal mixing of wind in YSU scheme (1. or 0.)
     logical              :: cnvcld        
     logical              :: cloud_gfdl      !< flag for GFDL cloud radii scheme
     logical              :: random_clds     !< flag controls whether clouds are random
@@ -878,6 +883,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: zlvl   (:)    => null()   !< layer 1 height (m)
     real (kind=kind_phys), pointer :: psurf  (:)    => null()   !< surface pressure (Pa)
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
+    real (kind=kind_phys), pointer :: hgamt  (:)    => null()   !< ysu counter-gradient flux 
+    real (kind=kind_phys), pointer :: hfxpbl (:)    => null()   !< ysu entrainment flux 
     real (kind=kind_phys), pointer :: pwat   (:)    => null()   !< precipitable water
     real (kind=kind_phys), pointer :: t1     (:)    => null()   !< layer 1 temperature (K)
     real (kind=kind_phys), pointer :: q1     (:)    => null()   !< layer 1 specific humidity (kg/kg)
@@ -919,6 +926,8 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
                                                                 !< lz note: 1: pbl, 2: deep con, 3: shal con, 4: mp, 5: ozone
     real (kind=kind_phys), pointer :: dkt   (:,:)   => null()
+    real (kind=kind_phys), pointer :: flux_cg(:,:)  => null()
+    real (kind=kind_phys), pointer :: flux_en(:,:)  => null()
  
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: upd_mf (:,:)   => null()  !< instantaneous convective updraft mass flux
@@ -1563,6 +1572,7 @@ module GFS_typedefs
                                                              !< isot = 1   => STATSGO soil type (19 category)
     logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
     logical              :: use_ufo        = .false.         !< flag for gcycle surface option
+    real(kind=kind_phys) :: czil_sfc       = 0.8             !< Zilintkivitch constant
 
     !--- tuning parameters for physical parameterizations
     logical              :: ras            = .false.                  !< flag for ras convection scheme
@@ -1605,9 +1615,13 @@ module GFS_typedefs
     real(kind=kind_phys) :: ysu_ent_fac    = 0.15                     !< Entrainment factor in YSU scheme
     real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub    = 0.0                    
-    real(kind=kind_phys) :: ysu_rlam       = 30.0                 
-    real(kind=kind_phys) :: ysu_afac       = 6.8                 
-    real(kind=kind_phys) :: ysu_bfac       = 6.8                 
+    real(kind=kind_phys) :: ysu_rlam       = 30.0                
+    real(kind=kind_phys) :: ysu_afac       = 6.8
+    real(kind=kind_phys) :: ysu_bfac       = 6.8
+    real(kind=kind_phys) :: ysu_hpbl_cr    = 0.0
+    real(kind=kind_phys) :: tnl_fac        = 1.0
+    real(kind=kind_phys) :: qnl_fac        = 1.0
+    real(kind=kind_phys) :: unl_fac        = 1.0
     logical              :: cnvcld         = .false.
     logical              :: cloud_gfdl     = .false.                  !< flag for GFDL cloud radii scheme
     logical              :: random_clds    = .false.                  !< flag controls whether clouds are random
@@ -1724,7 +1738,7 @@ module GFS_typedefs
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
-                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo,                &
+                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
@@ -1735,7 +1749,8 @@ module GFS_typedefs
                                cnvcld,                                                      &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
-                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac,                   &
+                               ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
+                               tnl_fac, qnl_fac, unl_fac,                                   &
                                random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,cloud_gfdl,gwd_p_crit,   &
@@ -1892,6 +1907,7 @@ module GFS_typedefs
     Model%isot             = isot
     Model%mom4ice          = mom4ice
     Model%use_ufo          = use_ufo
+    Model%czil_sfc         = czil_sfc
 
     !--- tuning parameters for physical parameterizations
     Model%ras              = ras
@@ -1936,6 +1952,10 @@ module GFS_typedefs
     Model%ysu_rlam         = ysu_rlam
     Model%ysu_afac         = ysu_afac
     Model%ysu_bfac         = ysu_bfac
+    Model%ysu_hpbl_cr      = ysu_hpbl_cr
+    Model%tnl_fac          = tnl_fac
+    Model%qnl_fac          = qnl_fac
+    Model%unl_fac          = unl_fac
     Model%cnvcld           = cnvcld
     Model%cloud_gfdl       = cloud_gfdl
     Model%random_clds      = random_clds
@@ -2115,6 +2135,7 @@ module GFS_typedefs
         stop
       endif
       print *,' nst_anl=',Model%nst_anl,' use_ufo=',Model%use_ufo
+      print*, ' czil_sfc=', Model%czil_sfc
       if (Model%nstf_name(1) > 0 ) then 
         print *,' NSSTM is active '
         print *,' nstf_name(1)=',Model%nstf_name(1)
@@ -2392,6 +2413,7 @@ module GFS_typedefs
       print *, ' isot              : ', Model%isot
       print *, ' mom4ice           : ', Model%mom4ice
       print *, ' use_ufo           : ', Model%use_ufo
+      print *, ' czil_sfc          : ', Model%czil_sfc
       print *, ' '
       print *, 'tuning parameters for physical parameterizations'
       print *, ' ras               : ', Model%ras
@@ -2437,6 +2459,10 @@ module GFS_typedefs
       print *, ' ysu_rlam          : ', Model%ysu_rlam
       print *, ' ysu_afac          : ', Model%ysu_afac
       print *, ' ysu_bfac          : ', Model%ysu_bfac
+      print *, ' ysu_hpbl_cr       : ', Model%ysu_hpbl_cr
+      print *, ' tnl_fac           : ', Model%tnl_fac
+      print *, ' qnl_fac           : ', Model%qnl_fac
+      print *, ' unl_fac           : ', Model%unl_fac
       print *, ' cnvcld            : ', Model%cnvcld
       print *, ' cloud_gfdl        : ', Model%cloud_gfdl
       print *, ' random_clds       : ', Model%random_clds
@@ -2806,6 +2832,8 @@ module GFS_typedefs
     allocate (Diag%zlvl    (IM))
     allocate (Diag%psurf   (IM))
     allocate (Diag%hpbl    (IM))
+    allocate (Diag%hgamt   (IM))
+    allocate (Diag%hfxpbl  (IM))
     allocate (Diag%pwat    (IM))
     allocate (Diag%t1      (IM))
     allocate (Diag%q1      (IM))
@@ -2834,6 +2862,8 @@ module GFS_typedefs
       allocate (Diag%dt3dt  (IM,Model%levs,6))
       allocate (Diag%dq3dt  (IM,Model%levs,oz_coeff+5))
       allocate (Diag%dkt    (IM,Model%levs))
+      allocate (Diag%flux_cg(IM,Model%levs))
+      allocate (Diag%flux_en(IM,Model%levs))
       !--- needed to allocate GoCart coupling fields
       allocate (Diag%upd_mf (IM,Model%levs))
       allocate (Diag%dwn_mf (IM,Model%levs))
@@ -2926,6 +2956,8 @@ module GFS_typedefs
     Diag%zlvl    = zero
     Diag%psurf   = zero
     Diag%hpbl    = zero
+    Diag%hgamt   = zero
+    Diag%hfxpbl  = zero
     Diag%pwat    = zero
     Diag%t1      = zero
     Diag%q1      = zero
@@ -2954,6 +2986,8 @@ module GFS_typedefs
       Diag%dt3dt   = zero
       Diag%dq3dt   = zero
       Diag%dkt     = zero
+      Diag%flux_cg = zero
+      Diag%flux_en = zero
       Diag%upd_mf  = zero
       Diag%dwn_mf  = zero
       Diag%det_mf  = zero

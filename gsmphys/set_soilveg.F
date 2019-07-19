@@ -1,12 +1,17 @@
-      subroutine set_soilveg(me,isot,ivet,nlunit)
+      subroutine set_soilveg(Model,isot,ivet,logunit,sz_nml,
+     $     input_nml_file)
       use namelist_soilveg
+      use GFS_typedefs,      only : GFS_control_type, GFS_grid_type
       implicit none
 
-      integer, intent(in) :: isot,ivet,nlunit
-      integer me
+      integer, intent(in) :: isot,ivet,logunit,sz_nml
+      character (len = *), intent (in) :: input_nml_file(sz_nml) !NEEDED for f77
+      type (GFS_control_type),    intent(in)  :: Model
+      
 !my begin locals
 !for 20 igbp veg type and 19 stasgo soil type
-      integer i
+      integer i, ios
+      logical exists
       REAL WLTSMC1,REFSMC1
 ! ----------------------------------------------------------------------
 ! SET TWO SOIL MOISTURE WILT, SOIL MOISTURE REFERENCE PARAMETERS
@@ -20,7 +25,7 @@
 !     changed in 2.6 from 3 to 6 on June 2nd 2003
 !      DATA SMHIGH_DATA /3.0/
       DATA SMHIGH_DATA /6.0/
-      NAMELIST /SOIL_VEG/ SLOPE_DATA, RSMTBL, RGLTBL, HSTBL, SNUPX,
+      NAMELIST /soil_veg_nml/ SLOPE_DATA, RSMTBL, RGLTBL, HSTBL, SNUPX,
      &  BB, DRYSMC, F11, MAXSMC, REFSMC, SATPSI, SATDK, SATDW,
      &  WLTSMC, QTZ, LPARAM, ZBOT_DATA, SALP_DATA, CFACTR_DATA,
      &  CMCMAX_DATA, SBETA_DATA, RSMAX_DATA, TOPT_DATA,
@@ -354,8 +359,8 @@ c-----------------------------
 !lu: namelist is set up in run script
 !PT         if (me == 0) write(0,*) 'read namelist cwsoilvegSOIL_VEG'
 !$$$         READ(5, SOIL_VEG)
-!PT         rewind(nlunit)
-!PT         READ(nlunit, SOIL_VEG)
+!PT         rewind(logunit)
+!PT         READ(logunit, SOIL_VEG)
 
 !*       WRITE(6, SOIL_VEG)
 ! 	 OPEN(58, FILE = 'namelist_filename.txt')
@@ -368,6 +373,26 @@ c-----------------------------
 !         IF (LPARAM) GOTO 50
 ! 100     CONTINUE
 !         CLOSE(59)
+#ifdef INTERNAL_FILE_NML
+      read(input_nml_file, nml=soil_veg_nml, iostat=ios)
+#else
+      inquire (file=trim(Model%fn_nml), exist=exists)
+      if (.not. exists) then
+         write(6,*) 'soil_veg_namelist_read:: namelist file: ', 
+     &     trim(Model%fn_nml),' does not exist'
+         stop
+      else
+         open (unit=Model%nlunit, file=Model%fn_nml, READONLY, 
+     &        status='OLD', iostat=ios)
+      endif
+      rewind(Model%nlunit)
+      read (Model%nlunit,soil_veg_nml)
+      close (Model%nlunit)
+
+#endif
+
+
+
 
          IF (DEFINED_SOIL .GT. MAX_SOILTYP) THEN
             WRITE(0,*) 'Warning: DEFINED_SOIL too large in namelist'
@@ -382,6 +407,14 @@ c-----------------------------
             STOP 222
          ENDIF
          
+!---  write namelist to log file ---
+         if (Model%me == Model%master) then
+            write(logunit, *)
+     $           "============================================="
+            write(logunit, *) "Soil/vegetation parameters"
+            write(logunit, nml=soil_veg_nml)
+         endif
+
          SMLOW  = SMLOW_DATA
          SMHIGH = SMHIGH_DATA
          
@@ -404,5 +437,9 @@ c-----------------------------
          END DO
          
 !       if (me == 0) write(6,soil_veg)
+         !! DEBUG CODE
+         if (Model%me == Model%master) print*, Model%me,
+     $        ' czil_data = ', czil_data
+         !! END DEBUG CODE
        return
        end

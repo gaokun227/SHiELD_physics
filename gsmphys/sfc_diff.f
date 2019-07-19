@@ -4,7 +4,7 @@
      &                    stress,fm,fh,
      &                    ustar,wind,ddvel,fm10,fh2,
      &                    sigmaf,vegtype,shdmax,ivegsrc,
-     &                    tsurf,flag_iter,redrag,
+     &                    tsurf,flag_iter,redrag,czilc,
      &                    z0s_max,
      &                    do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,
      &                    do_z0_hwrf17_hwonly, wind_th_hwrf)
@@ -25,6 +25,7 @@
      &,                                      fm10, fh2, sigmaf, shdmax
      &,                                      tsurf, snwdph
       integer, dimension(im)              ::  vegtype, islimsk
+      real(kind=kind_phys) czilc
 
       logical   flag_iter(im) ! added by s.lu
       logical   redrag        ! reduced drag coeff. flag for high wind over sea (j.han)
@@ -40,7 +41,7 @@
      &                     thv1,   tvs,    z1i,    z0,  z0max, ztmax,
      &                     fms,    fhs,    hl0,    hl0inf, hlinf,
      &                     hl110,  hlt,    hltinf, olinf,
-     &                     restar, czilc,  tem1,   tem2, ztmax1,
+     &                     restar, tem1,   tem2, ztmax1,
      &                     z0_adj, wind_th_moon, ustar_th, a,b,c, !kgao 
      &                     u10m, v10m, ws10m !kgao
 !
@@ -188,7 +189,7 @@
             z0max = max(z0max,1.0e-6)
 !
 !           czilc = 10.0 ** (- (0.40/0.07) * z0) ! fei's canopy height dependance of czil
-            czilc = 0.8
+!            czilc = 0.8
 
             tem1 = 1.0 - sigmaf(i)
             ztmax = z0max*exp( - tem1*tem1

@@ -15,7 +15,7 @@ module module_physics_driver
                                    GFS_control_type, GFS_grid_type,     &
                                    GFS_tbd_type,     GFS_cldprop_type,  &
                                    GFS_radtend_type, GFS_diag_type
-  use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
+  use gfdl_cld_mp_mod,       only: gfdl_cld_mp_driver
   use funcphys,              only: ftdp
   use module_ocean,          only: update_ocean
   use myj_pbl_mod,           only: myj_pbl
@@ -3082,14 +3082,14 @@ module module_physics_driver
 
         seconds          = mod(nint(Model%fhour*3600),86400)
 
-        call gfdl_cloud_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
-                                         qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
-                                         qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
-                                         uin, vin, udt, vdt, dz, delp,      &
-                                         area, dtp, land, rain0, snow0,     &
-                                         ice0, graupel0, .false., .true.,   &
-                                         1, im, 1, levs, 1, levs,           &
-                                         seconds)
+        call gfdl_cld_mp_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
+                                qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
+                                qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
+                                uin, vin, udt, vdt, dz, delp,      &
+                                area, dtp, land, rain0, snow0,     &
+                                ice0, graupel0, .false., .true.,   &
+                                1, im, 1, levs, 1, levs,           &
+                                seconds)
 
         tem = dtp * con_p001 / con_day
         rain0(:)    = rain0(:)    * tem

@@ -12,8 +12,8 @@ module GFS_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
-  use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_init
-  use cloud_diagnosis_mod,      only: cloud_diagnosis_init
+  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init
+  use cld_eff_rad_mod,          only: cld_eff_rad_init
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
 
@@ -213,9 +213,9 @@ module GFS_driver
 
     !--- initialize GFDL Cloud microphysics
     if (.not. Model%do_inline_mp .and. Model%ncld == 5) then
-      call gfdl_cloud_microphys_init (Model%me, Model%master, Model%nlunit, Model%input_nml_file, &
+      call gfdl_cld_mp_init (Model%me, Model%master, Model%nlunit, Model%input_nml_file, &
                                       Init_parm%logunit, Model%fn_nml)
-      call cloud_diagnosis_init (Model%nlunit, Model%input_nml_file, Init_parm%logunit, Model%fn_nml)
+      call cld_eff_rad_init (Model%nlunit, Model%input_nml_file, Init_parm%logunit, Model%fn_nml)
     endif
 
     !--- initialize ras

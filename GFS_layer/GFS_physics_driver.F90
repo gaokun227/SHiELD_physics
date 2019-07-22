@@ -472,7 +472,7 @@ module module_physics_driver
 !
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          area, land, rain0, snow0, ice0, graupel0
+          gsize, hs, land, rain0, snow0, ice0, graupel0
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
            oa4, clx
@@ -492,7 +492,7 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
            delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1,   &
            qs1, pt_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt,  &
-           qs_dt, qg_dt, &
+           qs_dt, qg_dt, te, q_con, cappa, &
            phmid, th, tke, exner, exchh1, el1 ! for myj
 
       real(kind=kind_phys), dimension(Model%levs) :: epsq2 ! myj
@@ -3045,8 +3045,8 @@ module module_physics_driver
 
         else
 
-        land      = frland(:)
-        area      = Grid%area(:)
+        hs        = Sfcprop%oro(:) * con_g
+        gsize     = sqrt(Grid%area(:))
         rain0     = 0.0
         snow0     = 0.0
         ice0      = 0.0
@@ -3063,8 +3063,9 @@ module module_physics_driver
                                 Stateout%gq0(:,levs:1:-1,Model%ntrw), Stateout%gq0(:,levs:1:-1,Model%ntiw), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntclamt), qn1, Stateout%gt0(:,levs:1:-1), w, &
-                                Stateout%gu0(:,levs:1:-1), Stateout%gv0(:,levs:1:-1), dz, delp, area, dtp, &
-                                land, rain0, snow0, ice0, graupel0, .false., 1, im, 1, levs)
+                                Stateout%gu0(:,levs:1:-1), Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, &
+                                hs, rain0, snow0, ice0, graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), &
+                                cappa(:,levs:1:-1), .false., te(:,levs:1:-1), .true.)
 
         tem = dtp * con_p001 / con_day
         rain0(:)    = rain0(:)    * tem

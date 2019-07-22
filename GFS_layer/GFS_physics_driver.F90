@@ -3062,10 +3062,11 @@ module module_physics_driver
         call gfdl_cld_mp_driver(Stateout%gq0(:,levs:1:-1,1), Stateout%gq0(:,levs:1:-1,Model%ntcw), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntrw), Stateout%gq0(:,levs:1:-1,Model%ntiw), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
-                                Stateout%gq0(:,levs:1:-1,Model%ntclamt), qn1, Stateout%gt0(:,levs:1:-1), w, &
-                                Stateout%gu0(:,levs:1:-1), Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, &
-                                hs, rain0, snow0, ice0, graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), &
-                                cappa(:,levs:1:-1), .false., te(:,levs:1:-1), .true.)
+                                Stateout%gq0(:,levs:1:-1,Model%ntclamt), qn1(:,levs:1:-1), &
+                                Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
+                                Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, rain0, snow0, ice0, &
+                                graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
+                                .false., te(:,levs:1:-1), .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         rain0(:)    = rain0(:)    * tem

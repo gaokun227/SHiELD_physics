@@ -10,7 +10,7 @@
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
-                  dspheat,ent_fac,dkt,                                         &
+                  dspheat,ent_fac,dkt,flux_cg,flux_en,                         &
                   pfac_q,brcr_ub,rlam,afac,bfac,hpbl_cr,                       &
                   tnl_fac, qnl_fac, unl_fac)
 !-------------------------------------------------------------------------------
@@ -225,8 +225,8 @@
                                                                 stable, &
                                                               cloudflg
 
-   real(kind=kind_phys),dimension(   1:im, 1:km-1), intent(OUT):: dkt
-   !real(kind=kind_phys),dimension(   1:im, 1:km),   intent(OUT):: flux_cg, flux_en
+   real(kind=kind_phys),dimension(   1:im, 1:km), intent(OUT), OPTIONAL :: dkt
+   real(kind=kind_phys),dimension(   1:im, 1:km), intent(OUT)::flux_cg, flux_en
 
 ! Local:
    real(kind=kind_phys),dimension(   1:im ,   1:km  ) :: diss
@@ -935,6 +935,18 @@
        endif
      enddo
    enddo
+
+!
+!    add hpbl_cr control by kgao - only use non-local fluxes if hbpl is greater than hpbl_cr
+!
+
+!   do i = its,ite
+!      if(hpbl(i).lt.hpbl_cr) then
+!        pblflg(i) = .false.
+!     endif
+!   enddo
+
+
 !
 !     compute tridiagonal matrix elements for heat
 !
@@ -954,8 +966,8 @@
    enddo
 !
 
-   !flux_cg = 0.
-   !flux_en = 0.
+   flux_cg = 0.
+   flux_en = 0.
    do k = kts,kte-1
      do i = its,ite
        dtodsd = dt2/del(i,k)
@@ -968,15 +980,14 @@
 ! kgao - add hpbl_cr option
        if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
-         !flux_cg(i,k+1) = -hgamt(i)*xkzh(i,k)/hpbl(i)
-         !flux_en(i,k+1) = -hfxpbl(i)*zfacent(i,k)
+         flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         flux_en(i,k) = -hfxpbl(i)*zfacent(i,k)
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
-         !flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
-         !flux_en(i,k) = 0. 
-
+         flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         flux_en(i,k) = 0. 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
@@ -1047,11 +1058,13 @@
    enddo
    !!! END DEBUG CODE
 
-   do k=kts,kte-1
-   do i=its,ite
-      dkt(i,k) = xkzh(i,k)
-   enddo
-   enddo
+   if (present(dkt)) then
+      do k=kts,kte
+      do i=its,ite
+         dkt(i,k) = xkzh(i,k)
+      enddo
+      enddo
+   endif
 !
 !     compute tridiagonal matrix elements for moisture, clouds, and gases
 !
@@ -1234,7 +1247,7 @@
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv
          f2(i,k+1) = vx(i,k+1)-dtodsu*dsdzv
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzm(i,k) = prpbl(i)*xkzh(i,k)
          xkzm(i,k) = sqrt(xkzm(i,k)*xkzml(i,k))
          xkzm(i,k) = max(xkzm(i,k),xkzom(i,k))

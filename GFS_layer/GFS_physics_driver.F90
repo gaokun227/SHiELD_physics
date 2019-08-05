@@ -1420,6 +1420,20 @@ module module_physics_driver
                          Model%xkzminv, Model%moninq_fac)
 !     if (lprnt)  write(0,*)' dtdtm=',(dtdt(ipr,k),k=1,15)
 !     if (lprnt)  write(0,*)' dqdtm=',(dqdt(ipr,k,1),k=1,15)
+
+        elseif (Model%satmedmf) then
+          call satmedmfvdif(ix, im, levs, nvdiff,                               & 
+                   Model%ntcw, Model%ntiw, Model%ntke,                          &
+                   dvdt, dudt, dtdt, dqdt,                                      &
+                   Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
+                   Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                   Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
+                   Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
+                   stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
+                   Statein%prslk, Statein%phii, Statein%phil, dtp,              &
+                   Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
+                   kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, dkt)
+
         elseif (Model%ysupbl) then
           call ysupbl(ix, im, levs, nvdiff, Model%ntcw, Model%ntiw,             &
                       dvdt, dudt, dtdt, dqdt,                                   &
@@ -1436,11 +1450,12 @@ module module_physics_driver
                       kinver,                                                   &
                       Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
                       Model%dspheat, Model%ysu_ent_fac, dkt,                    &
-                      !flux_cg, flux_en,                                         &
+                      flux_cg, flux_en,                                         &
                       Model%ysu_pfac_q,                                         &
                       Model%ysu_brcr_ub, Model%ysu_rlam, Model%ysu_afac,        &
                       Model%ysu_bfac, Model%ysu_hpbl_cr,                        &
                       Model%tnl_fac, Model%qnl_fac, Model%unl_fac)
+
        elseif ( Model%myj_pbl) then
           
           do i=1,im
@@ -1597,21 +1612,21 @@ module module_physics_driver
 
       if (Model%ldiag3d) then
          !!! Diffusion coefficients
-         do i=1, im
-            Diag%dkt(i,1) = 0.
-         enddo
-         do k=2,levs
+         !do i=1, im
+         !   Diag%dkt(i,1) = 0.
+         !enddo
+         do k=1,levs
          do i=1,im
             Diag%dkt(i,k) = dkt(i,k)
          enddo
          enddo
 
          !!! nonlocal fluxes 
-         do i=1, im
-            Diag%flux_cg(i,1) = 0.
-            Diag%flux_en(i,1) = 0.
-         enddo
-         do k=2,levs
+         !do i=1, im
+         !   Diag%flux_cg(i,1) = 0.
+         !   Diag%flux_en(i,1) = 0.
+         !enddo
+         do k=1,levs
          do i=1,im
             Diag%flux_cg(i,k) = flux_cg(i,k)
             Diag%flux_en(i,k) = flux_en(i,k)

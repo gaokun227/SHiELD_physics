@@ -936,6 +936,18 @@
        endif
      enddo
    enddo
+
+!
+!    add hpbl_cr control by kgao - only use non-local fluxes if hbpl is greater than hpbl_cr
+!
+
+!   do i = its,ite
+!      if(hpbl(i).lt.hpbl_cr) then
+!        pblflg(i) = .false.
+!     endif
+!   enddo
+
+
 !
 !     compute tridiagonal matrix elements for heat
 !
@@ -980,7 +992,13 @@
 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
+       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+         dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
+         flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         flux_en(i,k) = 0. 
+         f1(i,k)   = f1(i,k)+dtodsd*dsdzt
+         f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
          xkzh(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzh(i,k) = sqrt(xkzh(i,k)*xkzhl(i,k))
          xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
@@ -1103,7 +1121,7 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i)) then
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
          dsdzq = qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k)) ! no gama term ?
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
@@ -1221,7 +1239,7 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i))then
+       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr)then
          dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
          dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu

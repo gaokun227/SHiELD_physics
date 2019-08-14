@@ -719,7 +719,7 @@
        endif
        hpbl(i) = za(i,k-1)+brint*(za(i,k)-za(i,k-1))
        if(hpbl(i).lt.zq(i,2)) kpbl(i) = 1
-       if(kpbl(i).le.1) pblflg(i) = .false.
+       if(kpbl(i).le.1 .or. hpbl(i) < hpbl_cr) pblflg(i) = .false.
      endif
    enddo
 !
@@ -888,7 +888,6 @@
 !   endif
    do k = kts,kte-1
      do i = its,ite
-        !prnum = 0. ! DEBUG
        if(k.ge.kpbl(i)) then
 !        ss = ((ux(i,k+1)-ux(i,k))*(ux(i,k+1)-ux(i,k))                         &
 !             +(vx(i,k+1)-vx(i,k))*(vx(i,k+1)-vx(i,k)))                        &
@@ -968,20 +967,20 @@
        tem1   = dsig*rdz
 
 ! kgao - add hpbl_cr option
-       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
+       if(pblflg(i).and.k.lt.kpbl(i)) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i)-hfxpbl(i)*zfacent(i,k))
          !flux_cg(i,k+1) = -hgamt(i)*xkzh(i,k)/hpbl(i)
          !flux_en(i,k+1) = -hfxpbl(i)*zfacent(i,k)
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
-       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+       elseif(pblflg(i).and.k.lt.kpbl(i)) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
          !flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
          !flux_en(i,k) = 0. 
 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
          xkzh(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzh(i,k) = sqrt(xkzh(i,k)*xkzhl(i,k))
          xkzh(i,k) = max(xkzh(i,k),xkzoh(i,k))
@@ -1104,15 +1103,15 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr) then
+       if(pblflg(i).and.k.lt.kpbl(i)) then
          dsdzq = qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k)) ! no gama term ?
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
-       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
+       elseif(pblflg(i).and.k.lt.kpbl(i)) then
          dsdzq = 0. !qnl_fac*tem1*(-qfxpbl(i)*zfacent(i,k))
          f3(i,k,1) = f3(i,k,1)+dtodsd*dsdzq
          f3(i,k+1,1) = qx(i,k+1)-dtodsu*dsdzq
-       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
+       elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6) then
          xkzq(i,k) = -we(i)*dza(i,kpbl(i))*exp(-entfac(i,k))
          xkzq(i,k) = sqrt(xkzq(i,k)*xkzhl(i,k))
          xkzq(i,k) = max(xkzq(i,k),xkzoh(i,k))
@@ -1222,14 +1221,14 @@
        dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
-       if(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).ge.hpbl_cr)then
+       if(pblflg(i).and.k.lt.kpbl(i))then
          dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i)-ufxpbl(i)*zfacent(i,k))
          dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i)-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu
          f1(i,k+1) = ux(i,k+1)-dtodsu*dsdzu
          f2(i,k)   = f2(i,k)+dtodsd*dsdzv
          f2(i,k+1) = vx(i,k+1)-dtodsu*dsdzv
-       elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr)then
+       elseif(pblflg(i).and.k.lt.kpbl(i))then
          dsdzu = unl_fac*tem1*(-hgamu(i)*xkzm(i,k)/hpbl(i))!-ufxpbl(i)*zfacent(i,k))
          dsdzv = unl_fac*tem1*(-hgamv(i)*xkzm(i,k)/hpbl(i))!-vfxpbl(i)*zfacent(i,k))
          f1(i,k)   = f1(i,k)+dtodsd*dsdzu

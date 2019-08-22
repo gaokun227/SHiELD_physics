@@ -171,6 +171,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: tisfc  (:)   => null()  !< surface temperature over ice fraction 
     real (kind=kind_phys), pointer :: snowd  (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
     real (kind=kind_phys), pointer :: zorl   (:)   => null()  !< surface roughness in cm 
+    real (kind=kind_phys), pointer :: ztrl   (:)   => null()  !< surface roughness for t and q in cm 
     real (kind=kind_phys), pointer :: fice   (:)   => null()  !< ice fraction over open water grid 
     real (kind=kind_phys), pointer :: hprim  (:)   => null()  !< topographic standard deviation in m            !
     real (kind=kind_phys), pointer :: hprime (:,:) => null()  !< orographic metrics
@@ -1077,6 +1078,7 @@ module GFS_typedefs
     allocate (Sfcprop%tisfc  (IM))
     allocate (Sfcprop%snowd  (IM))
     allocate (Sfcprop%zorl   (IM))
+    allocate (Sfcprop%ztrl   (IM))
     allocate (Sfcprop%fice   (IM))
     allocate (Sfcprop%hprim  (IM))
     allocate (Sfcprop%hprime (IM,Model%nmtvr))
@@ -1100,6 +1102,7 @@ module GFS_typedefs
     Sfcprop%tisfc   = clear_val
     Sfcprop%snowd   = clear_val
     Sfcprop%zorl    = clear_val
+    Sfcprop%ztrl    = clear_val
     Sfcprop%fice    = clear_val
     Sfcprop%hprim   = clear_val
     Sfcprop%hprime  = clear_val

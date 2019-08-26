@@ -994,8 +994,8 @@
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
-         flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
-         flux_en(i,k) = 0. 
+         !flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
+         !flux_en(i,k) = 0. 
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then

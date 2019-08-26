@@ -28,7 +28,6 @@
 !
       use physparam,         only : kind_phys
       use GFS_typedefs,      only : GFS_control_type, GFS_grid_type
-      use mpp_mod,           only : mpp_error, FATAL
 !      use constants_mod,     only : omega, grav
 !
       implicit   none
@@ -308,7 +307,9 @@
         case (3)
            tsfc2(i) = ts_obs(i)
         case default
-           call mpp_error(FATAL, 'restore_method not implemented')
+           !call mpp_error(FATAL, 'restore_method not implemented')
+           print*, 'restore_method = ', restore_method, ' not implemented'
+           stop 121
         end select
 
         select case (ocean_option)
@@ -326,7 +327,9 @@
           hvml(i)  =  hvmlp
           tmoml(i) =  tml(i) - 5. ! not used
         case default
-           call mpp_error(FATAL, "ocean_option must be SOM or MLM")
+           !call mpp_error(FATAL, "ocean_option must be SOM or MLM")
+           print*, 'ocean_option must be SOM or MLM; ocean_option set to ', ocean_option
+           stop 122
         end select
         qflux_restore(i) = (ts_clim_iano(i) - tsfc1(i)) * mlcp / taut  ! for diagnosis purpose only
 

@@ -1,5 +1,5 @@
       subroutine sfc_diff(im,ps,u1,v1,t1,q1,z1,
-     &                    snwdph,tskin,z0rl,ztrl,cm,ch,rb,
+     &                    snwdph,tskin,z0rl,cm,ch,rb,
      &                    prsl1,prslki,islimsk,
      &                    stress,fm,fh,
      &                    ustar,wind,ddvel,fm10,fh2,
@@ -8,9 +8,7 @@
      &                    z0s_max,
      &                    do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,
      &                    do_z0_hwrf17_hwonly, wind_th_hwrf)
-
-! aug 2019 - an updated and clean version by kgao (add ztrl)
-
+!
       use machine , only : kind_phys
       use funcphys, only : fpvs    
       use physcons, grav => con_g,       cp => con_cp
@@ -20,13 +18,13 @@
       implicit none
 !
       integer              im, ivegsrc
-      real(kind=kind_phys), dimension(im)::ps,  u1, v1, t1, q1, z1
-     &,                                    tskin, z0rl, ztrl, cm, ch, rb
-     &,                                    prsl1, prslki, stress
-     &,                                    fm, fh, ustar, wind, ddvel
-     &,                                    fm10, fh2, sigmaf, shdmax
-     &,                                    tsurf, snwdph
-      integer, dimension(im)             ::vegtype, islimsk
+      real(kind=kind_phys), dimension(im) :: ps,  u1, v1, t1, q1, z1
+     &,                                      tskin, z0rl, cm,  ch, rb
+     &,                                      prsl1, prslki, stress
+     &,                                      fm, fh, ustar, wind, ddvel
+     &,                                      fm10, fh2, sigmaf, shdmax
+     &,                                      tsurf, snwdph
+      integer, dimension(im)              ::  vegtype, islimsk
 
       logical   flag_iter(im) ! added by s.lu
       logical   redrag        ! reduced drag coeff. flag for high wind over sea (j.han)
@@ -44,7 +42,7 @@
      &                     hl110,  hlt,    hltinf, olinf,
      &                     restar, czilc,  tem1,   tem2, ztmax1,
      &                     z0_adj, wind_th_moon, ustar_th, a,b,c, !kgao 
-     &                     u10m, v10m, ws10m, z0_1, ustar_1 !kgao
+     &                     u10m, v10m, ws10m !kgao
 !
 
       real(kind=kind_phys),intent(in   ) :: z0s_max, wind_th_hwrf ! kgao 
@@ -90,6 +88,22 @@
      &,         p31=1.255457892775006e+00
      &,         p30=-1.663993561652530e+01
      &,         p40=4.579369142033410e-04
+
+!     parameter (charnock=.014,ca=.4)!c ca is the von karman constant
+!     parameter (alpha=5.,a0=-3.975,a1=12.32,b1=-7.755,b2=6.041)
+!     parameter (a0p=-7.941,a1p=24.75,b1p=-8.705,b2p=7.899,vis=1.4e-5)
+
+!     real(kind=kind_phys) aa1,bb1,bb2,cc,cc1,cc2,arnu
+!     parameter (aa1=-1.076,bb1=.7045,cc1=-.05808)
+!     parameter (bb2=-.1954,cc2=.009999)
+!     parameter (arnu=.135*rnu)
+!
+!    z0s_max=.196e-2 for u10_crit=25 m/s
+!    z0s_max=.317e-2 for u10_crit=30 m/s
+!    z0s_max=.479e-2 for u10_crit=35 m/s
+!
+! mbek -- toga-coare flux algorithm
+!     parameter (rnu=1.51e-5,arnu=0.11*rnu)
 !
 !  initialize variables. all units are supposedly m.k.s. unless specified
 !  ps is in pascals, wind is wind speed, 
@@ -109,20 +123,28 @@
           z0max   = max(1.0e-6, min(z0,z1(i)))
           z1i     = 1.0 / z1(i)
 
-!
 !  compute stability dependent exchange coefficients
 !  this portion of the code is presently suppressed
 !
 
           if(islimsk(i) == 0) then            ! over ocean
+            ustar(i) = sqrt(grav * z0 / charnock)
 
-! modify ztmax over ocean by kgao
+!**  test xubin's new z0
 
-!            ustar(i) = sqrt(grav * z0 / charnock) ! only used over ocean 
-!            restar = max(ustar(i)*z0max*visi, 0.000001)
-!            rat    = min(7.0, 2.67 * sqrt(sqrt(restar)) - 2.57)
-!            ztmax  = z0max * exp(-rat)
-            ztmax = 0.01 * ztrl(i) 
+!           ztmax  = z0max
+
+            restar = max(ustar(i)*z0max*visi, 0.000001)
+
+!           restar = log(restar)
+!           restar = min(restar,5.)
+!           restar = max(restar,-5.)
+!           rat    = aa1 + (bb1 + cc1*restar) * restar
+!           rat    = rat    / (1. + (bb2 + cc2*restar) * restar))
+!  rat taken from zeng, zhao and dickinson 1997
+
+            rat    = min(7.0, 2.67 * sqrt(sqrt(restar)) - 2.57)
+            ztmax  = z0max * exp(-rat)
 
           else                                ! over land and sea ice
 !** xubin's new z0  over land and sea ice
@@ -182,6 +204,7 @@
             ztmax1 = 99.0
           endif
           if( z0max < 0.05 .and. snwdph(i) < 10.0 ) ztmax1 = 99.0
+
 
 !  compute stability indices (rb and hlinf)
 
@@ -301,6 +324,14 @@
 
             z0 = (charnock / grav) * ustar(i) * ustar(i)
 
+! mbek -- toga-coare flux algorithm
+!           z0 = (charnock / grav) * ustar(i)*ustar(i) +  arnu/ustar(i)
+!  new implementation of z0
+!           cc = ustar(i) * z0 / rnu
+!           pp = cc / (1. + cc)
+!           ff = grav * arnu / (charnock * ustar(i) ** 3)
+!           z0 = arnu / (ustar(i) * ff ** pp)
+
 ! -------------------------- modify z0 by kgao
 
 ! diagnose 10m wind (same as sfc_diag.f)
@@ -309,7 +340,7 @@
             v10m = v1(i) * fm10(i) / fm(i)
             ws10m = sqrt(u10m*u10m + v10m*v10m) 
 
-! option a - URI/GFDL (HWRF 2015)
+! option - URI/GFDL (HWRF 2015)
 ! note there is discontinuity at 10m/s in original formulation
 ! needs to be fixed
 
@@ -327,7 +358,7 @@
               endif
             endif
 
-! option b - HWRF 2017
+! option - HWRF 2017
 
             if (do_z0_hwrf17) then
               if (ws10m <= 6.5) then
@@ -343,7 +374,7 @@
               endif
             endif
 
-! option c - GFS (low wind) + HWRF 2017 (high wind)
+! option - GFS (low wind) + HWRF 2017 (high wind)
 
             if (do_z0_hwrf17_hwonly) then
 
@@ -356,7 +387,7 @@
 
             endif
 
-! option d - GFS (low wind) + Moon et al (high wind)
+! option - GFS (low wind) + Moon et al (high wind)
 
             if (do_z0_moon) then
               wind_th_moon = 20. 
@@ -381,23 +412,6 @@
             else
               z0rl(i) = 100.0 * max(min(z0,.1), 1.e-7)
             endif
-
-!
-! modify zt over ocean by kgao
-! zt is now allowed to decouple from zo under high winds
-!
-            z0_1 = (charnock / grav) * ustar(i) * ustar(i)
-            if (redrag) then
-              z0_1 = max(min(z0, z0s_max), 1.e-7)
-            else
-              z0_1 = max(min(z0,.1), 1.e-7)
-            endif 
-! zeng, zhao and dickinson 1997 (eq 25)
-            ustar_1 = sqrt(grav * z0_1 / charnock)  
-            restar = max(ustar_1*z0_1*visi, 0.000001)
-            rat    = min(7.0, 2.67 * sqrt(sqrt(restar)) - 2.57)
-            ztrl(i)  = 100.0 * z0_1 * exp(-rat)
-
           endif
         endif                ! end of if(flagiter) loop
       enddo

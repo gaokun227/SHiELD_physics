@@ -1052,9 +1052,9 @@ module module_physics_driver
 !                 tsurf, flag_iter, Model%redrag)  
 
 ! sfc_diff modified by kgao
-            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs, &
-                 Statein%tgrs, Statein%qgrs, Diag%zlvl, Sfcprop%snowd, &
-                 Sfcprop%tsfc, Sfcprop%zorl, Sfcprop%ztrl, cd,      &
+            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
+                 Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
+                 Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
                  cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
                  Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
                  wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &

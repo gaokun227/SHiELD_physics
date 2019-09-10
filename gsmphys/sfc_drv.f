@@ -112,6 +112,7 @@
      &       prsl1, prslki, zf, islimsk, ddvel, slopetyp,               &
      &       shdmin, shdmax, snoalb, sfalb, flag_iter, flag_guess,      &
      &       isot, ivegsrc, lprnt,                                      &
+     &       lheatstrg, num_step, hour_canopy, afac_canopy,             &
 !  ---  in/outs:
      &       weasd, snwdph, tskin, tprcp, srflag, smc, stc, slc,        &
      &       canopy, trans, tsurf, zorl,                                &
@@ -157,6 +158,9 @@
       real (kind=kind_phys),  intent(in) :: delt
 
       logical, dimension(im), intent(in) :: flag_iter, flag_guess, lprnt
+      logical, intent(in) :: lheatstrg
+      integer, intent(in) :: num_step
+      real (kind=kind_phys),  intent(in) :: hour_canopy, afac_canopy
 
 !  ---  in/out:
       real (kind=kind_phys), dimension(im), intent(inout) :: weasd,     &
@@ -401,6 +405,7 @@
      &       swdn, solnet, lwdn, sfcems, sfcprs, sfctmp,                &
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, ivegsrc,             &
      &       vtype, stype, slope, shdmin1d, alb, snoalb1d, lprnt,       &
+     &       lheatstrg, num_step, hour_canopy, afac_canopy,             &
 !  ---  input/outputs:
      &       tbot, cmc, tsea, stsoil, smsoil, slsoil, sneqv, chx, cmx,  &
      &       z0,                                                        & 

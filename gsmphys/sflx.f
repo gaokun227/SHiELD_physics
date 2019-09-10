@@ -6,6 +6,7 @@
      &       swdn, swnet, lwdn, sfcems, sfcprs, sfctmp,                 &
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, ivegsrc,             &
      &       vegtyp, soiltyp, slopetyp, shdmin, alb, snoalb, lprnt,     &
+     &       lheatstrg, num_step, hour_canopy, afac_canopy,             &
 !  ---  input/outputs:
      &       tbot, cmc, t1, stc, smc, sh2o, sneqv, ch, cm,z0,           &
 !  ---  outputs:
@@ -61,7 +62,9 @@
 !                       streamlined and reformatted the code, and       !
 !                       consolidated constents/parameters by using      !
 !                       module physcons, and added program documentation!               !
-!    sep  2009 -- s. moorthi minor fixes
+!    sep  2009 -- s. moorthi minor fixes                                !
+!    nov  2018 -- j. han add canopy heat storage parameterization       !
+!    jun  2019 -- k. gao modify canopy heat storage parameterization    !
 !                                                                       !
 !  ====================  defination of variables  ====================  !
 !                                                                       !
@@ -70,7 +73,7 @@
 !     couple   - integer, =0:uncoupled (land model only)           1    !
 !                         =1:coupled with parent atmos model            !
 !     icein    - integer, sea-ice flag (=1: sea-ice, =0: land)     1    !
-!     ffrozp   - real,                                             1    !
+!     ffrozp   - real, fractional snow/rain                        1    !
 !     dt       - real, time step (<3600 sec)                       1    !
 !     zlvl     - real, height abv atmos ground forcing vars (m)    1    !
 !     sldpth   - real, thickness of each soil layer (m)          nsoil  !
@@ -94,6 +97,13 @@
 !     shdmin   - real, min areal coverage of green veg (fraction)  1    !
 !     alb      - real, bkground snow-free sfc albedo (fraction)    1    !
 !     snoalb   - real, max albedo over deep snow     (fraction)    1    !
+!     lheatstrg- logical, flag for canopy heat storage             1    !
+!                         parameterization                              !
+!     num_step - integer, number of physics time step                   !
+!     hour_canopy - real, tunable time scale for the canopy heat    1   !
+!                         storage parameterization                      !
+!     afac_canopy - real, tunable enhancement factor for            1   ! 
+!                         the canopy heat storage parameterization      ! 
 !                                                                       !
 !  input/outputs:                                                       !
 !     tbot     - real, bottom soil temp (k)                        1    !
@@ -200,6 +210,9 @@
      &       sfcspd, prcp, q2, q2sat, dqsdt2, th2, shdmin, alb, snoalb
 
       logical, intent(in) :: lprnt
+      logical, intent(in) :: lheatstrg
+      integer, intent(in) :: num_step 
+      real (kind=kind_phys), intent(in) :: hour_canopy, afac_canopy
 
 !  ---  input/outputs:
       real (kind=kind_phys), intent(inout) :: tbot, cmc, t1, sneqv,     &
@@ -229,7 +242,13 @@
       logical :: frzgra, snowng
 
       integer :: ice, k, kz
-
+!
+!  --- parameters for heat storage parametrization
+!
+      real (kind=kind_phys)            :: cpx, cpx1, cpfac, xx1, xx2
+      real (kind=kind_phys), parameter :: z0min=0.2_kind_phys,          &
+     &                                    z0max=1.0_kind_phys
+      real (kind=kind_phys)            :: xx2_adj, hour 
 !
 !===> ...  begin here
 !
@@ -631,6 +650,34 @@
         fdown = swnet + lwdn
 
       endif   ! end if_couple_block
+!
+!  ---  enhance cp as a function of z0 to mimic heat storage
+!
+      cpx   = cp
+      cpx1  = cp1
+      cpfac = 1.0
+      if (lheatstrg) then
+        if ((ivegsrc == 1 .and. vegtyp /= 13)
+     &                    .or.  ivegsrc == 2) then
+          xx1   = (z0 - z0min) / (z0max - z0min)
+          !xx2   = 1.0 + min(max(xx1, 0.0), 1.0)
+
+          ! xx2 is time dependent if hour_canopy > 0
+          hour = num_step * dt / 3600.
+          !hour_canopy = max(hour_canopy, 1e-6)
+          if (hour < hour_canopy) then
+             xx2_adj = hour/hour_canopy 
+          else
+             xx2_adj = 1.
+          endif
+          xx2_adj = min(xx2_adj, 1.)
+          xx2   = 1.0 + afac_canopy * xx2_adj * min(max(xx1, 0.0), 1.0)
+ 
+          cpx   = cp  * xx2
+          cpx1  = cp1 * xx2
+          cpfac = cp / cpx
+        endif
+      endif
 
 !  --- ...  call penman subroutine to calculate potential evaporation (etp),
 !           and other partial products and sums save in common/rite for later
@@ -639,7 +686,7 @@
       call penman
 !  ---  inputs:                                                         !
 !          ( sfctmp, sfcprs, sfcems, ch, t2v, th2, prcp, fdown,         !
-!            ssoil, q2, q2sat, dqsdt2, snowng, frzgra,                  !
+!            cpx, cpfac, ssoil, q2, q2sat, dqsdt2, snowng, frzgra,      !
 !  ---  outputs:                                                        !
 !            t24, etp, rch, epsca, rr, flx2 )                           !
 
@@ -654,7 +701,7 @@
         call canres
 !  ---  inputs:                                                         !
 !          ( nsoil, nroot, swdn, ch, q2, q2sat, dqsdt2, sfctmp,         !
-!            sfcprs, sfcems, sh2o, smcwlt, smcref, zsoil, rsmin,        !
+!            cpx1, sfcprs, sfcems, sh2o, smcwlt, smcref, zsoil, rsmin,  !
 !            rsmax, topt, rgl, hs, xlai,                                !
 !  ---  outputs:                                                        !
 !            rc, pc, rcs, rct, rcq, rcsoil )                            !
@@ -869,7 +916,7 @@
 !...................................
 !  ---  inputs:
 !    &     ( nsoil, nroot, swdn, ch, q2, q2sat, dqsdt2, sfctmp,         &
-!    &       sfcprs, sfcems, sh2o, smcwlt, smcref, zsoil, rsmin,        &
+!    &       cpx1, sfcprs, sfcems, sh2o, smcwlt, smcref, zsoil, rsmin,  &
 !    &       rsmax, topt, rgl, hs, xlai,                                &
 !  ---  outputs:
 !    &       rc, pc, rcs, rct, rcq, rcsoil                              &
@@ -902,6 +949,7 @@
 !     q2sat    - real, sat. air humidity at 1st level abv ground   1    !
 !     dqsdt2   - real, slope of sat. humidity function wrt temp    1    !
 !     sfctmp   - real, sfc temperature at 1st level above ground   1    !
+!     cpx1     - real, enhanced air heat capacity for heat storage 1    !
 !     sfcprs   - real, sfc pressure                                1    !
 !     sfcems   - real, sfc emissivity for lw radiation             1    !
 !     sh2o     - real, volumetric soil moisture                  nsoil  !
@@ -1007,8 +1055,8 @@
 !           evaporation (containing rc term).
 
       rc = rsmin / (xlai*rcs*rct*rcq*rcsoil)
-      rr = (4.0*sfcems*sigma1*rd1/cp1) * (sfctmp**4.0)/(sfcprs*ch) + 1.0
-      delta = (lsubc/cp1) * dqsdt2
+      rr = (4.0*sfcems*sigma1*rd1/cpx1) * (sfctmp**4.0)/(sfcprs*ch) + 1.0
+      delta = (lsubc/cpx1) * dqsdt2
 
       pc = (rr + delta) / (rr*(1.0 + rc*ch) + delta)
 !
@@ -1347,7 +1395,7 @@
 !...................................
 !  ---  inputs:
 !    &     ( sfctmp, sfcprs, sfcems, ch, t2v, th2, prcp, fdown,         &
-!    &       ssoil, q2, q2sat, dqsdt2, snowng, frzgra,                  &
+!    &       cpx, cpfac, ssoil, q2, q2sat, dqsdt2, snowng, frzgra,      &
 !  ---  outputs:
 !    &       t24, etp, rch, epsca, rr, flx2                             &
 !    &     )
@@ -1373,6 +1421,8 @@
 !     th2      - real, air potential temp at zlvl abv grnd         1    !
 !     prcp     - real, precip rate                                 1    !
 !     fdown    - real, net solar + downward lw flux at sfc         1    !
+!     cpx      - real, enhanced air heat capacity for heat storage 1    !
+!     cpfac    - real, ratio air heat capacity to enhanced one     1    !
 !     ssoil    - real, upward soil heat flux                       1    !
 !     q2       - real, mixing ratio at hght zlvl abv ground        1    !
 !     q2sat    - real, sat mixing ratio at zlvl abv ground         1    !
@@ -1410,11 +1460,11 @@
 
 !  --- ...  prepare partial quantities for penman equation.
 
-      delta = elcp * dqsdt2
+      delta = elcp * cpfac * dqsdt2
       t24 = sfctmp * sfctmp * sfctmp * sfctmp
       rr  = t24 * 6.48e-8 / (sfcprs*ch) + 1.0
       rho = sfcprs / (rd1*t2v)
-      rch = rho * cp * ch
+      rch = rho * cpx * ch
 
 !  --- ...  adjust the partial sums / products with the latent heat
 !           effects caused by falling precipitation.
@@ -1438,7 +1488,7 @@
 !  --- ...  finish penman equation calculations.
 
       rad = fnet/rch + th2 - sfctmp
-      a = elcp * (q2sat - q2)
+      a = elcp * cpfac * (q2sat - q2)
       epsca = (a*rr + rad*delta) / (delta + rr)
       etp = epsca * rch / lsubc
 !

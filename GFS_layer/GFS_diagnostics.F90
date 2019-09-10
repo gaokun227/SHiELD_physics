@@ -2541,7 +2541,6 @@ module physics_diag_layer
       enddo
     endif
 
-
     if (Model%lgocart) then
       !---dqdtv
       idx = idx + 1

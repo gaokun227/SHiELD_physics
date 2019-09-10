@@ -171,6 +171,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: tisfc  (:)   => null()  !< surface temperature over ice fraction 
     real (kind=kind_phys), pointer :: snowd  (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
     real (kind=kind_phys), pointer :: zorl   (:)   => null()  !< surface roughness in cm 
+    real (kind=kind_phys), pointer :: ztrl   (:)   => null()  !< surface roughness for t and q in cm 
     real (kind=kind_phys), pointer :: fice   (:)   => null()  !< ice fraction over open water grid 
     real (kind=kind_phys), pointer :: hprim  (:)   => null()  !< topographic standard deviation in m            !
     real (kind=kind_phys), pointer :: hprime (:,:) => null()  !< orographic metrics
@@ -493,6 +494,7 @@ module GFS_typedefs
     logical              :: pdfcld          !< flag for pdfcld
     logical              :: shcnvcw         !< flag for shallow convective cloud
     logical              :: redrag          !< flag for reduced drag coeff. over sea
+    logical              :: sfc_gfdl        !< flag for using updated sfc layer scheme
     real(kind=kind_phys) :: z0s_max         !< a limiting value for z0 under high winds  
     logical              :: do_z0_moon      !< flag for using z0 scheme in Moon et al. 2007
     logical              :: do_z0_hwrf15    !< flag for using z0 scheme in 2015 HWRF 
@@ -1077,6 +1079,7 @@ module GFS_typedefs
     allocate (Sfcprop%tisfc  (IM))
     allocate (Sfcprop%snowd  (IM))
     allocate (Sfcprop%zorl   (IM))
+    allocate (Sfcprop%ztrl   (IM))
     allocate (Sfcprop%fice   (IM))
     allocate (Sfcprop%hprim  (IM))
     allocate (Sfcprop%hprime (IM,Model%nmtvr))
@@ -1100,6 +1103,7 @@ module GFS_typedefs
     Sfcprop%tisfc   = clear_val
     Sfcprop%snowd   = clear_val
     Sfcprop%zorl    = clear_val
+    Sfcprop%ztrl    = clear_val
     Sfcprop%fice    = clear_val
     Sfcprop%hprim   = clear_val
     Sfcprop%hprime  = clear_val
@@ -1593,6 +1597,7 @@ module GFS_typedefs
     logical              :: pdfcld         = .false.                  !< flag for pdfcld
     logical              :: shcnvcw        = .false.                  !< flag for shallow convective cloud
     logical              :: redrag         = .false.                  !< flag for reduced drag coeff. over sea
+    logical              :: sfc_gfdl       = .false.                  !< flag for using updated sfc layer scheme 
     real(kind=kind_phys) :: z0s_max        = .317e-2                  !< a limiting value for z0 under high winds  
     logical              :: do_z0_moon     = .false.                  !< flag for using z0 scheme in Moon et al. 2007
     logical              :: do_z0_hwrf15   = .false.                  !< flag for using z0 scheme in 2015 HWRF 
@@ -1744,7 +1749,7 @@ module GFS_typedefs
                           !--- physical parameterizations
                                ras, trans_trac, old_monin, cnvgwd, mstrat, moist_adj,       &
                                cscnv, cal_pre, do_aw, do_shoc, shocaftcnv, shoc_cld,        &
-                               h2o_phys, pdfcld, shcnvcw, redrag, z0s_max,                  &
+                               h2o_phys, pdfcld, shcnvcw, redrag, sfc_gfdl, z0s_max,        &
                                do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
@@ -1930,6 +1935,7 @@ module GFS_typedefs
     Model%pdfcld           = pdfcld
     Model%shcnvcw          = shcnvcw
     Model%redrag           = redrag
+    Model%sfc_gfdl         = sfc_gfdl 
     Model%z0s_max          = z0s_max
     Model%do_z0_moon       = do_z0_moon
     Model%do_z0_hwrf15     = do_z0_hwrf15
@@ -2437,6 +2443,7 @@ module GFS_typedefs
       print *, ' pdfcld            : ', Model%pdfcld
       print *, ' shcnvcw           : ', Model%shcnvcw
       print *, ' redrag            : ', Model%redrag
+      print *, ' sfc_gfdl          : ', Model%sfc_gfdl
       print *, ' z0s_max           : ', Model%z0s_max
       print *, ' do_z0_moon        : ', Model%do_z0_moon
       print *, ' do_z0_hwrf15      : ', Model%do_z0_hwrf15

@@ -1043,17 +1043,22 @@ module module_physics_driver
          !else
 !!$         endif
 
-!            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
-!                 Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
-!                 Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
-!                 cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
-!                 Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
-!                 wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
-!                 sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
-!                 tsurf, flag_iter, Model%redrag)  
-
-! sfc_diff modified by kgao
-            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
+            if (Model%sfc_gfdl) then
+! a new version of sfc_diff by kgao 
+            call sfc_diff_gfdl(im,Statein%pgr, Statein%ugrs, Statein%vgrs,&
+                 Statein%tgrs, Statein%qgrs, Diag%zlvl, Sfcprop%snowd, &
+                 Sfcprop%tsfc, Sfcprop%zorl, Sfcprop%ztrl, cd,      &
+                 cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
+                 Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
+                 wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
+                 sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
+                 tsurf, flag_iter, Model%redrag, Model%z0s_max,     &
+                 Model%do_z0_moon, Model%do_z0_hwrf15,              &
+                 Model%do_z0_hwrf17, Model%do_z0_hwrf17_hwonly,     &
+                 Model%wind_th_hwrf)
+            else
+! GFS original sfc_diff modified by kgao
+            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,&
                  Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
                  Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
                  cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
@@ -1065,6 +1070,9 @@ module module_physics_driver
                  Model%do_z0_moon, Model%do_z0_hwrf15,              &
                  Model%do_z0_hwrf17, Model%do_z0_hwrf17_hwonly,     &
                  Model%wind_th_hwrf)
+            endif
+         !endif
+
          !endif
 
 !  --- ...  lu: update flag_guess

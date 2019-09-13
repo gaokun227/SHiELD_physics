@@ -659,7 +659,7 @@ module GFS_typedefs
     logical              :: debug         
     logical              :: pre_rad         !< flag for testing purpose
     logical              :: do_ocean        !< flag for slab ocean model 
-    logical              :: use_ec_sst      !< flag for using EC SST forcing
+    logical              :: use_ec_sst      !< flag for using EC SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
@@ -1730,7 +1730,7 @@ module GFS_typedefs
     logical              :: lprnt          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_ocean       = .false.         !< flag for slab ocean model 
-    logical              :: use_ec_sst     = .false.         !< flag for using EC SST forcing
+    logical              :: use_ec_sst     = .false.         !< flag for using EC SST forcing (or any external SST dataset, passed from the dynamics or nudging)
     !--- END NAMELIST VARIABLES
 
     NAMELIST /gfs_physics_nml/                                                              &

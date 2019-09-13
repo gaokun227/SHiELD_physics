@@ -334,49 +334,40 @@
              tmlp, tmln, tmomln, mldp, mldn, mldc, humlp, hvmlp)
         endif !end ocean_option
 
-        if (restore_method == 1) then 
-         tsfc2(i) = tsclim(i)
-         if (ocean_option == "SOM") then
-!          tsfc1(i) = (tsfc(i) + qsfc(i)/mlcp*dtp + tsclim(i)/taut*dtp ) / alphat
+        select case (restore_method)
+        case(1)
+           tsfc2(i) = tsclim(i)
+        case(2)
+           tsfc2(i) = ts_clim_iano(i)
+        case (3)
+           tsfc2(i) = ts_obs(i)
+        case default
+           !call mpp_error(FATAL, 'restore_method not implemented')
+           print*, 'restore_method = ', restore_method, ' not implemented'
+           stop 121
+        end select
+
+        select case (ocean_option)
+        case("SOM")
           if (use_qflux) then
            tsfc1(i) = ts_som(i) + qsfc(i)/mlcp*dtp 
           else
-           tsfc1(i) = (ts_som(i) + qsfc(i)/mlcp*dtp + tsclim(i)/taut*dtp ) / alphat
+           tsfc1(i) = (ts_som(i) + qsfc(i)/mlcp*dtp + tsfc2(i)/taut*dtp ) / alphat
           endif
-         elseif (ocean_option == "MLM") then
-          tsfc1(i) = (tmlp + tsclim(i)/taut*dtp)/alphat
+        case("MLM")
+          tsfc1(i) = (tmlp + tsfc2(i)/taut*dtp)/alphat
           tml(i)   =  tsfc1(i)
           mld(i)   =  mldp
           huml(i)  =  humlp
           hvml(i)  =  hvmlp
           tmoml(i) =  tml(i) - 5. ! not used
-         else
-          write(*,*) 'ocean_option can only be SOM or MLM'
-          call abort
-         endif
-         qflux_restore(i) = (tsclim(i) - tsfc1(i)) * mlcp / taut  ! for diagnosis purpose only
-        elseif (restore_method == 2) then
-         tsfc2(i) = ts_clim_iano(i)
-         if (ocean_option == "SOM") then
-          if (use_qflux) then
-           tsfc1(i) = ts_som(i) + qsfc(i)/mlcp*dtp 
-          else
-           tsfc1(i) = (ts_som(i) + qsfc(i)/mlcp*dtp + ts_clim_iano(i)/taut*dtp ) / alphat 
-          endif
-         elseif (ocean_option == "MLM") then
-          tsfc1(i) = (tmlp + ts_clim_iano(i)/taut*dtp)/alphat
-          tml(i)   =  tsfc1(i)
-          mld(i)   =  mldp
-          huml(i)  =  humlp
-          hvml(i)  =  hvmlp
-          tmoml(i) =  tml(i) - 5. ! not used
-         endif
-!          tsfc(i) = tsfc(i) + (qflux_restore(i)+qsfc(i))/mlcp*dtp  ! explicit
-         qflux_restore(i) = (ts_clim_iano(i) - tsfc1(i)) * mlcp / taut  ! for diagnosis purpose only
-        elseif (restore_method == 3) then
-         tsfc2(i) = ts_obs(i)
-         tsfc1(i) = (ts_som(i) + qsfc(i)/mlcp*dtp + ts_obs(i)/taut*dtp ) / alphat
-        endif
+        case default
+           !call mpp_error(FATAL, "ocean_option must be SOM or MLM")
+           print*, 'ocean_option must be SOM or MLM; ocean_option set to ', ocean_option
+           stop 122
+        end select
+        qflux_restore(i) = (ts_clim_iano(i) - tsfc1(i)) * mlcp / taut  ! for diagnosis purpose only
+
         ts_som (i) = tsfc1 (i)
        endif  ! end islmsk
       enddo

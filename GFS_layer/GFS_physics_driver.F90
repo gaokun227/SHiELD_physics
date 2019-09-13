@@ -1824,7 +1824,8 @@ module module_physics_driver
       endif   ! end if_nmtvr
 
 !     write(0,*)' before gwd clstp=',clstp,' kdt=',kdt,' lat=',lat
-      call gwdps(im, ix, im, levs, dvdt, dudt, dtdt,        &
+      if (ANY(Model%cdmbgwd > 0.)) then 
+         call gwdps(im, ix, im, levs, dvdt, dudt, dtdt,     &
                  Statein%ugrs, Statein%vgrs, Statein%tgrs,  &
                  Statein%qgrs, kpbl, Statein%prsi, del,     &
                  Statein%prsl, Statein%prslk, Statein%phii, &
@@ -1834,6 +1835,7 @@ module module_physics_driver
                  con_g, con_cp, con_rd, con_rv, Model%lonr, &
                  Model%nmtvr, Model%cdmbgwd, me, lprnt,ipr, &
                  Model%gwd_p_crit )
+      endif
 
 !     if (lprnt)  print *,' dudtg=',dudt(ipr,:)
 

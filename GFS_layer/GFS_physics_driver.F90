@@ -490,8 +490,8 @@ module module_physics_driver
            del_gz
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
-           delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1,   &
-           qs1, pt_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt,  &
+           delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qnl1, qi1,  &
+           qs1, pt_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt, qni1,   &
            qs_dt, qg_dt, te, q_con, cappa, &
            phmid, th, tke, exner, exchh1, el1 ! for myj
 
@@ -3076,7 +3076,8 @@ module module_physics_driver
         snow0     = 0.0
         ice0      = 0.0
         graupel0  = 0.0
-        qn1       = 0.0
+        qnl1      = 0.0
+        qni1      = 0.0
         do k = 1, levs
           w    (:,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g
@@ -3087,7 +3088,7 @@ module module_physics_driver
         call gfdl_cld_mp_driver(Stateout%gq0(:,levs:1:-1,1), Stateout%gq0(:,levs:1:-1,Model%ntcw), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntrw), Stateout%gq0(:,levs:1:-1,Model%ntiw), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
-                                Stateout%gq0(:,levs:1:-1,Model%ntclamt), qn1(:,levs:1:-1), &
+                                Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, rain0, snow0, ice0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &

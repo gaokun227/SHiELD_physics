@@ -2930,9 +2930,10 @@ module FV3GFS_io_mod
 !-------------------------------------------------------------------------      
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
-  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, &
-                             nx, ny, levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr)
+  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
+                             levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr)
 !--- subroutine interface variable definitions
+    logical :: fprint
     type(time_type),           intent(in) :: Time
 !rab    type(diagnostics),         intent(in) :: Gfs_diag
 !rab    type(state_fields_in),     intent(in) :: Statein
@@ -3044,6 +3045,7 @@ module FV3GFS_io_mod
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
            used=send_data(Diag(idx)%id, var2, Time)
            !!!! Accumulated diagnostics --- lmh 19 sep 17
+           if (fprint) then
            select case (trim(Diag(idx)%name))
            case('totprcp')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)
@@ -3063,6 +3065,7 @@ module FV3GFS_io_mod
            case('ULWRFtoa')
               call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            end select
+           endif
          elseif (Diag(idx)%axes == 3) then
            !--- dt3dt variables ---- restored 16 feb 18 lmh
             do k=1,levs

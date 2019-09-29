@@ -800,6 +800,7 @@
 !-----------------------------------
       subroutine coszmn                                                 &
      &     ( xlon,sinlat,coslat,solhr, IM, me,                          &     !  ---  inputs
+     &       fix_cosz_dec, fix_cosz_shr,                                &     !  ---  inputs
      &       coszen, coszdg                                             &     !  ---  outputs
      &     )
 
@@ -836,6 +837,7 @@
       implicit none
 
 !  ---  inputs:
+      logical, intent(in) :: fix_cosz_dec, fix_cosz_shr
       integer, intent(in) :: IM, me
 
       real (kind=kind_phys), intent(in) :: sinlat(:), coslat(:),        &
@@ -846,12 +848,26 @@
 
 !  ---  locals:
       real (kind=kind_phys) :: coszn, cns, ss, cc, solang, rstp
+      real (kind=kind_phys) :: sindec0, cosdec0, solhr0
 
       integer :: istsun(IM), i, it, j, lat
 
 !===>  ...  begin here
 
-      solang = pid12 * (solhr - f12)         ! solar angle at present time
+      if (fix_cosz_dec) then
+        sindec0 = 0.0
+        cosdec0 = 1.0
+      else
+        sindec0 = sindec
+        cosdec0 = cosdec
+      endif
+      if (fix_cosz_shr) then
+        solhr0 = f12
+      else
+        solhr0 = solhr
+      endif
+
+      solang = pid12 * (solhr0 - f12)         ! solar angle at present time
       rstp = 1.0 / float(nstp)
 
       do i = 1, IM
@@ -863,8 +879,8 @@
         cns = solang + float(it-1)*anginc + sollag
 
         do i = 1, IM
-          ss  = sinlat(i) * sindec
-          cc  = coslat(i) * cosdec
+          ss  = sinlat(i) * sindec0
+          cc  = coslat(i) * cosdec0
 
           coszn = ss + cc * cos(cns + xlon(i))
           coszen(i) = coszen(i) + max(0.0, coszn)

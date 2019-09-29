@@ -1337,6 +1337,7 @@
       if( Model%lsswr ) then
         call coszmn (Grid%xlon,Grid%sinlat,         &     !  ---  inputs
                    Grid%coslat,Model%solhr, IM, me, & 
+                   Model%fix_cosz_dec, Model%fix_cosz_shr, &
                    Radtend%coszen, Radtend%coszdg)        !  ---  outputs
       endif
 

@@ -371,6 +371,8 @@ module GFS_typedefs
     integer              :: thermodyn_id    !< valid for GFS only for get_prs/phi
     integer              :: sfcpress_id     !< valid for GFS only for get_prs/phi
     logical              :: gen_coord_hybrid!< for Henry's gen coord
+    logical              :: fix_cosz_dec    !< flag for fix cosine solar zenith angle - solar declination
+    logical              :: fix_cosz_shr    !< flag for fix cosine solar zenith angle - solar hour
 
     !--- set some grid extent parameters
     integer              :: isc             !< starting i-index for this MPI-domain
@@ -1504,6 +1506,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: fhgoc3d        = 0.0             !< seconds between calls to gocart
     integer              :: thermodyn_id   =  1              !< valid for GFS only for get_prs/phi
     integer              :: sfcpress_id    =  1              !< valid for GFS only for get_prs/phi
+    logical              :: fix_cosz_dec   = .false.         !< flag for fix cosine solar zenith angle - solar declination
+    logical              :: fix_cosz_shr   = .false.         !< flag for fix cosine solar zenith angle - solar hour
 
     !--- coupling parameters
     logical              :: cplflx         = .false.         !< default no cplflx collection
@@ -1736,7 +1740,7 @@ module GFS_typedefs
     NAMELIST /gfs_physics_nml/                                                              &
                           !--- general parameters
                                fhzero, ldiag3d, lssav, fhcyc, lgocart, fhgoc3d,             &
-                               thermodyn_id, sfcpress_id,                                   &
+                               thermodyn_id, sfcpress_id, fix_cosz_dec, fix_cosz_shr,       &
                           !--- coupling parameters
                                cplflx, cplwav, lsidea,                                      &
                           !--- radiation parameters
@@ -1834,6 +1838,8 @@ module GFS_typedefs
     Model%thermodyn_id     = thermodyn_id
     Model%sfcpress_id      = sfcpress_id
     Model%gen_coord_hybrid = gen_coord_hybrid
+    Model%fix_cosz_dec     = fix_cosz_dec
+    Model%fix_cosz_shr     = fix_cosz_shr
 
     !--- set some grid extent parameters
     Model%isc              = isc
@@ -2347,6 +2353,8 @@ module GFS_typedefs
       print *, ' thermodyn_id      : ', Model%thermodyn_id
       print *, ' sfcpress_id       : ', Model%sfcpress_id
       print *, ' gen_coord_hybrid  : ', Model%gen_coord_hybrid
+      print *, ' fix_cosz_dec      : ', Model%fix_cosz_dec
+      print *, ' fix_cosz_shr      : ', Model%fix_cosz_shr
       print *, ' '
       print *, 'grid extent parameters'
       print *, ' isc               : ', Model%isc

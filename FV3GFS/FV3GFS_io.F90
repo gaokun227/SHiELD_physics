@@ -57,11 +57,13 @@ module FV3GFS_io_mod
   character(len=32)  :: fn_oro = 'oro_data.nc'
   character(len=32)  :: fn_srf = 'sfc_data.nc'
   character(len=32)  :: fn_phy = 'phy_data.nc'
+  character(len=32)  :: fn_phy3d = 'phy_data_3d.nc'
 
   !--- GFDL FMS netcdf restart data types
   type(restart_file_type) :: Oro_restart
   type(restart_file_type) :: Sfc_restart
   type(restart_file_type) :: Phy_restart
+  type(restart_file_type) :: Phy_restart_3d
  
   !--- GFDL FMS restart containers
   character(len=32),    allocatable,         dimension(:)       :: oro_name2, sfc_name2, sfc_name3
@@ -130,19 +132,20 @@ module FV3GFS_io_mod
 !---------------------
 ! FV3GFS_restart_write
 !---------------------
-  subroutine FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, Model, fv_domain, timestamp)
+  subroutine FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, Model, fv_domain, is_end, timestamp)
     type(IPD_data_type),         intent(inout) :: IPD_Data(:)
     type(IPD_restart_type),      intent(inout) :: IPD_Restart
     type(block_control_type),    intent(in)    :: Atm_block
     type(IPD_control_type),      intent(in)    :: Model
     type(domain2d),              intent(in)    :: fv_domain
+    logical,                     intent(in)    :: is_end
     character(len=32), optional, intent(in)    :: timestamp
  
     !--- read in surface data from chgres 
     call sfc_prop_restart_write (IPD_Data%Sfcprop, Atm_block, Model, fv_domain, timestamp)
  
     !--- read in physics restart data
-    call phys_restart_write (IPD_Restart, Atm_block, Model, fv_domain, timestamp)
+    call phys_restart_write (IPD_Restart, Atm_block, Model, fv_domain, is_end, timestamp)
 
   end subroutine FV3GFS_restart_write
 
@@ -1020,7 +1023,7 @@ module FV3GFS_io_mod
       enddo
       do num = 1,nvar3d
         var3_p => phy_var3(:,:,:,num)
-        id_restart = register_restart_field (Phy_restart, fn_phy, trim(IPD_restart%name3d(num)), &
+        id_restart = register_restart_field (Phy_restart_3d, fn_phy3d, trim(IPD_restart%name3d(num)), &
                                              var3_p, domain=fv_domain, mandatory=.false.)
       enddo
       nullify(var2_p)
@@ -1034,6 +1037,15 @@ module FV3GFS_io_mod
       call restore_state(Phy_restart)
     else
       call mpp_error(NOTE,'No physics restarts - cold starting physical parameterizations')
+      return
+    endif
+    fname = 'INPUT/'//trim(fn_phy3d)
+    if (file_exist(fname)) then
+      !--- read the surface restart/data
+      call mpp_error(NOTE,'reading 3D physics restart data from INPUT/phy_data_3d.tile*.nc')
+      call restore_state(Phy_restart_3d)
+    else
+      call mpp_error(NOTE,'No 3D physics restarts - cold starting physical parameterizations')
       return
     endif
  
@@ -1073,12 +1085,13 @@ module FV3GFS_io_mod
 !
 !    calls:  register_restart_field, save_restart
 !----------------------------------------------------------------------      
-  subroutine phys_restart_write (IPD_Restart, Atm_block, Model, fv_domain, timestamp)
+  subroutine phys_restart_write (IPD_Restart, Atm_block, Model, fv_domain, is_end, timestamp)
     !--- interface variable definitions
     type(IPD_restart_type),      intent(in) :: IPD_Restart
     type(block_control_type),    intent(in) :: Atm_block
     type(IPD_control_type),      intent(in) :: Model
     type(domain2d),              intent(in) :: fv_domain
+    logical,                     intent(in) :: is_end
     character(len=32), optional, intent(in) :: timestamp
     !--- local variables
     integer :: i, j, k, nb, ix, num
@@ -1102,23 +1115,28 @@ module FV3GFS_io_mod
     !--- register the restart fields 
     if (.not. allocated(phy_var2)) then
       allocate (phy_var2(nx,ny,nvar2d))
-      allocate (phy_var3(nx,ny,npz,nvar3d))
       phy_var2 = 0.0_kind_phys
-      phy_var3 = 0.0_kind_phys
       
       do num = 1,nvar2d
         var2_p => phy_var2(:,:,num)
         id_restart = register_restart_field (Phy_restart, fn_phy, trim(IPD_Restart%name2d(num)), &
                                              var2_p, domain=fv_domain, mandatory=.false.)
       enddo
-      do num = 1,nvar3d
-        var3_p => phy_var3(:,:,:,num)
-        id_restart = register_restart_field (Phy_restart, fn_phy, trim(IPD_restart%name3d(num)), &
-                                             var3_p, domain=fv_domain, mandatory=.false.)
-      enddo
       nullify(var2_p)
+   endif
+   if (is_end) then
+      call mpp_error(NOTE, "Writing out 3D phy_data restarts")
+      if (.not. allocated(phy_var3)) then
+         allocate (phy_var3(nx,ny,npz,nvar3d))
+         phy_var3 = 0.0_kind_phys
+      endif
+      do num = 1,nvar3d
+         var3_p => phy_var3(:,:,:,num)
+         id_restart = register_restart_field (Phy_restart_3d, fn_phy3d, trim(IPD_restart%name3d(num)), &
+              var3_p, domain=fv_domain, mandatory=.false.)
+      enddo
       nullify(var3_p)
-    endif
+   endif
 
     !--- 2D variables
     do num = 1,nvar2d
@@ -1131,6 +1149,7 @@ module FV3GFS_io_mod
       enddo
     enddo
     !--- 3D variables
+    if (is_end) then
     do num = 1,nvar3d
       do nb = 1,Atm_block%nblks
         do k=1,npz
@@ -1142,8 +1161,10 @@ module FV3GFS_io_mod
         enddo
       enddo
     enddo
+    endif
 
     call save_restart(Phy_restart, timestamp)
+    if (is_end) call save_restart(Phy_restart_3d, timestamp)
 
   end subroutine phys_restart_write
 

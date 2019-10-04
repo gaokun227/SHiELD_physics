@@ -2521,7 +2521,11 @@
 !                     =f: not normalize cloud condensate                !
 !                                                                       !
 !  ====================    end of description    =====================  !
+#ifdef fvGFS_2017
+      use gfdl_cloud_microphys_mod, only: cloud_diagnosis
+#else
       use cloud_diagnosis_mod, only: cloud_diagnosis
+#endif
 !
       implicit none
 
@@ -2569,6 +2573,10 @@
       enddo
 !     clouds(:,:,:) = 0.0
 
+#ifdef fvGFS_2017
+      print*, "GFDL MP cloud_diagnosis() not enabled. Stop."
+      stop 123
+#else
 #ifdef GFS_CLOUD_OVERLAP
       call cloud_diagnosis (1, IX, 1, NLAY, slmsk, plyr*100,            &
      &                      abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,   &
@@ -2583,6 +2591,7 @@
      &                      csp, cgp, rew, rei, rer, res, reg, cldtot,  &
      &                      cldtot, snowd, cnvw=cnvw, cnvc=cnvc)
       cldcnv = 0.0
+#endif
 #endif
 
 !  ---  find top pressure for each cloud domain for given latitude

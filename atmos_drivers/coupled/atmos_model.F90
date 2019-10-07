@@ -574,7 +574,7 @@ subroutine atmos_model_end (Atmos)
                                               
     call atmosphere_end (Atmos % Time, Atmos%grid)
     call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
-                               IPD_Control, Atmos%domain, .true.)
+                               IPD_Control, Atmos%domain)
 
 end subroutine atmos_model_end
 
@@ -590,7 +590,7 @@ subroutine atmos_model_restart(Atmos, timestamp)
 
     call atmosphere_restart(timestamp)
     call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
-                               IPD_Control, Atmos%domain, .false., timestamp)
+                               IPD_Control, Atmos%domain, timestamp)
 
 end subroutine atmos_model_restart
 ! </SUBROUTINE>

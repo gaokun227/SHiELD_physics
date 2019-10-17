@@ -453,7 +453,7 @@ module GFS_driver
     nblks = size(blksz,1)
 
     call radupdate (Model%idat, Model%jdat, Model%fhswr, Model%dtf, Model%lsswr, &
-                    Model%me, Model%slag, Model%sdec, Model%cdec, Model%solcon )
+                    Model%me, Model%slag, Model%sdec, Model%cdec, Model%solcon, Model%fixed_date )
 
     !--- set up random seed index in a reproducible way for entire cubed-sphere face (lat-lon grid)
     if ((Model%isubc_lw==2) .or. (Model%isubc_sw==2)) then

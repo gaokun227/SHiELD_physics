@@ -43,7 +43,7 @@ module FV3GFS_io_mod
 !--- needed for dq3dt output
   use ozne_def,           only: oz_coeff
 !--- needed for cold-start capability to initialize q2m
-  use gfdl_cloud_microphys_mod, only: wqs1
+  use gfdl_cloud_microphys_mod, only: wqs1, qsmith_init
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -890,6 +890,8 @@ module FV3GFS_io_mod
     close (Model%nlunit)
 #endif
 
+    call qsmith_init
+
     call mpp_error(NOTE, "Calling sfc_prop_override")
 
     if (ideal_sst) then
@@ -927,16 +929,22 @@ module FV3GFS_io_mod
              !--- tisfc
              Sfcprop(nb)%tisfc(ix)  = Sfcprop(nb)%tsfc(ix)             
              !--- t2m ! slt. unstable
-             Sfcprop(nb)%t2m(ix)    = sfc_var2(i,j,15) * 0.98
+             Sfcprop(nb)%t2m(ix)    = Sfcprop(nb)%t2m(ix) * 0.98
              !--- q2m ! use RH = 98% and assume ps = 1000 mb
              Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
              !--- vtype
              Sfcprop(nb)%vtype(ix)  = 0
              !--- stype
              Sfcprop(nb)%stype(ix)  = 0
+             !Override MLO properties also
+             if (Model%do_ocean) then
+                Sfcprop(nb)%ts_clim_iano(ix) = Sfcprop(nb)%tsfc(ix)
+                Sfcprop(nb)%tsclim(ix) = Sfcprop(nb)%tsfc(ix)
+                Sfcprop(nb)%ts_som(ix) = Sfcprop(nb)%tsfc(ix)
+             endif
           enddo
        enddo
-       !Override MLO properties also
+
 
     elseif (ideal_land) then
        do nb = 1, Atm_block%nblks

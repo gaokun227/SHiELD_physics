@@ -37,6 +37,8 @@ module module_physics_driver
   real(kind=kind_phys), parameter :: con_day = 86400.d0
   real(kind=kind_phys) tf, tcr, tcrf
   parameter (tf=258.16, tcr=273.16, tcrf=1.0/(tcr-tf))
+  real(kind=kind_phys) cont, conq, conw
+  parameter(cont=con_cp/con_g,conq=con_hvap/con_g,conw=1./con_g)               ! for del in pa
 
 
 !> GFS Physics Implementation Layer
@@ -437,7 +439,7 @@ module module_physics_driver
       !--- REAL VARIABLES
       real(kind=kind_phys) ::                                           &
            dtf, dtp, rhbbot, rhbtop, rhpbl, frain, tem, tem1, tem2,     &
-           xcosz_loc, zsea1, zsea2, eng0, eng1, dpshc, den,             &
+           xcosz_loc, zsea1, zsea2, eng0, eng1, dpshc, den, rdt,        &
            !--- experimental for shoc sub-stepping 
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
@@ -1420,6 +1422,36 @@ module module_physics_driver
                        Statein%prslk, Statein%phii, Statein%phil, dtp, dusfc1,   &
                        dvsfc1, dtsfc1, dqsfc1, dkt, Diag%hpbl, kinver,           &
                        Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, lprnt, ipr, me)
+      elseif ( Model%no_pbl ) then
+
+         !Dummy PBL routine to deposit tendencies into first layer??
+         !Fluxes already have layer 1 density divided out (as per sfc_drv.f)
+         ! as well as the appropriate proportionality constants
+         rdt = 1./dtp
+         do i=1,im
+            Diag%hpbl(i) = ( Statein%phil(i,2) - Statein%phil(i,1) ) * onebg
+            kpbl(i) = 1
+            tem2 = con_g / ( Statein%phil(i,2) - Statein%phil(i,1) )
+            !heat
+            dtdt(i,1) = dtdt(i,1) + hflx(i) * tem2
+            dtsfc1(i) = dtsfc1(i) + hflx(i) * cont * tem2 * del(i,1)
+            !moisture
+            dqdt(i,1,1) = dqdt(i,1,1) + evap(i) * tem2
+            dqsfc1(i)   = dqsfc1(i) + evap(i) * conq * tem2 * del(i,1)
+            !if (i == 1) then
+            !   print*, 'no_pbl: ', hflx(i), cont, del(i,1), Diag%hpbl(i)
+            !endif
+            !momentum ---- not yet right
+            tem1 = stress(i) / max(wind(i),1.e-2) 
+            tem1 = tem1 * dtp * tem2
+            tem1 = 1. / ( 1. + tem1) - 1.
+            tem1 = tem1 * rdt
+            dudt(i,1) = dudt(i,1) + Statein%ugrs(i,1) * tem1
+            dusfc1(i) = dusfc1(i) + Statein%ugrs(i,1) * tem1 * conw * del(i,1)
+            dvdt(i,1) = dvdt(i,1) + Statein%vgrs(i,1) * tem1
+            dvsfc1(i) = dvsfc1(i) + Statein%vgrs(i,1) * tem1 * conw * del(i,1)
+         enddo
+
       else
         if (Model%hybedmf) then
           call moninedmf(ix, im, levs, nvdiff, Model%ntcw, dvdt, dudt, dtdt, dqdt,&

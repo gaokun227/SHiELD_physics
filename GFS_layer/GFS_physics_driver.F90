@@ -1042,17 +1042,22 @@ module module_physics_driver
          !else
 !!$         endif
 
-!            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
-!                 Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
-!                 Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
-!                 cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
-!                 Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
-!                 wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
-!                 sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
-!                 tsurf, flag_iter, Model%redrag)  
-
-! sfc_diff modified by kgao
-            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,        &
+            if (Model%sfc_gfdl) then
+! a new and more flexible version of sfc_diff by kgao
+            call sfc_diff_gfdl(im,Statein%pgr, Statein%ugrs, Statein%vgrs,&
+                 Statein%tgrs, Statein%qgrs, Diag%zlvl, Sfcprop%snowd, &
+                 Sfcprop%tsfc, Sfcprop%zorl, Sfcprop%ztrl, cd,      &
+                 cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
+                 Sfcprop%ffmm,  Sfcprop%ffhh, Sfcprop%uustar,       &
+                 wind,  Tbd%phy_f2d(1,Model%num_p2d), fm10, fh2,    &
+                 sigmaf, vegtype, Sfcprop%shdmax, Model%ivegsrc,    &
+                 tsurf, flag_iter, Model%redrag, Model%z0s_max,     &
+                 Model%do_z0_moon, Model%do_z0_hwrf15,              &
+                 Model%do_z0_hwrf17, Model%do_z0_hwrf17_hwonly,     &
+                 Model%wind_th_hwrf)
+            else
+! GFS original sfc_diff modified by kgao 
+            call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,&
                  Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
                  Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
                  cdq, rb, Statein%prsl(1,1), work3, islmsk, stress, &
@@ -1063,6 +1068,9 @@ module module_physics_driver
                  Model%do_z0_moon, Model%do_z0_hwrf15,              &
                  Model%do_z0_hwrf17, Model%do_z0_hwrf17_hwonly,     &
                  Model%wind_th_hwrf)
+            endif
+         !endif
+
          !endif
 
 !  --- ...  lu: update flag_guess
@@ -1420,7 +1428,10 @@ module module_physics_driver
 !     if (lprnt)  write(0,*)' dqdtm=',(dqdt(ipr,k,1),k=1,15)
 
         elseif (Model%satmedmf) then
-          call satmedmfvdif(ix, im, levs, nvdiff,                               & 
+
+          if (Model%isatmedmf == 0) then   
+             ! initial version of satmedmfvdif (Nov 2018) modified by kgao
+             call satmedmfvdif(ix, im, levs, nvdiff,                            & 
                    Model%ntcw, Model%ntiw, Model%ntke,                          &
                    dvdt, dudt, dtdt, dqdt,                                      &
                    Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
@@ -1431,6 +1442,22 @@ module module_physics_driver
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                    kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, dkt)
+
+             elseif (Model%isatmedmf == 1) then   
+                ! updated version of satmedmfvdif (May 2019) modified by kgao
+                call satmedmfvdifq(ix, im, levs, nvdiff,                            &
+                       Model%ntcw, Model%ntiw, Model%ntke,                          &
+                       dvdt, dudt, dtdt, dqdt,                                      &
+                       Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
+                       Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                       Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
+                       Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
+                       stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
+                       Statein%prslk, Statein%phii, Statein%phil, dtp,              &
+                       Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
+                       kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                       Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
+        endif
 
         elseif (Model%ysupbl) then
           call ysupbl(ix, im, levs, nvdiff, Model%ntcw, Model%ntiw,             &
@@ -1837,7 +1864,7 @@ module module_physics_driver
         if (Model%ldiag3d) then
           Diag%du3dt(:,:,2) = Diag%du3dt(:,:,2) + dudt(:,:) * dtf
           Diag%dv3dt(:,:,2) = Diag%dv3dt(:,:,2) + dvdt(:,:) * dtf
-          Diag%dt3dt(:,:,2) = Diag%dt3dt(:,:,2) + dtdt(:,:) * dtf
+          !Diag%dt3dt(:,:,2) = Diag%dt3dt(:,:,2) + dtdt(:,:) * dtf
         endif
       endif
 
@@ -2151,7 +2178,7 @@ module module_physics_driver
                           Model%evfact_deep, Model%evfactl_deep,                 &
                           Model%pgcon_deep)
           elseif (Model%imfdeepcnv == 2) then
-            if (Model%ncld == 5) then
+            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
                 qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
             endif
             call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
@@ -2167,7 +2194,7 @@ module module_physics_driver
                             Model%evfact_deep, Model%evfactl_deep,                 &
                             Model%pgcon_deep, Model%asolfac_deep)
 !           if (lprnt) print *,' rain1=',rain1(ipr)
-            if (Model%ncld == 5) then
+            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
                 Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
@@ -2610,7 +2637,7 @@ module module_physics_driver
             endif
 
           elseif (Model%imfshalcnv == 2) then
-            if (Model%ncld == 5) then
+            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
                 qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
             endif
             call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
@@ -2640,7 +2667,7 @@ module module_physics_driver
               num2 = Model%num_p3d + 1
               Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
             endif
-            if (Model%ncld == 5) then
+            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
                 Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
 
@@ -3038,11 +3065,15 @@ module module_physics_driver
 
         if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
 
-        rain1(:)   = (Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:))  &
-                     * dtp * con_p001 / con_day
-        Diag%ice(:)     = Statein%prei(:) * dtp * con_p001 / con_day
-        Diag%snow(:)    = Statein%pres(:) * dtp * con_p001 / con_day
-        Diag%graupel(:) = Statein%preg(:) * dtp * con_p001 / con_day
+        tem = dtp * con_p001 / con_day
+        Statein%prer(:) = Statein%prer(:) * tem
+        Statein%pres(:) = Statein%pres(:) * tem
+        Statein%prei(:) = Statein%prei(:) * tem
+        Statein%preg(:) = Statein%preg(:) * tem
+        rain1(:)   = Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:)
+        Diag%ice(:)     = Statein%prei(:)
+        Diag%snow(:)    = Statein%pres(:)
+        Diag%graupel(:) = Statein%preg(:)
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
@@ -3099,11 +3130,15 @@ module module_physics_driver
                                          1, im, 1, levs, 1, levs,           &
                                          seconds)
 
-        rain1(:)   = (rain0(:)+snow0(:)+ice0(:)+graupel0(:))  &
-                     * dtp * con_p001 / con_day
-        Diag%ice(:)     = ice0    (:) * dtp * con_p001 / con_day
-        Diag%snow(:)    = snow0   (:) * dtp * con_p001 / con_day
-        Diag%graupel(:) = graupel0(:) * dtp * con_p001 / con_day
+        tem = dtp * con_p001 / con_day
+        rain0(:)    = rain0(:)    * tem
+        snow0(:)    = snow0(:)    * tem
+        ice0(:)     = ice0(:)     * tem
+        graupel0(:) = graupel0(:) * tem
+        rain1(:)   = rain0(:)+snow0(:)+ice0(:)+graupel0(:)
+        Diag%ice(:)     = ice0    (:)
+        Diag%snow(:)    = snow0   (:)
+        Diag%graupel(:) = graupel0(:)
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  =              (snow0(i) + ice0(i) + graupel0(i)) &

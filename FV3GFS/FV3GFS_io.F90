@@ -2949,7 +2949,7 @@ module FV3GFS_io_mod
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx*ny) :: var2p
     real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
-    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask
+    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
     real(kind=kind_phys) :: rdt, rtime_int, lcnvfac
     logical :: used
@@ -2975,6 +2975,7 @@ module FV3GFS_io_mod
            lon(i,j)  = IPD_Data(nb)%Grid%xlon(ix)
            one(i,j)  = 1.
            landmask(i,j) = IPD_Data(nb)%Sfcprop%slmsk(ix)
+           seamask(i,j)  = 1. - landmask(i,j) 
         enddo
      enddo
      do idx = 1,tot_diag_idx
@@ -3056,12 +3057,22 @@ module FV3GFS_io_mod
 !              call prt_gb_nh_sh_us('Land Icefall  (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 172800.)
            case('dqsfc')
               call prt_gb_nh_sh_us('Total sfc LH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('dtsfc')
+              call prt_gb_nh_sh_us('Total sfc SH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('DSWRFtoa')
               call prt_gb_nh_sh_us('TOA SW down ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('USWRFtoa')
               call prt_gb_nh_sh_us('TOA SW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('ULWRFtoa')
               call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('t2m')
+              call prt_gb_nh_sh_us('2-m T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
+              call prt_gb_nh_sh_us('2-m T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
+           case('tsfc')
+              call prt_gb_nh_sh_us('sfc T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
+              call prt_gb_nh_sh_us('sfc T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
+              call prt_gb_nh_sh_us('SST max ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MAX')
+              call prt_gb_nh_sh_us('SST min ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MIN')
            end select
          elseif (Diag(idx)%axes == 3) then
            !--- dt3dt variables ---- restored 16 feb 18 lmh
@@ -3155,13 +3166,14 @@ module FV3GFS_io_mod
 
   end subroutine gfdl_diag_output
 !-------------------------------------------------------------------------      
- subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac)
+ subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac, operation_in) !Prints averages/sums, or maxes/mins
   use physcons,    pi=>con_pi
   character(len=*), intent(in)::  qname
   integer, intent(in):: is, ie, js, je
   real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: a2
   real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: area, lon, lat, mask
   real, intent(in) :: fac
+  character(len=*), intent(in), OPTIONAL :: operation_in
 ! Local:
   real(kind=kind_phys), parameter:: rad2deg = 180./pi
   real(kind=kind_phys) :: slat, slon
@@ -3170,10 +3182,87 @@ module FV3GFS_io_mod
   integer:: i,j
   character(len=100) :: diagstr
   character(len=20)  :: diagstr1
+  character(len=3)  :: operation
 
-     t_eq = 0.   ;    t_nh = 0.;    t_sh = 0.;    t_gb = 0.;    t_us = 0.
-     area_eq = 0.; area_nh = 0.; area_sh = 0.; area_gb = 0.; area_us = 0.
-     do j=js,je
+  if (present(operation_in)) then
+     operation = operation_in(1:3)
+  else
+     operation = 'SUM'
+  endif
+
+     if (operation == "MAX") then
+        t_eq =-1.e14   ;    t_nh =-1.e14;    t_sh =-1.e14;    t_gb =-1.e14;    t_us =-1.e14
+        area_eq = 0.   ; area_nh = 0.   ; area_sh = 0.   ; area_gb = 0.   ; area_us = 0.
+        do j=js,je
+        do i=is,ie
+           if (mask(i,j) <= 1.e-6) cycle
+
+           slat = lat(i,j)*rad2deg
+           slon = lon(i,j)*rad2deg
+           area_gb = 1.
+           t_gb = max(t_gb,a2(i,j))
+           if( (slat>-20. .and. slat<20.) ) then
+                area_eq = 1.
+                t_eq = max(t_eq,a2(i,j))
+           elseif( slat>=20. .and. slat<80. ) then
+                area_nh = 1.
+                t_nh = max(t_nh,a2(i,j))
+           elseif( slat<=-20. .and. slat>-80. ) then
+                area_sh = 1.
+                t_sh = max(t_sh,a2(i,j))
+           endif
+           if ( slat>25.  .and. slat<50. .and. &
+                slon>235. .and. slon<300. ) then
+              area_us = 1.
+              t_us = max(t_us,a2(i,j))
+           endif
+        enddo
+        enddo
+
+        call mp_reduce_max(   t_gb)
+        call mp_reduce_max(   t_nh)
+        call mp_reduce_max(   t_sh)
+        call mp_reduce_max(   t_eq)
+        call mp_reduce_max(   t_us)
+     elseif (operation == "MIN") then
+        t_eq = 1.e14   ;    t_nh = 1.e14;    t_sh = 1.e14;    t_gb = 1.e14;    t_us = 1.e14
+        area_eq = 0.   ; area_nh = 0.   ; area_sh = 0.   ; area_gb = 0.   ; area_us = 0.
+        do j=js,je
+        do i=is,ie
+           if (mask(i,j) <= 1.e-6) cycle
+
+           slat = lat(i,j)*rad2deg
+           slon = lon(i,j)*rad2deg
+           area_gb = 1.
+           t_gb = min(t_gb,a2(i,j))
+           if( (slat>-20. .and. slat<20.) ) then
+                area_eq = 1.
+                t_eq = min(t_eq,a2(i,j))
+           elseif( slat>=20. .and. slat<80. ) then
+                area_nh = 1.
+                t_nh = min(t_nh,a2(i,j))
+           elseif( slat<=-20. .and. slat>-80. ) then
+                area_sh = 1.
+                t_sh = min(t_sh,a2(i,j))
+           endif
+           if ( slat>25.  .and. slat<50. .and. &
+                slon>235. .and. slon<300. ) then
+              area_us = 1.
+              t_us = min(t_us,a2(i,j))
+           endif
+        enddo
+        enddo
+
+        call mp_reduce_min(   t_gb)
+        call mp_reduce_min(   t_nh)
+        call mp_reduce_min(   t_sh)
+        call mp_reduce_min(   t_eq)
+        call mp_reduce_min(   t_us)
+     else
+        t_eq = 0.   ;    t_nh = 0.;    t_sh = 0.;    t_gb = 0.;    t_us = 0.
+        area_eq = 0.; area_nh = 0.; area_sh = 0.; area_gb = 0.; area_us = 0.
+        operation = 'SUM'
+        do j=js,je
         do i=is,ie
            slat = lat(i,j)*rad2deg
            slon = lon(i,j)*rad2deg
@@ -3195,18 +3284,19 @@ module FV3GFS_io_mod
               t_us = t_us + a2(i,j)*area(i,j)*mask(i,j)
            endif
         enddo
-     enddo
+        enddo
 
-     call mp_reduce_sum(area_gb)
-     call mp_reduce_sum(   t_gb)
-     call mp_reduce_sum(area_nh)
-     call mp_reduce_sum(   t_nh)
-     call mp_reduce_sum(area_sh)
-     call mp_reduce_sum(   t_sh)
-     call mp_reduce_sum(area_eq)
-     call mp_reduce_sum(   t_eq)
-     call mp_reduce_sum(area_us)
-     call mp_reduce_sum(   t_us)
+        call mp_reduce_sum(area_gb)
+        call mp_reduce_sum(   t_gb)
+        call mp_reduce_sum(area_nh)
+        call mp_reduce_sum(   t_nh)
+        call mp_reduce_sum(area_sh)
+        call mp_reduce_sum(   t_sh)
+        call mp_reduce_sum(area_eq)
+        call mp_reduce_sum(   t_eq)
+        call mp_reduce_sum(area_us)
+        call mp_reduce_sum(   t_us)
+     endif
 
      diagstr = trim(qname) // ' ' // trim(mpp_get_current_pelist_name()) // ' '
      !if (area_gb < 1.) then
@@ -3217,25 +3307,25 @@ module FV3GFS_io_mod
      write(diagstr1,101) 'GB', t_gb/area_gb*fac
      !endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_nh <= 1. .or. area_nh == area_gb) then
+     if (area_nh <= 1.e-6 .or. area_nh == area_gb) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'NH', t_nh/area_nh*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_sh <= 1. .or. area_sh == area_gb) then
+     if (area_sh <= 1.e-6 .or. area_sh == area_gb) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'SH', t_sh/area_sh*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_eq <= 1.) then
+     if (area_eq <= 1.e-6) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'EQ', t_eq/area_eq*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_us <= 1.) then
+     if (area_us <= 1.e-6) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'US', t_us/area_us*fac
@@ -3247,5 +3337,6 @@ module FV3GFS_io_mod
 101  format(3x, A, ': ', F7.2)
 
    end subroutine prt_gb_nh_sh_us
+
 
 end module FV3GFS_io_mod

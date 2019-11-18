@@ -318,7 +318,7 @@
 !! @{
 !-----------------------------------
       subroutine sol_update                                             &
-     &     ( jdate,kyear,deltsw,deltim,lsol_chg, me,                    &     !  ---  inputs
+     &     ( jdate,sdate, kyear,deltsw,deltim,lsol_chg, me,             &     !  ---  inputs
      &       slag, sdec, cdec, solcon                                   &     !  ---  outputs
      &      )
 
@@ -328,6 +328,8 @@
 !                                                                       !
 !  inputs:                                                              !
 !     jdate(8)- ncep absolute date and time at fcst time                !
+!                (yr, mon, day, t-zone, hr, min, sec, mil-sec)          !
+!     sdate(8)- absolute date and time for solar calculations           !
 !                (yr, mon, day, t-zone, hr, min, sec, mil-sec)          !
 !     kyear   - usually kyear=jdate(1). if not, it is for hindcast mode,!
 !               and it is usually the init cond time and serves as the  !
@@ -371,7 +373,7 @@
       implicit none
 
 !  ---  input:
-      integer, intent(in) :: jdate(:), kyear, me
+      integer, intent(in) :: jdate(:), sdate(:), kyear, me
       logical, intent(in) :: lsol_chg
 
       real (kind=kind_phys), intent(in) :: deltsw, deltim
@@ -397,12 +399,12 @@
 !===>  ...  begin here
 !
 !  --- ...  forecast time
-      iyear = jdate(1)
-      imon  = jdate(2)
-      iday  = jdate(3)
-      ihr   = jdate(5)
-      imin  = jdate(6)
-      isec  = jdate(7)
+      iyear = sdate(1)
+      imon  = sdate(2)
+      iday  = sdate(3)
+      ihr   = sdate(5)
+      imin  = sdate(6)
+      isec  = sdate(7)
 
       if ( lsol_chg ) then   ! get solar constant from data table
 
@@ -588,6 +590,29 @@
 !  --- ...  diagnostic print out
 
       if (me == 0) then
+
+         !recalculate julian day with forecast date
+         iyear = jdate(1)
+         imon  = jdate(2)
+         iday  = jdate(3)
+         ihr   = jdate(5)
+         imin  = jdate(6)
+         isec  = jdate(7)
+         jd1 = iw3jdn(iyear,imon,iday)
+
+         if (ihr < 12) then
+            jd1 = jd1 - 1
+            fjd1= 0.5 + float(ihr)*hrday + float(imin)*minday               &
+     &           + float(isec)*secday
+         else
+            fjd1= float(ihr - 12)*hrday + float(imin)*minday                &
+     &           + float(isec)*secday
+         endif
+         
+         fjd1  = fjd1 + jd1
+         
+         jd  = int(fjd1)
+         fjd = fjd1 - jd
 
 !> -# Call prtime()
         call prtime                                                     &
@@ -896,7 +921,7 @@
 !                                                                       !
 !  prtime prints out forecast date, time, and astronomy quantities.     !
 !                                                                       !
-!  inputs:                                                              !
+!  inputs:                                             
 !    jd       - forecast julian day                                     !
 !    fjd      - forecast fraction of julian day                         !
 !    dlt      - declination angle of sun in radians                     !

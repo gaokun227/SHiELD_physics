@@ -1,26 +1,44 @@
 !!!!! ==================================================================  !!!!!
-! subroutine 'satmedmfvdif.f' computes subgrid vertical turbulence mixing
-!   using scale-aware TKE-based moist eddy-diffusion mass-flux (EDMF) parameterization
-!      (by Jongil Han)
+!  subroutine 'satmedmfvdifq.f' computes subgrid vertical turbulence mixing
+!  using scale-aware TKE-based moist eddy-diffusion mass-flux (EDMF) parameterization
 !
-!  For the convective boundary layer, the scheme adopts
+!  --- Overview
+!
+!  Originally developed by Jongil Han at NOAA/NCEP/EMC 
+!
+!  1) For the convective boundary layer, the scheme adopts
 !  EDMF parameterization (Siebesma et al., 2007) to take
-!  into account nonlocal transport by large eddies (mfpblt.f).
+!  into account nonlocal transport by large eddies (mfpbltq.f).
 !
-!  A new mass-flux parameterization for stratocumulus-top-induced turbulence
+!  2) A new mass-flux parameterization for stratocumulus-top-induced turbulence
 !  mixing has been introduced (previously, it was eddy diffusion form)
 !  [mfscu.f].
 !
-!  For local turbulence mixing, a TKE closure model is used.
+!  3) For local turbulence mixing, a TKE closure model is used.
 !
+!  --- Updates
+!
+!  1) May 2019 by Jongil Han (EMC)
+!    goals: to have better low-level inversion, 
+!           to reduce the cold bias in lower troposphere,
+!           to reduce the negative wind speed bias in upper troposphere
+!  changes: reduce the minimum and maximum characteristic mixing lengths,
+!           reduce core downdraft and updraft fractions,
+!           change of updraft top height calculation,
+!           reduce the background diffusivity with increasing surface layer stability (for inversion)
+
+!  2) Jul 2019 by Kun Gao (GFDL)
+!      goal: to allow for tke advection
+!    change: rearange tracers (q1) and their tendencies (rtg)
+!            tke no longer needs to be the last tracer 
 !----------------------------------------------------------------------
-      subroutine satmedmfvdif(ix,im,km,ntrac,ntcw,ntiw,ntke,
+      subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,dkt_out)
+     &     kinver,xkzm_m,xkzm_h,xkzm_s,dspfac,bl_upfr,bl_dnfr,dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -35,7 +53,8 @@
       integer ix, im, km, ntrac, ntcw, ntiw, ntke, ntcw_new
       integer kpbl(im), kinver(im)
 !
-      real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s
+      real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, dspfac,
+     &                     bl_upfr, bl_dnfr
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
@@ -56,19 +75,17 @@
      &                     hpbl(im),
      &                     q1_in(ix,km,ntrac),  
      &                     rtg_in(im,km,ntrac)
-! kgao note - q1 and rtg are local var now
-
+! kgao note - q1 and rtg are local var now 
 !
       logical dspheat
 !          flag for tke dissipative heating
       real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
-
 !
 !----------------------------------------------------------------------
 !***
 !***  local variables
 !***
-      integer i,is,k,kk,n,km1,kmpbl,kmscu,ntrac1
+      integer i,is,k,kk,n,ndt,km1,kmpbl,kmscu,ntrac1
       integer lcld(im),kcld(im),krad(im),mrad(im)
       integer kx1(im), kpblx(im)
 !
@@ -92,20 +109,20 @@
      &                     z0(im),    crb(im),
      &                     hgamt(im), hgamq(im),
      &                     wscale(im),vpert(im),
-     &                     zol(im),   sflux(im),   radj(im),
+     &                     zol(im),   sflux(im),
      &                     tx1(im),   tx2(im)
 !
       real(kind=kind_phys) radmin(im)
 !
       real(kind=kind_phys) zi(im,km+1),  zl(im,km),   zm(im,km),
      &                     xkzo(im,km-1),xkzmo(im,km-1),
-     &                     xkzm_hx(im),  xkzm_mx(im),
-     &                     rdzt(im,km-1),
+     &                     xkzm_hx(im),  xkzm_mx(im), tkmnz(im,km-1),
+     &                     rdzt(im,km-1),rlmnz(im,km),
      &                     al(im,km-1),  ad(im,km),   au(im,km-1),
      &                     f1(im,km),    f2(im,km*(ntrac-1))
 !
-      real(kind=kind_phys) elm(im,km),   ele(im,km),  rle(im,km-1),
-     &                     ckz(im,km),   chz(im,km), 
+      real(kind=kind_phys) elm(im,km),   ele(im,km),
+     &                     ckz(im,km),   chz(im,km),  frik(im),
      &                     diss(im,km-1),prod(im,km-1), 
      &                     bf(im,km-1),  shr2(im,km-1),
      &                     xlamue(im,km-1), xlamde(im,km-1),
@@ -137,9 +154,10 @@
      &                     dsig,    dt2,    dtodsd,
      &                     dtodsu,  g,      factor, dz,
      &                     gocp,    gravi,  zol1,   zolcru,
-     &                     buop,    shrp,   dtn,    cdtn,
+     &                     buop,    shrp,   dtn,
      &                     prnum,   prmax,  prmin,  prtke,
-     &                     prscu,   dw2,    dw2min, zk,     
+     &                     prscu,   pr0,    ri,
+     &                     dw2,     dw2min, zk,     
      &                     elmfac,  elefac, dspmax,
      &                     alp,     clwt,   cql,
      &                     f0,      robn,   crbmin, crbmax,
@@ -147,12 +165,11 @@
      &                     cfh,     gamma,  elocp,  el2orc,
      &                     epsi,    beta,   chx,    cqx,
      &                     rdt,     rdz,    qmin,   qlmin,
-     &                     ri,      rimin,
-     &                     rbcr,    rbint,  tdzmin,
-     &                     rlmn,    rlmx,   elmx,
+     &                     rimin,   rbcr,   rbint,  tdzmin,
+     &                     rlmn,    rlmn1,  rlmx,   elmx,
      &                     ttend,   utend,  vtend,  qtend,
      &                     zfac,    zfmin,  vk,     spdk2,
-     &                     tkmin,   xkzinv, dspfac, xkgdx,
+     &                     tkmin,   xkzinv, xkgdx,
      &                     zlup,    zldn,   bsum,
      &                     tem,     tem1,   tem2,
      &                     ptem,    ptem0,  ptem1,  ptem2
@@ -169,24 +186,28 @@
       parameter(cont=cp/g,conq=hvap/g,conw=1.0/g)  ! for del in pa
 !     parameter(cont=1000.*cp/g,conq=1000.*hvap/g,conw=1000./g) !kpa
       parameter(elocp=hvap/cp,el2orc=hvap*hvap/(rv*cp))
-      parameter(wfac=7.0,cfac=4.5)
+      parameter(wfac=7.0,cfac=3.0)
       parameter(gamcrt=3.,gamcrq=0.,sfcfrac=0.1)
       parameter(vk=0.4,rimin=-100.)
       parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
-      parameter(rlmn=30.,rlmx=500.,elmx=500.)
-      parameter(prmin=0.25,prmax=4.0,prtke=1.0,prscu=0.67)
+      parameter(rlmn=30.,rlmn1=5.,rlmx=300.,elmx=300.)
+      parameter(prmin=0.25,prmax=4.0)
+      parameter(pr0=1.0,prtke=1.0,prscu=0.67)
       parameter(f0=1.e-4,crbmin=0.15,crbmax=0.35)
-      parameter(tkmin=1.e-9,dspfac=0.5,dspmax=10.0)
+      parameter(tkmin=1.e-9,dspmax=10.0)
       parameter(qmin=1.e-8,qlmin=1.e-12,zfmin=1.e-8)
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
       parameter(dw2min=1.e-4,dkmax=1000.,xkgdx=25000.)
-      parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.15)
+      parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.1)
       parameter(h1=0.33333333)
-      parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15,ce0=0.4)
-      parameter(rchck=1.5,cdtn=25.)
+      parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
+      parameter(ce0=0.4)
+      parameter(rchck=1.5,ndt=20)
 !
 !************************************************************************
+      dt2  = delt
+      rdt = 1. / dt2
 !
 ! kgao note (jul 2019) 
 ! the code was originally written assuming ntke=ntrac
@@ -211,9 +232,6 @@
         endif
       !endif
 !
-      dt2  = delt
-      rdt = 1. / dt2
-!
       ntrac1 = ntrac - 1
       km1 = km - 1
       kmpbl = km / 2
@@ -229,7 +247,11 @@
           buod(i,k) = 0.
           ckz(i,k) = ck1
           chz(i,k) = ch1
+          rlmnz(i,k) = rlmn
         enddo
+      enddo
+      do i=1,im
+        frik(i) = 1.0
       enddo
       do i=1,im
         zi(i,km+1) = phii(i,km+1) * gravi
@@ -258,7 +280,7 @@
       do k = 1,km1
         do i=1,im
           rdzt(i,k) = 1.0 / (zl(i,k+1) - zl(i,k))
-          prn(i,k)  = 1.0
+          prn(i,k)  = pr0
         enddo
       enddo
 !
@@ -292,8 +314,16 @@
 !                                  vertical background diffusivity
             ptem      = prsi(i,k+1) * tx1(i)
             tem1      = 1.0 - ptem
-            tem1      = tem1 * tem1 * 10.0
-            xkzo(i,k) = xkzm_hx(i) * min(1.0, exp(-tem1))
+            tem2      = tem1 * tem1 * 10.0
+            tem2      = min(1.0, exp(-tem2))
+            xkzo(i,k) = xkzm_hx(i) * tem2
+!
+            ptem      = prsl(i,k) * tx1(i)
+            tem1      = 1.0 - ptem
+            tem2      = tem1 * tem1 * 2.5
+            tem2      = min(1.0, exp(-tem2))
+            rlmnz(i,k)= rlmn * tem2
+            rlmnz(i,k)= max(rlmnz(i,k), rlmn1)
 !                                 vertical background diffusivity for momentum
             if (ptem >= xkzm_s) then
               xkzmo(i,k) = xkzm_mx(i)
@@ -356,19 +386,6 @@
           ptem1      = elocp * pix(i,k) * max(q1(i,k,1),qmin)
           thetae(i,k)= theta(i,k) +  ptem1
           gotvx(i,k) = g / tvx(i,k)
-        enddo
-      enddo
-!
-! The background vertical diffusivities in the inversion layers are limited 
-!    to be less than or equal to xkzminv
-!
-      do k = 1,km1
-        do i=1,im
-          tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
-          if(tem1 > 1.e-5) then
-             xkzo(i,k)  = min(xkzo(i,k),xkzinv)
-             xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
-          endif
         enddo
       enddo
 !
@@ -565,52 +582,8 @@
            hgamq(i) = evap(i)/wscale(i)
            vpert(i) = hgamt(i) + hgamq(i)*fv*theta(i,1)
            vpert(i) = max(vpert(i),0.)
-           tem = min(cfac*vpert(i),gamcrt)
-           thermal(i)= thermal(i) + tem
+           vpert(i) = min(cfac*vpert(i),gamcrt)
          endif
-      enddo
-!
-!  enhance the pbl height by considering the thermal excess
-!     (overshoot pbl top)
-!
-      do i=1,im
-         flg(i)  = .true.
-         if(pcnvflg(i)) then
-           flg(i)  = .false.
-           rbup(i) = rbsoil(i)
-         endif
-      enddo
-      do k = 2, kmpbl
-      do i = 1, im
-        if(.not.flg(i)) then
-          rbdn(i) = rbup(i)
-          spdk2   = max((u1(i,k)**2+v1(i,k)**2),1.)
-          rbup(i) = (thlvx(i,k)-thermal(i))*
-     &              (g*zl(i,k)/thlvx(i,1))/spdk2
-          kpbl(i) = k
-          flg(i)  = rbup(i) > crb(i)
-        endif
-      enddo
-      enddo
-      do i = 1,im
-        if(pcnvflg(i)) then
-           k = kpbl(i)
-           if(rbdn(i) >= crb(i)) then
-             rbint = 0.
-           elseif(rbup(i) <= crb(i)) then
-             rbint = 1.
-           else
-             rbint = (crb(i)-rbdn(i))/(rbup(i)-rbdn(i))
-           endif
-           hpbl(i) = zl(i,k-1) + rbint*(zl(i,k)-zl(i,k-1))
-           if(hpbl(i) < zi(i,kpbl(i))) then 
-             kpbl(i) = kpbl(i) - 1
-           endif
-           if(kpbl(i) <= 1) then
-              pcnvflg(i) = .false.
-              pblflg(i) = .false.
-           endif
-        endif
       enddo
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -696,7 +669,6 @@
         enddo
       enddo
       enddo
-
 ! kgao note - change ntcw if q1 is rearranged
       if (ntke > ntcw) then
          ntcw_new = ntcw
@@ -704,16 +676,16 @@
          ntcw_new = ntcw-1
       endif
 ! EDMF parameterization Siebesma et al.(2007) 
-      call mfpblt(im,ix,km,kmpbl,ntcw_new,ntrac1,dt2,
+      call mfpbltq(im,ix,km,kmpbl,ntcw_new,ntrac1,dt2,
      &    pcnvflg,zl,zm,q1,t1,u1,v1,plyr,pix,thlx,thvx,
      &    gdx,hpbl,kpbl,vpert,buou,xmf,
-     &    tcko,qcko,ucko,vcko,xlamue)
+     &    tcko,qcko,ucko,vcko,xlamue,bl_upfr)
 ! mass-flux parameterization for stratocumulus-top-induced turbulence mixing
-      call mfscu(im,ix,km,kmscu,ntcw_new,ntrac1,dt2,
+      call mfscuq(im,ix,km,kmscu,ntcw_new,ntrac1,dt2,
      &    scuflg,zl,zm,q1,t1,u1,v1,plyr,pix,
-     &    thlx,thvx,thlvx,gdx,thetae,radj,
+     &    thlx,thvx,thlvx,gdx,thetae,
      &    krad,mrad,radmin,buod,xmfd,
-     &    tcdo,qcdo,ucdo,vcdo,xlamde)
+     &    tcdo,qcdo,ucdo,vcdo,xlamde,bl_dnfr)
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   compute prandtl number and exchange coefficient varying with height
@@ -722,26 +694,59 @@
         do i = 1, im
           if(k < kpbl(i)) then
             tem = phih(i)/phim(i)
-            ptem = -3.*(max(zi(i,k+1)-sfcfrac*hpbl(i),0.))**2.
-     &               /hpbl(i)**2.
+            ptem = sfcfrac*hpbl(i)
+            tem1 = max(zi(i,k+1)-ptem, 0.)
+            tem2 = tem1 / (hpbl(i) - ptem)
             if(pcnvflg(i)) then
-              prn(i,k) =  1. + (tem-1.)*exp(ptem)
+              tem = min(tem, pr0)
+              prn(i,k) = tem + (pr0 - tem) * tem2
             else
+              tem = max(tem, pr0)
               prn(i,k) = tem
             endif
             prn(i,k) = min(prn(i,k),prmax)
             prn(i,k) = max(prn(i,k),prmin)
 !
-            ckz(i,k) = ck1 + (ck0-ck1)*exp(ptem)
-            ckz(i,k) = min(ckz(i,k),ck0)
-            ckz(i,k) = max(ckz(i,k),ck1)
-            chz(i,k) = ch1 + (ch0-ch1)*exp(ptem)
-            chz(i,k) = min(chz(i,k),ch0)
-            chz(i,k) = max(chz(i,k),ch1)
+            ckz(i,k) = ck0 + (ck1 - ck0) * tem2
+            ckz(i,k) = max(min(ckz(i,k), ck0), ck1)
+            chz(i,k) = ch0 + (ch1 - ch0) * tem2
+            chz(i,k) = max(min(chz(i,k), ch0), ch1)
+!
           endif
         enddo
       enddo
-
+!
+!  background diffusivity decreasing with increasing surface layer stability
+!
+      do i = 1, im
+        if(.not.sfcflg(i)) then
+          tem = (1. + 5. * rbsoil(i))**2.
+!         tem = (1. + 5. * zol(i))**2.
+          frik(i) = 0.1 + 0.9 / tem
+        endif
+      enddo
+!
+      do k = 1,km1
+        do i=1,im
+          xkzo(i,k) = frik(i) * xkzo(i,k)
+          xkzmo(i,k)= frik(i) * xkzmo(i,k)
+        enddo
+      enddo
+!
+! The background vertical diffusivities in the inversion layers are limited 
+!    to be less than or equal to xkzminv
+!
+      do k = 1,km1
+        do i=1,im
+!         tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
+!         if(tem1 > 1.e-5) then
+          tem1 = tvx(i,k+1)-tvx(i,k)
+          if(tem1 > 0.) then
+             xkzo(i,k)  = min(xkzo(i,k),xkzinv)
+             xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
+          endif
+        enddo
+      enddo
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !  compute an asymtotic mixing length
@@ -803,7 +808,7 @@
           enddo
 !
           tem = 0.5 * (zi(i,k+1)-zi(i,k))
-          tem1 = min(tem, rlmn)
+          tem1 = min(tem, rlmnz(i,k))
 !
           ptem2 = min(zlup,zldn)
           rlam(i,k) = elmfac * ptem2
@@ -853,22 +858,27 @@
         do i = 1, im
            tem = 0.5 * (elm(i,k) + elm(i,k+1))
            tem = tem * sqrt(tkeh(i,k))
+           ri = max(bf(i,k)/shr2(i,k),rimin)
            if(k < kpbl(i)) then
-             if(pblflg(i)) then
+             if(pcnvflg(i)) then
                dku(i,k) = ckz(i,k) * tem
                dkt(i,k) = dku(i,k) / prn(i,k)
              else
-               dkt(i,k) = chz(i,k) * tem
-               dku(i,k) = dkt(i,k) * prn(i,k)
+               if(ri < 0.) then ! unstable regime
+                 dku(i,k) = ckz(i,k) * tem
+                 dkt(i,k) = dku(i,k) / prn(i,k)
+               else             ! stable regime
+                 dkt(i,k) = chz(i,k) * tem
+                 dku(i,k) = dkt(i,k) * prn(i,k)
+               endif
              endif
            else
-              ri = max(bf(i,k)/shr2(i,k),rimin)
               if(ri < 0.) then ! unstable regime
                 dku(i,k) = ck1 * tem
                 dkt(i,k) = rchck * dku(i,k)
               else             ! stable regime
                 dkt(i,k) = ch1 * tem
-                prnum = 1.0 + 2.1*ri
+                prnum = 1.0 + 2.1 * ri
                 prnum = min(prnum,prmax)
                 dku(i,k) = dkt(i,k) * prnum
               endif
@@ -895,25 +905,28 @@
         enddo
       enddo
 !
-      do i = 1, im
-        if(scuflg(i)) then
-           k = krad(i)
-           tem = bf(i,k) / gotvx(i,k)
-           tem1 = max(tem, tdzmin)
-           ptem = radj(i) / tem1
-           dkt(i,k) = dkt(i,k) + ptem
-           dku(i,k) = dku(i,k) + ptem
-           dkq(i,k) = dkq(i,k) + ptem
-        endif
+!  compute a minimum TKE deduced from background diffusivity for momentum.
+!
+      do k = 1, km1
+        do i = 1, im
+          if(k == 1) then
+            tem = ckz(i,1)
+            tem1 = xkzmo(i,1)
+          else
+            tem = 0.5 * (ckz(i,k-1) + ckz(i,k))
+            tem1 = 0.5 * (xkzmo(i,k-1) + xkzmo(i,k))
+          endif
+          ptem = tem1 / (tem * elm(i,k))
+          tkmnz(i,k) = ptem * ptem
+          tkmnz(i,k) = max(tkmnz(i,k), tkmin)
+        enddo
       enddo
-
 ! kgao
       do k=1,km1
         do i=1,im
            dkt_out(i,k) = dkt(i,k)
        enddo
       enddo
-
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !  compute buoyancy and shear productions of tke 
@@ -1042,22 +1055,18 @@
 !----------------------------------------------------------------------
 !     first predict tke due to tke production & dissipation(diss) 
 !
-      do k = 1,km1
-        do i=1,im
-           rle(i,k) = ce0 / ele(i,k)
-        enddo
-      enddo
-      kk = max(nint(dt2/cdtn), 1)
-      dtn = dt2 / float(kk)
-      do n = 1, kk
+      dtn = dt2 / float(ndt)
+      do n = 1, ndt
       do k = 1,km1
         do i=1,im
            tem = sqrt(tke(i,k))
-           diss(i,k) = rle(i,k) * tke(i,k) * tem
+           ptem = ce0 / ele(i,k)
+           diss(i,k) = ptem * tke(i,k) * tem
            tem1 = prod(i,k) + tke(i,k) / dtn
            diss(i,k)=max(min(diss(i,k), tem1), 0.)
-           tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)) ! no diffusion yet
-           tke(i,k) = max(tke(i,k), tkmin)
+           tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k))! no diffusion yet
+!          tke(i,k) = max(tke(i,k), tkmin)
+           tke(i,k) = max(tke(i,k), tkmnz(i,k))
         enddo
       enddo
       enddo
@@ -1089,7 +1098,6 @@
 !     &                (tke(i,k)+tke(i,k-1)))/factor
              qcko(i,k,ntrac)=((1.-tem)*qcko(i,k-1,ntrac)+tem*
      &                (tke(i,k)+tke(i,k-1)))/factor
-
           endif
         enddo
       enddo
@@ -1263,9 +1271,9 @@ c
                 ptem2 = dtodsu * ptem
                 tem1  = qcko(i,k,kk) + qcko(i,k+1,kk)
                 tem2  = q1(i,k,kk) + q1(i,k+1,kk)
-                ! kgao note - turn off non-local mixing
-                f2(i,k+is) = f2(i,k+is) ! - (tem1 - tem2) * ptem1
-                f2(i,k+1+is)= q1(i,k+1,kk) ! + (tem1 - tem2) * ptem2
+                ! kgao note - turn off non-local mixing 
+                f2(i,k+is) = f2(i,k+is) !- (tem1 - tem2) * ptem1
+                f2(i,k+1+is)= q1(i,k+1,kk) !+ (tem1 - tem2) * ptem2
               else
                 f2(i,k+1+is) = q1(i,k+1,kk)
               endif
@@ -1281,9 +1289,9 @@ c
                   ptem2 = dtodsu * ptem
                   tem1  = qcdo(i,k,kk) + qcdo(i,k+1,kk)
                   tem2  = q1(i,k,kk) + q1(i,k+1,kk)
-                  ! kgao note - turn off non-local mixing
+                  ! kgao note - turn off non-local mixing 
                   f2(i,k+is)  = f2(i,k+is) !+ (tem1 - tem2) * ptem1
-                  f2(i,k+1+is)= f2(i,k+1+is)! - (tem1 - tem2) * ptem2
+                  f2(i,k+1+is)= f2(i,k+1+is) !- (tem1 - tem2) * ptem2
                 endif
               endif
 !
@@ -1434,65 +1442,5 @@ c
       enddo
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      return
-      end
-!
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
-      subroutine tridit(l,n,nt,cl,cm,cu,rt,au,at)
-!-----------------------------------------------------------------------
-cc
-      use machine     , only : kind_phys
-      implicit none
-      integer             is,k,kk,n,nt,l,i
-      real(kind=kind_phys) fk(l)
-cc
-      real(kind=kind_phys) cl(l,2:n), cm(l,n), cu(l,n-1),
-     &                     rt(l,n*nt),
-     &                     au(l,n-1), at(l,n*nt),
-     &                     fkk(l,2:n-1)
-c-----------------------------------------------------------------------
-      do i=1,l
-        fk(i)   = 1./cm(i,1)
-        au(i,1) = fk(i)*cu(i,1)
-      enddo
-      do k = 1, nt
-        is = (k-1) * n
-        do i = 1, l
-          at(i,1+is) = fk(i) * rt(i,1+is)
-        enddo
-      enddo
-      do k=2,n-1
-        do i=1,l
-          fkk(i,k) = 1./(cm(i,k)-cl(i,k)*au(i,k-1))
-          au(i,k)  = fkk(i,k)*cu(i,k)
-        enddo
-      enddo
-      do kk = 1, nt
-        is = (kk-1) * n
-        do k=2,n-1
-          do i=1,l
-            at(i,k+is) = fkk(i,k)*(rt(i,k+is)-cl(i,k)*at(i,k+is-1))
-          enddo
-        enddo
-      enddo
-      do i=1,l
-        fk(i)   = 1./(cm(i,n)-cl(i,n)*au(i,n-1))
-      enddo
-      do k = 1, nt
-        is = (k-1) * n
-        do i = 1, l
-          at(i,n+is) = fk(i)*(rt(i,n+is)-cl(i,n)*at(i,n+is-1))
-        enddo
-      enddo
-      do kk = 1, nt
-        is = (kk-1) * n
-        do k=n-1,1,-1
-          do i=1,l
-            at(i,k+is) = at(i,k+is) - au(i,k)*at(i,k+is+1)
-          enddo
-        enddo
-      enddo
-c-----------------------------------------------------------------------
       return
       end

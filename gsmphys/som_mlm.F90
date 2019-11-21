@@ -58,7 +58,7 @@
                                                               !           initial anomaly with a decay time scale of FTSFS (90 days)
                                                               ! option 3: nudging toward observed SST
       logical               :: use_old_mlm        = .false.   ! if true: very similar to WRF model
-      logical               :: use_rain_flux      = .false.   ! considering the rainfall induce surface flux
+      logical               :: use_rain_flux      = .false.   ! considering the rainfall induced surface flux
       logical               :: use_qflux          = .false.   ! considering the qflux correction
       logical               :: do_mld_restore     = .false.   ! restoring MLD toward observed climatology
       real(kind=kind_phys)  :: const_mld          = 40.       ! constant ocean MLD (meter)
@@ -68,13 +68,23 @@
       real(kind=kind_phys)  :: mld_restore_tscale = 1.        ! restoring time scale for mld (day)
       real(kind=kind_phys)  :: start_lat          = -30.      ! latitude starting from? Note that this value should not be smaller than -60.
       real(kind=kind_phys)  :: end_lat            = 30.       ! latitude ending with? Note that this value should not be bigger than 60.
+      real(kind=kind_phys)  :: tday1              = 3.        ! 
+      real(kind=kind_phys)  :: tday2              = 10.       ! 
+      real(kind=kind_phys)  :: sst_restore_tscale1= 3.        ! restoring time scale for sst during the period from 1 to tday1 
+      real(kind=kind_phys)  :: sst_restore_tscale2= 10.       ! restoring time scale for sst for the period beyond tday2
+      real(kind=kind_phys)  :: mld_restore_tscale1= 3.        ! restoring time scale for mld during the period from 1 to tday1 
+      real(kind=kind_phys)  :: mld_restore_tscale2= 10.       ! restoring time scale for mld for the period beyond tday2
                                                               ! beyond the latitude bands (start_lat:end_lat), using climatological SST or
                                                               ! climatological SST plus initial anomaly 
+      logical               :: use_tvar_restore_sst  = .false.! using time varying restoring time scale for sst
+      logical               :: use_tvar_restore_mld  = .false.! using time varying restoring time scale for mld
 
       namelist /ocean_nml/   &
        ocean_option, mld_option, mld_obs_ratio, stress_ratio, restore_method,  &
        use_old_mlm, use_rain_flux, use_qflux, do_mld_restore, const_mld, Gam,  &
-       eps_day, sst_restore_tscale, mld_restore_tscale, start_lat, end_lat
+       eps_day, sst_restore_tscale, mld_restore_tscale, start_lat, end_lat,    &
+       tday1, tday2, sst_restore_tscale1, sst_restore_tscale2, mld_restore_tscale1, &
+       mld_restore_tscale2, use_tvar_restore_sst, use_tvar_restore_mld
 
 ! =================
       contains
@@ -215,14 +225,39 @@
       real (kind=kind_phys), dimension (size(tsfc,1))    :: qsfc
       integer :: i
       real (kind=kind_phys)                              ::   &       
-           tmlp, mldp, humlp, hvmlp, mldn, tmln, tmomln
+           tmlp, mldp, humlp, hvmlp, mldn, tmln, tmomln, fday, tem
 !
 !===> ...  begin here
 !
+      fday = kdt * dtp / 86400.
+!
       qsfc = 0.
-      taut = sst_restore_tscale*86400.
-      taum = mld_restore_tscale*86400.
-      alphat = 1. + dtp/taut
+      if (use_tvar_restore_sst) then
+       if (fday < tday1) then 
+        taut = sst_restore_tscale1*86400.
+       elseif (fday >= tday1 .and. fday < tday2 ) then
+        tem = (sst_restore_tscale2 - sst_restore_tscale1)/(tday2-tday1)
+        taut = (tem*(fday-tday1) + sst_restore_tscale1) *86400.
+       else
+        taut = sst_restore_tscale2*86400.
+       endif
+      else
+       taut = sst_restore_tscale*86400.
+      endif
+      alphat = 1. + dtp/taut 
+!
+      if (use_tvar_restore_mld) then
+       if (fday < tday1) then
+        taum = mld_restore_tscale1*86400.
+       elseif (fday >= tday1 .and. fday < tday2 ) then
+        tem = (mld_restore_tscale2 - mld_restore_tscale1)/(tday2-tday1)
+        taum = (tem*(fday-tday1) + mld_restore_tscale1) *86400.
+       else
+        taum = mld_restore_tscale2*86400.
+       endif
+      else
+       taum = mld_restore_tscale*86400.
+      endif
       alpham = 1. + dtp/taum
 
 !    two buffer zones:

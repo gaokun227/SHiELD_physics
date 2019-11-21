@@ -157,7 +157,7 @@
 !         step 1 get z0/zt from previous step
 !         step 2 call similarity
 !    iteration 2 
-!         step 1 get z0/zt 
+!         step 1 update z0/zt 
 !         step 2 call similarity 
 !================================================
 

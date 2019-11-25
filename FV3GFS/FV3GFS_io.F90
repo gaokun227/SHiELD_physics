@@ -327,7 +327,7 @@ module FV3GFS_io_mod
      write(outunit,100) name, mpp_chksum(temp2d(:,:,i:i))
    enddo
    do i = 1,17+Model%ntot3d+2*ntr
-     write (name, '(i2.2,3x,4a)') i, ' 3d '
+     write (name, '(i3.3,3x,4a)') i, ' 3d '
      write(outunit,100) name, mpp_chksum(temp3d(:,:,:,i:i))
    enddo
 100 format("CHECKSUM::",A32," = ",Z20)

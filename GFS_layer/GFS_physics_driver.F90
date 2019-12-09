@@ -1060,7 +1060,7 @@ module module_physics_driver
 !!$         endif
 
             if (Model%sfc_gfdl) then
-! a new version of sfc_diff by kgao 
+! a new and more flexible version of sfc_diff by kgao
             call sfc_diff_gfdl(im,Statein%pgr, Statein%ugrs, Statein%vgrs,&
                  Statein%tgrs, Statein%qgrs, Diag%zlvl, Sfcprop%snowd, &
                  Sfcprop%tsfc, Sfcprop%zorl, Sfcprop%ztrl, cd,      &
@@ -1073,7 +1073,7 @@ module module_physics_driver
                  Model%do_z0_hwrf17, Model%do_z0_hwrf17_hwonly,     &
                  Model%wind_th_hwrf)
             else
-! GFS original sfc_diff modified by kgao
+! GFS original sfc_diff modified by kgao 
             call sfc_diff (im,Statein%pgr, Statein%ugrs, Statein%vgrs,&
                  Statein%tgrs, Statein%qgrs, Diag%zlvl,             &
                  Sfcprop%snowd, Sfcprop%tsfc,  Sfcprop%zorl, cd,    &
@@ -1476,7 +1476,10 @@ module module_physics_driver
 !     if (lprnt)  write(0,*)' dqdtm=',(dqdt(ipr,k,1),k=1,15)
 
         elseif (Model%satmedmf) then
-          call satmedmfvdif(ix, im, levs, nvdiff,                               & 
+
+          if (Model%isatmedmf == 0) then   
+             ! initial version of satmedmfvdif (Nov 2018) modified by kgao
+             call satmedmfvdif(ix, im, levs, nvdiff,                            & 
                    Model%ntcw, Model%ntiw, Model%ntke,                          &
                    dvdt, dudt, dtdt, dqdt,                                      &
                    Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
@@ -1487,6 +1490,22 @@ module module_physics_driver
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                    kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, dkt)
+
+             elseif (Model%isatmedmf == 1) then   
+                ! updated version of satmedmfvdif (May 2019) modified by kgao
+                call satmedmfvdifq(ix, im, levs, nvdiff,                            &
+                       Model%ntcw, Model%ntiw, Model%ntke,                          &
+                       dvdt, dudt, dtdt, dqdt,                                      &
+                       Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
+                       Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                       Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
+                       Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
+                       stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
+                       Statein%prslk, Statein%phii, Statein%phil, dtp,              &
+                       Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
+                       kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                       Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
+        endif
 
         elseif (Model%ysupbl) then
           call ysupbl(ix, im, levs, nvdiff, Model%ntcw, Model%ntiw,             &

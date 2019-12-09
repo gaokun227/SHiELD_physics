@@ -499,11 +499,11 @@ module GFS_typedefs
     logical              :: redrag          !< flag for reduced drag coeff. over sea
     logical              :: sfc_gfdl        !< flag for using updated sfc layer scheme
     real(kind=kind_phys) :: z0s_max         !< a limiting value for z0 under high winds  
-    logical              :: do_z0_moon      !< flag for using z0 scheme in Moon et al. 2007
-    logical              :: do_z0_hwrf15    !< flag for using z0 scheme in 2015 HWRF 
-    logical              :: do_z0_hwrf17    !< flag for using z0 scheme in 2017 HWRF
-    logical              :: do_z0_hwrf17_hwonly !< flag for using z0 scheme in 2017 HWRF only under high wind
-    real(kind=kind_phys) :: wind_th_hwrf    !< wind speed threshold when z0 level off as in HWRF  
+    logical              :: do_z0_moon      !< flag for using z0 scheme in Moon et al. 2007 (kgao)
+    logical              :: do_z0_hwrf15    !< flag for using z0 scheme in 2015 HWRF (kgao)
+    logical              :: do_z0_hwrf17    !< flag for using z0 scheme in 2017 HWRF (kgao)
+    logical              :: do_z0_hwrf17_hwonly !< flag for using z0 scheme in 2017 HWRF only under high wind (kgao)
+    real(kind=kind_phys) :: wind_th_hwrf    !< wind speed threshold when z0 level off as in HWRF (kgao) 
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
@@ -518,6 +518,9 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
+    real(kind=kind_phys) :: dspfac          !< tke dissipative heating factor
+    real(kind=kind_phys) :: bl_upfr         !< updraft fraction in boundary layer mass flux scheme
+    real(kind=kind_phys) :: bl_dnfr         !< downdraft fraction in boundary layer mass flux scheme 
     real(kind=kind_phys) :: ysu_ent_fac     !< Entrainment factor in YSU scheme
     real(kind=kind_phys) :: ysu_pfac_q      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub     !< critical bulk Richardson number in YSU scheme
@@ -543,6 +546,9 @@ module GFS_typedefs
                                             !<           current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
                                             !<     0: old SAS Convection scheme before July 2010
+    integer              :: isatmedmf       !< flag for scale-aware TKE-based moist edmf scheme                        
+                                            !<     0: initial version of satmedmf (Nov 2018) modified by kgao at GFDL
+                                            !<     1: updated version of satmedmf (May 2019) modified by kgao at GFDL
     logical              :: do_deep         !< whether to do deep convection
     integer              :: nmtvr           !< number of topographic variables such as variance etc
                                             !< used in the GWD parameterization
@@ -1604,7 +1610,7 @@ module GFS_typedefs
     logical              :: pdfcld         = .false.                  !< flag for pdfcld
     logical              :: shcnvcw        = .false.                  !< flag for shallow convective cloud
     logical              :: redrag         = .false.                  !< flag for reduced drag coeff. over sea
-    logical              :: sfc_gfdl       = .false.                  !< flag for using updated sfc layer scheme 
+    logical              :: sfc_gfdl       = .false.                  !< flag for using new sfc layer scheme by kgao at GFDL
     real(kind=kind_phys) :: z0s_max        = .317e-2                  !< a limiting value for z0 under high winds  
     logical              :: do_z0_moon     = .false.                  !< flag for using z0 scheme in Moon et al. 2007
     logical              :: do_z0_hwrf15   = .false.                  !< flag for using z0 scheme in 2015 HWRF 
@@ -1625,6 +1631,9 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzminv        = 0.3                      !< diffusivity in inversion layers
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
+    real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
+    real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme
+    real(kind=kind_phys) :: bl_dnfr        = 0.1                      !< downdraft fraction in boundary layer mass flux scheme
     real(kind=kind_phys) :: ysu_ent_fac    = 0.15                     !< Entrainment factor in YSU scheme
     real(kind=kind_phys) :: ysu_pfac_q     = 2.0                      !< Exponent in scalar vertical mixing
     real(kind=kind_phys) :: ysu_brcr_ub    = 0.0                    
@@ -1649,6 +1658,7 @@ module GFS_typedefs
                                                                       !<     1: July 2010 version of SAS conv scheme
                                                                       !<           current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
+    integer              :: isatmedmf      =  0                       !< flag for scale-aware TKE-based moist edmf scheme
     logical              :: do_deep        = .true.                   !< whether to do deep convection
     integer              :: nmtvr          = 14                       !< number of topographic variables such as variance etc
                                                                       !< used in the GWD parameterization
@@ -1760,11 +1770,12 @@ module GFS_typedefs
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld,                                                      &
-                               xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
-                               ysu_pfac_q,                                                  &
+                               xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, dspfac,         &
+                               bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
                                ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
                                tnl_fac, qnl_fac, unl_fac,                                   &
-                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, do_deep, jcap,&
+                               random_clds, shal_cnv, imfshalcnv, imfdeepcnv, isatmedmf,    &
+                               do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,satmedmf,         &
                                cloud_gfdl,gwd_p_crit,                                       &
@@ -1964,6 +1975,9 @@ module GFS_typedefs
     Model%xkzm_s           = xkzm_s
     Model%xkzminv          = xkzminv
     Model%moninq_fac       = moninq_fac
+    Model%dspfac           = dspfac
+    Model%bl_upfr          = bl_upfr
+    Model%bl_dnfr          = bl_dnfr
     Model%ysu_ent_fac      = ysu_ent_fac
     Model%ysu_pfac_q       = ysu_pfac_q
     Model%ysu_brcr_ub      = ysu_brcr_ub
@@ -1980,6 +1994,7 @@ module GFS_typedefs
     Model%shal_cnv         = shal_cnv
     Model%imfshalcnv       = imfshalcnv
     Model%imfdeepcnv       = imfdeepcnv
+    Model%isatmedmf        = isatmedmf
     Model%do_deep          = do_deep
     Model%nmtvr            = nmtvr
     Model%jcap             = jcap
@@ -2476,6 +2491,9 @@ module GFS_typedefs
       print *, ' xkzm_s            : ', Model%xkzm_s
       print *, ' xkzminv           : ', Model%xkzminv
       print *, ' moninq_fac        : ', Model%moninq_fac
+      print *, ' dspfac            : ', Model%dspfac
+      print *, ' bl_upfr           : ', Model%bl_upfr
+      print *, ' bl_dnfr           : ', Model%bl_dnfr
       print *, ' ysu_ent_fac       : ', Model%ysu_ent_fac
       print *, ' ysu_pfac_q        : ', Model%ysu_pfac_q
       print *, ' ysu_brcr_ub       : ', Model%ysu_brcr_ub
@@ -2492,6 +2510,7 @@ module GFS_typedefs
       print *, ' shal_cnv          : ', Model%shal_cnv
       print *, ' imfshalcnv        : ', Model%imfshalcnv
       print *, ' imfdeepcnv        : ', Model%imfdeepcnv
+      print *, ' isatmedmf         : ', Model%isatmedmf
       print *, ' do_deep           : ', Model%do_deep
       print *, ' nmtvr             : ', Model%nmtvr
       print *, ' jcap              : ', Model%jcap

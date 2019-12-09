@@ -32,17 +32,18 @@ module FV3GFS_io_mod
   use namelist_soilveg,   only: salp_data, snupx
 !
 !--- GFS_typedefs
-  use GFS_typedefs,       only: GFS_sfcprop_type, GFS_diag_type
+  use GFS_typedefs,       only: GFS_sfcprop_type, GFS_diag_type, GFS_grid_type
   use ozne_def,           only: oz_coeff
 !
 !--- IPD typdefs
   use IPD_typedefs,       only: IPD_control_type, IPD_data_type, &
                                 IPD_restart_type
 !--- GFS physics constants
-  use physcons,           only: pi => con_pi, RADIUS => con_rerth
-!
+  use physcons,           only: pi => con_pi, RADIUS => con_rerth, rd => con_rd
 !--- needed for dq3dt output
   use ozne_def,           only: oz_coeff
+!--- needed for cold-start capability to initialize q2m
+  use gfdl_cld_mp_mod,    only: wqs1, qsmith_init
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -122,6 +123,9 @@ module FV3GFS_io_mod
     !--- read in surface data from chgres 
     call sfc_prop_restart_read (IPD_Data%Sfcprop, Atm_block, Model, fv_domain)
  
+    !--- read in 
+    if (Model%sfc_override) call sfc_prop_override  (IPD_Data%Sfcprop, IPD_Data%Grid, Atm_block, Model, fv_domain)
+
     !--- read in physics restart data
     call phys_restart_read (IPD_Restart, Atm_block, Model, fv_domain)
 
@@ -366,11 +370,12 @@ module FV3GFS_io_mod
     integer :: nvar_o2, nvar_s2m, nvar_s2o, nvar_s3
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
+    character(len=64) :: fname
     !--- local variables for sncovr calculation
     integer :: vegtyp
     logical :: mand
     real(kind=kind_phys) :: rsnow
-    
+        
     nvar_o2  = 17
     nvar_s2m = 32
     nvar_s2o = 18
@@ -416,39 +421,64 @@ module FV3GFS_io_mod
       nullify(var2_p)
     endif
 
-    !--- read the orography restart/data
-    call mpp_error(NOTE,'reading topographic/orographic information from INPUT/oro_data.tile*.nc')
-    call restore_state(Oro_restart)
+    fname = 'INPUT/'//trim(fn_oro)
+    if (file_exist(fname)) then 
+       
+       !--- read the orography restart/data
+       call mpp_error(NOTE,'reading topographic/orographic information from INPUT/oro_data.tile*.nc')
+       call restore_state(Oro_restart)
 
-    !--- copy data into GFS containers
-    do nb = 1, Atm_block%nblks
-      !--- 2D variables
-      do ix = 1, Atm_block%blksz(nb)
-        i = Atm_block%index(nb)%ii(ix) - isc + 1
-        j = Atm_block%index(nb)%jj(ix) - jsc + 1
-        !--- stddev
-        Sfcprop(nb)%hprim(ix)      = oro_var2(i,j,1)
-        !--- hprime(1:14)
-        Sfcprop(nb)%hprime(ix,1)  = oro_var2(i,j,2)
-        Sfcprop(nb)%hprime(ix,2)  = oro_var2(i,j,3)
-        Sfcprop(nb)%hprime(ix,3)  = oro_var2(i,j,4)
-        Sfcprop(nb)%hprime(ix,4)  = oro_var2(i,j,5)
-        Sfcprop(nb)%hprime(ix,5)  = oro_var2(i,j,6)
-        Sfcprop(nb)%hprime(ix,6)  = oro_var2(i,j,7)
-        Sfcprop(nb)%hprime(ix,7)  = oro_var2(i,j,8)
-        Sfcprop(nb)%hprime(ix,8)  = oro_var2(i,j,9)
-        Sfcprop(nb)%hprime(ix,9)  = oro_var2(i,j,10)
-        Sfcprop(nb)%hprime(ix,10) = oro_var2(i,j,11)
-        Sfcprop(nb)%hprime(ix,11) = oro_var2(i,j,12)
-        Sfcprop(nb)%hprime(ix,12) = oro_var2(i,j,13)
-        Sfcprop(nb)%hprime(ix,13) = oro_var2(i,j,14)
-        Sfcprop(nb)%hprime(ix,14) = oro_var2(i,j,15)
-        !--- oro
-        Sfcprop(nb)%oro(ix)        = oro_var2(i,j,16)
-        !--- oro_uf
-        Sfcprop(nb)%oro_uf(ix)     = oro_var2(i,j,17)
-      enddo
-    enddo
+       !--- copy data into GFS containers
+       do nb = 1, Atm_block%nblks
+          !--- 2D variables
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             !--- stddev
+             Sfcprop(nb)%hprim(ix)      = oro_var2(i,j,1)
+             !--- hprime(1:14)
+             Sfcprop(nb)%hprime(ix,1)  = oro_var2(i,j,2)
+             Sfcprop(nb)%hprime(ix,2)  = oro_var2(i,j,3)
+             Sfcprop(nb)%hprime(ix,3)  = oro_var2(i,j,4)
+             Sfcprop(nb)%hprime(ix,4)  = oro_var2(i,j,5)
+             Sfcprop(nb)%hprime(ix,5)  = oro_var2(i,j,6)
+             Sfcprop(nb)%hprime(ix,6)  = oro_var2(i,j,7)
+             Sfcprop(nb)%hprime(ix,7)  = oro_var2(i,j,8)
+             Sfcprop(nb)%hprime(ix,8)  = oro_var2(i,j,9)
+             Sfcprop(nb)%hprime(ix,9)  = oro_var2(i,j,10)
+             Sfcprop(nb)%hprime(ix,10) = oro_var2(i,j,11)
+             Sfcprop(nb)%hprime(ix,11) = oro_var2(i,j,12)
+             Sfcprop(nb)%hprime(ix,12) = oro_var2(i,j,13)
+             Sfcprop(nb)%hprime(ix,13) = oro_var2(i,j,14)
+             Sfcprop(nb)%hprime(ix,14) = oro_var2(i,j,15)
+             !--- oro
+             Sfcprop(nb)%oro(ix)        = oro_var2(i,j,16)
+             !--- oro_uf
+             Sfcprop(nb)%oro_uf(ix)     = oro_var2(i,j,17)
+          enddo
+       enddo
+
+    else ! cold_start (no way yet to create orography on-the-fly)
+
+       call mpp_error(NOTE,'No INPUT/oro_data.tile*.nc orographic data found; setting to 0')
+       !--- copy data into GFS containers
+       do nb = 1, Atm_block%nblks
+          !--- 2D variables
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             !--- stddev
+             Sfcprop(nb)%hprim(ix)      = 0.0
+             !--- hprime(1:14)
+             Sfcprop(nb)%hprime(ix,1:14)  = 0.0
+             !--- oro
+             Sfcprop(nb)%oro(ix)        = 0.0
+             !--- oro_uf
+             Sfcprop(nb)%oro_uf(ix)     = 0.0
+          enddo
+       enddo
+
+    endif
  
     !--- deallocate containers and free restart container
     deallocate(oro_name2, oro_var2)
@@ -551,160 +581,427 @@ module FV3GFS_io_mod
     endif
  
     !--- read the surface restart/data
-    call mpp_error(NOTE,'reading surface properties data from INPUT/sfc_data.tile*.nc')
-    call restore_state(Sfc_restart)
+    fname = 'INPUT/'//trim(fn_srf)
+    if (.not. file_exist(fname)) then ! cold start
+       call mpp_error(NOTE,'No INPUT/sfc_data.tile*.nc surface data found; cold-starting land surface')
+       !Need a namelist for options:
+       ! 1. choice of sst (uniform, profiles) --- ML0 should relax to this
+       ! 2. Choice of veg, soil type with certain soil T,q,ql
+       ! How to fix day of year (for astronomy)?
+       !--- place the data into the block GFS containers
+       do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             !--- 2D variables
+             !--- slmsk
+             Sfcprop(nb)%slmsk(ix)  = 0.
+             !--- tsfc (tsea in sfc file)
+             Sfcprop(nb)%tsfc(ix)   = 300. ! should specify some latitudinal profile
+             !--- weasd (sheleg in sfc file)
+             Sfcprop(nb)%weasd(ix)  = 0.0
+             !--- tg3
+             Sfcprop(nb)%tg3(ix)    = 290. !generic value, probably not good; real value latitude-dependent
+             !--- zorl
+             Sfcprop(nb)%zorl(ix)   = 0.1 ! typical ocean value; different values for different land surfaces (use a lookup table?)
+             !--- alvsf
+             Sfcprop(nb)%alvsf(ix)  = 0.06
+             !--- alvwf
+             Sfcprop(nb)%alvwf(ix)  = 0.06
+             !--- alnsf
+             Sfcprop(nb)%alnsf(ix)  = 0.06
+             !--- alnwf
+             Sfcprop(nb)%alnwf(ix)  = 0.06
+             !--- facsf
+             Sfcprop(nb)%facsf(ix)  = 0.0
+             !--- facwf
+             Sfcprop(nb)%facwf(ix)  = 0.0
+             !--- vfrac
+             Sfcprop(nb)%vfrac(ix)  = 0.0
+             !--- canopy
+             Sfcprop(nb)%canopy(ix) = 0.0
+             !--- f10m
+             Sfcprop(nb)%f10m(ix)   = 0.9
+             !--- t2m
+             Sfcprop(nb)%t2m(ix)    = Sfcprop(nb)%tsfc(ix)
+             !--- q2m
+             Sfcprop(nb)%q2m(ix)    = 0.0 ! initially dry atmosphere?
+             !--- vtype
+             Sfcprop(nb)%vtype(ix)  = 0.0 
+             !--- stype
+             Sfcprop(nb)%stype(ix)  = 0.0 
+             !--- uustar
+             Sfcprop(nb)%uustar(ix) = 0.5
+             !--- ffmm
+             Sfcprop(nb)%ffmm(ix)   = 10.
+             !--- ffhh
+             Sfcprop(nb)%ffhh(ix)   = 10.
+             !--- hice
+             Sfcprop(nb)%hice(ix)   = 0.0
+             !--- fice
+             Sfcprop(nb)%fice(ix)   = 0.0
+             !--- tisfc
+             Sfcprop(nb)%tisfc(ix)  = Sfcprop(nb)%tsfc(ix)
+             !--- tprcp
+             Sfcprop(nb)%tprcp(ix)  = 0.0
+             !--- srflag
+             Sfcprop(nb)%srflag(ix) = 0.0
+             !--- snowd (snwdph in the file)
+             Sfcprop(nb)%snowd(ix)  = 0.0
+             !--- shdmin
+             Sfcprop(nb)%shdmin(ix) = 0.0 !this and the next depend on the surface type
+             !--- shdmax
+             Sfcprop(nb)%shdmax(ix) = 0.0
+             !--- slope
+             Sfcprop(nb)%slope(ix)  = 0.0 ! also land-surface dependent
+             !--- snoalb
+             Sfcprop(nb)%snoalb(ix) = 0.0
+             !--- sncovr
+             Sfcprop(nb)%sncovr(ix) = 0.0
+             !
+             !--- NSSTM variables
+             if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 1)) then
+                !--- nsstm tref
+                Sfcprop(nb)%tref(ix)    = Sfcprop(nb)%tsfc(ix)
+                Sfcprop(nb)%xz(ix)      = 30.0d0
+             endif
+             if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 0)) then
+                !return an error
+                call mpp_error(FATAL, 'cold-starting does not support NSST.')
+             endif
+
+             !--- 3D variables
+             ! these are all set to ocean values.
+                !--- stc
+                Sfcprop(nb)%stc(ix,:) = Sfcprop(nb)%tsfc(ix)
+                !--- smc
+                Sfcprop(nb)%smc(ix,:) = 1.0 
+                !--- slc
+                Sfcprop(nb)%slc(ix,:) = 1.0 
+          enddo
+       enddo
+    else
+       call mpp_error(NOTE,'reading surface properties data from INPUT/sfc_data.tile*.nc')
+       call restore_state(Sfc_restart)       
  
-    !--- place the data into the block GFS containers
-    do nb = 1, Atm_block%nblks
-      do ix = 1, Atm_block%blksz(nb)
-        i = Atm_block%index(nb)%ii(ix) - isc + 1
-        j = Atm_block%index(nb)%jj(ix) - jsc + 1
-        !--- 2D variables
-        !--- slmsk
-        Sfcprop(nb)%slmsk(ix)  = sfc_var2(i,j,1)
-        !--- tsfc (tsea in sfc file)
-        Sfcprop(nb)%tsfc(ix)   = sfc_var2(i,j,2)
-        !--- weasd (sheleg in sfc file)
-        Sfcprop(nb)%weasd(ix)  = sfc_var2(i,j,3)
-        !--- tg3
-        Sfcprop(nb)%tg3(ix)    = sfc_var2(i,j,4)
-        !--- zorl
-        Sfcprop(nb)%zorl(ix)   = sfc_var2(i,j,5)
-        !--- alvsf
-        Sfcprop(nb)%alvsf(ix)  = sfc_var2(i,j,6)
-        !--- alvwf
-        Sfcprop(nb)%alvwf(ix)  = sfc_var2(i,j,7)
-        !--- alnsf
-        Sfcprop(nb)%alnsf(ix)  = sfc_var2(i,j,8)
-        !--- alnwf
-        Sfcprop(nb)%alnwf(ix)  = sfc_var2(i,j,9)
-        !--- facsf
-        Sfcprop(nb)%facsf(ix)  = sfc_var2(i,j,10)
-        !--- facwf
-        Sfcprop(nb)%facwf(ix)  = sfc_var2(i,j,11)
-        !--- vfrac
-        Sfcprop(nb)%vfrac(ix)  = sfc_var2(i,j,12)
-        !--- canopy
-        Sfcprop(nb)%canopy(ix) = sfc_var2(i,j,13)
-        !--- f10m
-        Sfcprop(nb)%f10m(ix)   = sfc_var2(i,j,14)
-        !--- t2m
-        Sfcprop(nb)%t2m(ix)    = sfc_var2(i,j,15)
-        !--- q2m
-        Sfcprop(nb)%q2m(ix)    = sfc_var2(i,j,16)
-        !--- vtype
-        Sfcprop(nb)%vtype(ix)  = sfc_var2(i,j,17)
-        !--- stype
-        Sfcprop(nb)%stype(ix)  = sfc_var2(i,j,18)
-        !--- uustar
-        Sfcprop(nb)%uustar(ix) = sfc_var2(i,j,19)
-        !--- ffmm
-        Sfcprop(nb)%ffmm(ix)   = sfc_var2(i,j,20)
-        !--- ffhh
-        Sfcprop(nb)%ffhh(ix)   = sfc_var2(i,j,21)
-        !--- hice
-        Sfcprop(nb)%hice(ix)   = sfc_var2(i,j,22)
-        !--- fice
-        Sfcprop(nb)%fice(ix)   = sfc_var2(i,j,23)
-        !--- tisfc
-        Sfcprop(nb)%tisfc(ix)  = sfc_var2(i,j,24)
-        !--- tprcp
-        Sfcprop(nb)%tprcp(ix)  = sfc_var2(i,j,25)
-        !--- srflag
-        Sfcprop(nb)%srflag(ix) = sfc_var2(i,j,26)
-        !--- snowd (snwdph in the file)
-        Sfcprop(nb)%snowd(ix)  = sfc_var2(i,j,27)
-        !--- shdmin
-        Sfcprop(nb)%shdmin(ix) = sfc_var2(i,j,28)
-        !--- shdmax
-        Sfcprop(nb)%shdmax(ix) = sfc_var2(i,j,29)
-        !--- slope
-        Sfcprop(nb)%slope(ix)  = sfc_var2(i,j,30)
-        !--- snoalb
-        Sfcprop(nb)%snoalb(ix) = sfc_var2(i,j,31)
-        !--- sncovr
-        Sfcprop(nb)%sncovr(ix) = sfc_var2(i,j,32)
-        !
-        !--- NSSTM variables
-        if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 1)) then
-          !--- nsstm tref
-          Sfcprop(nb)%tref(ix)    = Sfcprop(nb)%tsfc(ix)
-          Sfcprop(nb)%xz(ix)      = 30.0d0
-        endif
-        if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 0)) then
-          !--- nsstm tref
-          Sfcprop(nb)%tref(ix)    = sfc_var2(i,j,33)
-          !--- nsstm z_c
-          Sfcprop(nb)%z_c(ix)     = sfc_var2(i,j,34)
-          !--- nsstm c_0
-          Sfcprop(nb)%c_0(ix)     = sfc_var2(i,j,35)
-          !--- nsstm c_d
-          Sfcprop(nb)%c_d(ix)     = sfc_var2(i,j,36)
-          !--- nsstm w_0
-          Sfcprop(nb)%w_0(ix)     = sfc_var2(i,j,37)
-          !--- nsstm w_d
-          Sfcprop(nb)%w_d(ix)     = sfc_var2(i,j,38)
-          !--- nsstm xt
-          Sfcprop(nb)%xt(ix)      = sfc_var2(i,j,39)
-          !--- nsstm xs
-          Sfcprop(nb)%xs(ix)      = sfc_var2(i,j,40)
-          !--- nsstm xu
-          Sfcprop(nb)%xu(ix)      = sfc_var2(i,j,41)
-          !--- nsstm xv
-          Sfcprop(nb)%xv(ix)      = sfc_var2(i,j,42)
-          !--- nsstm xz
-          Sfcprop(nb)%xz(ix)      = sfc_var2(i,j,43)
-          !--- nsstm zm
-          Sfcprop(nb)%zm(ix)      = sfc_var2(i,j,44)
-          !--- nsstm xtts
-          Sfcprop(nb)%xtts(ix)    = sfc_var2(i,j,45)
-          !--- nsstm xzts
-          Sfcprop(nb)%xzts(ix)    = sfc_var2(i,j,46)
-          !--- nsstm d_conv
-          Sfcprop(nb)%d_conv(ix)  = sfc_var2(i,j,47)
-          !--- nsstm ifd
-          Sfcprop(nb)%ifd(ix)     = sfc_var2(i,j,48)
-          !--- nsstm dt_cool
-          Sfcprop(nb)%dt_cool(ix) = sfc_var2(i,j,49)
-          !--- nsstm qrain
-          Sfcprop(nb)%qrain(ix)   = sfc_var2(i,j,50)
-        endif
+       !--- place the data into the block GFS containers
+       do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             !--- 2D variables
+             !--- slmsk
+             Sfcprop(nb)%slmsk(ix)  = sfc_var2(i,j,1)
+             !--- tsfc (tsea in sfc file)
+             Sfcprop(nb)%tsfc(ix)   = sfc_var2(i,j,2)
+             !--- weasd (sheleg in sfc file)
+             Sfcprop(nb)%weasd(ix)  = sfc_var2(i,j,3)
+             !--- tg3
+             Sfcprop(nb)%tg3(ix)    = sfc_var2(i,j,4)
+             !--- zorl
+             Sfcprop(nb)%zorl(ix)   = sfc_var2(i,j,5)
+             !--- alvsf
+             Sfcprop(nb)%alvsf(ix)  = sfc_var2(i,j,6)
+             !--- alvwf
+             Sfcprop(nb)%alvwf(ix)  = sfc_var2(i,j,7)
+             !--- alnsf
+             Sfcprop(nb)%alnsf(ix)  = sfc_var2(i,j,8)
+             !--- alnwf
+             Sfcprop(nb)%alnwf(ix)  = sfc_var2(i,j,9)
+             !--- facsf
+             Sfcprop(nb)%facsf(ix)  = sfc_var2(i,j,10)
+             !--- facwf
+             Sfcprop(nb)%facwf(ix)  = sfc_var2(i,j,11)
+             !--- vfrac
+             Sfcprop(nb)%vfrac(ix)  = sfc_var2(i,j,12)
+             !--- canopy
+             Sfcprop(nb)%canopy(ix) = sfc_var2(i,j,13)
+             !--- f10m
+             Sfcprop(nb)%f10m(ix)   = sfc_var2(i,j,14)
+             !--- t2m
+             Sfcprop(nb)%t2m(ix)    = sfc_var2(i,j,15)
+             !--- q2m
+             Sfcprop(nb)%q2m(ix)    = sfc_var2(i,j,16)
+             !--- vtype
+             Sfcprop(nb)%vtype(ix)  = sfc_var2(i,j,17)
+             !--- stype
+             Sfcprop(nb)%stype(ix)  = sfc_var2(i,j,18)
+             !--- uustar
+             Sfcprop(nb)%uustar(ix) = sfc_var2(i,j,19)
+             !--- ffmm
+             Sfcprop(nb)%ffmm(ix)   = sfc_var2(i,j,20)
+             !--- ffhh
+             Sfcprop(nb)%ffhh(ix)   = sfc_var2(i,j,21)
+             !--- hice
+             Sfcprop(nb)%hice(ix)   = sfc_var2(i,j,22)
+             !--- fice
+             Sfcprop(nb)%fice(ix)   = sfc_var2(i,j,23)
+             !--- tisfc
+             Sfcprop(nb)%tisfc(ix)  = sfc_var2(i,j,24)
+             !--- tprcp
+             Sfcprop(nb)%tprcp(ix)  = sfc_var2(i,j,25)
+             !--- srflag
+             Sfcprop(nb)%srflag(ix) = sfc_var2(i,j,26)
+             !--- snowd (snwdph in the file)
+             Sfcprop(nb)%snowd(ix)  = sfc_var2(i,j,27)
+             !--- shdmin
+             Sfcprop(nb)%shdmin(ix) = sfc_var2(i,j,28)
+             !--- shdmax
+             Sfcprop(nb)%shdmax(ix) = sfc_var2(i,j,29)
+             !--- slope
+             Sfcprop(nb)%slope(ix)  = sfc_var2(i,j,30)
+             !--- snoalb
+             Sfcprop(nb)%snoalb(ix) = sfc_var2(i,j,31)
+             !--- sncovr
+             Sfcprop(nb)%sncovr(ix) = sfc_var2(i,j,32)
+             !
+             !--- NSSTM variables
+             if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 1)) then
+                !--- nsstm tref
+                Sfcprop(nb)%tref(ix)    = Sfcprop(nb)%tsfc(ix)
+                Sfcprop(nb)%xz(ix)      = 30.0d0
+             endif
+             if ((Model%nstf_name(1) > 0) .and. (Model%nstf_name(2) == 0)) then
+                !--- nsstm tref
+                Sfcprop(nb)%tref(ix)    = sfc_var2(i,j,33)
+                !--- nsstm z_c
+                Sfcprop(nb)%z_c(ix)     = sfc_var2(i,j,34)
+                !--- nsstm c_0
+                Sfcprop(nb)%c_0(ix)     = sfc_var2(i,j,35)
+                !--- nsstm c_d
+                Sfcprop(nb)%c_d(ix)     = sfc_var2(i,j,36)
+                !--- nsstm w_0
+                Sfcprop(nb)%w_0(ix)     = sfc_var2(i,j,37)
+                !--- nsstm w_d
+                Sfcprop(nb)%w_d(ix)     = sfc_var2(i,j,38)
+                !--- nsstm xt
+                Sfcprop(nb)%xt(ix)      = sfc_var2(i,j,39)
+                !--- nsstm xs
+                Sfcprop(nb)%xs(ix)      = sfc_var2(i,j,40)
+                !--- nsstm xu
+                Sfcprop(nb)%xu(ix)      = sfc_var2(i,j,41)
+                !--- nsstm xv
+                Sfcprop(nb)%xv(ix)      = sfc_var2(i,j,42)
+                !--- nsstm xz
+                Sfcprop(nb)%xz(ix)      = sfc_var2(i,j,43)
+                !--- nsstm zm
+                Sfcprop(nb)%zm(ix)      = sfc_var2(i,j,44)
+                !--- nsstm xtts
+                Sfcprop(nb)%xtts(ix)    = sfc_var2(i,j,45)
+                !--- nsstm xzts
+                Sfcprop(nb)%xzts(ix)    = sfc_var2(i,j,46)
+                !--- nsstm d_conv
+                Sfcprop(nb)%d_conv(ix)  = sfc_var2(i,j,47)
+                !--- nsstm ifd
+                Sfcprop(nb)%ifd(ix)     = sfc_var2(i,j,48)
+                !--- nsstm dt_cool
+                Sfcprop(nb)%dt_cool(ix) = sfc_var2(i,j,49)
+                !--- nsstm qrain
+                Sfcprop(nb)%qrain(ix)   = sfc_var2(i,j,50)
+             endif
 
-        !--- 3D variables
-        do lsoil = 1,Model%lsoil
-            !--- stc
-            Sfcprop(nb)%stc(ix,lsoil) = sfc_var3(i,j,lsoil,1)
-            !--- smc
-            Sfcprop(nb)%smc(ix,lsoil) = sfc_var3(i,j,lsoil,2)
-            !--- slc
-            Sfcprop(nb)%slc(ix,lsoil) = sfc_var3(i,j,lsoil,3)
-        enddo
-      enddo
-    enddo
+             !--- 3D variables
+             do lsoil = 1,Model%lsoil
+                !--- stc
+                Sfcprop(nb)%stc(ix,lsoil) = sfc_var3(i,j,lsoil,1)
+                !--- smc
+                Sfcprop(nb)%smc(ix,lsoil) = sfc_var3(i,j,lsoil,2)
+                !--- slc
+                Sfcprop(nb)%slc(ix,lsoil) = sfc_var3(i,j,lsoil,3)
+             enddo
+          enddo
+       enddo
 
-    !--- if sncovr does not exist in the restart, need to create it
-    if (nint(sfc_var2(1,1,32)) == -9999) then
-      if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr') 
-      !--- compute sncovr from existing variables
-      !--- code taken directly from read_fix.f
-      do nb = 1, Atm_block%nblks
-        do ix = 1, Atm_block%blksz(nb)
-          Sfcprop(nb)%sncovr(ix) = 0.0
-          if (Sfcprop(nb)%slmsk(ix) > 0.001) then
-            vegtyp = Sfcprop(nb)%vtype(ix)
-            if (vegtyp == 0) vegtyp = 7
-            rsnow  = 0.001*Sfcprop(nb)%weasd(ix)/snupx(vegtyp)
-            if (0.001*Sfcprop(nb)%weasd(ix) < snupx(vegtyp)) then
-              Sfcprop(nb)%sncovr(ix) = 1.0 - (exp(-salp_data*rsnow) - rsnow*exp(-salp_data))
-            else
-              Sfcprop(nb)%sncovr(ix) = 1.0
-            endif
-          endif
-        enddo
-      enddo
+       !--- if sncovr does not exist in the restart, need to create it
+       if (nint(sfc_var2(1,1,32)) == -9999) then
+          if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr') 
+          !--- compute sncovr from existing variables
+          !--- code taken directly from read_fix.f
+          do nb = 1, Atm_block%nblks
+             do ix = 1, Atm_block%blksz(nb)
+                Sfcprop(nb)%sncovr(ix) = 0.0
+                if (Sfcprop(nb)%slmsk(ix) > 0.001) then
+                   vegtyp = Sfcprop(nb)%vtype(ix)
+                   if (vegtyp == 0) vegtyp = 7
+                   rsnow  = 0.001*Sfcprop(nb)%weasd(ix)/snupx(vegtyp)
+                   if (0.001*Sfcprop(nb)%weasd(ix) < snupx(vegtyp)) then
+                      Sfcprop(nb)%sncovr(ix) = 1.0 - (exp(-salp_data*rsnow) - rsnow*exp(-salp_data))
+                   else
+                      Sfcprop(nb)%sncovr(ix) = 1.0
+                   endif
+                endif
+             enddo
+          enddo
+       endif
+
     endif
 
+
   end subroutine sfc_prop_restart_read
+
+  subroutine sfc_prop_override(Sfcprop, Grid, Atm_block, Model, fv_domain)
+
+    implicit none
+    !--- interface variable definitions
+    type(GFS_sfcprop_type),    intent(inout) :: Sfcprop(:)
+    type(GFS_grid_type),       intent(inout) :: Grid(:)
+    type (block_control_type), intent(in)    :: Atm_block
+    type(IPD_control_type),    intent(in)    :: Model
+    type (domain2d),           intent(in)    :: fv_domain
+    !--- local variables
+    integer :: i, j, k, ix, lsoil, num, nb
+    integer :: isc, iec, jsc, jec, npz, nx, ny, ios
+
+    logical :: ideal_sst = .false.
+    real(kind=kind_phys) :: sst_max = 300.
+    real(kind=kind_phys) :: sst_min = 271.14 ! -2c --> sea ice
+    integer :: sst_profile = 0
+
+    logical :: ideal_land = .false.
+    !Assuming modern veg/soil types
+    ! sample Amazon settings; values for OKC in comments
+    integer :: vegtype = 2 ! 12
+    integer :: soiltype = 9 ! 8
+    real(kind=kind_phys) :: vegfrac = 0.8 ! 0.25 -- 0.75 
+    real(kind=kind_phys) :: zorl = 265 ! 15
+    !uniform soil temperature and moisture for now
+    real(kind=kind_phys) :: stc = 300. ! 310.
+    real(kind=kind_phys) :: smc = 0.4 ! wet season vs. 0.08 dry ! 0.2 okc highly variable and patchy
+    
+    
+    namelist /sfc_prop_override_nml/ &
+         ideal_sst, sst_max, sst_profile, & !Aquaplanet SST options
+         ideal_land, vegtype, soiltype, & ! idealized soil/veg options
+         vegfrac, zorl, stc, smc
+    
+#ifdef INTERNAL_FILE_NML
+    read(Model%input_nml_file, nml=sfc_prop_override_nml, iostat=ios)
+#else
+!       print *,' in sfcsub nlunit=',nlunit,' me=',me,' ialb=',ialb
+    inquire (file=trim(Model%fn_nml), exist=exists)
+    if (.not. exists) then
+       write(6,*) 'sfc_prop_override:: namelist file: ',trim(Model%fn_nml),' does not exist'
+       stop
+    else
+       open (unit=Model%nlunit, file=Model%fn_nml, READONLY, status='OLD', iostat=ios)
+    endif
+    rewind(Model%nlunit)
+    read (Model%nlunit,sfc_prop_override_nml)
+    close (Model%nlunit)
+#endif
+
+    call qsmith_init
+
+    call mpp_error(NOTE, "Calling sfc_prop_override")
+
+    if (ideal_sst) then
+       do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             !--- slmsk
+             Sfcprop(nb)%slmsk(ix)  = 0.0
+             !--- tsfc (tsea in sfc file)
+             select case (sst_profile)
+                case (0) 
+                   Sfcprop(nb)%tsfc(ix)   = sst_max
+                case (1) ! symmetric
+                   Sfcprop(nb)%tsfc(ix)   = sst_min + (sst_max - sst_min)*Grid(nb)%coslat(ix)
+                case default
+                   call mpp_error(FATAL, "value of sst_profile not defined.")
+             end select
+             !--- zorl
+             Sfcprop(nb)%zorl(ix)   = zorl
+             !--- vfrac
+             Sfcprop(nb)%vfrac(ix)  = 0.0
+             if (Sfcprop(nb)%tsfc(ix) <= sst_min) then
+                !--- hice
+                Sfcprop(nb)%hice(ix)   = 1.0
+                !--- fice
+                Sfcprop(nb)%fice(ix)   = 1.0
+                Sfcprop(nb)%tsfc(ix)   = sst_min
+             else
+                !--- hice
+                Sfcprop(nb)%hice(ix)   = 0.0
+                !--- fice
+                Sfcprop(nb)%fice(ix)   = 0.0
+             endif
+             !--- tisfc
+             Sfcprop(nb)%tisfc(ix)  = Sfcprop(nb)%tsfc(ix)             
+             !--- t2m ! slt. unstable
+             Sfcprop(nb)%t2m(ix)    = Sfcprop(nb)%t2m(ix) * 0.98
+             !--- q2m ! use RH = 98% and assume ps = 1000 mb
+             Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
+             !--- vtype
+             Sfcprop(nb)%vtype(ix)  = 0
+             !--- stype
+             Sfcprop(nb)%stype(ix)  = 0
+             !Override MLO properties also
+             if (Model%do_ocean) then
+                Sfcprop(nb)%ts_clim_iano(ix) = Sfcprop(nb)%tsfc(ix)
+                Sfcprop(nb)%tsclim(ix) = Sfcprop(nb)%tsfc(ix)
+                Sfcprop(nb)%ts_som(ix) = Sfcprop(nb)%tsfc(ix)
+             endif
+          enddo
+       enddo
+
+
+    elseif (ideal_land) then
+       do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             !--- slmsk
+             Sfcprop(nb)%slmsk(ix)  = 1.0
+             !--- tsfc (tsea in sfc file)
+             Sfcprop(nb)%tsfc(ix)   = stc
+             !--- weasd (sheleg in sfc file)
+             Sfcprop(nb)%weasd(ix)  = 0.0 ! snow
+             !--- tg3
+             Sfcprop(nb)%tg3(ix)    = stc ! simple approach
+             !--- zorl
+             Sfcprop(nb)%zorl(ix)   = zorl
+             !--- vfrac
+             Sfcprop(nb)%vfrac(ix)  = vegfrac
+             !--- canopy
+             Sfcprop(nb)%canopy(ix) = 0.0 !this quantity is quite variable
+             !--- t2m
+             Sfcprop(nb)%t2m(ix)    = stc * 0.98 !slt unstable
+             !--- q2m ! use RH = 98%
+             Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
+             !--- vtype
+             Sfcprop(nb)%vtype(ix)  = vegtype
+             !--- stype
+             Sfcprop(nb)%stype(ix)  = soiltype
+             !--- hice
+             Sfcprop(nb)%hice(ix)   = 0.0
+             !--- fice
+             Sfcprop(nb)%fice(ix)   = 0.0
+             !--- tisfc
+             Sfcprop(nb)%tisfc(ix)  = stc
+             !--- snowd (snwdph in the file)
+             Sfcprop(nb)%snowd(ix)  = 0.0
+             !--- snoalb
+             Sfcprop(nb)%snoalb(ix) = 0.5
+             !--- sncovr
+             Sfcprop(nb)%sncovr(ix) = 0.0
+             !--- 3D variables
+             do lsoil = 1,Model%lsoil
+                !--- stc
+                Sfcprop(nb)%stc(ix,lsoil) = stc
+                !--- smc
+                Sfcprop(nb)%smc(ix,lsoil) = smc
+                !--- slc = smc
+                Sfcprop(nb)%slc(ix,lsoil) = smc
+             enddo
+             
+          enddo
+       enddo
+
+    endif
+
+
+  end subroutine sfc_prop_override
 
 
 !----------------------------------------------------------------------      
@@ -2950,7 +3247,7 @@ module FV3GFS_io_mod
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx*ny) :: var2p
     real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
-    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask
+    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
     real(kind=kind_phys) :: rdt, rtime_int, lcnvfac
     logical :: used
@@ -2976,6 +3273,7 @@ module FV3GFS_io_mod
            lon(i,j)  = IPD_Data(nb)%Grid%xlon(ix)
            one(i,j)  = 1.
            landmask(i,j) = IPD_Data(nb)%Sfcprop%slmsk(ix)
+           seamask(i,j)  = 1. - landmask(i,j) 
         enddo
      enddo
      do idx = 1,tot_diag_idx
@@ -3058,12 +3356,22 @@ module FV3GFS_io_mod
 !              call prt_gb_nh_sh_us('Land Icefall  (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 172800.)
            case('dqsfc')
               call prt_gb_nh_sh_us('Total sfc LH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('dtsfc')
+              call prt_gb_nh_sh_us('Total sfc SH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('DSWRFtoa')
               call prt_gb_nh_sh_us('TOA SW down ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('USWRFtoa')
               call prt_gb_nh_sh_us('TOA SW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('ULWRFtoa')
               call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('t2m')
+              call prt_gb_nh_sh_us('2-m T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
+              call prt_gb_nh_sh_us('2-m T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
+           case('tsfc')
+              call prt_gb_nh_sh_us('sfc T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
+              call prt_gb_nh_sh_us('sfc T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
+              call prt_gb_nh_sh_us('SST max ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MAX')
+              call prt_gb_nh_sh_us('SST min ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MIN')
            end select
            endif
          elseif (Diag(idx)%axes == 3) then
@@ -3158,13 +3466,14 @@ module FV3GFS_io_mod
 
   end subroutine gfdl_diag_output
 !-------------------------------------------------------------------------      
- subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac)
+ subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac, operation_in) !Prints averages/sums, or maxes/mins
   use physcons,    pi=>con_pi
   character(len=*), intent(in)::  qname
   integer, intent(in):: is, ie, js, je
   real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: a2
   real(kind=kind_phys), intent(in), dimension(is:ie, js:je):: area, lon, lat, mask
   real, intent(in) :: fac
+  character(len=*), intent(in), OPTIONAL :: operation_in
 ! Local:
   real(kind=kind_phys), parameter:: rad2deg = 180./pi
   real(kind=kind_phys) :: slat, slon
@@ -3173,10 +3482,87 @@ module FV3GFS_io_mod
   integer:: i,j
   character(len=100) :: diagstr
   character(len=20)  :: diagstr1
+  character(len=3)  :: operation
 
-     t_eq = 0.   ;    t_nh = 0.;    t_sh = 0.;    t_gb = 0.;    t_us = 0.
-     area_eq = 0.; area_nh = 0.; area_sh = 0.; area_gb = 0.; area_us = 0.
-     do j=js,je
+  if (present(operation_in)) then
+     operation = operation_in(1:3)
+  else
+     operation = 'SUM'
+  endif
+
+     if (operation == "MAX") then
+        t_eq =-1.e14   ;    t_nh =-1.e14;    t_sh =-1.e14;    t_gb =-1.e14;    t_us =-1.e14
+        area_eq = 0.   ; area_nh = 0.   ; area_sh = 0.   ; area_gb = 0.   ; area_us = 0.
+        do j=js,je
+        do i=is,ie
+           if (mask(i,j) <= 1.e-6) cycle
+
+           slat = lat(i,j)*rad2deg
+           slon = lon(i,j)*rad2deg
+           area_gb = 1.
+           t_gb = max(t_gb,a2(i,j))
+           if( (slat>-20. .and. slat<20.) ) then
+                area_eq = 1.
+                t_eq = max(t_eq,a2(i,j))
+           elseif( slat>=20. .and. slat<80. ) then
+                area_nh = 1.
+                t_nh = max(t_nh,a2(i,j))
+           elseif( slat<=-20. .and. slat>-80. ) then
+                area_sh = 1.
+                t_sh = max(t_sh,a2(i,j))
+           endif
+           if ( slat>25.  .and. slat<50. .and. &
+                slon>235. .and. slon<300. ) then
+              area_us = 1.
+              t_us = max(t_us,a2(i,j))
+           endif
+        enddo
+        enddo
+
+        call mp_reduce_max(   t_gb)
+        call mp_reduce_max(   t_nh)
+        call mp_reduce_max(   t_sh)
+        call mp_reduce_max(   t_eq)
+        call mp_reduce_max(   t_us)
+     elseif (operation == "MIN") then
+        t_eq = 1.e14   ;    t_nh = 1.e14;    t_sh = 1.e14;    t_gb = 1.e14;    t_us = 1.e14
+        area_eq = 0.   ; area_nh = 0.   ; area_sh = 0.   ; area_gb = 0.   ; area_us = 0.
+        do j=js,je
+        do i=is,ie
+           if (mask(i,j) <= 1.e-6) cycle
+
+           slat = lat(i,j)*rad2deg
+           slon = lon(i,j)*rad2deg
+           area_gb = 1.
+           t_gb = min(t_gb,a2(i,j))
+           if( (slat>-20. .and. slat<20.) ) then
+                area_eq = 1.
+                t_eq = min(t_eq,a2(i,j))
+           elseif( slat>=20. .and. slat<80. ) then
+                area_nh = 1.
+                t_nh = min(t_nh,a2(i,j))
+           elseif( slat<=-20. .and. slat>-80. ) then
+                area_sh = 1.
+                t_sh = min(t_sh,a2(i,j))
+           endif
+           if ( slat>25.  .and. slat<50. .and. &
+                slon>235. .and. slon<300. ) then
+              area_us = 1.
+              t_us = min(t_us,a2(i,j))
+           endif
+        enddo
+        enddo
+
+        call mp_reduce_min(   t_gb)
+        call mp_reduce_min(   t_nh)
+        call mp_reduce_min(   t_sh)
+        call mp_reduce_min(   t_eq)
+        call mp_reduce_min(   t_us)
+     else
+        t_eq = 0.   ;    t_nh = 0.;    t_sh = 0.;    t_gb = 0.;    t_us = 0.
+        area_eq = 0.; area_nh = 0.; area_sh = 0.; area_gb = 0.; area_us = 0.
+        operation = 'SUM'
+        do j=js,je
         do i=is,ie
            slat = lat(i,j)*rad2deg
            slon = lon(i,j)*rad2deg
@@ -3198,18 +3584,19 @@ module FV3GFS_io_mod
               t_us = t_us + a2(i,j)*area(i,j)*mask(i,j)
            endif
         enddo
-     enddo
+        enddo
 
-     call mp_reduce_sum(area_gb)
-     call mp_reduce_sum(   t_gb)
-     call mp_reduce_sum(area_nh)
-     call mp_reduce_sum(   t_nh)
-     call mp_reduce_sum(area_sh)
-     call mp_reduce_sum(   t_sh)
-     call mp_reduce_sum(area_eq)
-     call mp_reduce_sum(   t_eq)
-     call mp_reduce_sum(area_us)
-     call mp_reduce_sum(   t_us)
+        call mp_reduce_sum(area_gb)
+        call mp_reduce_sum(   t_gb)
+        call mp_reduce_sum(area_nh)
+        call mp_reduce_sum(   t_nh)
+        call mp_reduce_sum(area_sh)
+        call mp_reduce_sum(   t_sh)
+        call mp_reduce_sum(area_eq)
+        call mp_reduce_sum(   t_eq)
+        call mp_reduce_sum(area_us)
+        call mp_reduce_sum(   t_us)
+     endif
 
      diagstr = trim(qname) // ' ' // trim(mpp_get_current_pelist_name()) // ' '
      !if (area_gb < 1.) then
@@ -3220,25 +3607,25 @@ module FV3GFS_io_mod
      write(diagstr1,101) 'GB', t_gb/area_gb*fac
      !endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_nh <= 1. .or. area_nh == area_gb) then
+     if (area_nh <= 1.e-6 .or. area_nh == area_gb) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'NH', t_nh/area_nh*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_sh <= 1. .or. area_sh == area_gb) then
+     if (area_sh <= 1.e-6 .or. area_sh == area_gb) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'SH', t_sh/area_sh*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_eq <= 1.) then
+     if (area_eq <= 1.e-6) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'EQ', t_eq/area_eq*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_us <= 1.) then
+     if (area_us <= 1.e-6) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'US', t_us/area_us*fac
@@ -3250,5 +3637,6 @@ module FV3GFS_io_mod
 101  format(3x, A, ': ', F7.2)
 
    end subroutine prt_gb_nh_sh_us
+
 
 end module FV3GFS_io_mod

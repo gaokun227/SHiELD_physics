@@ -659,7 +659,7 @@
 !> @{
 !-----------------------------------
       subroutine radupdate( idate,jdate,deltsw,deltim,lsswr, me,        &
-     &       slag,sdec,cdec,solcon)
+     &       slag,sdec,cdec,solcon, fixed_date)
 !...................................
 
 ! =================   subprogram documentation block   ================ !
@@ -685,6 +685,8 @@
 !   deltim         : model timestep in seconds                          !
 !   lsswr          : logical flags for sw radiation calculations        !
 !   me             : print control flag                                 !
+!   fixed_date     : use a fixed date for astronomical calculations     !
+!                    does not affect solar angle calculation            !
 !                                                                       !
 !  outputs:                                                             !
 !   slag           : equation of time in radians                        !
@@ -724,7 +726,7 @@
 
 !  ---  inputs:
       integer, intent(in) :: idate(:), jdate(:), me
-      logical, intent(in) :: lsswr
+      logical, intent(in) :: lsswr, fixed_date
 
       real (kind=kind_phys), intent(in) :: deltsw, deltim
 
@@ -784,12 +786,26 @@
         endif
         iyear0 = iyear
 
+        if ( fixed_date ) then
+           !This uses astronomy at the initial time but does not
+           ! alter solar angle?
         call sol_update                                                 &
 !  ---  inputs:
-     &     ( jdate,kyear,deltsw,deltim,lsol_chg, me,                    &
+     &     ( jdate,idate,kyear,deltsw,deltim,lsol_chg, me,              &
 !  ---  outputs:
      &       slag,sdec,cdec,solcon                                      &
      &     )
+
+        else
+
+        call sol_update                                                 &
+!  ---  inputs:
+     &     ( jdate,jdate,kyear,deltsw,deltim,lsol_chg, me,              &
+!  ---  outputs:
+     &       slag,sdec,cdec,solcon                                      &
+     &     )
+
+        endif
 
       endif  ! end_if_lsswr_block
 

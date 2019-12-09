@@ -373,6 +373,7 @@ module GFS_typedefs
     logical              :: gen_coord_hybrid!< for Henry's gen coord
     logical              :: fix_cosz_dec    !< flag for fix cosine solar zenith angle - solar declination
     logical              :: fix_cosz_shr    !< flag for fix cosine solar zenith angle - solar hour
+    logical              :: sfc_override    !< use idealized surface conditions
 
     !--- set some grid extent parameters
     integer              :: isc             !< starting i-index for this MPI-domain
@@ -444,6 +445,7 @@ module GFS_typedefs
     logical              :: norad_precip    !< radiation precip flag for Ferrier/Moorthi
     logical              :: lwhtr           !< flag to output lw heating rate (Radtend%lwhc)
     logical              :: swhtr           !< flag to output sw heating rate (Radtend%swhc)
+    logical              :: fixed_date      !< flag to fix astronomy (not solar angle) to initial date
 
     !--- microphysical switch
     integer              :: ncld            !< cnoice of cloud scheme
@@ -509,6 +511,7 @@ module GFS_typedefs
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
     logical              :: satmedmf        !< flag for scale-aware TKE-based moist edmf
                                             !< vertical turbulent mixing scheme
+    logical              :: no_pbl          !< disable PBL (for LES)
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
@@ -1508,6 +1511,7 @@ module GFS_typedefs
     integer              :: sfcpress_id    =  1              !< valid for GFS only for get_prs/phi
     logical              :: fix_cosz_dec   = .false.         !< flag for fix cosine solar zenith angle - solar declination
     logical              :: fix_cosz_shr   = .false.         !< flag for fix cosine solar zenith angle - solar hour
+    logical              :: sfc_override   = .false.         !< use idealized surface conditions
 
     !--- coupling parameters
     logical              :: cplflx         = .false.         !< default no cplflx collection
@@ -1554,6 +1558,7 @@ module GFS_typedefs
     logical              :: norad_precip   = .false.         !< radiation precip flag for Ferrier/Moorthi
     logical              :: lwhtr          = .true.          !< flag to output lw heating rate (Radtend%lwhc)
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
+    logical              :: fixed_date     = .false.         !< flag to fix astronomy (not solar angle) to initial date
 
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
@@ -1616,6 +1621,7 @@ module GFS_typedefs
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: satmedmf       = .false.                  !< flag for scale-aware TKE-based moist edmf
                                                                       !< vertical turbulent mixing scheme
+    logical              :: no_pbl         = .false.                  !< disable PBL (for LES)
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
@@ -1741,12 +1747,14 @@ module GFS_typedefs
                           !--- general parameters
                                fhzero, ldiag3d, lssav, fhcyc, lgocart, fhgoc3d,             &
                                thermodyn_id, sfcpress_id, fix_cosz_dec, fix_cosz_shr,       &
+                               sfc_override,                                                &
                           !--- coupling parameters
                                cplflx, cplwav, lsidea,                                      &
                           !--- radiation parameters
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
+                               fixed_date,                                                  &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
@@ -1759,7 +1767,7 @@ module GFS_typedefs
                                do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
-                               cnvcld,                                                      &
+                               cnvcld, no_pbl,                                              &
                                xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, ysu_ent_fac,    &
                                ysu_pfac_q,                                                  &
                                ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
@@ -1840,6 +1848,7 @@ module GFS_typedefs
     Model%gen_coord_hybrid = gen_coord_hybrid
     Model%fix_cosz_dec     = fix_cosz_dec
     Model%fix_cosz_shr     = fix_cosz_shr
+    Model%sfc_override     = sfc_override
 
     !--- set some grid extent parameters
     Model%isc              = isc
@@ -1899,6 +1908,7 @@ module GFS_typedefs
     Model%ccnorm           = ccnorm
     Model%lwhtr            = lwhtr
     Model%swhtr            = swhtr
+    Model%fixed_date       = fixed_date
 
     !--- microphysical switch
     Model%ncld             = ncld
@@ -1955,6 +1965,7 @@ module GFS_typedefs
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl
     Model%satmedmf         = satmedmf 
+    Model%no_pbl           = no_pbl
     Model%dspheat          = dspheat
     Model%lheatstrg        = lheatstrg
     Model%hour_canopy      = hour_canopy
@@ -2355,6 +2366,7 @@ module GFS_typedefs
       print *, ' gen_coord_hybrid  : ', Model%gen_coord_hybrid
       print *, ' fix_cosz_dec      : ', Model%fix_cosz_dec
       print *, ' fix_cosz_shr      : ', Model%fix_cosz_shr
+      print *, ' sfc_override      : ', Model%sfc_override
       print *, ' '
       print *, 'grid extent parameters'
       print *, ' isc               : ', Model%isc
@@ -2410,6 +2422,7 @@ module GFS_typedefs
       print *, ' norad_precip      : ', Model%norad_precip
       print *, ' lwhtr             : ', Model%lwhtr
       print *, ' swhtr             : ', Model%swhtr
+      print *, ' fixed_date        : ', Model%fixed_date
       print *, ' '
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
@@ -2467,6 +2480,7 @@ module GFS_typedefs
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl
       print *, ' satmedmf          : ', Model%satmedmf
+      print *, ' no_pbl            : ', Model%no_pbl
       print *, ' dspheat           : ', Model%dspheat
       print *, ' lheatstrg         : ', Model%lheatstrg
       print *, ' hour_canopy       : ', Model%hour_canopy

@@ -111,7 +111,7 @@
 !> \name Module variable (to be set in module_radiation_astronomy::sol_init):
       real (kind=kind_phys), public    :: solc0 = con_solr
       integer   :: isolflg = 10
-      character(26) :: solar_fname = ' '
+      character(32) :: solar_fname = ' '
 
 !> \name Module variables (to be set in module_radiation_astronomy::sol_update)
 
@@ -208,7 +208,7 @@
           print *,' - Using new fixed solar constant =', solc0
         endif
       elseif ( isolar == 1 ) then        ! noaa ann-mean tsi in absolute scale
-        solar_fname(15:26) = 'noaa_a0.txt'
+        solar_fname(21:32) = 'noaa_a0.txt'
 
         if ( me == 0 ) then
           print *,' - Using NOAA annual mean TSI table in ABS scale',   &
@@ -227,7 +227,7 @@
           endif
         endif
       elseif ( isolar == 2 ) then        ! noaa ann-mean tsi in tim scale
-        solar_fname(15:26) = 'noaa_an.txt'
+        solar_fname(21:32) = 'noaa_an.txt'
 
         if ( me == 0 ) then
           print *,' - Using NOAA annual mean TSI table in TIM scale',   &
@@ -246,7 +246,7 @@
           endif
         endif
       elseif ( isolar == 3 ) then        ! cmip5 ann-mean tsi in tim scale
-        solar_fname(15:26) = 'cmip_an.txt'
+        solar_fname(21:32) = 'cmip_an.txt'
 
         if ( me == 0 ) then
           print *,' - Using CMIP5 annual mean TSI table in TIM scale',  &
@@ -265,7 +265,7 @@
           endif
         endif
       elseif ( isolar == 4 ) then        ! cmip5 mon-mean tsi in tim scale
-        solar_fname(15:26) = 'cmip_mn.txt'
+        solar_fname(21:32) = 'cmip_mn.txt'
 
         if ( me == 0 ) then
           print *,' - Using CMIP5 monthly mean TSI table in TIM scale', &

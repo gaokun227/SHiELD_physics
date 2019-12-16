@@ -153,9 +153,9 @@
       integer, save :: isolar  = 0   
 
 !> external solar constant data table,solarconstant_noaa_a0.txt
-      character, save :: solar_file*26 
+      character, save :: solar_file*32 
 !     data solar_file   / 'solarconstantdata.txt     ' /
-      data solar_file   / 'solarconstant_noaa_a0.txt ' /
+      data solar_file   / 'INPUT/solarconstant_noaa_a0.txt ' /
 
 ! ............................................. !
 !> \name  -2.2- For module radiation_aerosols   
@@ -189,9 +189,9 @@
 !!\n =.false.:volcanic aerosol effect is not included in radiation
       logical, save :: lavoflg = .true. 
 !> external aerosols data file: aerosol.dat
-      character, save :: aeros_file*26  
+      character, save :: aeros_file*32  
 !     data aeros_file   / 'climaeropac_global.txt    ' /
-      data aeros_file   / 'aerosol.dat               ' /
+      data aeros_file   / 'INPUT/aerosol.dat               ' /
 
 ! ............................................. !
 !> \name  -2.3- For module radiation_gases 
@@ -219,17 +219,17 @@
 !!      variable at initial time)
       integer, save :: ioznflg = 1      
 !> external co2 2d monthly obsv data table: co2historicaldata_2004.txt
-      character, save :: co2dat_file*26 
+      character, save :: co2dat_file*32 
 !> external co2 global annual mean data tb: co2historicaldata_glob.txt
-      character, save :: co2gbl_file*26 
+      character, save :: co2gbl_file*32 
 !> external co2 user defined data table: co2userdata.txt 
-      character, save :: co2usr_file*26 
+      character, save :: co2usr_file*32 
 !> external co2 clim monthly cycle data tb: co2monthlycyc.txt
-      character, save :: co2cyc_file*26
-      data co2dat_file   / 'co2historicaldata_2004.txt' /   !year is run-time selected
-      data co2gbl_file   / 'co2historicaldata_glob.txt' /
-      data co2usr_file   / 'co2userdata.txt           ' /
-      data co2cyc_file   / 'co2monthlycyc.txt         ' /
+      character, save :: co2cyc_file*32
+      data co2dat_file   / 'INPUT/co2historicaldata_2004.txt' /   !year is run-time selected
+      data co2gbl_file   / 'INPUT/co2historicaldata_glob.txt' /
+      data co2usr_file   / 'INPUT/co2userdata.txt           ' /
+      data co2cyc_file   / 'INPUT/co2monthlycyc.txt         ' /
 
 ! ............................................. !
 !>\name  -2.4- For module radiation_clouds 
@@ -278,8 +278,8 @@
       integer, save :: iemsflg = 0     
 
 !> external sfc emissivity data table: sfc_emissivity_idx.txt
-      character, save :: semis_file*26  
-      data semis_file   / 'sfc_emissivity_idx.txt    ' /
+      character, save :: semis_file*32  
+      data semis_file   / 'INPUT/sfc_emissivity_idx.txt    ' /
 
 ! ............................................. !
 !> \name  -2.6- general purpose     

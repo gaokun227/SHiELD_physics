@@ -48,7 +48,10 @@ module physics_restart_layer
     nblks = size(Init_parm%blksz)
     max_rstrt = size(IPD_Restart%name2d)
 
-    IPD_Restart%num2d = 3 + 10 + Model%ntot2d + Model%nctp
+    !TODO lmh 14 jan 2020
+    ! The MLO variables should really be saved in sfc_restart
+    !  and not phy_restart.
+    IPD_Restart%num2d = 5 + 10 + Model%ntot2d + Model%nctp
     IPD_Restart%num3d = Model%ntot3d
 
     allocate (IPD_Restart%name2d(IPD_Restart%num2d))
@@ -68,10 +71,23 @@ module physics_restart_layer
       IPD_Restart%data(nb,3)%var2p => Cldprop(nb)%cvb(:)
     enddo
 
+    !--- Mixed-layer ocean variables
     offset = 3
     IPD_Restart%name2d(1+offset) = 'ts_som'
     do nb = 1,nblks
       IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%ts_som(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'tsclim'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%tsclim(:)
+    enddo
+
+    offset = offset + 1
+    IPD_Restart%name2d(1+offset) = 'mldclim'
+    do nb = 1,nblks
+      IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%mldclim(:)
     enddo
 
     offset = offset + 1
@@ -128,6 +144,9 @@ module physics_restart_layer
       IPD_Restart%data(nb,1+offset)%var2p => Sfcprop(nb)%tmoml0(:)
     enddo
 
+    !TODO lmh 14 jan 2020
+    ! Most of the phy_restart variables are redundant with the
+    !  tracers saved in the dynamics, and are not needed.
     !--- phy_f2d variables
     offset = offset + 1
     do num = 1,Model%ntot2d

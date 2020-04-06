@@ -41,7 +41,8 @@
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,dspfac,bl_upfr,bl_dnfr,dkt_out)
+     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzm_lim,xkzm_fac,xkgdx,
+     &     dspfac,bl_upfr,bl_dnfr,dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -58,6 +59,7 @@
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, dspfac,
      &                     bl_upfr, bl_dnfr
+      real(kind=kind_phys) xkzm_fac, xkzm_lim
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
@@ -203,7 +205,7 @@
       parameter(qmin=1.e-8,qlmin=1.e-12,zfmin=1.e-8)
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
-      parameter(dw2min=1.e-4,dkmax=1000.,xkgdx=5000.)
+      parameter(dw2min=1.e-4,dkmax=1000.)
       parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.1)
       parameter(h1=0.33333333)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
@@ -300,15 +302,15 @@
         tx1(i) = 1.0 / prsi(i,1)
         tx2(i) = tx1(i)
         if(gdx(i) >= xkgdx) then
-          xkzm_hx(i) = xkzm_h
-          xkzm_mx(i) = xkzm_m
+          xkzm_hx(i) = xkzm_h * xkzm_fac
+          xkzm_mx(i) = xkzm_m * xkzm_fac
         else
           tem  = 1. / (xkgdx - 5.)
-          tem1 = (xkzm_h - 0.01) * tem
-          tem2 = (xkzm_m - 0.01) * tem
+          tem1 = (xkzm_h - xkzm_lim) * tem
+          tem2 = (xkzm_m - xkzm_lim) * tem
           ptem = gdx(i) - 5.
-          xkzm_hx(i) = 0.01 + tem1 * ptem
-          xkzm_mx(i) = 0.01 + tem2 * ptem
+          xkzm_hx(i) = xkzm_lim + tem1 * ptem
+          xkzm_mx(i) = xkzm_lim + tem2 * ptem
         endif
       enddo
       do k = 1,km1

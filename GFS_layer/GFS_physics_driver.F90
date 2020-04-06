@@ -1489,7 +1489,8 @@ module module_physics_driver
                    stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
-                   kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, dkt)
+                   kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                   Model%xkzm_lim, Model%xkzm_fac, Model%xkgdx, dkt)
 
              elseif (Model%isatmedmf == 1) then   
                 ! updated version of satmedmfvdif (May 2019) modified by kgao
@@ -1504,6 +1505,7 @@ module module_physics_driver
                        Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                        Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                        kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                       Model%xkzm_lim, Model%xkzm_fac, Model%xkgdx,                 &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
         endif
 

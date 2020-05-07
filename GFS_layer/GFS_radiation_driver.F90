@@ -1212,7 +1212,7 @@
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levr+LTP) :: &
            htswc, htlwc, gcice, grain, grime, htsw0, htlw0, plyr, tlyr,    &
            qlyr, olyr, rhly, tvly,qstl, vvel, clw, ciw, prslk1, tem2da,    &
-           tem2db, cldcov, deltaq, cnvc, cnvw
+           tem2db, cldcov, deltaq, cnvc, cnvw, qa
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levr+1+LTP) :: plvl, tlvl
 
@@ -1594,13 +1594,18 @@
                          Sfcprop%slmsk, tracer1(:,1:lmk,Model%ntclamt),&
                          im, lmk, lmp, clouds, cldsa, mtopa, mbota)    !  ---  outputs
           else
+          if (Model%ntal .gt. 0) then
+              qa(:,:) = tracer1(:,1:lmk,Model%ntal)
+          else
+              qa(:,:) = tracer1(:,1:lmk,1) * 0.0
+          endif
           call progcld6 (plyr, plvl, tlyr, tvly, qlyr, qstl, rhly,&    !  ---  inputs
                          clw, cnvw, cnvc, Grid%xlat, Grid%xlon,   &
                          tracer1(:,1:lmk,Model%ntcw), &
                          tracer1(:,1:lmk,Model%ntrw), &
                          tracer1(:,1:lmk,Model%ntiw), &
                          tracer1(:,1:lmk,Model%ntsw), &
-                         tracer1(:,1:lmk,Model%ntgl), &
+                         tracer1(:,1:lmk,Model%ntgl), qa, &
                          Sfcprop%slmsk, Sfcprop%snowd, &
                          tracer1(:,1:lmk,Model%ntclamt),&
                          im, lmk, lmp, clouds, cldsa, mtopa, mbota)    !  ---  outputs

@@ -1597,7 +1597,7 @@
           if (Model%ntal .gt. 0) then
               qa(:,:) = tracer1(:,1:lmk,Model%ntal)
           else
-              qa(:,:) = tracer1(:,1:lmk,1) * 0.0
+              qa(:,:) = tracer1(:,1:lmk,2) * 0.0
           endif
           call progcld6 (plyr, plvl, tlyr, tvly, qlyr, qstl, rhly,&    !  ---  inputs
                          clw, cnvw, cnvc, Grid%xlat, Grid%xlon,   &

@@ -474,11 +474,13 @@ module module_physics_driver
 !
 
 #ifdef fvGFS_2017
-      real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::             &
-          area, land, rain0, snow0, ice0, graupel0, cond0, dep0
+      real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::           &
+          area, land, rain0, snow0, ice0, graupel0, cond0, dep0,        &
+          reevap0, sub0
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          gsize, hs, land, rain0, snow0, ice0, graupel0, cond0, dep0
+          gsize, hs, land, rain0, snow0, ice0, graupel0, cond0, dep0,   &
+          reevap0, sub0
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -3147,6 +3149,8 @@ module module_physics_driver
         graupel0 (:,1)   = 0.0
         cond0    (:,1)   = 0.0
         dep0     (:,1)   = 0.0
+        reevap0  (:,1)   = 0.0
+        sub0     (:,1)   = 0.0
         qn1      (:,1,:) = 0.0
         qv_dt    (:,1,:) = 0.0
         ql_dt    (:,1,:) = 0.0
@@ -3221,6 +3225,8 @@ module module_physics_driver
         graupel0  = 0.0
         cond0     = 0.0
         dep0      = 0.0
+        reevap0   = 0.0
+        sub0      = 0.0
         qnl1      = 0.0
         qni1      = 0.0
         do k = 1, levs
@@ -3237,7 +3243,7 @@ module module_physics_driver
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, rain0, snow0, ice0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                                .false., te(:,levs:1:-1), cond0, dep0, .true., Model%do_inline_mp)
+                                .false., te(:,levs:1:-1), cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         rain0(:)    = rain0(:)    * tem

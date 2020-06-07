@@ -47,6 +47,9 @@ use mpp_mod,            only: input_nml_file
 #else
 use fms_mod,            only: open_namelist_file
 #endif
+
+use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
+
 use       fms_mod,     only: file_exist, check_nml_error,               &
                              error_mesg, fms_init, fms_end, close_file, &
                              write_version_number, uppercase
@@ -110,14 +113,11 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    integer :: atmos_nthreads = 1
    logical :: memuse_verbose = .false.
    logical :: use_hyper_thread = .false.
-   logical :: debug_affinity = .false.
-   integer :: ncores_per_node = 0
 
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                           months, days, hours, minutes, seconds,  &
-                          dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, & 
-                          use_hyper_thread, ncores_per_node, debug_affinity, &
-                          restart_secs, restart_days
+                          dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, &
+                          use_hyper_thread, restart_secs, restart_days
 
 ! ----- local variables -----
    character(len=32) :: timestamp
@@ -132,6 +132,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
   
  call fms_init
  call constants_init
+ call fms_affinity_init
  call sat_vapor_pres_init
 
  call coupler_init
@@ -204,7 +205,7 @@ contains
     
     logical, allocatable, dimension(:,:) :: mask
     real,    allocatable, dimension(:,:) :: glon_bnd, glat_bnd
-    integer :: omp_get_thread_num, get_cpu_affinity, base_cpu
+
 !-----------------------------------------------------------------------
 !----- initialization timing identifiers ----
 
@@ -284,6 +285,10 @@ contains
         end select
 
  endif
+
+    !--- setting affinity
+!$  call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+!$  call omp_set_num_threads(atmos_nthreads)
 
     call set_calendar_type (calendar_type)
 

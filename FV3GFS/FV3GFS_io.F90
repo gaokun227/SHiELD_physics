@@ -3228,7 +3228,7 @@ module FV3GFS_io_mod
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
   subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, &
-                             nx, ny, levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr)
+                             nx, ny, levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr, prt_stats)
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
 !rab    type(diagnostics),         intent(in) :: Gfs_diag
@@ -3240,6 +3240,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
     real(kind=kind_phys),      intent(in) :: fhswr, fhlwr
+    logical,                   intent(in) :: prt_stats
 !--- local variables
     integer :: i, j, k, idx, nblks, nb, ix, ii, jj, kflip
     integer :: is_in, js_in, isc, jsc
@@ -3341,6 +3342,8 @@ module FV3GFS_io_mod
            endif
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
            used=send_data(Diag(idx)%id, var2, Time)
+
+           if (prt_stats) then
            !!!! Accumulated diagnostics --- lmh 19 sep 17
            select case (trim(Diag(idx)%name))
            case('totprcp')
@@ -3371,6 +3374,7 @@ module FV3GFS_io_mod
               call prt_gb_nh_sh_us('SST max ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MAX')
               call prt_gb_nh_sh_us('SST min ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MIN')
            end select
+           endif
          elseif (Diag(idx)%axes == 3) then
            !--- dt3dt variables ---- restored 16 feb 18 lmh
             do k=1,levs
@@ -3601,16 +3605,17 @@ module FV3GFS_io_mod
      !elseif( area_gb <= 4.*pi*RADIUS*RADIUS*.98) then
      !   write(diagstr1,101) 'Grid', t_gb/area_gb*fac
      !else
+     if (area_gb <= 1.e-6) return
      write(diagstr1,101) 'GB', t_gb/area_gb*fac
      !endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_nh <= 1.e-6 .or. area_nh == area_gb) then
+     if (area_nh <= 1.e-6 ) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'NH', t_nh/area_nh*fac
      endif
      diagstr = trim(diagstr) // trim(diagstr1)
-     if (area_sh <= 1.e-6 .or. area_sh == area_gb) then
+     if (area_sh <= 1.e-6 ) then
         diagstr1 = ''
      else
         write(diagstr1,101) 'SH', t_sh/area_sh*fac

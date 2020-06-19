@@ -138,7 +138,8 @@ logical :: debug           = .false.
 logical :: sync            = .false.
 logical :: first_time_step = .true.
 real, dimension(4096) :: fdiag = 0. ! xic: TODO: this is hard coded, space can run out in some cases. Should make it allocatable.
-namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag
+logical :: fdiag_override = .false. ! lmh: if true overrides fdiag and fhzer: all quantities are zeroed out after every calcluation, output interval and accumulation/avg/max/min are controlled by diag_manager, fdiag controls output interval only
+namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag, fdiag_override
 type (time_type) :: diag_time
 logical :: fdiag_fix = .false.
 
@@ -458,13 +459,19 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    !--- get fdiag
 #ifdef GFS_PHYS
 !--- check fdiag to see if it is an interval or a list
-   if (nint(fdiag(2)) == 0) then
-     fdiag_fix = .true.
-     do i = 2, size(fdiag,1)
-       fdiag(i) = fdiag(i-1) + fdiag(1)
-     enddo
+   if (fdiag_override) then
+      if (mpp_pe() == mpp_root_pe()) write(6,*) "---OVERRIDING fdiag: USING SETTINGS IN diag_table for GFS PHYSICS DIAGS"
+      IPD_Control%fhzero = dt_phys / 3600.
+      if (mpp_pe() == mpp_root_pe()) write(6,*) "---fhzero IS SET TO dt_atmos: ALL DIAGNOSTICS ARE SINGLE-STEP"
+   else
+      if (nint(fdiag(2)) == 0) then
+         fdiag_fix = .true.
+         do i = 2, size(fdiag,1)
+            fdiag(i) = fdiag(i-1) + fdiag(1)
+         enddo
+      endif
+      if (mpp_pe() == mpp_root_pe()) write(6,*) "---fdiag",fdiag(1:40)
    endif
-   if (mpp_pe() == mpp_root_pe()) write(6,*) "---fdiag",fdiag(1:40)
 #endif
 
    setupClock = mpp_clock_id( 'GFS Step Setup        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
@@ -530,12 +537,13 @@ subroutine update_atmos_model_state (Atmos)
     call get_time (Atmos%Time - Atmos%Time_init, seconds)
 !LZ if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
 !LZ if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1) ) then
-    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. (IPD_Control%kdt == 1 .and. first_time_step) ) then
+    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. (IPD_Control%kdt == 1 .and. first_time_step) .or. fdiag_override ) then
       time_int = real(isec)
-      if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
+      if (mpp_pe() == mpp_root_pe() .and. .not. fdiag_override) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call atmosphere_nggps_diag(Atmos%Time)
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, &
-                            IPD_Control%levs, 1, 1, 1.d0, time_int, IPD_Control%fhswr, IPD_Control%fhlwr)
+                            IPD_Control%levs, 1, 1, 1.d0, time_int, IPD_Control%fhswr, IPD_Control%fhlwr, &
+                            mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0)
       call diag_send_complete_instant (Atmos%Time)
       if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif

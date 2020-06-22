@@ -31,17 +31,18 @@
 !      goal: to allow for tke advection
 !    change: rearange tracers (q1) and their tendencies (rtg)
 !            tke no longer needs to be the last tracer
-!  3) Jan 2019 by Kun Gao (GFDL)
-!     minor changes to be consistent with EMC's lastest code (reduce background diff.) 
-
+!  3) Jan 2020 by Kun Gao (GFDL)
+!     add rlmn2 parameter (set to 10.) to be consistent with EMC's version 
+!  4) Jun 2020 by Kun Gao (GFDL)
+!     do not apply low-limter on background diff. over land points
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
-     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,
+     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzm_lim,xkzm_fac,xkgdx,
+     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzinv,xkzm_lim,xkzm_fac,xkgdx,
      &     dspfac,bl_upfr,bl_dnfr,dkt_out)
 !
       use machine  , only : kind_phys
@@ -55,7 +56,7 @@
 !
 !----------------------------------------------------------------------
       integer ix, im, km, ntrac, ntcw, ntiw, ntke, ntcw_new
-      integer kpbl(im), kinver(im)
+      integer kpbl(im), kinver(im), islimsk(im)
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, dspfac,
      &                     bl_upfr, bl_dnfr
@@ -206,7 +207,7 @@
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
       parameter(dw2min=1.e-4,dkmax=1000.)
-      parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.1)
+      parameter(qlcr=3.5e-5,zstblmax=2500.) !,xkzinv=0.1)
       parameter(h1=0.33333333)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
       parameter(ce0=0.4)
@@ -748,7 +749,7 @@
 !         tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
 !         if(tem1 > 1.e-5) then
           tem1 = tvx(i,k+1)-tvx(i,k)
-          if(tem1 > 0.) then
+          if(tem1 > 0. .and. islimsk(i) /= 1 ) then ! kgao note: do not apply low-limter over land points 
              xkzo(i,k)  = min(xkzo(i,k), xkzinv)
              xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
              rlmnz(i,k) = min(rlmnz(i,k), rlmn2)

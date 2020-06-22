@@ -15,12 +15,14 @@
 !
 !----------------------------------------------------------------------
       subroutine satmedmfvdif(ix,im,km,ntrac,ntcw,ntiw,ntke,
-     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,
+     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
      &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzm_lim,xkzm_fac,xkgdx,dkt_out)
+     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzinv,xkzm_lim,xkzm_fac,xkgdx,
+     &     rlmn, rlmx, lim_land, dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -33,7 +35,7 @@
 !
 !----------------------------------------------------------------------
       integer ix, im, km, ntrac, ntcw, ntiw, ntke, ntcw_new
-      integer kpbl(im), kinver(im)
+      integer kpbl(im), kinver(im), islimsk(im)
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, xkzm_lim
       real(kind=kind_phys) xkzm_fac
@@ -60,7 +62,7 @@
 ! kgao note - q1 and rtg are local var now
 
 !
-      logical dspheat
+      logical dspheat, lim_land
 !          flag for tke dissipative heating
       real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
 
@@ -174,7 +176,7 @@
       parameter(gamcrt=3.,gamcrq=0.,sfcfrac=0.1)
       parameter(vk=0.4,rimin=-100.)
       parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
-      parameter(rlmn=30.,rlmx=500.,elmx=500.)
+      !parameter(rlmn=30.,rlmx=500.,elmx=500.)
       parameter(prmin=0.25,prmax=4.0,prtke=1.0,prscu=0.67)
       parameter(f0=1.e-4,crbmin=0.15,crbmax=0.35)
       parameter(tkmin=1.e-9,dspfac=0.5,dspmax=10.0)
@@ -182,10 +184,12 @@
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
       parameter(dw2min=1.e-4,dkmax=1000.)
-      parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.15)
+      parameter(qlcr=3.5e-5,zstblmax=2500.) !,xkzinv=0.15)
       parameter(h1=0.33333333)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15,ce0=0.4)
       parameter(rchck=1.5,cdtn=25.)
+
+      elmx = rlmx
 !
 !************************************************************************
 !
@@ -366,10 +370,21 @@
       do k = 1,km1
         do i=1,im
           tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
-          if(tem1 > 1.e-5) then
-             xkzo(i,k)  = min(xkzo(i,k),xkzinv)
-             xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
-          endif
+
+          if (lim_land) then
+            if(tem1 > 1.e-5) then
+               xkzo(i,k)  = min(xkzo(i,k),xkzinv)
+               xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
+            endif
+          else 
+            ! kgao note: do not apply low-limiter over land points 
+            ! (consistent with change in satmedmfdifq.f in Jun 2020)
+            if(tem1 > 0. .and. islimsk(i) /= 1 ) then
+               xkzo(i,k)  = min(xkzo(i,k), xkzinv)
+               xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
+            endif
+          endif 
+
         enddo
       enddo
 !

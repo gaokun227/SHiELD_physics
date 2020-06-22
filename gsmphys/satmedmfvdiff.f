@@ -20,7 +20,6 @@
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzm_lim,xkzm_fac,xkgdx,dkt_out)
      &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzinv,xkzm_lim,xkzm_fac,xkgdx,
      &     rlmn, rlmx, lim_land, dkt_out)
 !

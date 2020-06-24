@@ -30,7 +30,10 @@
 !  2) Jul 2019 by Kun Gao (GFDL)
 !      goal: to allow for tke advection
 !    change: rearange tracers (q1) and their tendencies (rtg)
-!            tke no longer needs to be the last tracer 
+!            tke no longer needs to be the last tracer
+!  3) Jan 2019 by Kun Gao (GFDL)
+!     minor changes to be consistent with EMC's lastest code (reduce background diff.) 
+
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,
@@ -166,10 +169,11 @@
      &                     epsi,    beta,   chx,    cqx,
      &                     rdt,     rdz,    qmin,   qlmin,
      &                     rimin,   rbcr,   rbint,  tdzmin,
-     &                     rlmn,    rlmn1,  rlmx,   elmx,
+     &                     rlmn,    rlmn1,  rlmn2,  
+     &                     rlmx,    elmx,
      &                     ttend,   utend,  vtend,  qtend,
      &                     zfac,    zfmin,  vk,     spdk2,
-     &                     tkmin,   xkzinv, xkgdx,
+     &                     tkmin,   tkminx, xkzinv, xkgdx,
      &                     zlup,    zldn,   bsum,
      &                     tem,     tem1,   tem2,
      &                     ptem,    ptem0,  ptem1,  ptem2
@@ -190,15 +194,16 @@
       parameter(gamcrt=3.,gamcrq=0.,sfcfrac=0.1)
       parameter(vk=0.4,rimin=-100.)
       parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
-      parameter(rlmn=30.,rlmn1=5.,rlmx=300.,elmx=300.)
+      parameter(rlmn=30.,rlmn1=5.,rlmn2=10.)
+      parameter(rlmx=300.,elmx=300.)
       parameter(prmin=0.25,prmax=4.0)
       parameter(pr0=1.0,prtke=1.0,prscu=0.67)
       parameter(f0=1.e-4,crbmin=0.15,crbmax=0.35)
-      parameter(tkmin=1.e-9,dspmax=10.0)
+      parameter(tkmin=1.e-9,tkminx=0.2,dspmax=10.0)
       parameter(qmin=1.e-8,qlmin=1.e-12,zfmin=1.e-8)
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
-      parameter(dw2min=1.e-4,dkmax=1000.,xkgdx=25000.)
+      parameter(dw2min=1.e-4,dkmax=1000.,xkgdx=5000.)
       parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.1)
       parameter(h1=0.33333333)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
@@ -718,20 +723,20 @@
 !
 !  background diffusivity decreasing with increasing surface layer stability
 !
-      do i = 1, im
-        if(.not.sfcflg(i)) then
-          tem = (1. + 5. * rbsoil(i))**2.
+!      do i = 1, im
+!        if(.not.sfcflg(i)) then
+!          tem = (1. + 5. * rbsoil(i))**2.
 !         tem = (1. + 5. * zol(i))**2.
-          frik(i) = 0.1 + 0.9 / tem
-        endif
-      enddo
+!          frik(i) = 0.1 + 0.9 / tem
+!        endif
+!      enddo
 !
-      do k = 1,km1
-        do i=1,im
-          xkzo(i,k) = frik(i) * xkzo(i,k)
-          xkzmo(i,k)= frik(i) * xkzmo(i,k)
-        enddo
-      enddo
+!      do k = 1,km1
+!        do i=1,im
+!          xkzo(i,k) = frik(i) * xkzo(i,k)
+!          xkzmo(i,k)= frik(i) * xkzmo(i,k)
+!        enddo
+!      enddo
 !
 ! The background vertical diffusivities in the inversion layers are limited 
 !    to be less than or equal to xkzminv
@@ -742,8 +747,9 @@
 !         if(tem1 > 1.e-5) then
           tem1 = tvx(i,k+1)-tvx(i,k)
           if(tem1 > 0.) then
-             xkzo(i,k)  = min(xkzo(i,k),xkzinv)
-             xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
+             xkzo(i,k)  = min(xkzo(i,k), xkzinv)
+             xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
+             rlmnz(i,k) = min(rlmnz(i,k), rlmn2)
           endif
         enddo
       enddo
@@ -911,13 +917,14 @@
         do i = 1, im
           if(k == 1) then
             tem = ckz(i,1)
-            tem1 = xkzmo(i,1)
+            tem1 = 0.5 * xkzmo(i,1)
           else
             tem = 0.5 * (ckz(i,k-1) + ckz(i,k))
             tem1 = 0.5 * (xkzmo(i,k-1) + xkzmo(i,k))
           endif
           ptem = tem1 / (tem * elm(i,k))
           tkmnz(i,k) = ptem * ptem
+          tkmnz(i,k) = min(tkmnz(i,k), tkminx)
           tkmnz(i,k) = max(tkmnz(i,k), tkmin)
         enddo
       enddo

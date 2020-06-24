@@ -1506,7 +1506,7 @@ module module_physics_driver
                        Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                        Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                        kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
-                       Model%xkzminv,
+                       Model%xkzminv,                                               &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
         endif
 

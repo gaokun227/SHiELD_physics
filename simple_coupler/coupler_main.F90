@@ -285,21 +285,6 @@ contains
 
  endif
 
-!$      base_cpu = get_cpu_affinity()
-!$      call omp_set_num_threads(atmos_nthreads)
-!$OMP PARALLEL NUM_THREADS(atmos_nthreads)
-!$      if(omp_get_thread_num() < atmos_nthreads/2 .OR. (.not. use_hyper_thread)) then  
-!$         call set_cpu_affinity(base_cpu + omp_get_thread_num())
-!$      else
-!$         call set_cpu_affinity(base_cpu + omp_get_thread_num() + &
-!$                               ncores_per_node - atmos_nthreads/2) 
-!$      endif
-!$      if (debug_affinity) then
-!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL
-
     call set_calendar_type (calendar_type)
 
 !----- write current/initial date actually used to logfile file -----

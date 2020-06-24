@@ -1483,13 +1483,15 @@ module module_physics_driver
                    Model%ntcw, Model%ntiw, Model%ntke,                          &
                    dvdt, dudt, dtdt, dqdt,                                      &
                    Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
-                   Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                   Radtend%htrsw, Radtend%htrlw, xmu, garea, islmsk,            &
                    Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                    Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
                    stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
-                   kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, dkt)
+                   kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                   Model%xkzminv, Model%xkzm_lim, Model%xkzm_fac, Model%xkgdx,  &
+                   Model%rlmn, Model%rlmx, Model%lim_land, dkt)
 
              elseif (Model%isatmedmf == 1) then   
                 ! updated version of satmedmfvdif (May 2019) modified by kgao
@@ -1497,13 +1499,14 @@ module module_physics_driver
                        Model%ntcw, Model%ntiw, Model%ntke,                          &
                        dvdt, dudt, dtdt, dqdt,                                      &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
-                       Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                       Radtend%htrsw, Radtend%htrlw, xmu, garea, islmsk,            &
                        Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                        Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
                        stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
                        Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                        Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                        kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                       Model%xkzminv,
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
         endif
 

@@ -32,7 +32,7 @@ module FV3GFS_io_mod
   use namelist_soilveg,   only: salp_data, snupx
 !
 !--- GFS_typedefs
-  use GFS_typedefs,       only: GFS_sfcprop_type, GFS_diag_type, GFS_grid_type
+  use GFS_typedefs,       only: GFS_sfcprop_type, GFS_diag_type , GFS_grid_type
   use ozne_def,           only: oz_coeff
 !
 !--- IPD typdefs

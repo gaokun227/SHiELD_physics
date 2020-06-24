@@ -27,14 +27,17 @@
 !           change of updraft top height calculation,
 !           reduce the background diffusivity with increasing surface layer stability (for inversion)
 
-!  2) Jul 2019 by Kun Gao (GFDL)
+!  2) Jul 2019 by Kun Gao (GFDL; kun.gao@noaa.gov)
 !      goal: to allow for tke advection
 !    change: rearange tracers (q1) and their tendencies (rtg)
 !            tke no longer needs to be the last tracer
-!  3) Jan 2020 by Kun Gao (GFDL)
+!  3) Nov 2019 by Kun Gao
+!     turn off non-local mixing for hydrometers to avoid unphysical negative values 
+!  4) Jan 2020 by Kun Gao 
 !     add rlmn2 parameter (set to 10.) to be consistent with EMC's version 
-!  4) Jun 2020 by Kun Gao (GFDL)
-!     do not apply low-limter on background diff. over land points
+!  5) Jun 2020 by Kun Gao
+!     do not apply upper-limter on background diff. in inversion layer
+!     over land points to be consistent with EMC's version
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
@@ -749,7 +752,7 @@
 !         tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
 !         if(tem1 > 1.e-5) then
           tem1 = tvx(i,k+1)-tvx(i,k)
-          if(tem1 > 0. .and. islimsk(i) /= 1 ) then ! kgao note: do not apply low-limter over land points 
+          if(tem1 > 0. .and. islimsk(i) /= 1 ) then ! kgao note: do not apply limter over land points 
              xkzo(i,k)  = min(xkzo(i,k), xkzinv)
              xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
              rlmnz(i,k) = min(rlmnz(i,k), rlmn2)

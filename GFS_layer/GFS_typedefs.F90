@@ -512,13 +512,16 @@ module GFS_typedefs
     logical              :: satmedmf        !< flag for scale-aware TKE-based moist edmf
                                             !< vertical turbulent mixing scheme
     logical              :: no_pbl          !< disable PBL (for LES)
-    logical              :: lim_land        !< flag for applying low-limter on background diff over land in satmedmfdiff.f 
+    logical              :: cap_k0_land     !< flag for applying limter on background diff in inversion layer over land in satmedmfdiff.f 
+    logical              :: do_dk_hb19      !< flag for using hb19 background diff formula in satmedmfdiff.f 
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
     real(kind=kind_phys) :: afac_canopy     !< tunable enhancement factor for canopy heat storage parameterization
     real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_m_land     !< [in] bkgd_vdif_m  background vertical diffusion for momentum for land points  
+    real(kind=kind_phys) :: xkzm_h_land     !< [in] bkgd_vdif_h  background vertical diffusion for heat q for land points 
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim        !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac        !< [in] background vertical diffusion factor
@@ -1635,13 +1638,16 @@ module GFS_typedefs
     logical              :: satmedmf       = .false.                  !< flag for scale-aware TKE-based moist edmf
                                                                       !< vertical turbulent mixing scheme
     logical              :: no_pbl         = .false.                  !< disable PBL (for LES)
-    logical              :: lim_land       = .true.                   !< flag for applying low-limter on background diff over land in satmedmfdiff.f 
+    logical              :: cap_k0_land    = .true.                   !< flag for applying limter on background diff in inversion 
+    logical              :: do_dk_hb19     = .false.                  !< flag for using hb19 formula for background diff
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
     real(kind=kind_phys) :: afac_canopy    = 1.0d0                    !< tunable enhancement factor for canopy heat storage parameterization
     real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_m_land    = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
+    real(kind=kind_phys) :: xkzm_h_land    = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim       = 0.01                     !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac       = 1.0                      !< [in] background vertical diffusion factor
@@ -1791,7 +1797,8 @@ module GFS_typedefs
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx, rlmx, rlmn,       &
-                               xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, dspfac,         &
+                               xkzm_m, xkzm_h, xkzm_m_land, xkzm_h_land,                    &
+                               xkzm_s, xkzminv, moninq_fac, dspfac,                         &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
                                ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
                                tnl_fac, qnl_fac, unl_fac,                                   &
@@ -1799,7 +1806,7 @@ module GFS_typedefs
                                do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,satmedmf,         &
-                               lim_land, cloud_gfdl,gwd_p_crit,                             &
+                               cap_k0_land,do_dk_hb19,cloud_gfdl,gwd_p_crit,                &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1990,13 +1997,16 @@ module GFS_typedefs
     Model%ysupbl           = ysupbl
     Model%satmedmf         = satmedmf 
     Model%no_pbl           = no_pbl
-    Model%lim_land         = lim_land 
+    Model%cap_k0_land      = cap_k0_land
+    Model%do_dk_hb19       = do_dk_hb19
     Model%dspheat          = dspheat
     Model%lheatstrg        = lheatstrg
     Model%hour_canopy      = hour_canopy
     Model%afac_canopy      = afac_canopy
     Model%xkzm_m           = xkzm_m
     Model%xkzm_h           = xkzm_h
+    Model%xkzm_m_land      = xkzm_m_land
+    Model%xkzm_h_land      = xkzm_h_land
     Model%xkzm_s           = xkzm_s
     Model%xkzm_lim         = xkzm_lim
     Model%xkzm_fac         = xkzm_fac
@@ -2516,13 +2526,16 @@ module GFS_typedefs
       print *, ' ysupbl            : ', Model%ysupbl
       print *, ' satmedmf          : ', Model%satmedmf
       print *, ' no_pbl            : ', Model%no_pbl
-      print *, ' lim_land          : ', Model%lim_land
+      print *, ' cap_k0_land       : ', Model%cap_k0_land
+      print *, ' do_dk_hb19        : ', Model%do_dk_hb19
       print *, ' dspheat           : ', Model%dspheat
       print *, ' lheatstrg         : ', Model%lheatstrg
       print *, ' hour_canopy       : ', Model%hour_canopy
       print *, ' afac_canopy       : ', Model%afac_canopy
       print *, ' xkzm_m            : ', Model%xkzm_m
       print *, ' xkzm_h            : ', Model%xkzm_h
+      print *, ' xkzm_m_land       : ', Model%xkzm_m_land
+      print *, ' xkzm_h_land       : ', Model%xkzm_h_land
       print *, ' xkzm_s            : ', Model%xkzm_s
       print *, ' xkzm_lim          : ', Model%xkzm_lim
       print *, ' xkzm_fac          : ', Model%xkzm_fac

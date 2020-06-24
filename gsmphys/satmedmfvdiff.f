@@ -14,14 +14,29 @@
 !  For local turbulence mixing, a TKE closure model is used.
 !
 !----------------------------------------------------------------------
+
+!  ======= Updates at GFDL =======
+!  1) Jul 2019 by Kun Gao
+!      goal: to allow for tke advection
+!    change: rearange tracers (q1) and their tendencies (rtg)
+!            tke no longer needs to be the last tracer
+!  2) Nov 2019 by Kun Gao
+!     turn off non-local mixing for hydrometers to avoid unphysical negative values 
+!  3) Jun 2020 by Kun Gao
+!     a) add option for turn off upper-limter on background diff. in inversion layer
+!        over land points (cap_k0_land)
+!     b) use different xkzm_m,xkzm_h for land and ocean points
+!     c) add option to use HB19 formula for surface backgroud diff. (do_dk_hb19)  
+
       subroutine satmedmfvdif(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzinv,xkzm_lim,xkzm_fac,xkgdx,
-     &     rlmn, rlmx, lim_land, dkt_out)
+     &     kinver,xkzm_m,xkzm_h,xkzm_m_land,xkzm_h_land,
+     &     xkzm_s,xkzinv,do_dk_hb19,xkzm_lim,xkgdx,
+     &     rlmn, rlmx, cap_k0_land, dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -37,7 +52,7 @@
       integer kpbl(im), kinver(im), islimsk(im)
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, xkzm_lim
-      real(kind=kind_phys) xkzm_fac
+      real(kind=kind_phys) xkzm_m_land, xkzm_h_land
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
@@ -61,7 +76,7 @@
 ! kgao note - q1 and rtg are local var now
 
 !
-      logical dspheat, lim_land
+      logical dspheat, cap_k0_land, do_dk_hb19
 !          flag for tke dissipative heating
       real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
 
@@ -265,7 +280,8 @@
           prn(i,k)  = 1.0
         enddo
       enddo
-!
+
+! Han and Bretherton, 2019  
 ! set background diffusivities as a function of
 !  horizontal grid size with xkzm_h & xkzm_m for gdx >= 25km
 !  and 0.01 for gdx=5m, i.e.,
@@ -276,18 +292,46 @@
         kx1(i) = 1
         tx1(i) = 1.0 / prsi(i,1)
         tx2(i) = tx1(i)
-        if(gdx(i) >= xkgdx) then
-          xkzm_hx(i) = xkzm_h * xkzm_fac
-          xkzm_mx(i) = xkzm_m * xkzm_fac
-        else
-          tem  = 1. / (xkgdx - 5.)
-          tem1 = (xkzm_h - xkzm_lim) * tem
-          tem2 = (xkzm_m - xkzm_lim) * tem
-          ptem = gdx(i) - 5.
-          xkzm_hx(i) = xkzm_lim + tem1 * ptem
-          xkzm_mx(i) = xkzm_lim + tem2 * ptem
+
+        ! set surface value of background diff (dk) below  
+
+        if (do_dk_hb19) then ! use eq43 in HB2019
+
+          if(gdx(i) >= xkgdx) then ! resolution coarser than xkgdx
+            if( islimsk(i) == 1 ) then ! land points
+              xkzm_hx(i) = xkzm_h_land
+              xkzm_mx(i) = xkzm_m_land
+            else
+              xkzm_hx(i) = xkzm_h
+              xkzm_mx(i) = xkzm_m
+            endif
+          else                    ! resolution finer than xkgdx
+            tem  = 1. / (xkgdx - 5.)
+            if ( islimsk(i) == 1 ) then ! land points
+              tem1 = (xkzm_h_land - xkzm_lim) * tem
+              tem2 = (xkzm_m_land - xkzm_lim) * tem
+            else   
+              tem1 = (xkzm_h - xkzm_lim) * tem
+              tem2 = (xkzm_m - xkzm_lim) * tem
+            endif
+            ptem = gdx(i) - 5.
+            xkzm_hx(i) = xkzm_lim + tem1 * ptem
+            xkzm_mx(i) = xkzm_lim + tem2 * ptem
+          endif
+
+        else ! use values in the namelist; no res dependency
+
+          if ( islimsk(i) == 1 ) then ! land points
+              xkzm_hx(i) = xkzm_h_land
+              xkzm_mx(i) = xkzm_m_land 
+          else
+              xkzm_hx(i) = xkzm_h 
+              xkzm_mx(i) = xkzm_m 
+          endif
+
         endif
       enddo
+
       do k = 1,km1
         do i=1,im
           xkzo(i,k)  = 0.0
@@ -370,13 +414,13 @@
         do i=1,im
           tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
 
-          if (lim_land) then
+          if (cap_k0_land) then
             if(tem1 > 1.e-5) then
                xkzo(i,k)  = min(xkzo(i,k),xkzinv)
                xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
             endif
           else 
-            ! kgao note: do not apply low-limiter over land points 
+            ! kgao note: do not apply upper-limiter over land points 
             ! (consistent with change in satmedmfdifq.f in Jun 2020)
             if(tem1 > 0. .and. islimsk(i) /= 1 ) then
                xkzo(i,k)  = min(xkzo(i,k), xkzinv)

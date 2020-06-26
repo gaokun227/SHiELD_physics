@@ -34,7 +34,7 @@ use time_manager_mod,  only: time_type, set_calendar_type, set_time,    &
                              operator (*), THIRTY_DAY_MONTHS, JULIAN,   &
                              NOLEAP, NO_CALENDAR, date_to_string,       &
                              get_date
- 
+
 use  atmos_model_mod,  only: atmos_model_init, atmos_model_end,  &
                              update_atmos_model_dynamics,        &
                              update_atmos_radiation_physics,     &
@@ -47,6 +47,9 @@ use mpp_mod,            only: input_nml_file
 #else
 use fms_mod,            only: open_namelist_file
 #endif
+
+use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
+
 use       fms_mod,     only: file_exist, check_nml_error,               &
                              error_mesg, fms_init, fms_end, close_file, &
                              write_version_number, uppercase
@@ -110,14 +113,11 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    integer :: atmos_nthreads = 1
    logical :: memuse_verbose = .false.
    logical :: use_hyper_thread = .false.
-   logical :: debug_affinity = .false.
-   integer :: ncores_per_node = 0
 
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                           months, days, hours, minutes, seconds,  &
-                          dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, & 
-                          use_hyper_thread, ncores_per_node, debug_affinity, &
-                          restart_secs, restart_days
+                          dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, &
+                          use_hyper_thread, restart_secs, restart_days
 
 ! ----- local variables -----
    character(len=32) :: timestamp
@@ -129,9 +129,10 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
  call mpp_init()
  initClock = mpp_clock_id( 'Initialization' )
  call mpp_clock_begin (initClock) !nesting problem
-  
+
  call fms_init
  call constants_init
+ call fms_affinity_init
  call sat_vapor_pres_init
 
  call coupler_init
@@ -201,10 +202,10 @@ contains
     type (time_type) :: Run_length
     character(len=9) :: month
     logical :: use_namelist
-    
+
     logical, allocatable, dimension(:,:) :: mask
     real,    allocatable, dimension(:,:) :: glon_bnd, glat_bnd
-    integer :: omp_get_thread_num, get_cpu_affinity, base_cpu
+
 !-----------------------------------------------------------------------
 !----- initialization timing identifiers ----
 
@@ -221,7 +222,7 @@ contains
       call error_mesg ('program coupler',  &
                        'namelist file input.nml does not exist', FATAL)
    endif
-   
+
    ierr=1
    do while (ierr /= 0)
        read  (unit, nml=coupler_nml, iostat=io, end=10)
@@ -254,7 +255,7 @@ contains
    998 call mpp_close(unit)
    else
        force_date_from_namelist = .true.
-   endif       
+   endif
 
 !----- use namelist value (either no restart or override flag on) ---
 
@@ -285,20 +286,9 @@ contains
 
  endif
 
-!$      base_cpu = get_cpu_affinity()
-!$      call omp_set_num_threads(atmos_nthreads)
-!$OMP PARALLEL NUM_THREADS(atmos_nthreads)
-!$      if(omp_get_thread_num() < atmos_nthreads/2 .OR. (.not. use_hyper_thread)) then  
-!$         call set_cpu_affinity(base_cpu + omp_get_thread_num())
-!$      else
-!$         call set_cpu_affinity(base_cpu + omp_get_thread_num() + &
-!$                               ncores_per_node - atmos_nthreads/2) 
-!$      endif
-!$      if (debug_affinity) then
-!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL
+    !--- setting affinity
+!$  call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+!$  call omp_set_num_threads(atmos_nthreads)
 
     call set_calendar_type (calendar_type)
 
@@ -308,7 +298,7 @@ contains
       write (stdlog(),16) date(1),trim(month_name(date(2))),date(3:6)
     endif
 
- 16 format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt') 
+ 16 format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt')
 
 !-----------------------------------------------------------------------
 !------ initialize diagnostics manager ------

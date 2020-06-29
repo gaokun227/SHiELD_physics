@@ -36,8 +36,10 @@
 !  4) Jan 2020 by Kun Gao 
 !     add rlmn2 parameter (set to 10.) to be consistent with EMC's version 
 !  5) Jun 2020 by Kun Gao
-!     do not apply upper-limter on background diff. in inversion layer
-!     over land points to be consistent with EMC's version
+!     a) disable the upper-limter on background diff. in inversion layer
+!        over land points to be consistent with EMC's version
+!     b) use different xkzm_m,xkzm_h for land and ocean points
+!     c) add option for turning off HB19 formula for surface backgroud diff. (do_dk_hb19)  
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
@@ -45,8 +47,8 @@
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzinv,
-     &     dspfac,bl_upfr,bl_dnfr,dkt_out)
+     &     kinver,xkzm_m,xkzm_h,xkzm_m_land,xkzm_h_land,xkzm_s,xkzinv,
+     &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -62,7 +64,7 @@
       integer kpbl(im), kinver(im), islimsk(im)
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, dspfac,
-     &                     bl_upfr, bl_dnfr
+     &                     bl_upfr, bl_dnfr, xkzm_m_land, xkzm_h_land
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
@@ -85,7 +87,7 @@
      &                     rtg_in(im,km,ntrac)
 ! kgao note - q1 and rtg are local var now 
 !
-      logical dspheat
+      logical dspheat, do_dk_hb19
 !          flag for tke dissipative heating
       real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
 !
@@ -208,7 +210,7 @@
       parameter(qmin=1.e-8,qlmin=1.e-12,zfmin=1.e-8)
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
-      parameter(dw2min=1.e-4,dkmax=1000.,xkgdx=5000.)
+      parameter(dw2min=1.e-4,dkmax=1000.)!,xkgdx=5000.)
       parameter(qlcr=3.5e-5,zstblmax=2500.) !,xkzinv=0.1)
       parameter(h1=0.33333333)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
@@ -304,17 +306,56 @@
         kx1(i) = 1
         tx1(i) = 1.0 / prsi(i,1)
         tx2(i) = tx1(i)
-        if(gdx(i) >= xkgdx) then
-          xkzm_hx(i) = xkzm_h
-          xkzm_mx(i) = xkzm_m
-        else
-          tem  = 1. / (xkgdx - 5.)
-          tem1 = (xkzm_h - 0.01) * tem
-          tem2 = (xkzm_m - 0.01) * tem
-          ptem = gdx(i) - 5.
-          xkzm_hx(i) = 0.01 + tem1 * ptem
-          xkzm_mx(i) = 0.01 + tem2 * ptem
+
+        ! kgao change - set surface value of background diff (dk) below
+
+        !if(gdx(i) >= xkgdx) then
+        !  xkzm_hx(i) = xkzm_h
+        !  xkzm_mx(i) = xkzm_m
+        !else
+        !  tem  = 1. / (xkgdx - 5.)
+        !  tem1 = (xkzm_h - 0.01) * tem
+        !  tem2 = (xkzm_m - 0.01) * tem
+        !  ptem = gdx(i) - 5.
+        !  xkzm_hx(i) = 0.01 + tem1 * ptem
+        !  xkzm_mx(i) = 0.01 + tem2 * ptem
+        !endif
+
+        if (do_dk_hb19) then ! use eq43 in HB2019
+
+          if(gdx(i) >= xkgdx) then ! resolution coarser than xkgdx
+            if( islimsk(i) == 1 ) then ! land points
+              xkzm_hx(i) = xkzm_h_land
+              xkzm_mx(i) = xkzm_m_land
+            else
+              xkzm_hx(i) = xkzm_h
+              xkzm_mx(i) = xkzm_m
+            endif
+          else                    ! resolution finer than xkgdx
+            tem  = 1. / (xkgdx - 5.)
+            if ( islimsk(i) == 1 ) then ! land points
+              tem1 = (xkzm_h_land - 0.01) * tem
+              tem2 = (xkzm_m_land - 0.01) * tem
+            else
+              tem1 = (xkzm_h - 0.01) * tem
+              tem2 = (xkzm_m - 0.01) * tem
+            endif
+            ptem = gdx(i) - 5.
+            xkzm_hx(i) = 0.01 + tem1 * ptem
+            xkzm_mx(i) = 0.01 + tem2 * ptem
+          endif
+
+        else ! use values in the namelist; no res dependency
+
+          if ( islimsk(i) == 1 ) then ! land points
+              xkzm_hx(i) = xkzm_h_land
+              xkzm_mx(i) = xkzm_m_land
+          else
+              xkzm_hx(i) = xkzm_h
+              xkzm_mx(i) = xkzm_m
+          endif
         endif
+
       enddo
       do k = 1,km1
         do i=1,im

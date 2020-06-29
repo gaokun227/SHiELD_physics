@@ -1506,8 +1506,9 @@ module module_physics_driver
                        stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
                        Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                        Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
-                       kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
-                       Model%xkzminv,                                               &
+                       kinver, Model%xkzm_m, Model%xkzm_h,                          & 
+                       Model%xkzm_m_land, Model%xkzm_h_land,  Model%xkzm_s,         &
+                       Model%xkzminv, Model%do_dk_hb19, Model%xkgdx,                &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
         endif
 

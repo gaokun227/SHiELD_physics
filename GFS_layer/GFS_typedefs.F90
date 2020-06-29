@@ -1650,7 +1650,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim       = 0.01                     !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac       = 1.0                      !< [in] background vertical diffusion factor
-    real(kind=kind_phys) :: xkzminv        = 0.3                      !< diffusivity in inversion layers
+    real(kind=kind_phys) :: xkzminv        = 0.15                     !< diffusivity in inversion layers
     real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter asymtotic on mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx           = 500.                     !< [in] upper-limter asymtotic on mixing length in satmedmfdiff.f 

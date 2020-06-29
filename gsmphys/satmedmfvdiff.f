@@ -23,10 +23,10 @@
 !  2) Nov 2019 by Kun Gao
 !     turn off non-local mixing for hydrometers to avoid unphysical negative values 
 !  3) Jun 2020 by Kun Gao
-!     a) add option for turn off upper-limter on background diff. in inversion layer
+!     a) add option for turning off upper-limter on background diff. in inversion layer
 !        over land points (cap_k0_land)
 !     b) use different xkzm_m,xkzm_h for land and ocean points
-!     c) add option to use HB19 formula for surface backgroud diff. (do_dk_hb19)  
+!     c) add option for turning off HB19 formula for surface backgroud diff. (do_dk_hb19)  
 
       subroutine satmedmfvdif(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
@@ -284,7 +284,7 @@
 
 ! Hand and Bretherton, 2019  
 ! set background diffusivities as a function of
-!  horizontal grid size with xkzm_h & xkzm_m for gdx >= 25km
+!  horizontal grid size with xkzm_h & xkzm_m for gdx >= xkgdx 
 !  and 0.01 for gdx=5m, i.e.,
 !  xkzm_hx = 0.01 + (xkzm_h - 0.01)/(xkgdx-5.) * (gdx-5.)
 !  xkzm_mx = 0.01 + (xkzm_h - 0.01)/(xkgdx-5.) * (gdx-5.)
@@ -294,8 +294,7 @@
         tx1(i) = 1.0 / prsi(i,1)
         tx2(i) = tx1(i)
 
-        ! set surface value of background diff (dk) below  
-
+        ! kgao change - set surface value of background diff (dk) below  
         if (do_dk_hb19) then ! use eq43 in HB2019
 
           if(gdx(i) >= xkgdx) then ! resolution coarser than xkgdx

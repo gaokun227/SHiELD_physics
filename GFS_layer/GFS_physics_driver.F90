@@ -1492,8 +1492,9 @@ module module_physics_driver
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                    kinver, Model%xkzm_m, Model%xkzm_h,                          &
-                   Model%xkzm_m_land, Model%xkzm_h_land, Model%xkzm_s,          &
-                   Model%xkzminv, Model%do_dk_hb19, Model%xkzm_lim, Model%xkgdx,&
+                   Model%xkzm_m_land, Model%xkzm_h_land, Model%xkzm_m_ice,      &
+                   Model%xkzm_h_ice, Model%xkzm_s, Model%xkzminv,               &
+                   Model%do_dk_hb19, Model%xkzm_lim, Model%xkgdx,               &
                    Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
 
              elseif (Model%isatmedmf == 1) then   

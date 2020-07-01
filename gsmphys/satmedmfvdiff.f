@@ -35,6 +35,7 @@
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
      &     kinver,xkzm_m,xkzm_h,xkzm_m_land,xkzm_h_land,
+     &     xkzm_m_ice,xkzm_h_ice,
      &     xkzm_s,xkzinv,do_dk_hb19,xkzm_lim,xkgdx,
      &     rlmn, rlmx, cap_k0_land, dkt_out)
 !
@@ -53,6 +54,7 @@
 !
       real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, xkzm_lim
       real(kind=kind_phys) xkzm_m_land, xkzm_h_land
+      real(kind=kind_phys) xkzm_m_ice, xkzm_h_ice
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
@@ -301,6 +303,9 @@
             if( islimsk(i) == 1 ) then ! land points
               xkzm_hx(i) = xkzm_h_land
               xkzm_mx(i) = xkzm_m_land
+            elseif( islimsk(i) == 2 ) then ! sea ice points
+              xkzm_hx(i) = xkzm_h_ice
+              xkzm_mx(i) = xkzm_m_ice
             else
               xkzm_hx(i) = xkzm_h
               xkzm_mx(i) = xkzm_m
@@ -310,6 +315,9 @@
             if ( islimsk(i) == 1 ) then ! land points
               tem1 = (xkzm_h_land - xkzm_lim) * tem
               tem2 = (xkzm_m_land - xkzm_lim) * tem
+            elseif ( islimsk(i) == 2 ) then ! sea ice points
+              tem1 = (xkzm_h_ice - xkzm_lim) * tem
+              tem2 = (xkzm_m_ice - xkzm_lim) * tem
             else   
               tem1 = (xkzm_h - xkzm_lim) * tem
               tem2 = (xkzm_m - xkzm_lim) * tem
@@ -324,6 +332,9 @@
           if ( islimsk(i) == 1 ) then ! land points
               xkzm_hx(i) = xkzm_h_land
               xkzm_mx(i) = xkzm_m_land 
+          elseif ( islimsk(i) == 2 ) then ! sea ice points
+              xkzm_hx(i) = xkzm_h_ice
+              xkzm_mx(i) = xkzm_m_ice
           else
               xkzm_hx(i) = xkzm_h 
               xkzm_mx(i) = xkzm_m 
@@ -420,9 +431,9 @@
                xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
             endif
           else 
-            ! kgao note: do not apply upper-limiter over land points 
+            ! kgao note: do not apply upper-limiter over land and sea ice points 
             ! (consistent with change in satmedmfdifq.f in Jun 2020)
-            if(tem1 > 0. .and. islimsk(i) /= 1 ) then
+            if(tem1 > 0. .and. islimsk(i) == 0 ) then
                xkzo(i,k)  = min(xkzo(i,k), xkzinv)
                xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
             endif

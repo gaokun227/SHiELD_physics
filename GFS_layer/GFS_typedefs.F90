@@ -522,6 +522,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_m_land     !< [in] bkgd_vdif_m  background vertical diffusion for momentum for land points  
     real(kind=kind_phys) :: xkzm_h_land     !< [in] bkgd_vdif_h  background vertical diffusion for heat q for land points 
+    real(kind=kind_phys) :: xkzm_m_ice      !< [in] bkgd_vdif_m  background vertical diffusion for momentum for sea ice points  
+    real(kind=kind_phys) :: xkzm_h_ice      !< [in] bkgd_vdif_h  background vertical diffusion for heat q for sea ice points 
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim        !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac        !< [in] background vertical diffusion factor
@@ -1648,6 +1650,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_m_land    = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
     real(kind=kind_phys) :: xkzm_h_land    = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_m_ice     = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
+    real(kind=kind_phys) :: xkzm_h_ice     = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim       = 0.01                     !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac       = 1.0                      !< [in] background vertical diffusion factor
@@ -1797,8 +1801,8 @@ module GFS_typedefs
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx, rlmx, rlmn,       &
-                               xkzm_m, xkzm_h, xkzm_m_land, xkzm_h_land,                    &
-                               xkzm_s, xkzminv, moninq_fac, dspfac,                         &
+                               xkzm_m, xkzm_h, xkzm_m_land, xkzm_h_land, xkzm_m_ice,        &
+                               xkzm_h_ice, xkzm_s, xkzminv, moninq_fac, dspfac,             &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
                                ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
                                tnl_fac, qnl_fac, unl_fac,                                   &
@@ -2007,6 +2011,8 @@ module GFS_typedefs
     Model%xkzm_h           = xkzm_h
     Model%xkzm_m_land      = xkzm_m_land
     Model%xkzm_h_land      = xkzm_h_land
+    Model%xkzm_m_ice       = xkzm_m_ice
+    Model%xkzm_h_ice       = xkzm_h_ice
     Model%xkzm_s           = xkzm_s
     Model%xkzm_lim         = xkzm_lim
     Model%xkzm_fac         = xkzm_fac
@@ -2536,6 +2542,8 @@ module GFS_typedefs
       print *, ' xkzm_h            : ', Model%xkzm_h
       print *, ' xkzm_m_land       : ', Model%xkzm_m_land
       print *, ' xkzm_h_land       : ', Model%xkzm_h_land
+      print *, ' xkzm_m_ice        : ', Model%xkzm_m_ice
+      print *, ' xkzm_h_ice        : ', Model%xkzm_h_ice
       print *, ' xkzm_s            : ', Model%xkzm_s
       print *, ' xkzm_lim          : ', Model%xkzm_lim
       print *, ' xkzm_fac          : ', Model%xkzm_fac

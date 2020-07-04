@@ -518,17 +518,19 @@ module GFS_typedefs
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
     real(kind=kind_phys) :: afac_canopy     !< tunable enhancement factor for canopy heat storage parameterization
-    real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
-    real(kind=kind_phys) :: xkzm_m_land     !< [in] bkgd_vdif_m  background vertical diffusion for momentum for land points  
-    real(kind=kind_phys) :: xkzm_h_land     !< [in] bkgd_vdif_h  background vertical diffusion for heat q for land points 
+    real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum for ocean points 
+    real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q for ocean points 
+    real(kind=kind_phys) :: xkzm_ml         !< [in] bkgd_vdif_m  background vertical diffusion for momentum for land points  
+    real(kind=kind_phys) :: xkzm_hl         !< [in] bkgd_vdif_h  background vertical diffusion for heat q for land points 
+    real(kind=kind_phys) :: xkzm_mi         !< [in] bkgd_vdif_m  background vertical diffusion for momentum for ice points  
+    real(kind=kind_phys) :: xkzm_hi         !< [in] bkgd_vdif_h  background vertical diffusion for heat q for ice points 
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim        !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac        !< [in] background vertical diffusion factor
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
     real(kind=kind_phys) :: xkgdx           !< [in] background vertical diffusion threshold
-    real(kind=kind_phys) :: rlmn            !< [in] lower-limter asymtotic on mixing length in satmedmfdiff.f
-    real(kind=kind_phys) :: rlmx            !< [in] upper-limter asymtotic on mixing length in satmedmfdiff.f 
+    real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac          !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr         !< updraft fraction in boundary layer mass flux scheme
@@ -1643,17 +1645,19 @@ module GFS_typedefs
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
     real(kind=kind_phys) :: afac_canopy    = 1.0d0                    !< tunable enhancement factor for canopy heat storage parameterization
-    real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
-    real(kind=kind_phys) :: xkzm_m_land    = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h_land    = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum over ocean 
+    real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q over ocean 
+    real(kind=kind_phys) :: xkzm_ml        = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum over land  
+    real(kind=kind_phys) :: xkzm_hl        = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q over land 
+    real(kind=kind_phys) :: xkzm_mi        = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum over ice 
+    real(kind=kind_phys) :: xkzm_hi        = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q over ice
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
     real(kind=kind_phys) :: xkzm_lim       = 0.01                     !< [in] background vertical diffusion limit
     real(kind=kind_phys) :: xkzm_fac       = 1.0                      !< [in] background vertical diffusion factor
     real(kind=kind_phys) :: xkzminv        = 0.15                     !< diffusivity in inversion layers
     real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
-    real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter asymtotic on mixing length in satmedmfdiff.f
-    real(kind=kind_phys) :: rlmx           = 500.                     !< [in] upper-limter asymtotic on mixing length in satmedmfdiff.f 
+    real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: rlmx           = 500.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme
@@ -1796,7 +1800,7 @@ module GFS_typedefs
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx, rlmx, rlmn,       &
-                               xkzm_m, xkzm_h, xkzm_m_land, xkzm_h_land,                    &
+                               xkzm_m, xkzm_h, xkzm_ml, xkzm_hl, xkzm_mi, xkzm_hi,          &
                                xkzm_s, xkzminv, moninq_fac, dspfac,                         &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
                                ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
@@ -2004,8 +2008,10 @@ module GFS_typedefs
     Model%afac_canopy      = afac_canopy
     Model%xkzm_m           = xkzm_m
     Model%xkzm_h           = xkzm_h
-    Model%xkzm_m_land      = xkzm_m_land
-    Model%xkzm_h_land      = xkzm_h_land
+    Model%xkzm_ml          = xkzm_ml
+    Model%xkzm_hl          = xkzm_hl
+    Model%xkzm_mi          = xkzm_mi
+    Model%xkzm_hi          = xkzm_hi
     Model%xkzm_s           = xkzm_s
     Model%xkzm_lim         = xkzm_lim
     Model%xkzm_fac         = xkzm_fac
@@ -2532,8 +2538,10 @@ module GFS_typedefs
       print *, ' afac_canopy       : ', Model%afac_canopy
       print *, ' xkzm_m            : ', Model%xkzm_m
       print *, ' xkzm_h            : ', Model%xkzm_h
-      print *, ' xkzm_m_land       : ', Model%xkzm_m_land
-      print *, ' xkzm_h_land       : ', Model%xkzm_h_land
+      print *, ' xkzm_ml           : ', Model%xkzm_ml
+      print *, ' xkzm_hl           : ', Model%xkzm_hl
+      print *, ' xkzm_mi           : ', Model%xkzm_mi
+      print *, ' xkzm_hi           : ', Model%xkzm_hi      
       print *, ' xkzm_s            : ', Model%xkzm_s
       print *, ' xkzm_lim          : ', Model%xkzm_lim
       print *, ' xkzm_fac          : ', Model%xkzm_fac

@@ -1490,8 +1490,9 @@ module module_physics_driver
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                    kinver, Model%xkzm_m, Model%xkzm_h,                          &
-                   Model%xkzm_m_land, Model%xkzm_h_land, Model%xkzm_s,          &
-                   Model%xkzminv, Model%do_dk_hb19, Model%xkzm_lim, Model%xkgdx,&
+                   Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  & 
+                   Model%xkzm_s,  Model%xkzminv, Model%do_dk_hb19,              &
+                   Model%xkzm_lim, Model%xkgdx,                                 &
                    Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
 
              elseif (Model%isatmedmf == 1) then   
@@ -1507,8 +1508,8 @@ module module_physics_driver
                        Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                        Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
                        kinver, Model%xkzm_m, Model%xkzm_h,                          & 
-                       Model%xkzm_m_land, Model%xkzm_h_land,  Model%xkzm_s,         &
-                       Model%xkzminv, Model%do_dk_hb19, Model%xkgdx,                &
+                       Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  &
+                       Model%xkzm_s, Model%xkzminv, Model%do_dk_hb19, Model%xkgdx,  &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
         endif
 

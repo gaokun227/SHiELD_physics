@@ -36,8 +36,10 @@
 !  4) Jan 2020 by Kun Gao 
 !     add rlmn2 parameter (set to 10.) to be consistent with EMC's version 
 !  5) Jun 2020 by Kun Gao
-!     do not apply upper-limter on background diff. in inversion layer
-!     over land points to be consistent with EMC's version
+!     a) disable the upper-limter on background diff. in inversion layer
+!        over land points to be consistent with EMC's version
+!     b) use different xkzm_m,xkzm_h for land, ocean and sea ice points
+!     c) add option for turning off HB19 formula for surface backgroud diff. (do_dk_hb19)  
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,islimsk,
@@ -45,8 +47,9 @@
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,xkzinv,xkzm_lim,xkzm_fac,xkgdx,
-     &     dspfac,bl_upfr,bl_dnfr,dkt_out)
+     &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl, xkzm_mi,xkzm_hi,
+     &     xkzm_s,xkzinv,
+     &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -61,9 +64,9 @@
       integer ix, im, km, ntrac, ntcw, ntiw, ntke, ntcw_new
       integer kpbl(im), kinver(im), islimsk(im)
 !
-      real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, dspfac,
-     &                     bl_upfr, bl_dnfr
-      real(kind=kind_phys) xkzm_fac, xkzm_lim
+      real(kind=kind_phys) delt, xkzm_mo, xkzm_ho, xkzm_s, dspfac,
+     &                     bl_upfr, bl_dnfr, xkzm_ml, xkzm_hl,
+     &                     xkzm_mi, xkzm_hi
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
@@ -86,7 +89,7 @@
      &                     rtg_in(im,km,ntrac)
 ! kgao note - q1 and rtg are local var now 
 !
-      logical dspheat
+      logical dspheat, do_dk_hb19
 !          flag for tke dissipative heating
       real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
 !
@@ -209,7 +212,7 @@
       parameter(qmin=1.e-8,qlmin=1.e-12,zfmin=1.e-8)
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
-      parameter(dw2min=1.e-4,dkmax=1000.)
+      parameter(dw2min=1.e-4,dkmax=1000.)!,xkgdx=5000.)
       parameter(qlcr=3.5e-5,zstblmax=2500.) !,xkzinv=0.1)
       parameter(h1=0.33333333)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
@@ -305,18 +308,67 @@
         kx1(i) = 1
         tx1(i) = 1.0 / prsi(i,1)
         tx2(i) = tx1(i)
-        if(gdx(i) >= xkgdx) then
-          xkzm_hx(i) = xkzm_h * xkzm_fac
-          xkzm_mx(i) = xkzm_m * xkzm_fac
-        else
-          tem  = 1. / (xkgdx - 5.)
-          tem1 = (xkzm_h - xkzm_lim) * tem
-          tem2 = (xkzm_m - xkzm_lim) * tem
-          ptem = gdx(i) - 5.
-          xkzm_hx(i) = xkzm_lim + tem1 * ptem
-          xkzm_mx(i) = xkzm_lim + tem2 * ptem
+
+        ! kgao change - set surface value of background diff (dk) below
+
+        !if(gdx(i) >= xkgdx) then
+        !  xkzm_hx(i) = xkzm_h
+        !  xkzm_mx(i) = xkzm_m
+        !else
+        !  tem  = 1. / (xkgdx - 5.)
+        !  tem1 = (xkzm_h - 0.01) * tem
+        !  tem2 = (xkzm_m - 0.01) * tem
+        !  ptem = gdx(i) - 5.
+        !  xkzm_hx(i) = 0.01 + tem1 * ptem
+        !  xkzm_mx(i) = 0.01 + tem2 * ptem
+        !endif
+
+                ! kgao change - set surface value of background diff (dk) below
+        if (do_dk_hb19) then               ! use eq43 in HB2019
+
+          if(gdx(i) >= xkgdx) then         ! resolution coarser than xkgdx
+            if( islimsk(i) == 1 ) then     ! land points
+              xkzm_hx(i) = xkzm_hl
+              xkzm_mx(i) = xkzm_ml
+            elseif ( islimsk(i) == 2 ) then! sea ice points
+              xkzm_hx(i) = xkzm_hi
+              xkzm_mx(i) = xkzm_mi
+            else                           ! ocean points
+              xkzm_hx(i) = xkzm_ho
+              xkzm_mx(i) = xkzm_mo
+            endif
+          else                             ! resolution finer than xkgdx
+            tem  = 1. / (xkgdx - 5.)
+            if ( islimsk(i) == 1 ) then    ! land points
+              tem1 = (xkzm_hl - 0.01) * tem
+              tem2 = (xkzm_ml - 0.01) * tem
+            elseif ( islimsk(i) == 2 ) then! sea ice points
+              tem1 = (xkzm_hi - 0.01) * tem
+              tem2 = (xkzm_mi - 0.01) * tem
+            else                           ! ocean points
+              tem1 = (xkzm_ho - 0.01) * tem
+              tem2 = (xkzm_mo - 0.01) * tem
+            endif
+            ptem = gdx(i) - 5.
+            xkzm_hx(i) = 0.01 + tem1 * ptem
+            xkzm_mx(i) = 0.01 + tem2 * ptem
+          endif
+
+        else ! use values in the namelist; no res dependency
+
+          if ( islimsk(i) == 1 ) then     ! land points
+              xkzm_hx(i) = xkzm_hl
+              xkzm_mx(i) = xkzm_ml
+          elseif ( islimsk(i) == 2 ) then ! sea ice points
+              xkzm_hx(i) = xkzm_mi
+              xkzm_mx(i) = xkzm_mi
+          else                            ! ocean points
+              xkzm_hx(i) = xkzm_ho
+              xkzm_mx(i) = xkzm_mo
+          endif
         endif
       enddo
+
       do k = 1,km1
         do i=1,im
           xkzo(i,k)  = 0.0
@@ -752,7 +804,7 @@
 !         tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
 !         if(tem1 > 1.e-5) then
           tem1 = tvx(i,k+1)-tvx(i,k)
-          if(tem1 > 0. .and. islimsk(i) /= 1 ) then ! kgao note: do not apply limter over land points 
+          if(tem1 > 0. .and. islimsk(i) == 0 ) then ! kgao note: only apply limter over ocean points 
              xkzo(i,k)  = min(xkzo(i,k), xkzinv)
              xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
              rlmnz(i,k) = min(rlmnz(i,k), rlmn2)

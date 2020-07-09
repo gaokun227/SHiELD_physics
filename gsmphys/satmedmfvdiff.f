@@ -331,7 +331,7 @@
               xkzm_hx(i) = xkzm_hl
               xkzm_mx(i) = xkzm_ml
           elseif ( islimsk(i) == 2 ) then ! sea ice points
-              xkzm_hx(i) = xkzm_mi
+              xkzm_hx(i) = xkzm_hi
               xkzm_mx(i) = xkzm_mi  
           else                            ! ocean points
               xkzm_hx(i) = xkzm_ho 

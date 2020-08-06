@@ -21,6 +21,10 @@ module module_physics_driver
   use myj_pbl_mod,           only: myj_pbl
   use myj_jsfc_mod,          only: myj_jsfc
   use wv_saturation,         only: estblf
+  
+  use module_sfc_drv,        only: sfc_drv
+  
+  
   implicit none
 
 
@@ -465,6 +469,9 @@ module module_physics_driver
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
            !--- for CS-convection
            wcbmax
+		   
+      logical, dimension(size(Grid%xlon,1))                ::           &
+           wet, dry,              icy
 !
       real(kind=kind_phys), dimension(size(Grid%xlon,1))  ::            &
            netflxsfc,                                                   & ! net surface heat flux
@@ -512,6 +519,10 @@ module module_physics_driver
            qs_dt, qg_dt, te, q_con, cappa, &
            phmid, th, tke, exner, exchh1, el1 ! for myj
 #endif
+
+!  mg, sfc perts
+      real (kind=kind_phys), dimension(size(Grid%xlon,1)) :: &
+         z01d, zt1d, bexp1d, xlai1d, alb1d, vegf1d
 
       real(kind=kind_phys), dimension(Model%levs) :: epsq2 ! myj
       real(kind=kind_phys), dimension(Model%levs-1) :: epsL ! myj
@@ -576,9 +587,18 @@ module module_physics_driver
       do i = 1, im
         if(nint(Sfcprop%slmsk(i)) == 1) then
           frland(i) = 1.0
+		  dry(i)    = .true.
         else
           frland(i) = 0.
+		  dry(i)     = .false.
         endif
+		
+         z01d(i)   = 0.
+         zt1d(i)   = 0.
+         bexp1d(i) = 0.
+         xlai1d(i) = 0.
+         vegf1d(i) = 0.
+		
       enddo
 
 
@@ -928,6 +948,8 @@ module module_physics_driver
       Diag%zlvl(:)    = Statein%phil(:,1) * onebg
       Diag%smcwlt2(:) = 0.0
       Diag%smcref2(:) = 0.0
+	  
+	  
 
 !  --- ...  lu: iter-loop over (sfc_diff,sfc_drv,sfc_ocean,sfc_sice)
 
@@ -1185,15 +1207,15 @@ module module_physics_driver
 
           call sfc_drv                                                 &
 !  ---  inputs:
-           (im, Model%lsoil, Statein%pgr, Statein%ugrs, Statein%vgrs,  &
+           (im, Model%lsoil, Statein%pgr,                              &
             Statein%tgrs, Statein%qgrs, soiltyp, vegtype, sigmaf,      &
             Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
-            Sfcprop%tg3, cd, cdq, Statein%prsl(1,1), work3, Diag%zlvl, &
-            islmsk, Tbd%phy_f2d(1,Model%num_p2d), slopetyp,            &
+            Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3, Diag%zlvl, &
+            dry, wind, slopetyp,                                       &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
-            Radtend%sfalb, flag_iter, flag_guess, Model%isot,          &
-            Model%ivegsrc, lprnt,                                      &
-            Model%lheatstrg, kdt, Model%hour_canopy, Model%afac_canopy,&
+            Radtend%sfalb, flag_iter, flag_guess,                      &
+			Model%lheatstrg, Model%isot, Model%ivegsrc,                &
+            bexp1d, xlai1d, vegf1d, Model%pertvegf,                    &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
             Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
@@ -1205,6 +1227,8 @@ module module_physics_driver
 
 !     if (lprnt) write(0,*)' tseae=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' phy_f2d=',phy_f2d(ipr,num_p2d)
+		elseif (Model%lsm == 2) then  ! noah mp call
+	
 
         endif
 

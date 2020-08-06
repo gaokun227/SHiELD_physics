@@ -647,7 +647,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: skeb(5)         !< stochastic KE backscatter amplitude
     real(kind=kind_phys) :: vcamp(5)        !< stochastic vorticity confinment amp
     real(kind=kind_phys) :: vc              !< deterministic vorticity confinement parameter.
-
+    real(kind=kind_phys) :: pertvegf(5)        ! mg, sfc-perts
     !--- tracer handling
     character(len=32), pointer :: tracer_names(:) !< array of initialized tracers from dynamic core
     integer              :: ntrac           !< number of tracers
@@ -1842,6 +1842,7 @@ module GFS_typedefs
     logical :: do_shum   = .false.
     logical :: do_skeb   = .false.
     logical :: do_vc     = .false.
+	real(kind=kind_phys) :: pertvegf = -999.
 
     !--- read in the namelist
 #ifdef INTERNAL_FILE_NML
@@ -2098,7 +2099,8 @@ module GFS_typedefs
     Model%do_shum          = do_shum
     Model%do_skeb          = do_skeb
     Model%do_vc            = do_vc
-
+    Model%pertvegf         = pertvegf
+	
     !--- tracer handling
     Model%ntrac            = size(tracer_names)
     allocate (Model%tracer_names(Model%ntrac))

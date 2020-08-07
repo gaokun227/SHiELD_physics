@@ -463,7 +463,7 @@ module module_physics_driver
            adjnirdfd, adjvisbmd, adjvisdfd, gabsbdlw, xcosz, tseal,     &
            snohf, dlqfac, work3, ctei_rml, cldf, domr, domzr, domip,    &
            doms, psautco_l, prautco_l, ocalnirbm_cpl, ocalnirdf_cpl,    &
-           ocalvisbm_cpl, ocalvisdf_cpl, dtzm, temrain1,                &
+           ocalvisbm_cpl, ocalvisdf_cpl, dtzm, temrain1, t2mmp, q2mp,   &
            !--- coupling inputs for physics
            dtsfc_cice, dqsfc_cice, dusfc_cice, dvsfc_cice, ulwsfc_cice, &
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
@@ -1200,7 +1200,7 @@ module module_physics_driver
 
 !  --- ...  surface energy balance over land
 !
-        if (Model%lsm == 1) then                          ! noah lsm call
+        if (Model%lsm == Model%lsm_noah) then                          ! noah lsm call
 
 !     if (lprnt) write(0,*)' tsead=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' pgr=',pgr(ipr),' sfcemis=',sfcemis(ipr)
@@ -1227,8 +1227,43 @@ module module_physics_driver
 
 !     if (lprnt) write(0,*)' tseae=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' phy_f2d=',phy_f2d(ipr,num_p2d)
-		elseif (Model%lsm == 2) then  ! noah mp call
-	
+		elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
+          call noahmpdrv                                               &
+!  ---  inputs:
+           (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
+            Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
+            Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
+            Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
+            Diag%zlvl, dry,   wind, slopetyp,                          &
+            Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
+            Radtend%sfalb,    flag_iter,       flag_guess,             &
+            Model%iopt_dveg,  Model%iopt_crs,  Model%iopt_btr,         &
+            Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
+            Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
+            Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
+            grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
+            Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
+            Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
+!  ---  in/outs:
+            Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
+            Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
+            trans, tsurf, Sfcprop%zorl,                                &
+!
+            Sfcprop%snowxy,   Sfcprop%tvxy,    Sfcprop%tgxy,  Sfcprop%canicexy, &
+            Sfcprop%canliqxy, Sfcprop%eahxy,   Sfcprop%tahxy, Sfcprop%cmxy,     &
+            Sfcprop%chxy,     Sfcprop%fwetxy,  Sfcprop%sneqvoxy,                &
+            Sfcprop%alboldxy, Sfcprop%qsnowxy, Sfcprop%wslakexy,                &
+            Sfcprop%zwtxy,    Sfcprop%waxy,    Sfcprop%wtxy, Sfcprop%tsnoxy,    &
+            Sfcprop%zsnsoxy,  Sfcprop%snicexy, Sfcprop%snliqxy,                 &
+            Sfcprop%lfmassxy, Sfcprop%rtmassxy,                                 &
+            Sfcprop%stmassxy, Sfcprop%woodxy,  Sfcprop%stblcpxy,                &
+            Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
+            Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
+            Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
+!  ---  outputs:
+            Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
+            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,  &
+            snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
 
         endif
 
@@ -1323,6 +1358,16 @@ module module_physics_driver
       !endif
 
       Tbd%phy_f2d(:,Model%num_p2d) = 0.0
+
+      if (Model%lsm == Model%lsm_noahmp) then
+        do i=1,im
+         if (dry(i)) then
+          Sfcprop%t2m(i) = t2mmp(i)
+          Sfcprop%q2m(i) = q2mp(i)
+         endif
+        enddo
+      endif 
+
 
       if (Model%cplflx) then
         Coupling%dlwsfci_cpl (:) = adjsfcdlw(:)
@@ -3334,6 +3379,29 @@ module module_physics_driver
       endif
 
       Diag%rain(:)  = Diag%rainc(:) + frain * rain1(:)
+
+
+      if (Model%lsm == Model%lsm_noahmp) then
+        if (Model%ncld == 5 ) then
+          !GJF: Should all precipitation rates have the same denominator below? 
+          ! It appears that Diag%rain and Diag%rainc are on the dynamics time step,
+          ! but Diag%snow,graupel,ice are on the physics time step? This doesn't
+          ! matter as long as dtp=dtf (frain=1).
+          tem = 1.0 / (dtp*con_p001)
+          Sfcprop%draincprv(:)   = tem * Diag%rainc(:)
+          Sfcprop%drainncprv(:)  = tem * (frain * rain1(:))
+          Sfcprop%dsnowprv(:)    = tem * Diag%snow(:)
+          Sfcprop%dgraupelprv(:) = tem * Diag%graupel(:)
+          Sfcprop%diceprv(:)     = tem * Diag%ice(:)
+        else
+          Sfcprop%draincprv(:)   = 0.0
+          Sfcprop%drainncprv(:)  = 0.0
+          Sfcprop%dsnowprv(:)    = 0.0
+          Sfcprop%dgraupelprv(:) = 0.0
+          Sfcprop%diceprv(:)     = 0.0
+        endif
+      end if !  if (Model%lsm == Model%lsm_noahmp)
+
 
       if (Model%cal_pre) then       ! hchuang: add dominant precipitation type algorithm
         i = min(3,Model%num_p3d)

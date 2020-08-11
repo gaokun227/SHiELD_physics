@@ -549,7 +549,7 @@ module FV3GFS_io_mod
              i = Atm_block%index(nb)%ii(ix) - isc + 1
              j = Atm_block%index(nb)%jj(ix) - jsc + 1
              !--- stddev
-!            Sfcprop(nb)%hprim(ix)     = oro_var2(i,j,1)
+             Sfcprop(nb)%hprim(ix)     = oro_var2(i,j,1)
              !--- hprime(1:14)
              Sfcprop(nb)%hprime(ix,1)  = oro_var2(i,j,1)
              Sfcprop(nb)%hprime(ix,2)  = oro_var2(i,j,2)
@@ -1037,10 +1037,20 @@ module FV3GFS_io_mod
             endif
 
           enddo   !ix
-        enddo    !nb       !--- if sncovr does not exist in the restart, need to create it
+        enddo    !nb       
         call mpp_error(NOTE, 'gfs_driver:: - after put to container ')
+! so far: At cold start everything is 9999.0, warm start snowxy has values
+!         but the 3D of snow fields are not available because not allocated yet.
+!         ix,nb loops may be consolidate with the Noah MP isnowxy init
+!         restore traditional vars first,we need some of them to init snow fields
+!         snow depth to actual snow layers; so we can allocate and register
+!         note zsnsoxy is from -2:4 - isnowxy is from 0:-2, but we need
+!         exact snow layers to pass 3D fields correctly, snow layers are
+!         different fro grid to grid, we have to init point by point/grid.
+!         It has to be done after the weasd is available
+!         sfc_var2(1,1,32) is the first; we need this to allocate snow related fields
         
-        
+        !--- if sncovr does not exist in the restart, need to create it
         if (nint(sfc_var2(1,1,32)) == -9999) then
           if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr') 
           !--- compute sncovr from existing variables
@@ -1310,19 +1320,26 @@ module FV3GFS_io_mod
     !
                   soiltyp  = Sfcprop(nb)%stype(ix)
 
-                  if (soiltyp /= 0) then
-                    bexp   = bexp_table(soiltyp)
-                    smcmax = smcmax_table(soiltyp)
-                    smcwlt = smcwlt_table(soiltyp)
-                    dwsat  = dwsat_table(soiltyp)
-                    dksat  = dksat_table(soiltyp)
-                    psisat = -psisat_table(soiltyp)
+
+                  if (soiltyp == 0) then
+                    Sfcprop(nb)%stype(ix) = 16
+                    soiltyp  = Sfcprop(nb)%stype(ix)
                   endif
+
+                  bexp   = bexp_table(soiltyp)
+                  smcmax = smcmax_table(soiltyp)
+                  smcwlt = smcwlt_table(soiltyp)
+                  dwsat  = dwsat_table(soiltyp)
+                  dksat  = dksat_table(soiltyp)
+                  psisat = -psisat_table(soiltyp)
+
 
                   if (vegtyp == isurban_table) then
                     smcmax = 0.45
                     smcwlt = 0.40
                   endif
+                  
+!                  print*, bexp, soiltyp, vegtyp, Sfcprop(nb)%slmsk(ix)
 
                   if ((bexp > 0.0) .and. (smcmax > 0.0) .and. (-psisat > 0.0 )) then
                     do ns = 1, Model%lsoil          

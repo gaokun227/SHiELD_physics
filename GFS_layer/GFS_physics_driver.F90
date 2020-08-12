@@ -418,7 +418,7 @@ module module_physics_driver
       !--- INTEGER VARIABLES
       integer :: me, lprint, ipr, ix, im, levs, ntrac, nvdiff, kdt
       integer :: i, kk, ic, k, n, k1, iter, levshcm, tracers,           &
-                 trc_shft, tottracer, num2, num3, nshocm, nshoc, ntk
+                 tottracer, num2, num3, nshocm, nshoc, ntk, itc, nn
       integer :: kflip
       integer :: ntsd ! for myj
 
@@ -429,7 +429,7 @@ module module_physics_driver
            islmsk_cice
 
       !--- LOGICAL VARIABLES
-      logical :: lprnt, revap, do_awdd
+      logical :: lprnt, revap, do_awdd, trans_aero
 
       logical, dimension(size(Grid%xlon,1)) ::                          &
            flag_iter, flag_guess, invrsn, skip_macro,                   &
@@ -567,6 +567,7 @@ module module_physics_driver
              qlcn, qicn, w_upi, cf_upi, CNV_MFD, CNV_PRC3, CNV_DQLDT,   &
              CLCN, CNV_FICE, CNV_NDROP, CNV_NICE
 
+      integer, allocatable, dimension(:) :: clw_trac_idx
 !
 !
 !===> ...  begin here
@@ -601,29 +602,61 @@ module module_physics_driver
 		
       enddo
 
+      ! perform aerosol convective transport and PBL diffusion
+      !trans_aero = Model%cplchm .and. Model%trans_trac
+      trans_aero = Model%trans_trac
 
 !
-!  --- ...                       figure out number of extra tracers
+!  figure out number of extra tracers (other than hydrometeors and could amount)
 !
-      tottracer = 0            ! no convective transport of tracers
-      if (Model%trans_trac .or. Model%cscnv) then
-        if (Model%ntcw > 0) then
-          if (Model%ntoz < Model%ntcw) then
-            trc_shft = Model%ntcw + Model%ncld - 1
-          else
-            trc_shft = Model%ntoz
-          endif
-        elseif (Model%ntoz > 0) then
-          trc_shft = Model%ntoz
+
+      if (Model%ntiw > 0) then
+        if (Model%ntclamt > 0) then
+          nn = ntrac - 2
         else
-          trc_shft = 1
+          nn = ntrac - 1
         endif
-
-        tracers   = Model%ntrac - trc_shft
-        tottracer = tracers
-        if (Model%ntoz > 0) tottracer = tottracer + 1  ! ozone is added separately
+      elseif (Model%ntcw > 0) then
+        nn = ntrac
+      else
+        nn = ntrac + 1
       endif
-      if (Model%ntke > 0) ntk = Model%ntke - trc_shft + 3
+      allocate (clw(ix,levs,nn))
+      allocate( clw_trac_idx(nn) )
+
+      ntk       = 0
+      tottracer = 0
+      if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
+        otspt(:,:)   = .true.     ! otspt is used only for cscnv
+        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
+        tracers = 2
+        nn = 1
+        do n=2,ntrac
+          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt .and. &
+               n /= Model%ntrw  .and. n /= Model%ntsw  .and. n /= Model%ntrnc   .and. &
+               n /= Model%ntsnc .and. n /= Model%ntgl  .and. n /= Model%ntgnc) then
+            tracers = tracers + 1
+            clw_trac_idx(nn) = n
+            nn =nn + 1
+            do k=1,levs
+              do i=1,im
+                clw(i,k,tracers) = Stateout%gq0(i,k,n)
+              enddo
+            enddo
+            if (Model%ntke  == n ) then
+              otspt(tracers+1,1) = .false.
+              ntk = tracers
+            endif
+            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
+!           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
+!               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
+                    otspt(tracers+1,1) = .false.
+            if (trans_aero .and. Model%ntchs == n) itc = tracers
+          endif
+        enddo
+        tottracer = tracers - 2
+      endif   ! end if_ras or cfscnv or samf
+
 
 !     if (lprnt) write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
 !                write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
@@ -633,7 +666,8 @@ module module_physics_driver
 
       skip_macro = .false.
 
-      allocate ( clw(ix,levs,tottracer+2) )
+
+
       if (Model%imfdeepcnv >= 0 .or. Model%imfshalcnv > 0) then
         allocate (cnvc(ix,levs), cnvw(ix,levs))
       endif
@@ -2152,22 +2186,6 @@ module module_physics_driver
 
 !  --- ...  for convective tracer transport (while using ras)
 
-      if (Model%ras .or. Model%cscnv) then
-        if (tottracer > 0) then
-          if (Model%ntoz > 0) then
-            clw(:,:,3) = Stateout%gq0(:,:,Model%ntoz)
-            if (tracers > 0) then
-              do n=1,tracers
-                clw(:,:,3+n) = Stateout%gq0(:,:,n+trc_shft)
-              enddo
-            endif
-          else
-            do n=1,tracers
-              clw(:,:,2+n) = Stateout%gq0(:,:,n+trc_shft)
-            enddo
-          endif
-        endif
-      endif   ! end if_ras or cfscnv
 
       ktop(:)  = 1
       kbot(:)  = levs
@@ -2347,15 +2365,6 @@ module module_physics_driver
 
       else        ! ras or cscnv
         if (Model%cscnv) then    ! Chikira-Sugiyama  convection scheme (via CSU)
-          otspt(:,:)   = .true.
-          otspt(1:3,:) = .false.
-          if (Model%ntke > 0) then
-            otspt(Model%ntke-trc_shft+4,1)  = .false.
-          endif
-          if (Model%ncld == 2) then
-            otspt(Model%ntlnc-trc_shft+4,1) = .false.
-            otspt(Model%ntinc-trc_shft+4,1) = .false.
-          endif
 
          fscav(:) = 0.0
          fswtr(:) = 0.0
@@ -2482,19 +2491,9 @@ module module_physics_driver
 !  --- ...  update the tracers due to convective transport
 
         if (tottracer > 0) then
-          if (Model%ntoz > 0) then                         ! for ozone
-            Stateout%gq0(:,:,Model%ntoz) = clw(:,:,3)
-
-            if (tracers > 0) then                    ! for other tracers
-              do n=1,tracers
-                Stateout%gq0(:,:,n+trc_shft) = clw(:,:,3+n)
-              enddo
-            endif
-          else
-            do n=1,tracers
-              Stateout%gq0(:,:,n+trc_shft) = clw(:,:,2+n)
-            enddo
-          endif
+          do n=1, tottracer
+            Stateout%gq0(:,:,clw_trac_idx(n)) = clw(:,:,2+n)
+          enddo
         endif
       endif   ! end if_not_ras
 

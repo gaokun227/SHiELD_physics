@@ -2171,7 +2171,7 @@ contains
     thks = (thkqtz ** parameters%quartz)* (thko ** (1. - parameters%quartz))
 
 ! unfrozen volume for saturation (porosity*xunfroz)
-    xunfroz = sh2o / smc
+    xunfroz = (sh2o + 1.e-9) / (smc + 1.e-9)
 ! saturated thermal conductivity
     xu = xunfroz * parameters%smcmax
 

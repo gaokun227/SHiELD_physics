@@ -1265,6 +1265,7 @@ contains
        moz  = 0.0
        mol  = 0.0
        moz2 = 0.0
+       mozold = 0.0
     else
        tvir = (1. + 0.61*qair) * sfctmp
        tmp1 = vkc * (grav/tvir) * h/(rhoair*cpair)
@@ -1275,7 +1276,6 @@ contains
     endif
 
 ! accumulate number of times moz changes sign.
-
     if (mozold*moz .lt. 0.) mozsgn = mozsgn+1
     if (mozsgn .ge. 2) then
        moz = 0.

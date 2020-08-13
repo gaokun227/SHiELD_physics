@@ -389,6 +389,19 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: oro_cpl    (:) => null()   !< orography          (  oro from GFS_sfcprop_type)
     real (kind=kind_phys), pointer :: slmsk_cpl  (:) => null()   !< Land/Sea/Ice mask  (slmsk from GFS_sfcprop_type)
 
+    !--- cellular automata
+    real (kind=kind_phys), pointer :: tconvtend(:,:) => null()
+    real (kind=kind_phys), pointer :: qconvtend(:,:) => null()
+    real (kind=kind_phys), pointer :: uconvtend(:,:) => null()
+    real (kind=kind_phys), pointer :: vconvtend(:,:) => null()
+    real (kind=kind_phys), pointer :: ca_out   (:)   => null() !
+    real (kind=kind_phys), pointer :: ca_deep  (:)   => null() !
+    real (kind=kind_phys), pointer :: ca_turb  (:)   => null() !
+    real (kind=kind_phys), pointer :: ca_shal  (:)   => null() !
+    real (kind=kind_phys), pointer :: ca_rad   (:)   => null() !
+    real (kind=kind_phys), pointer :: ca_micro (:)   => null() !
+    real (kind=kind_phys), pointer :: cape     (:)   => null() !
+
     !--- stochastic physics
     real (kind=kind_phys), pointer :: shum_wts  (:,:)   => null()  !
     real (kind=kind_phys), pointer :: sppt_wts  (:,:)   => null()  !
@@ -722,6 +735,22 @@ module GFS_typedefs
     real(kind=kind_phys) :: min_seaice      !< minimum sea  ice value
     real(kind=kind_phys) :: min_lake_height !< minimum lake height value
     real(kind=kind_phys) :: rho_h2o         !< density of fresh water
+
+ !---cellular automata control parameters
+    integer              :: nca             !< number of independent cellular automata
+    integer              :: nlives          !< cellular automata lifetime
+    integer              :: ncells          !< cellular automata finer grid
+    real(kind=kind_phys) :: nfracseed       !< cellular automata seed probability
+    integer              :: nseed           !< cellular automata seed frequency
+    logical              :: do_ca           !< cellular automata main switch
+    logical              :: ca_sgs          !< switch for sgs ca
+    logical              :: ca_global       !< switch for global ca
+    logical              :: ca_smooth       !< switch for gaussian spatial filter
+    logical              :: isppt_deep      !< switch for combination with isppt_deep. OBS! Switches off SPPT on other tendencies!
+    integer              :: iseed_ca        !< seed for random number generation in ca scheme
+    integer              :: nspinup         !< number of iterations to spin up the ca
+    real(kind=kind_phys) :: nthresh         !< threshold used for perturbed vertical velocity
+
      
     !--- stochastic physics control parameters
     logical              :: do_sppt
@@ -1029,6 +1058,15 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: smcref2(:)    => null()   !< soil moisture threshold (volumetric)
     real (kind=kind_phys), pointer :: wet1   (:)    => null()   !< normalized soil wetness
     real (kind=kind_phys), pointer :: sr     (:)    => null()   !< snow ratio : ratio of snow to total precipitation
+!
+
+    real (kind=kind_phys), pointer :: ca_out  (:)    => null()   !< cellular automata fraction
+    real (kind=kind_phys), pointer :: ca_deep  (:)   => null()   !< cellular automata fraction
+    real (kind=kind_phys), pointer :: ca_turb  (:)   => null()   !< cellular automata fraction
+    real (kind=kind_phys), pointer :: ca_shal  (:)   => null()   !< cellular automata fraction
+    real (kind=kind_phys), pointer :: ca_rad   (:)   => null()   !< cellular automata fraction
+    real (kind=kind_phys), pointer :: ca_micro (:)   => null()   !< cellular automata fraction
+
 !
     real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
     real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !restoring term for diagnosis only
@@ -1632,6 +1670,34 @@ module GFS_typedefs
 !!    Coupling%slmsk_cpl   = clear_val  !< pointer to sfcprop%slmsk
     endif
 
+
+   !-- cellular automata
+    if (Model%do_ca) then
+      allocate (Coupling%tconvtend (IM,Model%levs))
+      allocate (Coupling%qconvtend (IM,Model%levs))
+      allocate (Coupling%uconvtend (IM,Model%levs))
+      allocate (Coupling%vconvtend (IM,Model%levs))
+      allocate (Coupling%cape     (IM))
+      allocate (Coupling%ca_out   (IM))
+      allocate (Coupling%ca_deep  (IM))
+      allocate (Coupling%ca_turb  (IM))
+      allocate (Coupling%ca_shal  (IM))
+      allocate (Coupling%ca_rad   (IM))
+      allocate (Coupling%ca_micro (IM))
+      Coupling%ca_out    = clear_val
+      Coupling%ca_deep   = clear_val
+      Coupling%ca_turb   = clear_val
+      Coupling%ca_shal   = clear_val
+      Coupling%ca_rad    = clear_val
+      Coupling%ca_micro  = clear_val   
+      Coupling%cape      = clear_val
+      Coupling%tconvtend = clear_val
+      Coupling%qconvtend = clear_val
+      Coupling%uconvtend = clear_val
+      Coupling%vconvtend = clear_val
+    endif
+
+
     !--- stochastic physics option
     if (Model%do_sppt) then
       allocate (Coupling%sppt_wts  (IM,Model%levs))
@@ -2000,6 +2066,24 @@ module GFS_typedefs
     real(kind=kind_phys) :: min_seaice      = 1.0d-11         !< minimum sea  ice value
     real(kind=kind_phys) :: min_lake_height = 250.0           !< minimum lake height value
     real(kind=kind_phys) :: rho_h2o         = rhow            !< fresh water density
+
+
+!---Cellular automaton options
+    integer              :: nca            = 1
+    integer              :: ncells         = 5
+    integer              :: nlives         = 10
+    real(kind=kind_phys) :: nfracseed      = 0.5
+    integer              :: nseed          = 100000
+    integer              :: iseed_ca       = 0
+    integer              :: nspinup        = 1
+    logical              :: do_ca          = .false.
+    logical              :: ca_sgs         = .false. 
+    logical              :: ca_global      = .false.
+    logical              :: ca_smooth      = .false.
+    logical              :: isppt_deep     = .false.
+    real(kind=kind_phys) :: nthresh        = 0.0
+
+
      
     !--- stochastic physics options
     real(kind=kind_phys) :: sppt(5)        = -999.           !< stochastic physics tendency amplitude
@@ -2071,6 +2155,9 @@ module GFS_typedefs
                                nst_anl, lsea, nstf_name,                                    &
                                frac_grid, min_lakeice, min_seaice, min_lake_height,         &
                                ignore_lake,                                                 &  
+                          !--- cellular automata
+                               nca, ncells, nlives, nfracseed,nseed, nthresh, do_ca,        &
+                               ca_sgs, ca_global,iseed_ca,ca_smooth,isppt_deep,nspinup,     &
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
@@ -2376,6 +2463,23 @@ module GFS_typedefs
     Model%do_skeb          = do_skeb
     Model%do_vc            = do_vc
     Model%pertvegf         = pertvegf
+
+    !--- cellular automata options
+    Model%nca              = nca
+    Model%ncells           = ncells
+    Model%nlives           = nlives
+    Model%nfracseed        = nfracseed
+    Model%nseed            = nseed
+    Model%ca_global        = ca_global
+    Model%do_ca            = do_ca
+    Model%ca_sgs           = ca_sgs
+    Model%iseed_ca         = iseed_ca
+    Model%ca_smooth        = ca_smooth
+    Model%isppt_deep       = isppt_deep
+    Model%nspinup          = nspinup  
+    Model%nthresh          = nthresh 
+
+
 
     !--- tracer handling
     Model%ntrac            = size(tracer_names)
@@ -3009,6 +3113,21 @@ module GFS_typedefs
       print *, ' vcamp             : ', Model%vcamp
       print *, ' vc                : ', Model%vc
       print *, ' '
+      print *, 'cellular automata'
+      print *, ' nca               : ', Model%ncells
+      print *, ' ncells            : ', Model%ncells
+      print *, ' nlives            : ', Model%nlives
+      print *, ' nfracseed         : ', Model%nfracseed
+      print *, ' nseed             : ', Model%nseed
+      print *, ' ca_global         : ', Model%ca_global
+      print *, ' ca_sgs            : ', Model%ca_sgs
+      print *, ' do_ca             : ', Model%do_ca
+      print *, ' iseed_ca          : ', Model%iseed_ca
+      print *, ' ca_smooth         : ', Model%ca_smooth
+      print *, ' isppt_deep        : ', Model%isppt_deep
+      print *, ' nspinup           : ', Model%nspinup
+      print *, ' nthresh           : ', Model%nthresh
+      print *, ' '
       print *, 'tracers'
       print *, ' tracer_names      : ', Model%tracer_names
       print *, ' ntrac             : ', Model%ntrac
@@ -3467,6 +3586,15 @@ module GFS_typedefs
     Diag%smcref2 = zero
     Diag%wet1    = zero
     Diag%sr      = zero
+
+    if (Model%do_ca) then
+      Diag%ca_out   = zero
+      Diag%ca_deep  = zero
+      Diag%ca_turb  = zero
+      Diag%ca_shal  = zero
+      Diag%ca_rad   = zero
+      Diag%ca_micro = zero
+    endif
 
     if (Model%ldiag3d) then
       Diag%du3dt   = zero

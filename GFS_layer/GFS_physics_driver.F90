@@ -668,10 +668,27 @@ module module_physics_driver
       skip_macro = .false.
 
 
-
-      if (Model%imfdeepcnv >= 0 .or. Model%imfshalcnv > 0) then
+      if (Model%imfdeepcnv >= 0 .or.  Model%imfshalcnv > 0  .or. &
+         (Model%npdf3d == 3     .and. Model%num_p3d   == 4) .or. &
+         (Model%npdf3d == 0     .and. Model%ncnvcld3d == 1) ) then
         allocate (cnvc(ix,levs), cnvw(ix,levs))
+        do k=1,levs
+          do i=1,im
+            cnvc(i,k) = 0.
+            cnvw(i,k) = 0.
+          enddo
+        enddo
+
+        if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
+          num2 = Model%num_p3d + 2
+          num3 = num2 + 1
+        elseif (Model%npdf3d == 0 .and. Model%ncnvcld3d == 1) then
+          num2 = Model%num_p3d + 1
+        endif
+        !CCPP: num2 = Model%ncnvw
+        !CCPP: num3 = Model%ncnvc
       endif
+
 !
 !  ---  set initial quantities for stochastic physics deltas
       if (Model%do_sppt) then
@@ -2313,6 +2330,15 @@ module module_physics_driver
 
         if (Model%do_deep) then
 
+          if (Model%do_ca) then
+            do k=1,levs
+              do i=1,im
+                Stateout%gq0(i,k,1) = Stateout%gq0(i,k,1)*(1. + Coupling%ca_deep(i)/500.)
+              enddo
+            enddo
+          endif
+
+
           if (Model%imfdeepcnv == 1) then             ! no random cloud top
             call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
                           Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
@@ -2325,25 +2351,28 @@ module module_physics_driver
                           Model%evfact_deep, Model%evfactl_deep,                 &
                           Model%pgcon_deep)
           elseif (Model%imfdeepcnv == 2) then
-            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
-                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
+               nsamftrac = 0
+            else
+               nsamftrac = tottracer
             endif
-            call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
-                            Stateout%gq0(:,:,1),                        &
-                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                            Model%ext_rain_deep, qrn,                     &
-                            cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
-                            garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                            dt_mf, cnvw, cnvc,                            &
-                            Model%clam_deep, Model%c0s_deep,                       &
-                            Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
-                            Model%evfact_deep, Model%evfactl_deep,                 &
-                            Model%pgcon_deep, Model%asolfac_deep)
-!           if (lprnt) print *,' rain1=',rain1(ipr)
-            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
-                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
-            endif
+            call samfdeepcnv(im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac,  &
+                             del, Statein%prsl, Statein%pgr, Statein%phil, clw,    &
+                             Stateout%gq0(:,:,1), Stateout%gt0,                    &
+                             Stateout%gu0, Stateout%gv0, Model%fscav, Model%do_ca, &
+                             Coupling%ca_deep, cld1d, rain1, kbot, ktop, kcnv,     &
+                             islmsk, garea,                                        &
+                             Statein%vvl, Model%ncld, ud_mf, dd_mf, dt_mf, cnvw, cnvc,   &
+                             QLCN, QICN, w_upi,cf_upi, CNV_MFD,                    &
+                             CNV_DQLDT,CLCN,CNV_FICE,CNV_NDROP,CNV_NICE,           &
+                      !       imp_physics,                                          &
+                      ! TODO: reorganize ways of calling microphysics 
+                             5, &  
+                             Model%clam_deep,   Model%c0s_deep,                    &
+                             Model%c1_deep,  Model%betal_deep, Model%betas_deep,   &
+                             Model%evfact_deep, Model%evfactl_deep,                &
+                             Model%pgcon_deep,  Model%asolfac_deep)
+
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
                          Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
@@ -2363,6 +2392,30 @@ module module_physics_driver
           cnvw  = 0.
           cnvc  = 0.
         endif
+
+
+        if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
+          do k=1,levs
+            do i=1,im
+              Tbd%phy_f3d(i,k,num2) = cnvw(i,k)
+              Tbd%phy_f3d(i,k,num3) = cnvc(i,k)
+              cnvw(i,k)             = 0.
+              cnvc(i,k)             = 0.
+            enddo
+          enddo
+        elseif (Model%npdf3d == 0 .and. Model%ncnvcld3d == 1) then
+          do k=1,levs
+            do i=1,im
+              Tbd%phy_f3d(i,k,num2) = cnvw(i,k)
+              cnvw(i,k)             = 0.
+            enddo
+          enddo
+        endif
+          
+        if(Model%do_ca) then
+          Coupling%cape(:) = cld1d(:)
+        endif
+
 
       else        ! ras or cscnv
         if (Model%cscnv) then    ! Chikira-Sugiyama  convection scheme (via CSU)
@@ -2533,15 +2586,6 @@ module module_physics_driver
         Coupling%cnvqci (:,:)  = Coupling%cnvqci (:,:) + (clw(:,:,1)+clw(:,:,2))*frain
       endif ! if (lgocart)
 !
-      if ((Model%npdf3d == 3) .and. (Model%num_p3d == 4)) then
-        num2 = Model%num_p3d + 2
-        num3 = num2 + 1
-        Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
-        Tbd%phy_f3d(:,:,num3) = cnvc(:,:)
-      elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
-        num2 = Model%num_p3d + 1
-        Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
-      endif
 
 !     if (lprnt) write(7000,*)' bef cnvgwd gu0=',gu0(ipr,:)
 !    &,' lat=',lat,' kdt=',kdt,' me=',me
@@ -2755,12 +2799,9 @@ module module_physics_driver
             endif
 ! in shalcnv,  'cnvw' and 'cnvc' are not set to zero:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
-              num2 = Model%num_p3d + 2
-              num3 = num2 + 1
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
               Tbd%phy_f3d(:,:,num3) = cnvc(:,:)
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
-              num2 = Model%num_p3d + 1
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
             endif
 

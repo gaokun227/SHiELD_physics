@@ -320,7 +320,7 @@ module module_physics_driver
 !!   - If diagnostics are active, set 'dtdt' and 'dqdt' to updated values of T and q before shallow convection
 !!   - If SHOC is not active, do the following:
 !!    - for the mass-flux shallow convection scheme (imfdeepcnv == 1), call 'shalcnv'
-!!    - for the scale- and aerosol-aware scheme (imfshalcnv == 2), call 'mfshalcnv'
+!!    - for the scale- and aerosol-aware scheme (imfshalcnv == 2), call 'samfshalcnv'
 !!    - for either of the first two schemes, perform the following after the call:
 !!     - if Zhao-Carr microphysics with PDF-based clouds, save convective cloud water an cover in 'phy_f3d'
 !!     - if non-PDF-based clouds and convective cloudiness enhancement is active, save convective cloud water in 'phy_f3d'
@@ -418,7 +418,8 @@ module module_physics_driver
       !--- INTEGER VARIABLES
       integer :: me, lprint, ipr, ix, im, levs, ntrac, nvdiff, kdt
       integer :: i, kk, ic, k, n, k1, iter, levshcm, tracers,           &
-                 tottracer, num2, num3, nshocm, nshoc, ntk, itc, nn
+                 tottracer, nsamftrac, num2, num3, nshocm, nshoc, ntk,  &
+                 itc, nn
       integer :: kflip
       integer :: ntsd ! for myj
 
@@ -2764,20 +2765,21 @@ module module_physics_driver
             endif
 
           elseif (Model%imfshalcnv == 2) then
-            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
-                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
+               nsamftrac = 0
+            else
+               nsamftrac = tottracer
             endif
-            call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
-                            Stateout%gq0(:,:,1:1),                        &
-                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                            Model%ext_rain_shal, qrn,                     &
-                            rain1, kbot, ktop, kcnv, islmsk, garea,       &
-                            Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
-                            dt_mf, cnvw, cnvc,                            &
-                            Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
-                            Model%pgcon_shal, Model%asolfac_shal,         &
-                            Model%evfact_shal, Model%evfactl_shal)
+            call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
+                              del, Statein%prsl, Statein%pgr, Statein%phil, clw,   &
+                              Stateout%gq0(:,:,1), Stateout%gt0,                   &
+                              Stateout%gu0, Stateout%gv0, Model%fscav,             &
+                              rain1, kbot, ktop, kcnv, islmsk, garea,              &
+                              Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
+                              dt_mf, cnvw, cnvc,                                   &
+                              Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
+                              Model%pgcon_shal, Model%asolfac_shal)
+
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
@@ -2793,9 +2795,6 @@ module module_physics_driver
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
               num2 = Model%num_p3d + 1
               Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
-            endif
-            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
-                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
 
           elseif (Model%imfshalcnv == 0) then    ! modified Tiedtke Shallow convecton
@@ -3624,7 +3623,6 @@ module module_physics_driver
       if (allocated(cnvc)) deallocate(cnvc)
       if (allocated(cnvw)) deallocate(cnvw)
 
-!     deallocate (fscav, fswtr)
 !
 !     if (lprnt) write(0,*)' end of gbphys maxu=',
 !    &maxval(gu0(1:im,1:levs)),' minu=',minval(gu0(1:im,1:levs))

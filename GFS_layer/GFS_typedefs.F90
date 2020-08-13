@@ -748,9 +748,17 @@ module GFS_typedefs
     integer              :: ntinc           !< tracer index for ice    number concentration
     integer              :: ntrnc           !< tracer index for rain   number concentration
     integer              :: ntsnc           !< tracer index for snow   number concentration
+    integer              :: ntgnc           !< tracer index for graupel number concentration
     integer              :: ntke            !< tracer index for kinetic energy
     integer              :: nto             !< tracer index for oxygen ion
     integer              :: nto2            !< tracer index for oxygen
+    integer              :: ntwa            !< tracer index for water friendly aerosol 
+    integer              :: ntia            !< tracer index for ice friendly aerosol
+    integer              :: ntchm           !< number of chemical tracers
+    integer              :: ntchs           !< tracer index for first chemical tracer
+    logical, pointer     :: ntdiag(:) => null() !< array to control diagnostics for chemical tracers
+    real(kind=kind_phys), pointer :: fscav(:)  => null() !< array of aerosol scavenging coefficients
+
  
     !--- derived totals for phy_f*d
     integer              :: ntot2d          !< total number of variables for phyf2d
@@ -1716,7 +1724,7 @@ module GFS_typedefs
     character(len=32),      intent(in) :: tracer_names(:)
     character(len=*),       intent(in), pointer :: input_nml_file(:)
     !--- local variables
-    integer :: n
+    integer :: n, i, j
     integer :: ios
     integer :: seed0
     logical :: exists
@@ -2006,6 +2014,10 @@ module GFS_typedefs
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_ocean       = .false.         !< flag for slab ocean model 
     logical              :: use_ec_sst     = .false.         !< flag for using EC SST forcing (or any external SST dataset, passed from the dynamics or nudging)
+
+!--- aerosol scavenging factors
+    character(len=20) :: fscav_aero(20) = 'default'
+
     !--- END NAMELIST VARIABLES
 
     NAMELIST /gfs_physics_nml/                                                              &
@@ -2062,7 +2074,9 @@ module GFS_typedefs
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
-                               debug, pre_rad, do_ocean, use_ec_sst, lprnt
+                               debug, pre_rad, do_ocean, use_ec_sst, lprnt,                 &
+                          !--- aerosol scavenging factors ('name:value' string array)
+                               fscav_aero
 
     !--- other parameters 
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -2378,7 +2392,61 @@ module GFS_typedefs
     Model%ntinc            = get_tracer_index(Model%tracer_names, 'ice_nc',   Model%me, Model%master, Model%debug)
     Model%ntrnc            = get_tracer_index(Model%tracer_names, 'rain_nc',  Model%me, Model%master, Model%debug)
     Model%ntsnc            = get_tracer_index(Model%tracer_names, 'snow_nc',  Model%me, Model%master, Model%debug)
+    Model%ntgnc            = get_tracer_index(Model%tracer_names, 'graupel_nc', Model%me, Model%master, Model%debug)
     Model%ntke             = get_tracer_index(Model%tracer_names, 'sgs_tke',  Model%me, Model%master, Model%debug)
+    Model%ntwa             = get_tracer_index(Model%tracer_names, 'liq_aero',   Model%me, Model%master, Model%debug)
+    Model%ntia             = get_tracer_index(Model%tracer_names, 'ice_aero',   Model%me, Model%master, Model%debug)
+    Model%ntchm            = 0
+    Model%ntchs            = get_tracer_index(Model%tracer_names, 'so2',        Model%me, Model%master, Model%debug)
+    if (Model%ntchs > 0) then
+      Model%ntchm          = get_tracer_index(Model%tracer_names, 'pp10',       Model%me, Model%master, Model%debug)
+      if (Model%ntchm > 0) then
+        Model%ntchm = Model%ntchm - Model%ntchs + 1
+        allocate(Model%ntdiag(Model%ntchm))
+        ! -- turn on all tracer diagnostics to .true. by default, except for so2
+        Model%ntdiag(1)  = .false.
+        Model%ntdiag(2:) = .true.
+        ! -- turn off diagnostics for DMS
+        n = get_tracer_index(Model%tracer_names, 'DMS', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+        if (n > 0) Model%ntdiag(n) = .false.
+        ! -- turn off diagnostics for msa
+        n = get_tracer_index(Model%tracer_names, 'msa', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+        if (n > 0) Model%ntdiag(n) = .false.
+      endif
+    endif
+
+    ! -- setup aerosol scavenging factors
+    allocate(Model%fscav(Model%ntchm))
+    if (Model%ntchm > 0) then
+      ! -- initialize to default
+      Model%fscav = 0.6_kind_phys
+      n = get_tracer_index(Model%tracer_names, 'seas1', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+      if (n > 0) Model%fscav(n) = 1.0_kind_phys
+      n = get_tracer_index(Model%tracer_names, 'seas2', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+      if (n > 0) Model%fscav(n) = 1.0_kind_phys
+      n = get_tracer_index(Model%tracer_names, 'seas3', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+      if (n > 0) Model%fscav(n) = 1.0_kind_phys
+      n = get_tracer_index(Model%tracer_names, 'seas4', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+      if (n > 0) Model%fscav(n) = 1.0_kind_phys
+      n = get_tracer_index(Model%tracer_names, 'seas5', Model%me, Model%master, Model%debug) - Model%ntchs + 1
+      if (n > 0) Model%fscav(n) = 1.0_kind_phys
+      ! -- read factors from namelist
+      do i = 1, size(fscav_aero)
+        j = index(fscav_aero(i),":")
+        if (j > 1) then
+          read(fscav_aero(i)(j+1:), *, iostat=ios) tem
+          if (ios /= 0) cycle
+          if (adjustl(fscav_aero(i)(:j-1)) == "*") then
+            Model%fscav = tem
+            exit
+          else
+            n = get_tracer_index(Model%tracer_names, adjustl(fscav_aero(i)(:j-1)), Model%me, Model%master, Model%debug) &
+                - Model%ntchs + 1
+            if (n > 0) Model%fscav(n) = tem
+          endif
+        endif
+      enddo
+    endif
 
     !--- quantities to be used to derive phy_f*d totals
     Model%nshoc_2d         = nshoc_2d
@@ -2955,9 +3023,15 @@ module GFS_typedefs
       print *, ' ntinc             : ', Model%ntinc
       print *, ' ntrnc             : ', Model%ntrnc
       print *, ' ntsnc             : ', Model%ntsnc
+      print *, ' ntgnc             : ', Model%ntgnc
       print *, ' ntke              : ', Model%ntke
       print *, ' nto               : ', Model%nto
       print *, ' nto2              : ', Model%nto2
+      print *, ' ntwa              : ', Model%ntwa
+      print *, ' ntia              : ', Model%ntia
+      print *, ' ntchm             : ', Model%ntchm
+      print *, ' ntchs             : ', Model%ntchs
+      print *, ' fscav             : ', Model%fscav
       print *, ' '
       print *, 'derived totals for phy_f*d'
       print *, ' ntot2d            : ', Model%ntot2d

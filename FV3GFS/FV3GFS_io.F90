@@ -868,6 +868,13 @@ module FV3GFS_io_mod
     real(kind=kind_phys) :: stc = 300. ! 310.
     real(kind=kind_phys) :: smc = 0.4 ! wet season vs. 0.08 dry ! 0.2 okc highly variable and patchy
     
+    isc = Atm_block%isc
+    iec = Atm_block%iec
+    jsc = Atm_block%jsc
+    jec = Atm_block%jec
+    npz = Atm_block%npz
+    nx = (iec - isc + 1)
+    ny = (jec - jsc + 1)
     
     namelist /sfc_prop_override_nml/ &
          ideal_sst, sst_max, sst_profile, & !Aquaplanet SST options

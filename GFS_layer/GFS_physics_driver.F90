@@ -15,7 +15,7 @@ module module_physics_driver
                                    GFS_control_type, GFS_grid_type,     &
                                    GFS_tbd_type,     GFS_cldprop_type,  &
                                    GFS_radtend_type, GFS_diag_type
-  use gfdl_cloud_microphys_mod, only: gfdl_cloud_microphys_driver
+  use gfdl_cld_mp_mod,       only: gfdl_cld_mp_driver
   use funcphys,              only: ftdp
   use module_ocean,          only: update_ocean
   use myj_pbl_mod,           only: myj_pbl
@@ -415,7 +415,6 @@ module module_physics_driver
       integer :: me, lprint, ipr, ix, im, levs, ntrac, nvdiff, kdt
       integer :: i, kk, ic, k, n, k1, iter, levshcm, tracers,           &
                  trc_shft, tottracer, num2, num3, nshocm, nshoc, ntk
-      integer :: seconds
       integer :: kflip
       integer :: ntsd ! for myj
 
@@ -475,11 +474,13 @@ module module_physics_driver
 !
 
 #ifdef fvGFS_2017
-      real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::             &
-          area, land, rain0, snow0, ice0, graupel0
+      real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::           &
+          area, land, rain0, snow0, ice0, graupel0, cond0, dep0,        &
+          reevap0, sub0
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          area, land, rain0, snow0, ice0, graupel0
+          gsize, hs, land, rain0, snow0, ice0, graupel0, cond0, dep0,   &
+          reevap0, sub0
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -506,9 +507,9 @@ module module_physics_driver
            phmid, th, tke, exner, exchh1, el1 ! for myj
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
-           delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qn1, qi1,   &
-           qs1, pt_dt, qa_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt,  &
-           qs_dt, qg_dt, &
+           delp, dz, uin, vin, pt, qv1, ql1, qr1, qg1, qa1, qnl1, qi1,  &
+           qs1, pt_dt, udt, vdt, w, qv_dt, ql_dt, qr_dt, qi_dt, qni1,   &
+           qs_dt, qg_dt, te, q_con, cappa, &
            phmid, th, tke, exner, exchh1, el1 ! for myj
 #endif
 
@@ -1482,13 +1483,17 @@ module module_physics_driver
                    Model%ntcw, Model%ntiw, Model%ntke,                          &
                    dvdt, dudt, dtdt, dqdt,                                      &
                    Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
-                   Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                   Radtend%htrsw, Radtend%htrlw, xmu, garea, islmsk,            &
                    Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                    Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
                    stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
                    Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                    Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
-                   kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, dkt)
+                   kinver, Model%xkzm_m, Model%xkzm_h,                          &
+                   Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  & 
+                   Model%xkzm_s,  Model%xkzminv, Model%do_dk_hb19,              &
+                   Model%xkzm_lim, Model%xkgdx,                                 &
+                   Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
 
              elseif (Model%isatmedmf == 1) then   
                 ! updated version of satmedmfvdif (May 2019) modified by kgao
@@ -1496,13 +1501,15 @@ module module_physics_driver
                        Model%ntcw, Model%ntiw, Model%ntke,                          &
                        dvdt, dudt, dtdt, dqdt,                                      &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
-                       Radtend%htrsw, Radtend%htrlw, xmu, garea,                    &
+                       Radtend%htrsw, Radtend%htrlw, xmu, garea, islmsk,            &
                        Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                        Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
                        stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
                        Statein%prslk, Statein%phii, Statein%phil, dtp,              &
                        Model%dspheat, dusfc1, dvsfc1, dtsfc1, dqsfc1, Diag%hpbl,    &
-                       kinver, Model%xkzm_m, Model%xkzm_h, Model%xkzm_s,            &
+                       kinver, Model%xkzm_m, Model%xkzm_h,                          & 
+                       Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  &
+                       Model%xkzm_s, Model%xkzminv, Model%do_dk_hb19, Model%xkgdx,  &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt)
         endif
 
@@ -1522,7 +1529,7 @@ module module_physics_driver
                       kinver,                                                   &
                       Model%xkzm_m, Model%xkzm_h, Model%xkzm_s, Model%xkzminv,  &
                       Model%dspheat, Model%ysu_ent_fac, dkt,                    &
-                      !flux_cg, flux_en,                                         &
+                      flux_cg, flux_en,                                         &
                       Model%ysu_pfac_q,                                         &
                       Model%ysu_brcr_ub, Model%ysu_rlam, Model%ysu_afac,        &
                       Model%ysu_bfac, Model%ysu_hpbl_cr,                        &
@@ -3142,6 +3149,10 @@ module module_physics_driver
         snow0    (:,1)   = 0.0
         ice0     (:,1)   = 0.0
         graupel0 (:,1)   = 0.0
+        cond0    (:,1)   = 0.0
+        dep0     (:,1)   = 0.0
+        reevap0  (:,1)   = 0.0
+        sub0     (:,1)   = 0.0
         qn1      (:,1,:) = 0.0
         qv_dt    (:,1,:) = 0.0
         ql_dt    (:,1,:) = 0.0
@@ -3208,50 +3219,33 @@ module module_physics_driver
         enddo
 
 #else
-        land      = frland(:)
-        area      = Grid%area(:)
+        hs        = Sfcprop%oro(:) * con_g
+        gsize     = sqrt(Grid%area(:))
         rain0     = 0.0
         snow0     = 0.0
         ice0      = 0.0
         graupel0  = 0.0
-        qn1       = 0.0
-        qv_dt     = 0.0
-        ql_dt     = 0.0
-        qr_dt     = 0.0
-        qi_dt     = 0.0
-        qs_dt     = 0.0
-        qg_dt     = 0.0
-        qa_dt     = 0.0
-        pt_dt     = 0.0
-        udt       = 0.0
-        vdt       = 0.0
+        cond0     = 0.0
+        dep0      = 0.0
+        reevap0   = 0.0
+        sub0      = 0.0
+        qnl1      = 0.0
+        qni1      = 0.0
         do k = 1, levs
-          qv1  (:,k) = Stateout%gq0(:,levs-k+1,1         )
-          ql1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntcw)
-          qr1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntrw)
-          qi1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntiw)
-          qs1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntsw)
-          qg1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntgl)
-          qa1  (:,k) = Stateout%gq0(:,levs-k+1,Model%ntclamt)
-          pt   (:,k) = Stateout%gt0(:,levs-k+1)
           w    (:,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g
-          uin  (:,k) = Stateout%gu0(:,levs-k+1)
-          vin  (:,k) = Stateout%gv0(:,levs-k+1)
           delp (:,k) = del(:,levs-k+1)
           dz   (:,k) = (Statein%phii(:,levs-k+1)-Statein%phii(:,levs-k+2))/con_g
         enddo
 
-        seconds          = mod(nint(Model%fhour*3600),86400)
-
-        call gfdl_cloud_microphys_driver(qv1, ql1, qr1, qi1, qs1, qg1, qa1, &
-                                         qn1, qv_dt, ql_dt, qr_dt, qi_dt,   &
-                                         qs_dt, qg_dt, qa_dt, pt_dt, pt, w, &
-                                         uin, vin, udt, vdt, dz, delp,      &
-                                         area, dtp, land, rain0, snow0,     &
-                                         ice0, graupel0, .false., .true.,   &
-                                         1, im, 1, levs, 1, levs,           &
-                                         seconds)
+        call gfdl_cld_mp_driver(Stateout%gq0(:,levs:1:-1,1), Stateout%gq0(:,levs:1:-1,Model%ntcw), &
+                                Stateout%gq0(:,levs:1:-1,Model%ntrw), Stateout%gq0(:,levs:1:-1,Model%ntiw), &
+                                Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
+                                Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
+                                Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
+                                Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, rain0, snow0, ice0, &
+                                graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
+                                .false., te(:,levs:1:-1), cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         rain0(:)    = rain0(:)    * tem
@@ -3269,18 +3263,6 @@ module module_physics_driver
           else
             Diag%sr(i) = 0.0
           endif
-        enddo
-        do k = 1, levs
-          Stateout%gq0(:,k,1         ) = qv1(:,levs-k+1) + qv_dt(:,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntcw) = ql1(:,levs-k+1) + ql_dt(:,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntrw) = qr1(:,levs-k+1) + qr_dt(:,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntiw) = qi1(:,levs-k+1) + qi_dt(:,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntsw) = qs1(:,levs-k+1) + qs_dt(:,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntgl) = qg1(:,levs-k+1) + qg_dt(:,levs-k+1) * dtp
-          Stateout%gq0(:,k,Model%ntclamt) = qa1(:,levs-k+1) + qa_dt(:,levs-k+1) * dtp
-          Stateout%gt0(:,k)   = Stateout%gt0(:,k) + pt_dt(:,levs-k+1) * dtp
-          Stateout%gu0(:,k)   = Stateout%gu0(:,k) + udt  (:,levs-k+1) * dtp
-          Stateout%gv0(:,k)   = Stateout%gv0(:,k) + vdt  (:,levs-k+1) * dtp
         enddo
 
 #endif

@@ -2524,7 +2524,7 @@
 #ifdef fvGFS_2017
       use gfdl_cloud_microphys_mod, only: cloud_diagnosis
 #else
-      use cloud_diagnosis_mod, only: cloud_diagnosis
+      use cld_eff_rad_mod, only: cld_eff_rad
 #endif
 !
       implicit none
@@ -2578,18 +2578,18 @@
       stop 123
 #else
 #ifdef GFS_CLOUD_OVERLAP
-      call cloud_diagnosis (1, IX, 1, NLAY, slmsk, plyr*100,            &
-     &                      abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,   &
-     &                      tlyr, qw, qi, qr, qs, qg, cwp, cip, crp,    &
-     &                      csp, cgp, rew, rei, rer, res, reg, cldtot,  &
-     &                      cldtot, snowd, cnvw=cnvw)
+      call cld_eff_rad (1, IX, 1, NLAY, slmsk, plyr*100,                &
+     &                  abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,       &
+     &                  tlyr, qw, qi, qr, qs, qg, cwp, cip, crp,        &
+     &                  csp, cgp, rew, rei, rer, res, reg, cldtot,      &
+     &                  cldtot, snowd, cnvw=cnvw)
       cldcnv = cnvc
 #else
-      call cloud_diagnosis (1, IX, 1, NLAY, slmsk, plyr*100,            &
-     &                      abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,   &
-     &                      tlyr, qw, qi, qr, qs, qg, cwp, cip, crp,    &
-     &                      csp, cgp, rew, rei, rer, res, reg, cldtot,  &
-     &                      cldtot, snowd, cnvw=cnvw, cnvc=cnvc)
+      call cld_eff_rad (1, IX, 1, NLAY, slmsk, plyr*100,                &
+     &                  abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,       &
+     &                  tlyr, qw, qi, qr, qs, qg, cwp, cip, crp,        &
+     &                  csp, cgp, rew, rei, rer, res, reg, cldtot,      &
+     &                  cldtot, snowd, cnvw=cnvw, cnvc=cnvc)
       cldcnv = 0.0
 #endif
 #endif

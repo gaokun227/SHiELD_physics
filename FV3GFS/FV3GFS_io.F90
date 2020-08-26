@@ -43,7 +43,7 @@ module FV3GFS_io_mod
 !--- needed for dq3dt output
   use ozne_def,           only: oz_coeff
 !--- needed for cold-start capability to initialize q2m
-  use gfdl_cloud_microphys_mod, only: wqs1, qsmith_init
+  use gfdl_cld_mp_mod,    only: wqs1, qsmith_init
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -298,9 +298,9 @@ module FV3GFS_io_mod
          temp2d(i,j,100+Model%ntot2d+l) = IPD_Data(nb)%Tbd%phy_fctd(ix,l)
        enddo
 
-       temp3d(i,j,:, 1) = IPD_Data(nb)%Statein%phii(ix,:)
-       temp3d(i,j,:, 2) = IPD_Data(nb)%Statein%prsi(ix,:)
-       temp3d(i,j,:, 3) = IPD_Data(nb)%Statein%prsik(ix,:)
+       temp3d(i,j,:, 1) = IPD_Data(nb)%Statein%phii(ix,1:lev)
+       temp3d(i,j,:, 2) = IPD_Data(nb)%Statein%prsi(ix,1:lev)
+       temp3d(i,j,:, 3) = IPD_Data(nb)%Statein%prsik(ix,1:lev)
        temp3d(i,j,:, 4) = IPD_Data(nb)%Statein%phil(ix,:)
        temp3d(i,j,:, 5) = IPD_Data(nb)%Statein%prsl(ix,:)
        temp3d(i,j,:, 6) = IPD_Data(nb)%Statein%prslk(ix,:)
@@ -331,7 +331,7 @@ module FV3GFS_io_mod
      write(outunit,100) name, mpp_chksum(temp2d(:,:,i:i))
    enddo
    do i = 1,17+Model%ntot3d+2*ntr
-     write (name, '(i2.2,3x,4a)') i, ' 3d '
+     write (name, '(i3.3,3x,4a)') i, ' 3d '
      write(outunit,100) name, mpp_chksum(temp3d(:,:,:,i:i))
    enddo
 100 format("CHECKSUM::",A32," = ",Z20)
@@ -3234,9 +3234,10 @@ module FV3GFS_io_mod
 !-------------------------------------------------------------------------      
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
-  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, &
-                             nx, ny, levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr, prt_stats)
+  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
+                             levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr, prt_stats)
 !--- subroutine interface variable definitions
+    logical :: fprint
     type(time_type),           intent(in) :: Time
 !rab    type(diagnostics),         intent(in) :: Gfs_diag
 !rab    type(state_fields_in),     intent(in) :: Statein
@@ -3352,6 +3353,7 @@ module FV3GFS_io_mod
 
            if (prt_stats) then
            !!!! Accumulated diagnostics --- lmh 19 sep 17
+           if (fprint) then
            select case (trim(Diag(idx)%name))
            case('totprcp')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)

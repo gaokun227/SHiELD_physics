@@ -371,6 +371,8 @@ module GFS_typedefs
     integer              :: thermodyn_id    !< valid for GFS only for get_prs/phi
     integer              :: sfcpress_id     !< valid for GFS only for get_prs/phi
     logical              :: gen_coord_hybrid!< for Henry's gen coord
+    logical              :: fix_cosz_dec    !< flag for fix cosine solar zenith angle - solar declination
+    logical              :: fix_cosz_shr    !< flag for fix cosine solar zenith angle - solar hour
     logical              :: sfc_override    !< use idealized surface conditions
 
     !--- set some grid extent parameters
@@ -510,14 +512,25 @@ module GFS_typedefs
     logical              :: satmedmf        !< flag for scale-aware TKE-based moist edmf
                                             !< vertical turbulent mixing scheme
     logical              :: no_pbl          !< disable PBL (for LES)
+    logical              :: cap_k0_land     !< flag for applying limter on background diff in inversion layer over land in satmedmfdiff.f 
+    logical              :: do_dk_hb19      !< flag for using hb19 background diff formula in satmedmfdiff.f 
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
     real(kind=kind_phys) :: afac_canopy     !< tunable enhancement factor for canopy heat storage parameterization
-    real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_m          !< [in] bkgd_vdif_m  background vertical diffusion for momentum for ocean points 
+    real(kind=kind_phys) :: xkzm_h          !< [in] bkgd_vdif_h  background vertical diffusion for heat q for ocean points 
+    real(kind=kind_phys) :: xkzm_ml         !< [in] bkgd_vdif_m  background vertical diffusion for momentum for land points  
+    real(kind=kind_phys) :: xkzm_hl         !< [in] bkgd_vdif_h  background vertical diffusion for heat q for land points 
+    real(kind=kind_phys) :: xkzm_mi         !< [in] bkgd_vdif_m  background vertical diffusion for momentum for ice points  
+    real(kind=kind_phys) :: xkzm_hi         !< [in] bkgd_vdif_h  background vertical diffusion for heat q for ice points 
     real(kind=kind_phys) :: xkzm_s          !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
+    real(kind=kind_phys) :: xkzm_lim        !< [in] background vertical diffusion limit
+    real(kind=kind_phys) :: xkzm_fac        !< [in] background vertical diffusion factor
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
+    real(kind=kind_phys) :: xkgdx           !< [in] background vertical diffusion threshold
+    real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac          !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr         !< updraft fraction in boundary layer mass flux scheme
@@ -1513,6 +1526,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: fhgoc3d        = 0.0             !< seconds between calls to gocart
     integer              :: thermodyn_id   =  1              !< valid for GFS only for get_prs/phi
     integer              :: sfcpress_id    =  1              !< valid for GFS only for get_prs/phi
+    logical              :: fix_cosz_dec   = .false.         !< flag for fix cosine solar zenith angle - solar declination
+    logical              :: fix_cosz_shr   = .false.         !< flag for fix cosine solar zenith angle - solar hour
     logical              :: sfc_override   = .false.         !< use idealized surface conditions
 
     !--- coupling parameters
@@ -1624,14 +1639,25 @@ module GFS_typedefs
     logical              :: satmedmf       = .false.                  !< flag for scale-aware TKE-based moist edmf
                                                                       !< vertical turbulent mixing scheme
     logical              :: no_pbl         = .false.                  !< disable PBL (for LES)
+    logical              :: cap_k0_land    = .true.                   !< flag for applying limter on background diff in inversion 
+    logical              :: do_dk_hb19     = .false.                  !< flag for using hb19 formula for background diff
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
     real(kind=kind_phys) :: afac_canopy    = 1.0d0                    !< tunable enhancement factor for canopy heat storage parameterization
-    real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum  
-    real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q  
+    real(kind=kind_phys) :: xkzm_m         = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum over ocean 
+    real(kind=kind_phys) :: xkzm_h         = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q over ocean 
+    real(kind=kind_phys) :: xkzm_ml        = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum over land  
+    real(kind=kind_phys) :: xkzm_hl        = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q over land 
+    real(kind=kind_phys) :: xkzm_mi        = 1.0d0                    !< [in] bkgd_vdif_m  background vertical diffusion for momentum over ice 
+    real(kind=kind_phys) :: xkzm_hi        = 1.0d0                    !< [in] bkgd_vdif_h  background vertical diffusion for heat q over ice
     real(kind=kind_phys) :: xkzm_s         = 1.0d0                    !< [in] bkgd_vdif_s  sigma threshold for background mom. diffusion  
-    real(kind=kind_phys) :: xkzminv        = 0.3                      !< diffusivity in inversion layers
+    real(kind=kind_phys) :: xkzm_lim       = 0.01                     !< [in] background vertical diffusion limit
+    real(kind=kind_phys) :: xkzm_fac       = 1.0                      !< [in] background vertical diffusion factor
+    real(kind=kind_phys) :: xkzminv        = 0.15                     !< diffusivity in inversion layers
+    real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
+    real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: rlmx           = 500.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme
@@ -1752,7 +1778,8 @@ module GFS_typedefs
     NAMELIST /gfs_physics_nml/                                                              &
                           !--- general parameters
                                fhzero, ldiag3d, lssav, fhcyc, lgocart, fhgoc3d,             &
-                               thermodyn_id, sfcpress_id, sfc_override,                     &
+                               thermodyn_id, sfcpress_id, fix_cosz_dec, fix_cosz_shr,       &
+                               sfc_override,                                                &
                           !--- coupling parameters
                                cplflx, cplwav, lsidea,                                      &
                           !--- radiation parameters
@@ -1772,8 +1799,9 @@ module GFS_typedefs
                                do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
-                               cnvcld, no_pbl,                                              &
-                               xkzm_m, xkzm_h, xkzm_s, xkzminv, moninq_fac, dspfac,         &
+                               cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx, rlmx, rlmn,       &
+                               xkzm_m, xkzm_h, xkzm_ml, xkzm_hl, xkzm_mi, xkzm_hi,          &
+                               xkzm_s, xkzminv, moninq_fac, dspfac,                         &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
                                ysu_brcr_ub, ysu_rlam, ysu_afac, ysu_bfac, ysu_hpbl_cr,      &
                                tnl_fac, qnl_fac, unl_fac,                                   &
@@ -1781,7 +1809,7 @@ module GFS_typedefs
                                do_deep, jcap,&
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,satmedmf,         &
-                               cloud_gfdl,gwd_p_crit,                                       &
+                               cap_k0_land,do_dk_hb19,cloud_gfdl,gwd_p_crit,                &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -1852,6 +1880,8 @@ module GFS_typedefs
     Model%thermodyn_id     = thermodyn_id
     Model%sfcpress_id      = sfcpress_id
     Model%gen_coord_hybrid = gen_coord_hybrid
+    Model%fix_cosz_dec     = fix_cosz_dec
+    Model%fix_cosz_shr     = fix_cosz_shr
     Model%sfc_override     = sfc_override
 
     !--- set some grid extent parameters
@@ -1970,14 +2000,25 @@ module GFS_typedefs
     Model%ysupbl           = ysupbl
     Model%satmedmf         = satmedmf 
     Model%no_pbl           = no_pbl
+    Model%cap_k0_land      = cap_k0_land
+    Model%do_dk_hb19       = do_dk_hb19
     Model%dspheat          = dspheat
     Model%lheatstrg        = lheatstrg
     Model%hour_canopy      = hour_canopy
     Model%afac_canopy      = afac_canopy
     Model%xkzm_m           = xkzm_m
     Model%xkzm_h           = xkzm_h
+    Model%xkzm_ml          = xkzm_ml
+    Model%xkzm_hl          = xkzm_hl
+    Model%xkzm_mi          = xkzm_mi
+    Model%xkzm_hi          = xkzm_hi
     Model%xkzm_s           = xkzm_s
+    Model%xkzm_lim         = xkzm_lim
+    Model%xkzm_fac         = xkzm_fac
     Model%xkzminv          = xkzminv
+    Model%xkgdx            = xkgdx
+    Model%rlmn             = rlmn 
+    Model%rlmx             = rlmx
     Model%moninq_fac       = moninq_fac
     Model%dspfac           = dspfac
     Model%bl_upfr          = bl_upfr
@@ -2372,6 +2413,8 @@ module GFS_typedefs
       print *, ' thermodyn_id      : ', Model%thermodyn_id
       print *, ' sfcpress_id       : ', Model%sfcpress_id
       print *, ' gen_coord_hybrid  : ', Model%gen_coord_hybrid
+      print *, ' fix_cosz_dec      : ', Model%fix_cosz_dec
+      print *, ' fix_cosz_shr      : ', Model%fix_cosz_shr
       print *, ' sfc_override      : ', Model%sfc_override
       print *, ' '
       print *, 'grid extent parameters'
@@ -2487,14 +2530,25 @@ module GFS_typedefs
       print *, ' ysupbl            : ', Model%ysupbl
       print *, ' satmedmf          : ', Model%satmedmf
       print *, ' no_pbl            : ', Model%no_pbl
+      print *, ' cap_k0_land       : ', Model%cap_k0_land
+      print *, ' do_dk_hb19        : ', Model%do_dk_hb19
       print *, ' dspheat           : ', Model%dspheat
       print *, ' lheatstrg         : ', Model%lheatstrg
       print *, ' hour_canopy       : ', Model%hour_canopy
       print *, ' afac_canopy       : ', Model%afac_canopy
       print *, ' xkzm_m            : ', Model%xkzm_m
       print *, ' xkzm_h            : ', Model%xkzm_h
+      print *, ' xkzm_ml           : ', Model%xkzm_ml
+      print *, ' xkzm_hl           : ', Model%xkzm_hl
+      print *, ' xkzm_mi           : ', Model%xkzm_mi
+      print *, ' xkzm_hi           : ', Model%xkzm_hi      
       print *, ' xkzm_s            : ', Model%xkzm_s
+      print *, ' xkzm_lim          : ', Model%xkzm_lim
+      print *, ' xkzm_fac          : ', Model%xkzm_fac
       print *, ' xkzminv           : ', Model%xkzminv
+      print *, ' xkgdx             : ', Model%xkgdx
+      print *, ' rlmn              : ', Model%rlmn
+      print *, ' rlmx              : ', Model%rlmx
       print *, ' moninq_fac        : ', Model%moninq_fac
       print *, ' dspfac            : ', Model%dspfac
       print *, ' bl_upfr           : ', Model%bl_upfr

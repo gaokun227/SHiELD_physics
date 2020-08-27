@@ -3351,9 +3351,8 @@ module FV3GFS_io_mod
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
            used=send_data(Diag(idx)%id, var2, Time)
 
-           if (prt_stats) then
            !!!! Accumulated diagnostics --- lmh 19 sep 17
-           if (fprint) then
+           if (fprint .or. prt_stats) then
            select case (trim(Diag(idx)%name))
            case('totprcp')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)
@@ -3469,9 +3468,9 @@ module FV3GFS_io_mod
              used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
           endif
 #endif
-        endif
-     endif
-    enddo
+       endif
+    endif
+ enddo
 
 
   end subroutine gfdl_diag_output

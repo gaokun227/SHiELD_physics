@@ -21,6 +21,10 @@ module module_physics_driver
   use myj_pbl_mod,           only: myj_pbl
   use myj_jsfc_mod,          only: myj_jsfc
   use wv_saturation,         only: estblf
+  
+  use module_sfc_drv,        only: sfc_drv
+  
+  
   implicit none
 
 
@@ -316,7 +320,7 @@ module module_physics_driver
 !!   - If diagnostics are active, set 'dtdt' and 'dqdt' to updated values of T and q before shallow convection
 !!   - If SHOC is not active, do the following:
 !!    - for the mass-flux shallow convection scheme (imfdeepcnv == 1), call 'shalcnv'
-!!    - for the scale- and aerosol-aware scheme (imfshalcnv == 2), call 'mfshalcnv'
+!!    - for the scale- and aerosol-aware scheme (imfshalcnv == 2), call 'samfshalcnv'
 !!    - for either of the first two schemes, perform the following after the call:
 !!     - if Zhao-Carr microphysics with PDF-based clouds, save convective cloud water an cover in 'phy_f3d'
 !!     - if non-PDF-based clouds and convective cloudiness enhancement is active, save convective cloud water in 'phy_f3d'
@@ -414,7 +418,8 @@ module module_physics_driver
       !--- INTEGER VARIABLES
       integer :: me, lprint, ipr, ix, im, levs, ntrac, nvdiff, kdt
       integer :: i, kk, ic, k, n, k1, iter, levshcm, tracers,           &
-                 trc_shft, tottracer, num2, num3, nshocm, nshoc, ntk
+                 tottracer, nsamftrac, num2, num3, nshocm, nshoc, ntk,  &
+                 itc, nn
       integer :: kflip
       integer :: ntsd ! for myj
 
@@ -425,7 +430,7 @@ module module_physics_driver
            islmsk_cice
 
       !--- LOGICAL VARIABLES
-      logical :: lprnt, revap, do_awdd
+      logical :: lprnt, revap, do_awdd, trans_aero
 
       logical, dimension(size(Grid%xlon,1)) ::                          &
            flag_iter, flag_guess, invrsn, skip_macro,                   &
@@ -460,12 +465,15 @@ module module_physics_driver
            adjnirdfd, adjvisbmd, adjvisdfd, gabsbdlw, xcosz, tseal,     &
            snohf, dlqfac, work3, ctei_rml, cldf, domr, domzr, domip,    &
            doms, psautco_l, prautco_l, ocalnirbm_cpl, ocalnirdf_cpl,    &
-           ocalvisbm_cpl, ocalvisdf_cpl, dtzm, temrain1,                &
+           ocalvisbm_cpl, ocalvisdf_cpl, dtzm, temrain1, t2mmp, q2mp,   &
            !--- coupling inputs for physics
            dtsfc_cice, dqsfc_cice, dusfc_cice, dvsfc_cice, ulwsfc_cice, &
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
            !--- for CS-convection
            wcbmax
+		   
+      logical, dimension(size(Grid%xlon,1))                ::           &
+           wet, dry,              icy
 !
       real(kind=kind_phys), dimension(size(Grid%xlon,1))  ::            &
            netflxsfc,                                                   & ! net surface heat flux
@@ -514,6 +522,10 @@ module module_physics_driver
            phmid, th, tke, exner, exchh1, el1 ! for myj
 #endif
 
+!  mg, sfc perts
+      real (kind=kind_phys), dimension(size(Grid%xlon,1)) :: &
+         z01d, zt1d, bexp1d, xlai1d, alb1d, vegf1d
+
       real(kind=kind_phys), dimension(Model%levs) :: epsq2 ! myj
       real(kind=kind_phys), dimension(Model%levs-1) :: epsL ! myj
 
@@ -557,6 +569,7 @@ module module_physics_driver
              qlcn, qicn, w_upi, cf_upi, CNV_MFD, CNV_PRC3, CNV_DQLDT,   &
              CLCN, CNV_FICE, CNV_NDROP, CNV_NICE
 
+      integer, allocatable, dimension(:) :: clw_trac_idx
 !
 !
 !===> ...  begin here
@@ -577,32 +590,74 @@ module module_physics_driver
       do i = 1, im
         if(nint(Sfcprop%slmsk(i)) == 1) then
           frland(i) = 1.0
+		  dry(i)    = .true.
         else
           frland(i) = 0.
+		  dry(i)     = .false.
         endif
+		
+         z01d(i)   = 0.
+         zt1d(i)   = 0.
+         bexp1d(i) = 0.
+         xlai1d(i) = 0.
+         vegf1d(i) = 0.
+		
       enddo
-!
-!  --- ...                       figure out number of extra tracers
-!
-      tottracer = 0            ! no convective transport of tracers
-      if (Model%trans_trac .or. Model%cscnv) then
-        if (Model%ntcw > 0) then
-          if (Model%ntoz < Model%ntcw) then
-            trc_shft = Model%ntcw + Model%ncld - 1
-          else
-            trc_shft = Model%ntoz
-          endif
-        elseif (Model%ntoz > 0) then
-          trc_shft = Model%ntoz
-        else
-          trc_shft = 1
-        endif
 
-        tracers   = Model%ntrac - trc_shft
-        tottracer = tracers
-        if (Model%ntoz > 0) tottracer = tottracer + 1  ! ozone is added separately
+      ! perform aerosol convective transport and PBL diffusion
+      !trans_aero = Model%cplchm .and. Model%trans_trac
+      trans_aero = Model%trans_trac
+!
+!  figure out number of extra tracers (other than hydrometeors and could amount)
+!
+
+      if (Model%ntiw > 0) then
+        if (Model%ntclamt > 0) then
+          nn = ntrac - 2
+        else
+          nn = ntrac - 1
+        endif
+      elseif (Model%ntcw > 0) then
+        nn = ntrac
+      else
+        nn = ntrac + 1
       endif
-      if (Model%ntke > 0) ntk = Model%ntke - trc_shft + 3
+      allocate (clw(ix,levs,nn))
+      allocate( clw_trac_idx(nn) )
+
+      ntk       = 0
+      tottracer = 0
+      if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
+        otspt(:,:)   = .true.     ! otspt is used only for cscnv
+        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
+        tracers = 2
+        nn = 1
+        do n=2,ntrac
+          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt .and. &
+               n /= Model%ntrw  .and. n /= Model%ntsw  .and. n /= Model%ntrnc   .and. &
+               n /= Model%ntsnc .and. n /= Model%ntgl  .and. n /= Model%ntgnc) then
+            tracers = tracers + 1
+            clw_trac_idx(nn) = n
+            nn =nn + 1
+            do k=1,levs
+              do i=1,im
+                clw(i,k,tracers) = Stateout%gq0(i,k,n)
+              enddo
+            enddo
+            if (Model%ntke  == n ) then
+              otspt(tracers+1,1) = .false.
+              ntk = tracers
+            endif
+            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
+!           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
+!               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
+                    otspt(tracers+1,1) = .false.
+            if (trans_aero .and. Model%ntchs == n) itc = tracers
+          endif
+        enddo
+        tottracer = tracers - 2
+      endif   ! end if_ras or cfscnv or samf
+
 
 !     if (lprnt) write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
 !                write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
@@ -612,10 +667,28 @@ module module_physics_driver
 
       skip_macro = .false.
 
-      allocate ( clw(ix,levs,tottracer+2) )
-      if (Model%imfdeepcnv >= 0 .or. Model%imfshalcnv > 0) then
+
+      if (Model%imfdeepcnv >= 0 .or.  Model%imfshalcnv > 0  .or. &
+         (Model%npdf3d == 3     .and. Model%num_p3d   == 4) .or. &
+         (Model%npdf3d == 0     .and. Model%ncnvcld3d == 1) ) then
         allocate (cnvc(ix,levs), cnvw(ix,levs))
+        do k=1,levs
+          do i=1,im
+            cnvc(i,k) = 0.
+            cnvw(i,k) = 0.
+          enddo
+        enddo
+
+        if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
+          num2 = Model%num_p3d + 2
+          num3 = num2 + 1
+        elseif (Model%npdf3d == 0 .and. Model%ncnvcld3d == 1) then
+          num2 = Model%num_p3d + 1
+        endif
+        !CCPP: num2 = Model%ncnvw
+        !CCPP: num3 = Model%ncnvc
       endif
+
 !
 !  ---  set initial quantities for stochastic physics deltas
       if (Model%do_sppt) then
@@ -927,6 +1000,8 @@ module module_physics_driver
       Diag%zlvl(:)    = Statein%phil(:,1) * onebg
       Diag%smcwlt2(:) = 0.0
       Diag%smcref2(:) = 0.0
+	  
+	  
 
 !  --- ...  lu: iter-loop over (sfc_diff,sfc_drv,sfc_ocean,sfc_sice)
 
@@ -1177,22 +1252,22 @@ module module_physics_driver
 
 !  --- ...  surface energy balance over land
 !
-        if (Model%lsm == 1) then                          ! noah lsm call
+        if (Model%lsm == Model%lsm_noah) then                          ! noah lsm call
 
 !     if (lprnt) write(0,*)' tsead=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' pgr=',pgr(ipr),' sfcemis=',sfcemis(ipr)
 
           call sfc_drv                                                 &
 !  ---  inputs:
-           (im, Model%lsoil, Statein%pgr, Statein%ugrs, Statein%vgrs,  &
+           (im, Model%lsoil, Statein%pgr,                              &
             Statein%tgrs, Statein%qgrs, soiltyp, vegtype, sigmaf,      &
             Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
-            Sfcprop%tg3, cd, cdq, Statein%prsl(1,1), work3, Diag%zlvl, &
-            islmsk, Tbd%phy_f2d(1,Model%num_p2d), slopetyp,            &
+            Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3, Diag%zlvl, &
+            dry, wind, slopetyp,                                       &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
-            Radtend%sfalb, flag_iter, flag_guess, Model%isot,          &
-            Model%ivegsrc, lprnt,                                      &
-            Model%lheatstrg, kdt, Model%hour_canopy, Model%afac_canopy,&
+            Radtend%sfalb, flag_iter, flag_guess,                      &
+			Model%lheatstrg, Model%isot, Model%ivegsrc,                &
+            bexp1d, xlai1d, vegf1d, Model%pertvegf,                    &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
             Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
@@ -1204,6 +1279,43 @@ module module_physics_driver
 
 !     if (lprnt) write(0,*)' tseae=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' phy_f2d=',phy_f2d(ipr,num_p2d)
+		elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
+          call noahmpdrv                                               &
+!  ---  inputs:
+           (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
+            Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
+            Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
+            Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
+            Diag%zlvl, dry,   wind, slopetyp,                          &
+            Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
+            Radtend%sfalb,    flag_iter,       flag_guess,             &
+            Model%iopt_dveg,  Model%iopt_crs,  Model%iopt_btr,         &
+            Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
+            Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
+            Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
+            grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
+            Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
+            Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
+!  ---  in/outs:
+            Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
+            Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
+            trans, tsurf, Sfcprop%zorl,                                &
+!
+            Sfcprop%snowxy,   Sfcprop%tvxy,    Sfcprop%tgxy,  Sfcprop%canicexy, &
+            Sfcprop%canliqxy, Sfcprop%eahxy,   Sfcprop%tahxy, Sfcprop%cmxy,     &
+            Sfcprop%chxy,     Sfcprop%fwetxy,  Sfcprop%sneqvoxy,                &
+            Sfcprop%alboldxy, Sfcprop%qsnowxy, Sfcprop%wslakexy,                &
+            Sfcprop%zwtxy,    Sfcprop%waxy,    Sfcprop%wtxy, Sfcprop%tsnoxy,    &
+            Sfcprop%zsnsoxy,  Sfcprop%snicexy, Sfcprop%snliqxy,                 &
+            Sfcprop%lfmassxy, Sfcprop%rtmassxy,                                 &
+            Sfcprop%stmassxy, Sfcprop%woodxy,  Sfcprop%stblcpxy,                &
+            Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
+            Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
+            Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
+!  ---  outputs:
+            Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
+            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,  &
+            snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
 
         endif
 
@@ -1298,6 +1410,16 @@ module module_physics_driver
       !endif
 
       Tbd%phy_f2d(:,Model%num_p2d) = 0.0
+
+      if (Model%lsm == Model%lsm_noahmp) then
+        do i=1,im
+         if (dry(i)) then
+          Sfcprop%t2m(i) = t2mmp(i)
+          Sfcprop%q2m(i) = q2mp(i)
+         endif
+        enddo
+      endif 
+
 
       if (Model%cplflx) then
         Coupling%dlwsfci_cpl (:) = adjsfcdlw(:)
@@ -2090,22 +2212,6 @@ module module_physics_driver
 
 !  --- ...  for convective tracer transport (while using ras)
 
-      if (Model%ras .or. Model%cscnv) then
-        if (tottracer > 0) then
-          if (Model%ntoz > 0) then
-            clw(:,:,3) = Stateout%gq0(:,:,Model%ntoz)
-            if (tracers > 0) then
-              do n=1,tracers
-                clw(:,:,3+n) = Stateout%gq0(:,:,n+trc_shft)
-              enddo
-            endif
-          else
-            do n=1,tracers
-              clw(:,:,2+n) = Stateout%gq0(:,:,n+trc_shft)
-            enddo
-          endif
-        endif
-      endif   ! end if_ras or cfscnv
 
       ktop(:)  = 1
       kbot(:)  = levs
@@ -2232,6 +2338,15 @@ module module_physics_driver
 
         if (Model%do_deep) then
 
+          if (Model%do_ca) then
+            do k=1,levs
+              do i=1,im
+                Stateout%gq0(i,k,1) = Stateout%gq0(i,k,1)*(1. + Coupling%ca_deep(i)/500.)
+              enddo
+            enddo
+          endif
+
+
           if (Model%imfdeepcnv == 1) then             ! no random cloud top
             call sascnvn (im, ix, levs, Model%jcap, dtp, del,             &
                           Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),   &
@@ -2244,25 +2359,28 @@ module module_physics_driver
                           Model%evfact_deep, Model%evfactl_deep,                 &
                           Model%pgcon_deep)
           elseif (Model%imfdeepcnv == 2) then
-            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
-                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
+               nsamftrac = 0
+            else
+               nsamftrac = tottracer
             endif
-            call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
-                            Stateout%gq0(:,:,1),                        &
-                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                            Model%ext_rain_deep, qrn,                     &
-                            cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
-                            garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
-                            dt_mf, cnvw, cnvc,                            &
-                            Model%clam_deep, Model%c0s_deep,                       &
-                            Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
-                            Model%evfact_deep, Model%evfactl_deep,                 &
-                            Model%pgcon_deep, Model%asolfac_deep)
-!           if (lprnt) print *,' rain1=',rain1(ipr)
-            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
-                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
-            endif
+            call samfdeepcnv(im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac,  &
+                             del, Statein%prsl, Statein%pgr, Statein%phil, clw,    &
+                             Stateout%gq0(:,:,1), Stateout%gt0,                    &
+                             Stateout%gu0, Stateout%gv0, Model%fscav, Model%do_ca, &
+                             Coupling%ca_deep, cld1d, rain1, kbot, ktop, kcnv,     &
+                             islmsk, garea,                                        &
+                             Statein%vvl, Model%ncld, ud_mf, dd_mf, dt_mf, cnvw, cnvc,   &
+                             QLCN, QICN, w_upi,cf_upi, CNV_MFD,                    &
+                             CNV_DQLDT,CLCN,CNV_FICE,CNV_NDROP,CNV_NICE,           &
+                      !       imp_physics,                                          &
+                      ! TODO: reorganize ways of calling microphysics 
+                             5, &  
+                             Model%clam_deep,   Model%c0s_deep,                    &
+                             Model%c1_deep,  Model%betal_deep, Model%betas_deep,   &
+                             Model%evfact_deep, Model%evfactl_deep,                &
+                             Model%pgcon_deep,  Model%asolfac_deep)
+
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
                          Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:2),    &
@@ -2283,17 +2401,32 @@ module module_physics_driver
           cnvc  = 0.
         endif
 
+
+        if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
+          do k=1,levs
+            do i=1,im
+              Tbd%phy_f3d(i,k,num2) = cnvw(i,k)
+              Tbd%phy_f3d(i,k,num3) = cnvc(i,k)
+              cnvw(i,k)             = 0.
+              cnvc(i,k)             = 0.
+            enddo
+          enddo
+        elseif (Model%npdf3d == 0 .and. Model%ncnvcld3d == 1) then
+          do k=1,levs
+            do i=1,im
+              Tbd%phy_f3d(i,k,num2) = cnvw(i,k)
+              cnvw(i,k)             = 0.
+            enddo
+          enddo
+        endif
+          
+        if(Model%do_ca) then
+          Coupling%cape(:) = cld1d(:)
+        endif
+
+
       else        ! ras or cscnv
         if (Model%cscnv) then    ! Chikira-Sugiyama  convection scheme (via CSU)
-          otspt(:,:)   = .true.
-          otspt(1:3,:) = .false.
-          if (Model%ntke > 0) then
-            otspt(Model%ntke-trc_shft+4,1)  = .false.
-          endif
-          if (Model%ncld == 2) then
-            otspt(Model%ntlnc-trc_shft+4,1) = .false.
-            otspt(Model%ntinc-trc_shft+4,1) = .false.
-          endif
 
          fscav(:) = 0.0
          fswtr(:) = 0.0
@@ -2420,19 +2553,9 @@ module module_physics_driver
 !  --- ...  update the tracers due to convective transport
 
         if (tottracer > 0) then
-          if (Model%ntoz > 0) then                         ! for ozone
-            Stateout%gq0(:,:,Model%ntoz) = clw(:,:,3)
-
-            if (tracers > 0) then                    ! for other tracers
-              do n=1,tracers
-                Stateout%gq0(:,:,n+trc_shft) = clw(:,:,3+n)
-              enddo
-            endif
-          else
-            do n=1,tracers
-              Stateout%gq0(:,:,n+trc_shft) = clw(:,:,2+n)
-            enddo
-          endif
+          do n=1, tottracer
+            Stateout%gq0(:,:,clw_trac_idx(n)) = clw(:,:,2+n)
+          enddo
         endif
       endif   ! end if_not_ras
 
@@ -2471,15 +2594,6 @@ module module_physics_driver
         Coupling%cnvqci (:,:)  = Coupling%cnvqci (:,:) + (clw(:,:,1)+clw(:,:,2))*frain
       endif ! if (lgocart)
 !
-      if ((Model%npdf3d == 3) .and. (Model%num_p3d == 4)) then
-        num2 = Model%num_p3d + 2
-        num3 = num2 + 1
-        Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
-        Tbd%phy_f3d(:,:,num3) = cnvc(:,:)
-      elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
-        num2 = Model%num_p3d + 1
-        Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
-      endif
 
 !     if (lprnt) write(7000,*)' bef cnvgwd gu0=',gu0(ipr,:)
 !    &,' lat=',lat,' kdt=',kdt,' me=',me
@@ -2693,30 +2807,28 @@ module module_physics_driver
             endif
 ! in shalcnv,  'cnvw' and 'cnvc' are not set to zero:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
-              num2 = Model%num_p3d + 2
-              num3 = num2 + 1
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
               Tbd%phy_f3d(:,:,num3) = cnvc(:,:)
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
-              num2 = Model%num_p3d + 1
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
             endif
 
           elseif (Model%imfshalcnv == 2) then
-            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
-                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
+               nsamftrac = 0
+            else
+               nsamftrac = tottracer
             endif
-            call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
-                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
-                            Stateout%gq0(:,:,1:1),                        &
-                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
-                            Model%ext_rain_shal, qrn,                     &
-                            rain1, kbot, ktop, kcnv, islmsk, garea,       &
-                            Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
-                            dt_mf, cnvw, cnvc,                            &
-                            Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
-                            Model%pgcon_shal, Model%asolfac_shal,         &
-                            Model%evfact_shal, Model%evfactl_shal)
+            call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
+                              del, Statein%prsl, Statein%pgr, Statein%phil, clw,   &
+                              Stateout%gq0(:,:,1), Stateout%gt0,                   &
+                              Stateout%gu0, Stateout%gv0, Model%fscav,             &
+                              rain1, kbot, ktop, kcnv, islmsk, garea,              &
+                              Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
+                              dt_mf, cnvw, cnvc,                                   &
+                              Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
+                              Model%pgcon_shal, Model%asolfac_shal)
+
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
@@ -2732,9 +2844,6 @@ module module_physics_driver
             elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
               num2 = Model%num_p3d + 1
               Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
-            endif
-            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
-                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
 
           elseif (Model%imfshalcnv == 0) then    ! modified Tiedtke Shallow convecton
@@ -3318,6 +3427,29 @@ module module_physics_driver
 
       Diag%rain(:)  = Diag%rainc(:) + frain * rain1(:)
 
+
+      if (Model%lsm == Model%lsm_noahmp) then
+        if (Model%ncld == 5 ) then
+          !GJF: Should all precipitation rates have the same denominator below? 
+          ! It appears that Diag%rain and Diag%rainc are on the dynamics time step,
+          ! but Diag%snow,graupel,ice are on the physics time step? This doesn't
+          ! matter as long as dtp=dtf (frain=1).
+          tem = 1.0 / (dtp*con_p001)
+          Sfcprop%draincprv(:)   = tem * Diag%rainc(:)
+          Sfcprop%drainncprv(:)  = tem * (frain * rain1(:))
+          Sfcprop%dsnowprv(:)    = tem * Diag%snow(:)
+          Sfcprop%dgraupelprv(:) = tem * Diag%graupel(:)
+          Sfcprop%diceprv(:)     = tem * Diag%ice(:)
+        else
+          Sfcprop%draincprv(:)   = 0.0
+          Sfcprop%drainncprv(:)  = 0.0
+          Sfcprop%dsnowprv(:)    = 0.0
+          Sfcprop%dgraupelprv(:) = 0.0
+          Sfcprop%diceprv(:)     = 0.0
+        endif
+      end if !  if (Model%lsm == Model%lsm_noahmp)
+
+
       if (Model%cal_pre) then       ! hchuang: add dominant precipitation type algorithm
         i = min(3,Model%num_p3d)
         call calpreciptype (kdt, Model%nrcm, im, ix, levs, levs+1,        &
@@ -3540,7 +3672,6 @@ module module_physics_driver
       if (allocated(cnvc)) deallocate(cnvc)
       if (allocated(cnvw)) deallocate(cnvw)
 
-!     deallocate (fscav, fswtr)
 !
 !     if (lprnt) write(0,*)' end of gbphys maxu=',
 !    &maxval(gu0(1:im,1:levs)),' minu=',minval(gu0(1:im,1:levs))

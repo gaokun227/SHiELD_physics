@@ -798,10 +798,7 @@ module FV3GFS_io_mod
 
 !--- Noah MP define arbitrary value (number layers of snow) to indicate
 !coldstart(sfcfile doesn't include noah mp fields) or not
-
-    if (Model%lsm == Model%lsm_noahmp) then
-      sfc_var2(1,1,nvar_s2m+19) = -66666.
-    endif
+    
  
     !--- read the surface restart/data
     fname = 'INPUT/'//trim(fn_srf)
@@ -1115,8 +1112,9 @@ module FV3GFS_io_mod
         enddo
       enddo
 
+
       if (Model%lsm == Model%lsm_noahmp) then 
-        if (nint(sfc_var2(1,1,nvar_s2m+19)) == -66666) then
+        if (sfc_var2(1,1,nvar_s2m+19) < -9990. ) then
           if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver:: - Cold start Noah MP ')
 
           do nb = 1, Atm_block%nblks
@@ -1336,14 +1334,11 @@ module FV3GFS_io_mod
                 dksat  = dksat_table(soiltyp)
                 psisat = -psisat_table(soiltyp)
 
-
                 if (vegtyp == isurban_table) then
                   smcmax = 0.45
                   smcwlt = 0.40
                 endif
                  
-!               print*, bexp, soiltyp, vegtyp, Sfcprop(nb)%slmsk(ix)
-
                 if ((bexp > 0.0) .and. (smcmax > 0.0) .and. (-psisat > 0.0 )) then
                   do ns = 1, Model%lsoil          
                     if ( ns == 1 )then
@@ -1383,7 +1378,6 @@ module FV3GFS_io_mod
 
             enddo ! ix
           enddo  ! nb
-
         endif    
       endif !if Noah MP cold start ends    
 
@@ -1579,14 +1573,28 @@ module FV3GFS_io_mod
     integer :: isc, iec, jsc, jec, npz, nx, ny
     integer :: id_restart
     integer :: nvar2m, nvar2o, nvar3
+    integer :: nvar2mp, nvar3mp
     logical :: mand
     character(len=32) :: fn_srf = 'sfc_data.nc'
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
+    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p1 => NULL()
+    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p2 => NULL()
+    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p3 => NULL()
 
+    if (Model%cplflx) then ! needs more variables
+      nvar2m = 34
+    else
     nvar2m = 32
+    endif
     nvar2o = 18
     nvar3  = 3
+    nvar2mp = 0
+    nvar3mp = 0
+    if (Model%lsm == Model%lsm_noahmp) then
+      nvar2mp = 29
+      nvar3mp = 5
+    endif
 
     isc = Atm_block%isc
     iec = Atm_block%iec
@@ -1602,8 +1610,22 @@ module FV3GFS_io_mod
       allocate(sfc_name3(nvar3))
       allocate(sfc_var2(nx,ny,nvar2m+nvar2o))
       allocate(sfc_var3(nx,ny,Model%lsoil,nvar3))
+      allocate(sfc_name2(nvar2m+nvar2o+nvar2mp))
+      allocate(sfc_name3(nvar3+nvar3mp))
+      allocate(sfc_var2(nx,ny,nvar2m+nvar2o+nvar2mp))
+      allocate(sfc_var3(nx,ny,Model%lsoil,nvar3))
       sfc_var2 = -9999._kind_phys
       sfc_var3 = -9999._kind_phys
+      if (Model%lsm == Model%lsm_noahmp) then
+        allocate(sfc_var3sn(nx,ny,-2:0,4:6))
+        allocate(sfc_var3eq(nx,ny,1:4,7:7))
+        allocate(sfc_var3zn(nx,ny,-2:4,8:8))
+
+        sfc_var3sn = -9999._kind_phys
+        sfc_var3eq = -9999._kind_phys
+        sfc_var3zn = -9999._kind_phys
+      endif
+
 
       !--- names of the 2D variables to save
       sfc_name2(1)  = 'slmsk'
@@ -1637,32 +1659,69 @@ module FV3GFS_io_mod
       sfc_name2(29) = 'shdmax'
       sfc_name2(30) = 'slope'
       sfc_name2(31) = 'snoalb'
-      !--- below here all variables are optional
+    !--- variables below here are optional
       sfc_name2(32) = 'sncovr'
+      if (Model%cplflx) then
+        sfc_name2(33) = 'tsfcl'   !temp on land portion of a cell
+        sfc_name2(34) = 'zorll'   !zorl on land portion of a cell
+      end if
       !--- NSSTM inputs only needed when (nstf_name(1) > 0) .and. (nstf_name(2)) == 0)
-      sfc_name2(33) = 'tref'
-      sfc_name2(34) = 'z_c'
-      sfc_name2(35) = 'c_0'
-      sfc_name2(36) = 'c_d'
-      sfc_name2(37) = 'w_0'
-      sfc_name2(38) = 'w_d'
-      sfc_name2(39) = 'xt'
-      sfc_name2(40) = 'xs'
-      sfc_name2(41) = 'xu'
-      sfc_name2(42) = 'xv'
-      sfc_name2(43) = 'xz'
-      sfc_name2(44) = 'zm'
-      sfc_name2(45) = 'xtts'
-      sfc_name2(46) = 'xzts'
-      sfc_name2(47) = 'd_conv'
-      sfc_name2(48) = 'ifd'
-      sfc_name2(49) = 'dt_cool'
-      sfc_name2(50) = 'qrain'
+      sfc_name2(nvar2m+1)  = 'tref'
+      sfc_name2(nvar2m+2)  = 'z_c'
+      sfc_name2(nvar2m+3)  = 'c_0'
+      sfc_name2(nvar2m+4)  = 'c_d'
+      sfc_name2(nvar2m+5)  = 'w_0'
+      sfc_name2(nvar2m+6)  = 'w_d'
+      sfc_name2(nvar2m+7)  = 'xt'
+      sfc_name2(nvar2m+8)  = 'xs'
+      sfc_name2(nvar2m+9)  = 'xu'
+      sfc_name2(nvar2m+10) = 'xv'
+      sfc_name2(nvar2m+11) = 'xz'
+      sfc_name2(nvar2m+12) = 'zm'
+      sfc_name2(nvar2m+13) = 'xtts'
+      sfc_name2(nvar2m+14) = 'xzts'
+      sfc_name2(nvar2m+15) = 'd_conv'
+      sfc_name2(nvar2m+16) = 'ifd'
+      sfc_name2(nvar2m+17) = 'dt_cool'
+      sfc_name2(nvar2m+18) = 'qrain'
+
+! Only needed when Noah MP LSM is used - 29 2D
+      if(Model%lsm == Model%lsm_noahmp) then
+        sfc_name2(nvar2m+19) = 'snowxy'
+        sfc_name2(nvar2m+20) = 'tvxy'
+        sfc_name2(nvar2m+21) = 'tgxy'
+        sfc_name2(nvar2m+22) = 'canicexy'
+        sfc_name2(nvar2m+23) = 'canliqxy'
+        sfc_name2(nvar2m+24) = 'eahxy'
+        sfc_name2(nvar2m+25) = 'tahxy'
+        sfc_name2(nvar2m+26) = 'cmxy'
+        sfc_name2(nvar2m+27) = 'chxy'
+        sfc_name2(nvar2m+28) = 'fwetxy'
+        sfc_name2(nvar2m+29) = 'sneqvoxy'
+        sfc_name2(nvar2m+30) = 'alboldxy'
+        sfc_name2(nvar2m+31) = 'qsnowxy'
+        sfc_name2(nvar2m+32) = 'wslakexy'
+        sfc_name2(nvar2m+33) = 'zwtxy'
+        sfc_name2(nvar2m+34) = 'waxy'
+        sfc_name2(nvar2m+35) = 'wtxy'
+        sfc_name2(nvar2m+36) = 'lfmassxy'
+        sfc_name2(nvar2m+37) = 'rtmassxy'
+        sfc_name2(nvar2m+38) = 'stmassxy'
+        sfc_name2(nvar2m+39) = 'woodxy'
+        sfc_name2(nvar2m+40) = 'stblcpxy'
+        sfc_name2(nvar2m+41) = 'fastcpxy'
+        sfc_name2(nvar2m+42) = 'xsaixy'
+        sfc_name2(nvar2m+43) = 'xlaixy'
+        sfc_name2(nvar2m+44) = 'taussxy'
+        sfc_name2(nvar2m+45) = 'smcwtdxy'
+        sfc_name2(nvar2m+46) = 'deeprechxy'
+        sfc_name2(nvar2m+47) = 'rechxy'
+      endif
  
       !--- register the 2D fields
       do num = 1,nvar2m
         var2_p => sfc_var2(:,:,num)
-        if (trim(sfc_name2(num)) == 'sncovr') then
+        if (trim(sfc_name2(num)) == 'sncovr'.or.trim(sfc_name2(num)) == 'tsfcl'.or.trim(sfc_name2(num)) == 'zorll') then
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=.false.)
         else
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
@@ -1676,12 +1735,26 @@ module FV3GFS_io_mod
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=mand)
         enddo
       endif
+      if (Model%lsm == Model%lsm_noahmp) then
+        mand = .true.                  ! actually should be true since it is after cold start
+        do num = nvar2m+nvar2o+1,nvar2m+nvar2o+nvar2mp
+          var2_p => sfc_var2(:,:,num)
+          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain, mandatory=mand)
+        enddo
+      endif
       nullify(var2_p)
  
-      !--- names of the 2D variables to save
+      !--- names of the 3D variables to save
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
       sfc_name3(3) = 'slc'
+      if (Model%lsm == Model%lsm_noahmp) then
+        sfc_name3(4) = 'snicexy'
+        sfc_name3(5) = 'snliqxy'
+        sfc_name3(6) = 'tsnoxy'
+        sfc_name3(7) = 'smoiseq'
+        sfc_name3(8) = 'zsnsoxy'
+      endif
  
       !--- register the 3D fields
       do num = 1,nvar3
@@ -1689,129 +1762,149 @@ module FV3GFS_io_mod
         id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(num), var3_p, domain=fv_domain)
       enddo
       nullify(var3_p)
+
+      if (Model%lsm == Model%lsm_noahmp) then
+        mand = .true.
+        do num = nvar3+1,nvar3+3
+          var3_p1 => sfc_var3sn(:,:,:,num)
+          id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(num), var3_p1, domain=fv_domain,mandatory=mand)
+        enddo
+
+        var3_p2 => sfc_var3eq(:,:,:,7)
+        id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(7), var3_p2, domain=fv_domain,mandatory=mand)
+
+        var3_p3 => sfc_var3zn(:,:,:,8)
+        id_restart = register_restart_fIeld(Sfc_restart, fn_srf, sfc_name3(8), var3_p3, domain=fv_domain,mandatory=mand)
+
+        nullify(var3_p1)
+        nullify(var3_p2)
+        nullify(var3_p3)
+      endif ! lsm = lsm_noahmp
     endif
+   
    
     do nb = 1, Atm_block%nblks
       do ix = 1, Atm_block%blksz(nb)
         !--- 2D variables
         i = Atm_block%index(nb)%ii(ix) - isc + 1
         j = Atm_block%index(nb)%jj(ix) - jsc + 1
-        !--- slmsk
-        sfc_var2(i,j,1)  = Sfcprop(nb)%slmsk(ix)
-        !--- tsfc (tsea in sfc file)
-        sfc_var2(i,j,2)  = Sfcprop(nb)%tsfc(ix)
-        !--- weasd (sheleg in sfc file)
-        sfc_var2(i,j,3)  = Sfcprop(nb)%weasd(ix)
-        !--- tg3
-        sfc_var2(i,j,4)  = Sfcprop(nb)%tg3(ix)
-        !--- zorl
-        sfc_var2(i,j,5)  = Sfcprop(nb)%zorl(ix)
-        !--- alvsf
-        sfc_var2(i,j,6)  = Sfcprop(nb)%alvsf(ix)
-        !--- alvwf
-        sfc_var2(i,j,7)  = Sfcprop(nb)%alvwf(ix)
-        !--- alnsf
-        sfc_var2(i,j,8)  = Sfcprop(nb)%alnsf(ix)
-        !--- alnwf
-        sfc_var2(i,j,9)  = Sfcprop(nb)%alnwf(ix)
-        !--- facsf
-        sfc_var2(i,j,10) = Sfcprop(nb)%facsf(ix)
-        !--- facwf
-        sfc_var2(i,j,11) = Sfcprop(nb)%facwf(ix)
-        !--- vfrac
-        sfc_var2(i,j,12) = Sfcprop(nb)%vfrac(ix)
-        !--- canopy
-        sfc_var2(i,j,13) = Sfcprop(nb)%canopy(ix)
-        !--- f10m
-        sfc_var2(i,j,14) = Sfcprop(nb)%f10m(ix)
-        !--- t2m
-        sfc_var2(i,j,15) = Sfcprop(nb)%t2m(ix)
-        !--- q2m
-        sfc_var2(i,j,16) = Sfcprop(nb)%q2m(ix)
-        !--- vtype
-        sfc_var2(i,j,17) = Sfcprop(nb)%vtype(ix)
-        !--- stype
-        sfc_var2(i,j,18) = Sfcprop(nb)%stype(ix)
-        !--- uustar
-        sfc_var2(i,j,19) = Sfcprop(nb)%uustar(ix)
-        !--- ffmm
-        sfc_var2(i,j,20) = Sfcprop(nb)%ffmm(ix)
-        !--- ffhh
-        sfc_var2(i,j,21) = Sfcprop(nb)%ffhh(ix)
-        !--- hice
-        sfc_var2(i,j,22) = Sfcprop(nb)%hice(ix)
-        !--- fice
-        sfc_var2(i,j,23) = Sfcprop(nb)%fice(ix)
-        !--- tisfc
-        sfc_var2(i,j,24) = Sfcprop(nb)%tisfc(ix)
-        !--- tprcp
-        sfc_var2(i,j,25) = Sfcprop(nb)%tprcp(ix)
-        !--- srflag
-        sfc_var2(i,j,26) = Sfcprop(nb)%srflag(ix)
-        !--- snowd (snwdph in the file)
-        sfc_var2(i,j,27) = Sfcprop(nb)%snowd(ix)
-        !--- shdmin
-        sfc_var2(i,j,28) = Sfcprop(nb)%shdmin(ix)
-        !--- shdmax
-        sfc_var2(i,j,29) = Sfcprop(nb)%shdmax(ix)
-        !--- slope
-        sfc_var2(i,j,30) = Sfcprop(nb)%slope(ix)
-        !--- snoalb
-        sfc_var2(i,j,31) = Sfcprop(nb)%snoalb(ix)
-        !--- sncovr
-        sfc_var2(i,j,32) = Sfcprop(nb)%sncovr(ix)
+        sfc_var2(i,j,1)  = Sfcprop(nb)%slmsk(ix) !--- slmsk
+        sfc_var2(i,j,2)  = Sfcprop(nb)%tsfc(ix)  !--- tsfc (tsea in sfc file)
+        sfc_var2(i,j,3)  = Sfcprop(nb)%weasd(ix) !--- weasd (sheleg in sfc file)
+        sfc_var2(i,j,4)  = Sfcprop(nb)%tg3(ix)   !--- tg3
+        sfc_var2(i,j,5)  = Sfcprop(nb)%zorl(ix)  !--- zorl
+        sfc_var2(i,j,6)  = Sfcprop(nb)%alvsf(ix) !--- alvsf
+        sfc_var2(i,j,7)  = Sfcprop(nb)%alvwf(ix) !--- alvwf
+        sfc_var2(i,j,8)  = Sfcprop(nb)%alnsf(ix) !--- alnsf
+        sfc_var2(i,j,9)  = Sfcprop(nb)%alnwf(ix) !--- alnwf
+        sfc_var2(i,j,10) = Sfcprop(nb)%facsf(ix) !--- facsf
+        sfc_var2(i,j,11) = Sfcprop(nb)%facwf(ix) !--- facwf
+        sfc_var2(i,j,12) = Sfcprop(nb)%vfrac(ix) !--- vfrac
+        sfc_var2(i,j,13) = Sfcprop(nb)%canopy(ix)!--- canopy
+        sfc_var2(i,j,14) = Sfcprop(nb)%f10m(ix)  !--- f10m
+        sfc_var2(i,j,15) = Sfcprop(nb)%t2m(ix)   !--- t2m
+        sfc_var2(i,j,16) = Sfcprop(nb)%q2m(ix)   !--- q2m
+        sfc_var2(i,j,17) = Sfcprop(nb)%vtype(ix) !--- vtype
+        sfc_var2(i,j,18) = Sfcprop(nb)%stype(ix) !--- stype
+        sfc_var2(i,j,19) = Sfcprop(nb)%uustar(ix)!--- uustar
+        sfc_var2(i,j,20) = Sfcprop(nb)%ffmm(ix)  !--- ffmm
+        sfc_var2(i,j,21) = Sfcprop(nb)%ffhh(ix)  !--- ffhh
+        sfc_var2(i,j,22) = Sfcprop(nb)%hice(ix)  !--- hice
+        sfc_var2(i,j,23) = Sfcprop(nb)%fice(ix)  !--- fice
+        sfc_var2(i,j,24) = Sfcprop(nb)%tisfc(ix) !--- tisfc
+        sfc_var2(i,j,25) = Sfcprop(nb)%tprcp(ix) !--- tprcp
+        sfc_var2(i,j,26) = Sfcprop(nb)%srflag(ix)!--- srflag
+        sfc_var2(i,j,27) = Sfcprop(nb)%snowd(ix) !--- snowd (snwdph in the file)
+        sfc_var2(i,j,28) = Sfcprop(nb)%shdmin(ix)!--- shdmin
+        sfc_var2(i,j,29) = Sfcprop(nb)%shdmax(ix)!--- shdmax
+        sfc_var2(i,j,30) = Sfcprop(nb)%slope(ix) !--- slope
+        sfc_var2(i,j,31) = Sfcprop(nb)%snoalb(ix)!--- snoalb
+        sfc_var2(i,j,32) = Sfcprop(nb)%sncovr(ix)!--- sncovr
+        if (Model%cplflx) then
+          sfc_var2(i,j,33) = Sfcprop(nb)%tsfcl(ix) !--- tsfcl (temp on land)
+          sfc_var2(i,j,34) = Sfcprop(nb)%zorll(ix) !--- zorll (zorl on land)
+        end if
         !--- NSSTM variables
         if (Model%nstf_name(1) > 0) then
-          !--- nsstm tref
-          sfc_var2(i,j,33) = Sfcprop(nb)%tref(ix)
-          !--- nsstm z_c
-          sfc_var2(i,j,34) = Sfcprop(nb)%z_c(ix)
-          !--- nsstm c_0
-          sfc_var2(i,j,35) = Sfcprop(nb)%c_0(ix)
-          !--- nsstm c_d
-          sfc_var2(i,j,36) = Sfcprop(nb)%c_d(ix)
-          !--- nsstm w_0
-          sfc_var2(i,j,37) = Sfcprop(nb)%w_0(ix)
-          !--- nsstm w_d
-          sfc_var2(i,j,38) = Sfcprop(nb)%w_d(ix)
-          !--- nsstm xt
-          sfc_var2(i,j,39) = Sfcprop(nb)%xt(ix)
-          !--- nsstm xs
-          sfc_var2(i,j,40) = Sfcprop(nb)%xs(ix)
-          !--- nsstm xu
-          sfc_var2(i,j,41) = Sfcprop(nb)%xu(ix)
-          !--- nsstm xv
-          sfc_var2(i,j,42) = Sfcprop(nb)%xv(ix)
-          !--- nsstm xz
-          sfc_var2(i,j,43) = Sfcprop(nb)%xz(ix)
-          !--- nsstm zm
-          sfc_var2(i,j,44) = Sfcprop(nb)%zm(ix)
-          !--- nsstm xtts
-          sfc_var2(i,j,45) = Sfcprop(nb)%xtts(ix)
-          !--- nsstm xzts
-          sfc_var2(i,j,46) = Sfcprop(nb)%xzts(ix)
-          !--- nsstm d_conv
-          sfc_var2(i,j,47) = Sfcprop(nb)%d_conv(ix)
-          !--- nsstm ifd
-          sfc_var2(i,j,48) = Sfcprop(nb)%ifd(ix)
-          !--- nsstm dt_cool
-          sfc_var2(i,j,49) = Sfcprop(nb)%dt_cool(ix)
-          !--- nsstm qrain
-          sfc_var2(i,j,50) = Sfcprop(nb)%qrain(ix)
+          sfc_var2(i,j,nvar2m+1) = Sfcprop(nb)%tref(ix)    !--- nsstm tref
+          sfc_var2(i,j,nvar2m+2) = Sfcprop(nb)%z_c(ix)     !--- nsstm z_c
+          sfc_var2(i,j,nvar2m+3) = Sfcprop(nb)%c_0(ix)     !--- nsstm c_0
+          sfc_var2(i,j,nvar2m+4) = Sfcprop(nb)%c_d(ix)     !--- nsstm c_d
+          sfc_var2(i,j,nvar2m+5) = Sfcprop(nb)%w_0(ix)     !--- nsstm w_0
+          sfc_var2(i,j,nvar2m+6) = Sfcprop(nb)%w_d(ix)     !--- nsstm w_d
+          sfc_var2(i,j,nvar2m+7) = Sfcprop(nb)%xt(ix)      !--- nsstm xt
+          sfc_var2(i,j,nvar2m+8) = Sfcprop(nb)%xs(ix)      !--- nsstm xs
+          sfc_var2(i,j,nvar2m+9) = Sfcprop(nb)%xu(ix)      !--- nsstm xu
+          sfc_var2(i,j,nvar2m+10) = Sfcprop(nb)%xv(ix)     !--- nsstm xv
+          sfc_var2(i,j,nvar2m+11) = Sfcprop(nb)%xz(ix)     !--- nsstm xz
+          sfc_var2(i,j,nvar2m+12) = Sfcprop(nb)%zm(ix)     !--- nsstm zm
+          sfc_var2(i,j,nvar2m+13) = Sfcprop(nb)%xtts(ix)   !--- nsstm xtts
+          sfc_var2(i,j,nvar2m+14) = Sfcprop(nb)%xzts(ix)   !--- nsstm xzts
+          sfc_var2(i,j,nvar2m+15) = Sfcprop(nb)%d_conv(ix) !--- nsstm d_conv
+          sfc_var2(i,j,nvar2m+16) = Sfcprop(nb)%ifd(ix)    !--- nsstm ifd
+          sfc_var2(i,j,nvar2m+17) = Sfcprop(nb)%dt_cool(ix)!--- nsstm dt_cool
+          sfc_var2(i,j,nvar2m+18) = Sfcprop(nb)%qrain(ix)  !--- nsstm qrain
         endif
  
+! Noah MP
+        if (Model%lsm == Model%lsm_noahmp) then
+          sfc_var2(i,j,nvar2m+19) = Sfcprop(nb)%snowxy(ix)
+          sfc_var2(i,j,nvar2m+20) = Sfcprop(nb)%tvxy(ix)
+          sfc_var2(i,j,nvar2m+21) = Sfcprop(nb)%tgxy(ix)
+          sfc_var2(i,j,nvar2m+22) = Sfcprop(nb)%canicexy(ix)
+          sfc_var2(i,j,nvar2m+23) = Sfcprop(nb)%canliqxy(ix)
+          sfc_var2(i,j,nvar2m+24) = Sfcprop(nb)%eahxy(ix)
+          sfc_var2(i,j,nvar2m+25) = Sfcprop(nb)%tahxy(ix)
+          sfc_var2(i,j,nvar2m+26) = Sfcprop(nb)%cmxy(ix)
+          sfc_var2(i,j,nvar2m+27) = Sfcprop(nb)%chxy(ix)
+          sfc_var2(i,j,nvar2m+28) = Sfcprop(nb)%fwetxy(ix)
+          sfc_var2(i,j,nvar2m+29) = Sfcprop(nb)%sneqvoxy(ix)
+          sfc_var2(i,j,nvar2m+30) = Sfcprop(nb)%alboldxy(ix)
+          sfc_var2(i,j,nvar2m+31) = Sfcprop(nb)%qsnowxy(ix)
+          sfc_var2(i,j,nvar2m+32) = Sfcprop(nb)%wslakexy(ix)
+          sfc_var2(i,j,nvar2m+33) = Sfcprop(nb)%zwtxy(ix)
+          sfc_var2(i,j,nvar2m+34) = Sfcprop(nb)%waxy(ix)
+          sfc_var2(i,j,nvar2m+35) = Sfcprop(nb)%wtxy(ix)
+          sfc_var2(i,j,nvar2m+36) = Sfcprop(nb)%lfmassxy(ix)
+          sfc_var2(i,j,nvar2m+37) = Sfcprop(nb)%rtmassxy(ix)
+          sfc_var2(i,j,nvar2m+38) = Sfcprop(nb)%stmassxy(ix)
+          sfc_var2(i,j,nvar2m+39) = Sfcprop(nb)%woodxy(ix)
+          sfc_var2(i,j,nvar2m+40) = Sfcprop(nb)%stblcpxy(ix)
+          sfc_var2(i,j,nvar2m+41) = Sfcprop(nb)%fastcpxy(ix)
+          sfc_var2(i,j,nvar2m+42) = Sfcprop(nb)%xsaixy(ix)
+          sfc_var2(i,j,nvar2m+43) = Sfcprop(nb)%xlaixy(ix)
+          sfc_var2(i,j,nvar2m+44) = Sfcprop(nb)%taussxy(ix)
+          sfc_var2(i,j,nvar2m+45) = Sfcprop(nb)%smcwtdxy(ix)
+          sfc_var2(i,j,nvar2m+46) = Sfcprop(nb)%deeprechxy(ix)
+          sfc_var2(i,j,nvar2m+47) = Sfcprop(nb)%rechxy(ix)
+        endif
+
         !--- 3D variables
         do lsoil = 1,Model%lsoil
-          !--- stc
-          sfc_var3(i,j,lsoil,1) = Sfcprop(nb)%stc(ix,lsoil)
-          !--- smc
-          sfc_var3(i,j,lsoil,2) = Sfcprop(nb)%smc(ix,lsoil)
-          !--- slc
-          sfc_var3(i,j,lsoil,3) = Sfcprop(nb)%slc(ix,lsoil)
+          sfc_var3(i,j,lsoil,1) = Sfcprop(nb)%stc(ix,lsoil) !--- stc
+          sfc_var3(i,j,lsoil,2) = Sfcprop(nb)%smc(ix,lsoil) !--- smc
+          sfc_var3(i,j,lsoil,3) = Sfcprop(nb)%slc(ix,lsoil) !--- slc
         enddo
+! 5 Noah MP 3D
+        if (Model%lsm == Model%lsm_noahmp) then
+
+          do lsoil = -2,0
+            sfc_var3sn(i,j,lsoil,4) = Sfcprop(nb)%snicexy(ix,lsoil)
+            sfc_var3sn(i,j,lsoil,5) = Sfcprop(nb)%snliqxy(ix,lsoil)
+            sfc_var3sn(i,j,lsoil,6) = Sfcprop(nb)%tsnoxy(ix,lsoil)
+          enddo
+
+          do lsoil = 1,Model%lsoil
+            sfc_var3eq(i,j,lsoil,7)  = Sfcprop(nb)%smoiseq(ix,lsoil)
+          enddo
+
+          do lsoil = -2,4
+            sfc_var3zn(i,j,lsoil,8)  = Sfcprop(nb)%zsnsoxy(ix,lsoil)
+          enddo
+
+        endif  ! Noah MP
       enddo
     enddo
-
     call save_restart(Sfc_restart, timestamp)
 
   end subroutine sfc_prop_restart_write

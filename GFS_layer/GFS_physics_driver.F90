@@ -625,6 +625,7 @@ module module_physics_driver
       allocate (clw(ix,levs,nn))
       allocate( clw_trac_idx(nn) )
 
+      itc       = 0
       ntk       = 0
       tottracer = 0
       if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
@@ -641,7 +642,7 @@ module module_physics_driver
             nn =nn + 1
             do k=1,levs
               do i=1,im
-                clw(i,k,tracers) = Stateout%gq0(i,k,n)
+                clw(i,k,tracers) = Statein%qgrs(i,k,n)
               enddo
             enddo
             if (Model%ntke  == n ) then
@@ -2365,7 +2366,7 @@ module module_physics_driver
                nsamftrac = tottracer
             endif
             call samfdeepcnv(im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac,  &
-                             del, Statein%prsl, Statein%pgr, Statein%phil, clw,    &
+                             del, Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:nsamftrac+2),    &
                              Stateout%gq0(:,:,1), Stateout%gt0,                    &
                              Stateout%gu0, Stateout%gv0, Model%fscav, Model%do_ca, &
                              Coupling%ca_deep, cld1d, rain1, kbot, ktop, kcnv,     &
@@ -2820,7 +2821,7 @@ module module_physics_driver
                nsamftrac = tottracer
             endif
             call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
-                              del, Statein%prsl, Statein%pgr, Statein%phil, clw,   &
+                              del, Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:nsamftrac+2),   &
                               Stateout%gq0(:,:,1), Stateout%gt0,                   &
                               Stateout%gu0, Stateout%gv0, Model%fscav,             &
                               rain1, kbot, ktop, kcnv, islmsk, garea,              &

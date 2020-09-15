@@ -1146,8 +1146,8 @@ module FV3GFS_io_mod
               Sfcprop(nb)%sneqvoxy(ix) = missing_value
               Sfcprop(nb)%alboldxy(ix) = missing_value
               Sfcprop(nb)%qsnowxy(ix)  = missing_value
-              Sfcprop(nb)%wslakexy     = missing_value
-              Sfcprop(nb)%taussxy      = missing_value
+              Sfcprop(nb)%wslakexy(ix) = missing_value
+              Sfcprop(nb)%taussxy(ix)  = missing_value
               Sfcprop(nb)%waxy(ix)     = missing_value
               Sfcprop(nb)%wtxy(ix)     = missing_value
               Sfcprop(nb)%zwtxy(ix)    = missing_value
@@ -1182,9 +1182,9 @@ module FV3GFS_io_mod
                 Sfcprop(nb)%tgxy(ix)     = Sfcprop(nb)%tsfcl(ix)
                 Sfcprop(nb)%tahxy(ix)    = Sfcprop(nb)%tsfcl(ix)
 
-                if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tvxy  = 273.15
-                if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tgxy  = 273.15
-                if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tahxy = 273.15
+                if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tvxy(ix)  = 273.15
+                if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tgxy(ix)  = 273.15
+                if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tahxy(ix) = 273.15
      
                 Sfcprop(nb)%canicexy(ix) = 0.0
                 Sfcprop(nb)%canliqxy(ix) = Sfcprop(nb)%canopy(ix)
@@ -1203,8 +1203,8 @@ module FV3GFS_io_mod
 
     !          if (Sfcprop(nb)%srflag(ix) > 0.001) Sfcprop(nb)%qsnowxy(ix) = Sfcprop(nb)%tprcp(ix)/Model%dtp
     !already set to 0.0
-                Sfcprop(nb)%wslakexy     = 0.0
-                Sfcprop(nb)%taussxy      = 0.0
+                Sfcprop(nb)%wslakexy(ix) = 0.0
+                Sfcprop(nb)%taussxy(ix)  = 0.0
 
 
                 Sfcprop(nb)%waxy(ix)     = 4900.0

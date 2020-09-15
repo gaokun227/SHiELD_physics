@@ -901,7 +901,9 @@ module FV3GFS_io_mod
           enddo
        enddo
     else
-    
+
+    !--- read surface properties form sfc_data.tile*.nc
+
       call mpp_error(NOTE,'reading surface properties data from INPUT/sfc_data.tile*.nc')
       call restore_state(Sfc_restart)       
  
@@ -1115,6 +1117,7 @@ module FV3GFS_io_mod
 
       if (Model%lsm == Model%lsm_noahmp) then 
         if (sfc_var2(1,1,nvar_s2m+19) < -9990. ) then
+        !--- initialize NOAH MP properties
           if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver:: - Cold start Noah MP ')
 
           do nb = 1, Atm_block%nblks

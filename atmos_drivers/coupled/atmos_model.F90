@@ -444,6 +444,11 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, Atm_block, Atmos%axes, IPD_Control%nfxr, IPD_Control%ldiag3d, IPD_Control%nkld)
    if (.not. dycore_only) &
       call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
+      if (chksum_debug) then
+        if (mpp_pe() == mpp_root_pe()) print *,'RESTART READ  ', IPD_Control%kdt, IPD_Control%fhour
+        call FV3GFS_IPD_checksum(IPD_Control, IPD_Data, Atm_block)
+      endif
+
 
    !--- set the initial diagnostic timestamp
    diag_time = Time

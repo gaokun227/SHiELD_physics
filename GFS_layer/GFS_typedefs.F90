@@ -288,13 +288,6 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: dt_cool(:)   => null()  !< nst_fld%dt_cool Sub layer cooling amount
     real (kind=kind_phys), pointer :: qrain  (:)   => null()  !< nst_fld%qrain   sensible heat flux due to rainfall (watts)
 
-    !---- precipitation amounts from previous time step for RUC LSM/NoahMP LSM
-    real (kind=kind_phys), pointer :: raincprv  (:)    => null()  !< explicit rainfall from previous timestep
-    real (kind=kind_phys), pointer :: rainncprv (:)    => null()  !< convective_precipitation_amount from previous timestep
-    real (kind=kind_phys), pointer :: iceprv    (:)    => null()  !< ice amount from previous timestep
-    real (kind=kind_phys), pointer :: snowprv   (:)    => null()  !< snow amount from previous timestep
-    real (kind=kind_phys), pointer :: graupelprv(:)    => null()  !< graupel amount from previous timestep
-
     !---- precipitation rates from previous time step for NoahMP LSM
     real (kind=kind_phys), pointer :: draincprv  (:)    => null()  !< convective precipitation rate from previous timestep
     real (kind=kind_phys), pointer :: drainncprv (:)    => null()  !< explicit rainfall rate from previous timestep
@@ -1413,16 +1406,6 @@ module GFS_typedefs
     endif
 
     if (Model%lsm == Model%lsm_noahmp ) then
-      allocate(Sfcprop%raincprv  (IM))
-      allocate(Sfcprop%rainncprv (IM))
-      allocate(Sfcprop%iceprv    (IM))
-      allocate(Sfcprop%snowprv   (IM))
-      allocate(Sfcprop%graupelprv(IM))
-      Sfcprop%raincprv   = clear_val
-      Sfcprop%rainncprv  = clear_val
-      Sfcprop%iceprv     = clear_val
-      Sfcprop%snowprv    = clear_val
-      Sfcprop%graupelprv = clear_val
 
 ! Noah MP allocate and init when used
 !

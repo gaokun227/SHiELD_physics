@@ -134,7 +134,7 @@
       real(kind=kind_phys) radmin(im)
 !
       real(kind=kind_phys) zi(im,km+1),  zl(im,km),   zm(im,km),
-     &                     xkzo(im,km-1),xkzmo(im,km-1),
+     &                     xkzo(im,km),xkzmo(im,km),
      &                     xkzm_hx(im),  xkzm_mx(im),
      &                     ri(im,km-1),  tkmnz(im,km-1),
      &                     rdzt(im,km-1),rlmnz(im,km),
@@ -378,7 +378,7 @@
         endif
       enddo
 
-      do k = 1,km1
+      do k = 1,km
         do i=1,im
           xkzo(i,k)  = 0.0
           xkzmo(i,k) = 0.0

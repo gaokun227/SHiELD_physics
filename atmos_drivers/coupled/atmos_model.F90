@@ -137,9 +137,10 @@ logical :: dycore_only     = .false.
 logical :: debug           = .false.
 logical :: sync            = .false.
 logical :: first_time_step = .true.
+logical :: fprint          = .true.
 real, dimension(4096) :: fdiag = 0. ! xic: TODO: this is hard coded, space can run out in some cases. Should make it allocatable.
 logical :: fdiag_override = .false. ! lmh: if true overrides fdiag and fhzer: all quantities are zeroed out after every calcluation, output interval and accumulation/avg/max/min are controlled by diag_manager, fdiag controls output interval only
-namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag, fdiag_override
+namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag, fprint, fdiag_override
 type (time_type) :: diag_time
 logical :: fdiag_fix = .false.
 
@@ -441,7 +442,13 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
    call atmosphere_nggps_diag (Time, init=.true.)
    call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, Atm_block, Atmos%axes, IPD_Control%nfxr, IPD_Control%ldiag3d, IPD_Control%nkld)
-   call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
+   if (.not. dycore_only) &
+      call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
+      if (chksum_debug) then
+        if (mpp_pe() == mpp_root_pe()) print *,'RESTART READ  ', IPD_Control%kdt, IPD_Control%fhour
+        call FV3GFS_IPD_checksum(IPD_Control, IPD_Data, Atm_block)
+      endif
+
 
    !--- set the initial diagnostic timestamp
    diag_time = Time
@@ -541,7 +548,7 @@ subroutine update_atmos_model_state (Atmos)
       time_int = real(isec)
       if (mpp_pe() == mpp_root_pe() .and. .not. fdiag_override) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call atmosphere_nggps_diag(Atmos%Time)
-      call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, &
+      call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, fprint, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int, IPD_Control%fhswr, IPD_Control%fhlwr, &
                             mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0)
       call diag_send_complete_instant (Atmos%Time)
@@ -583,7 +590,8 @@ subroutine atmos_model_end (Atmos)
 !---- termination routine for atmospheric model ----
                                               
     call atmosphere_end (Atmos % Time, Atmos%grid)
-    call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
+    if (.not. dycore_only) &
+       call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
                                IPD_Control, Atmos%domain)
 
 end subroutine atmos_model_end
@@ -599,7 +607,8 @@ subroutine atmos_model_restart(Atmos, timestamp)
   character(len=*),  intent(in)           :: timestamp
 
     call atmosphere_restart(timestamp)
-    call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
+    if (.not. dycore_only) &
+       call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
                                IPD_Control, Atmos%domain, timestamp)
 
 end subroutine atmos_model_restart

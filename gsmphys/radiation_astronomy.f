@@ -111,7 +111,7 @@
 !> \name Module variable (to be set in module_radiation_astronomy::sol_init):
       real (kind=kind_phys), public    :: solc0 = con_solr
       integer   :: isolflg = 10
-      character(26) :: solar_fname = ' '
+      character(32) :: solar_fname = ' '
 
 !> \name Module variables (to be set in module_radiation_astronomy::sol_update)
 
@@ -208,7 +208,7 @@
           print *,' - Using new fixed solar constant =', solc0
         endif
       elseif ( isolar == 1 ) then        ! noaa ann-mean tsi in absolute scale
-        solar_fname(15:26) = 'noaa_a0.txt'
+        solar_fname(21:32) = 'noaa_a0.txt'
 
         if ( me == 0 ) then
           print *,' - Using NOAA annual mean TSI table in ABS scale',   &
@@ -227,7 +227,7 @@
           endif
         endif
       elseif ( isolar == 2 ) then        ! noaa ann-mean tsi in tim scale
-        solar_fname(15:26) = 'noaa_an.txt'
+        solar_fname(21:32) = 'noaa_an.txt'
 
         if ( me == 0 ) then
           print *,' - Using NOAA annual mean TSI table in TIM scale',   &
@@ -246,7 +246,7 @@
           endif
         endif
       elseif ( isolar == 3 ) then        ! cmip5 ann-mean tsi in tim scale
-        solar_fname(15:26) = 'cmip_an.txt'
+        solar_fname(21:32) = 'cmip_an.txt'
 
         if ( me == 0 ) then
           print *,' - Using CMIP5 annual mean TSI table in TIM scale',  &
@@ -265,7 +265,7 @@
           endif
         endif
       elseif ( isolar == 4 ) then        ! cmip5 mon-mean tsi in tim scale
-        solar_fname(15:26) = 'cmip_mn.txt'
+        solar_fname(21:32) = 'cmip_mn.txt'
 
         if ( me == 0 ) then
           print *,' - Using CMIP5 monthly mean TSI table in TIM scale', &
@@ -825,6 +825,7 @@
 !-----------------------------------
       subroutine coszmn                                                 &
      &     ( xlon,sinlat,coslat,solhr, IM, me,                          &     !  ---  inputs
+     &       fix_cosz_dec, fix_cosz_shr,                                &     !  ---  inputs
      &       coszen, coszdg                                             &     !  ---  outputs
      &     )
 
@@ -861,6 +862,7 @@
       implicit none
 
 !  ---  inputs:
+      logical, intent(in) :: fix_cosz_dec, fix_cosz_shr
       integer, intent(in) :: IM, me
 
       real (kind=kind_phys), intent(in) :: sinlat(:), coslat(:),        &
@@ -871,12 +873,26 @@
 
 !  ---  locals:
       real (kind=kind_phys) :: coszn, cns, ss, cc, solang, rstp
+      real (kind=kind_phys) :: sindec0, cosdec0, solhr0
 
       integer :: istsun(IM), i, it, j, lat
 
 !===>  ...  begin here
 
-      solang = pid12 * (solhr - f12)         ! solar angle at present time
+      if (fix_cosz_dec) then
+        sindec0 = 0.0
+        cosdec0 = 1.0
+      else
+        sindec0 = sindec
+        cosdec0 = cosdec
+      endif
+      if (fix_cosz_shr) then
+        solhr0 = f12
+      else
+        solhr0 = solhr
+      endif
+
+      solang = pid12 * (solhr0 - f12)         ! solar angle at present time
       rstp = 1.0 / float(nstp)
 
       do i = 1, IM
@@ -888,8 +904,8 @@
         cns = solang + float(it-1)*anginc + sollag
 
         do i = 1, IM
-          ss  = sinlat(i) * sindec
-          cc  = coslat(i) * cosdec
+          ss  = sinlat(i) * sindec0
+          cc  = coslat(i) * cosdec0
 
           coszn = ss + cc * cos(cns + xlon(i))
           coszen(i) = coszen(i) + max(0.0, coszn)

@@ -150,6 +150,10 @@
 !> temperature the H.G.Nuc. ice starts
   real(kind=kind_phys), parameter:: con_thgni  =-38.15   
 
+!> minimum aerosol concentration
+  real(kind=kind_phys),parameter:: qamin = 1.e-16_kind_phys
+
+
 !> \name Miscellaneous physics related constants (Moorthi - Jul 2014)
 
 ! integer, parameter :: max_lon=16000, max_lat=8000, min_lon=192, min_lat=94

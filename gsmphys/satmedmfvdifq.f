@@ -27,18 +27,35 @@
 !           change of updraft top height calculation,
 !           reduce the background diffusivity with increasing surface layer stability (for inversion)
 
-!  2) Jul 2019 by Kun Gao (GFDL)
+!  2) Jul 2019 by Kun Gao (GFDL; kun.gao@noaa.gov)
 !      goal: to allow for tke advection
 !    change: rearange tracers (q1) and their tendencies (rtg)
-!            tke no longer needs to be the last tracer 
+!            tke no longer needs to be the last tracer
+!  3) Nov 2019 by Kun Gao
+!     turn off non-local mixing for hydrometers to avoid unphysical negative values 
+!  4) Jan 2020 by Kun Gao 
+!     add rlmn2 parameter (set to 10.) to be consistent with EMC's version 
+!  5) Jun 2020 by Kun Gao
+!     a) disable the upper-limter on background diff. in inversion layer
+!        over land points to be consistent with EMC's version
+!     b) use different xkzm_m,xkzm_h for land, ocean and sea ice points
+!     c) add option for turning off HB19 formula for surface backgroud diff. (do_dk_hb19)
+!  
+!  6) Jul 2020 from Jongil Han: significant revisions to improve SCu
+!     a) revised xkzo and rlmnz in inversion layer
+!     b) limited updraft overshooting
+!  
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
-     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,swh,hlw,xmu,garea,
+     &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,
+     &     swh,hlw,xmu,garea,zvfun,islimsk,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_m,xkzm_h,xkzm_s,dspfac,bl_upfr,bl_dnfr,dkt_out)
+     &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl, xkzm_mi,xkzm_hi,
+     &     xkzm_s,xkzinv,
+     &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -51,16 +68,18 @@
 !
 !----------------------------------------------------------------------
       integer ix, im, km, ntrac, ntcw, ntiw, ntke, ntcw_new
-      integer kpbl(im), kinver(im)
+      integer kpbl(im), kinver(im), islimsk(im)
 !
-      real(kind=kind_phys) delt, xkzm_m, xkzm_h, xkzm_s, dspfac,
-     &                     bl_upfr, bl_dnfr
+      real(kind=kind_phys) delt, xkzm_mo, xkzm_ho, xkzm_s, dspfac,
+     &                     bl_upfr, bl_dnfr, xkzm_ml, xkzm_hl,
+     &                     xkzm_mi, xkzm_hi
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
      &                     u1(ix,km),     v1(ix,km),
      &                     t1(ix,km),     q1(ix,km,ntrac),
      &                     swh(ix,km),    hlw(ix,km),
      &                     xmu(im),       garea(im),
+     &                     zvfun(im),
      &                     psk(ix),       rbsoil(im),
      &                     zorl(im),      tsea(im),
      &                     u10m(im),      v10m(im),
@@ -77,7 +96,7 @@
      &                     rtg_in(im,km,ntrac)
 ! kgao note - q1 and rtg are local var now 
 !
-      logical dspheat
+      logical dspheat, do_dk_hb19
 !          flag for tke dissipative heating
       real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
 !
@@ -115,8 +134,9 @@
       real(kind=kind_phys) radmin(im)
 !
       real(kind=kind_phys) zi(im,km+1),  zl(im,km),   zm(im,km),
-     &                     xkzo(im,km-1),xkzmo(im,km-1),
-     &                     xkzm_hx(im),  xkzm_mx(im), tkmnz(im,km-1),
+     &                     xkzo(im,km),xkzmo(im,km),
+     &                     xkzm_hx(im),  xkzm_mx(im),
+     &                     ri(im,km-1),  tkmnz(im,km-1),
      &                     rdzt(im,km-1),rlmnz(im,km),
      &                     al(im,km-1),  ad(im,km),   au(im,km-1),
      &                     f1(im,km),    f2(im,km*(ntrac-1))
@@ -156,7 +176,7 @@
      &                     gocp,    gravi,  zol1,   zolcru,
      &                     buop,    shrp,   dtn,
      &                     prnum,   prmax,  prmin,  prtke,
-     &                     prscu,   pr0,    ri,
+     &                     prscu,   pr0,
      &                     dw2,     dw2min, zk,     
      &                     elmfac,  elefac, dspmax,
      &                     alp,     clwt,   cql,
@@ -166,17 +186,18 @@
      &                     epsi,    beta,   chx,    cqx,
      &                     rdt,     rdz,    qmin,   qlmin,
      &                     rimin,   rbcr,   rbint,  tdzmin,
-     &                     rlmn,    rlmn1,  rlmx,   elmx,
+     &                     rlmn,    rlmn1,  rlmn2,  
+     &                     rlmx,    elmx,
      &                     ttend,   utend,  vtend,  qtend,
      &                     zfac,    zfmin,  vk,     spdk2,
-     &                     tkmin,   xkzinv, xkgdx,
-     &                     zlup,    zldn,   bsum,
-     &                     tem,     tem1,   tem2,
+     &                     tkmin,   tkminx, xkgdx,  xkzinv,
+     &                     zlup,    zldn,   bsum,   cs0,
+     &                     tem,     tem1,   tem2,   tem3,
      &                     ptem,    ptem0,  ptem1,  ptem2
 !
       real(kind=kind_phys) ck0, ck1, ch0, ch1, ce0, rchck
 !
-      real(kind=kind_phys) qlcr, zstblmax
+      real(kind=kind_phys) qlcr, zstblmax, hcrinv
 !
       real(kind=kind_phys) h1 
 !!
@@ -186,23 +207,25 @@
       parameter(cont=cp/g,conq=hvap/g,conw=1.0/g)  ! for del in pa
 !     parameter(cont=1000.*cp/g,conq=1000.*hvap/g,conw=1000./g) !kpa
       parameter(elocp=hvap/cp,el2orc=hvap*hvap/(rv*cp))
-      parameter(wfac=7.0,cfac=3.0)
+      parameter(wfac=7.0,cfac=4.5)
       parameter(gamcrt=3.,gamcrq=0.,sfcfrac=0.1)
       parameter(vk=0.4,rimin=-100.)
       parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
-      parameter(rlmn=30.,rlmn1=5.,rlmx=300.,elmx=300.)
+      parameter(rlmn=30.,rlmn1=5.,rlmn2=10.)
+      parameter(rlmx=300.,elmx=300.)
       parameter(prmin=0.25,prmax=4.0)
       parameter(pr0=1.0,prtke=1.0,prscu=0.67)
       parameter(f0=1.e-4,crbmin=0.15,crbmax=0.35)
-      parameter(tkmin=1.e-9,dspmax=10.0)
+      parameter(tkmin=1.e-9,tkminx=0.2,dspmax=10.0)
       parameter(qmin=1.e-8,qlmin=1.e-12,zfmin=1.e-8)
       parameter(aphi5=5.,aphi16=16.)
       parameter(elmfac=1.0,elefac=1.0,cql=100.)
-      parameter(dw2min=1.e-4,dkmax=1000.,xkgdx=25000.)
-      parameter(qlcr=3.5e-5,zstblmax=2500.,xkzinv=0.1)
-      parameter(h1=0.33333333)
+      parameter(dw2min=1.e-4,dkmax=1000.)!,xkgdx=5000.)
+      parameter(qlcr=3.5e-5,zstblmax=2500.) !,xkzinv=0.1)
+      parameter(h1=0.33333333,hcrinv=250.)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
-      parameter(ce0=0.4)
+!     parameter(ce0=0.4,cs0=0.5)
+      parameter(ce0=0.4,cs0=0.2)
       parameter(rchck=1.5,ndt=20)
 !
 !************************************************************************
@@ -294,19 +317,68 @@
         kx1(i) = 1
         tx1(i) = 1.0 / prsi(i,1)
         tx2(i) = tx1(i)
-        if(gdx(i) >= xkgdx) then
-          xkzm_hx(i) = xkzm_h
-          xkzm_mx(i) = xkzm_m
-        else
-          tem  = 1. / (xkgdx - 5.)
-          tem1 = (xkzm_h - 0.01) * tem
-          tem2 = (xkzm_m - 0.01) * tem
-          ptem = gdx(i) - 5.
-          xkzm_hx(i) = 0.01 + tem1 * ptem
-          xkzm_mx(i) = 0.01 + tem2 * ptem
+
+        ! kgao change - set surface value of background diff (dk) below
+
+        !if(gdx(i) >= xkgdx) then
+        !  xkzm_hx(i) = xkzm_h
+        !  xkzm_mx(i) = xkzm_m
+        !else
+        !  tem  = 1. / (xkgdx - 5.)
+        !  tem1 = (xkzm_h - 0.01) * tem
+        !  tem2 = (xkzm_m - 0.01) * tem
+        !  ptem = gdx(i) - 5.
+        !  xkzm_hx(i) = 0.01 + tem1 * ptem
+        !  xkzm_mx(i) = 0.01 + tem2 * ptem
+        !endif
+
+                ! kgao change - set surface value of background diff (dk) below
+        if (do_dk_hb19) then               ! use eq43 in HB2019
+
+          if(gdx(i) >= xkgdx) then         ! resolution coarser than xkgdx
+            if( islimsk(i) == 1 ) then     ! land points
+              xkzm_hx(i) = xkzm_hl
+              xkzm_mx(i) = xkzm_ml
+            elseif ( islimsk(i) == 2 ) then! sea ice points
+              xkzm_hx(i) = xkzm_hi
+              xkzm_mx(i) = xkzm_mi
+            else                           ! ocean points
+              xkzm_hx(i) = xkzm_ho
+              xkzm_mx(i) = xkzm_mo
+            endif
+          else                             ! resolution finer than xkgdx
+            tem  = 1. / (xkgdx - 5.)
+            if ( islimsk(i) == 1 ) then    ! land points
+              tem1 = (xkzm_hl - 0.01) * tem
+              tem2 = (xkzm_ml - 0.01) * tem
+            elseif ( islimsk(i) == 2 ) then! sea ice points
+              tem1 = (xkzm_hi - 0.01) * tem
+              tem2 = (xkzm_mi - 0.01) * tem
+            else                           ! ocean points
+              tem1 = (xkzm_ho - 0.01) * tem
+              tem2 = (xkzm_mo - 0.01) * tem
+            endif
+            ptem = gdx(i) - 5.
+            xkzm_hx(i) = 0.01 + tem1 * ptem
+            xkzm_mx(i) = 0.01 + tem2 * ptem
+          endif
+
+        else ! use values in the namelist; no res dependency
+
+          if ( islimsk(i) == 1 ) then     ! land points
+              xkzm_hx(i) = xkzm_hl
+              xkzm_mx(i) = xkzm_ml
+          elseif ( islimsk(i) == 2 ) then ! sea ice points
+              xkzm_hx(i) = xkzm_hi
+              xkzm_mx(i) = xkzm_mi
+          else                            ! ocean points
+              xkzm_hx(i) = xkzm_ho
+              xkzm_mx(i) = xkzm_mo
+          endif
         endif
       enddo
-      do k = 1,km1
+
+      do k = 1,km
         do i=1,im
           xkzo(i,k)  = 0.0
           xkzmo(i,k) = 0.0
@@ -493,6 +565,7 @@
          dw2  = (u1(i,k)-u1(i,k+1))**2
      &        + (v1(i,k)-v1(i,k+1))**2
          shr2(i,k) = max(dw2,dw2min)*rdz*rdz
+         ri(i,k) = max(bf(i,k)/shr2(i,k),rimin)
       enddo
       enddo
 !
@@ -582,8 +655,52 @@
            hgamq(i) = evap(i)/wscale(i)
            vpert(i) = hgamt(i) + hgamq(i)*fv*theta(i,1)
            vpert(i) = max(vpert(i),0.)
-           vpert(i) = min(cfac*vpert(i),gamcrt)
+           tem = min(cfac*vpert(i),gamcrt)
+           thermal(i)= thermal(i) + tem !jih jul2020
          endif
+      enddo
+!
+!  enhance the pbl height by considering the thermal excess
+!     (overshoot pbl top) -- jih jul2020
+!
+      do i=1,im
+         flg(i)  = .true.
+         if(pcnvflg(i)) then
+           flg(i)  = .false.
+           rbup(i) = rbsoil(i)
+         endif
+      enddo
+      do k = 2, kmpbl
+      do i = 1, im
+        if(.not.flg(i)) then
+          rbdn(i) = rbup(i)
+          spdk2   = max((u1(i,k)**2+v1(i,k)**2),1.)
+          rbup(i) = (thlvx(i,k)-thermal(i))*
+     &              (g*zl(i,k)/thlvx(i,1))/spdk2
+          kpbl(i) = k
+          flg(i)  = rbup(i) > crb(i)
+        endif
+      enddo
+      enddo
+      do i = 1,im
+        if(pcnvflg(i)) then
+           k = kpbl(i)
+           if(rbdn(i) >= crb(i)) then
+             rbint = 0.
+           elseif(rbup(i) <= crb(i)) then
+             rbint = 1.
+           else
+             rbint = (crb(i)-rbdn(i))/(rbup(i)-rbdn(i))
+           endif
+           hpbl(i) = zl(i,k-1) + rbint*(zl(i,k)-zl(i,k-1))
+           if(hpbl(i) < zi(i,kpbl(i))) then
+             kpbl(i) = kpbl(i) - 1
+           endif
+           if(kpbl(i) <= 1) then
+              pcnvflg(i) = .false.
+              pblflg(i) = .false.
+           endif
+        endif
       enddo
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -716,34 +833,31 @@
         enddo
       enddo
 !
-!  background diffusivity decreasing with increasing surface layer stability
+! Above a threshold height (hcrinv), the background vertical diffusivities & mixing length 
+!    in the inversion layers are set to much smaller values (xkzinv & rlmn2)
 !
-      do i = 1, im
-        if(.not.sfcflg(i)) then
-          tem = (1. + 5. * rbsoil(i))**2.
-!         tem = (1. + 5. * zol(i))**2.
-          frik(i) = 0.1 + 0.9 / tem
-        endif
-      enddo
+! Below the threshold height (hcrinv), the background vertical diffusivities & mixing length 
+!    in the inversion layers are increased with increasing roughness length & vegetation fraction
 !
       do k = 1,km1
         do i=1,im
-          xkzo(i,k) = frik(i) * xkzo(i,k)
-          xkzmo(i,k)= frik(i) * xkzmo(i,k)
-        enddo
-      enddo
-!
-! The background vertical diffusivities in the inversion layers are limited 
-!    to be less than or equal to xkzminv
-!
-      do k = 1,km1
-        do i=1,im
-!         tem1 = (tvx(i,k+1)-tvx(i,k)) * rdzt(i,k)
-!         if(tem1 > 1.e-5) then
-          tem1 = tvx(i,k+1)-tvx(i,k)
-          if(tem1 > 0.) then
-             xkzo(i,k)  = min(xkzo(i,k),xkzinv)
-             xkzmo(i,k) = min(xkzmo(i,k),xkzinv)
+          if(zi(i,k+1) > hcrinv) then
+            tem1 = tvx(i,k+1)-tvx(i,k)
+            if(tem1 >= 0. .and. islimsk(i) == 0) then ! kgao note: only apply limiter over ocean points
+              xkzo(i,k)  = min(xkzo(i,k), xkzinv)
+              xkzmo(i,k) = min(xkzmo(i,k), xkzinv)
+              rlmnz(i,k) = min(rlmnz(i,k), rlmn2)
+            endif
+          else
+            tem1 = tvx(i,k+1)-tvx(i,k)
+            if(tem1 > 0.) then
+              ptem = xkzo(i,k) * zvfun(i)
+              xkzo(i,k) = min(max(ptem, xkzinv), xkzo(i,k))
+              ptem = xkzmo(i,k) * zvfun(i)
+              xkzmo(i,k) = min(max(ptem, xkzinv), xkzmo(i,k))
+              ptem = rlmnz(i,k) * zvfun(i)
+              rlmnz(i,k) = min(max(ptem, rlmn2), rlmnz(i,k))
+            endif
           endif
         enddo
       enddo
@@ -759,8 +873,12 @@
           do n = k, km1
             if(mlenflg) then
               dz = zl(i,n+1) - zl(i,n)
-              ptem = gotvx(i,n)*(thvx(i,n+1)-thvx(i,k))*dz
-!             ptem = gotvx(i,n)*(thlvx(i,n+1)-thlvx(i,k))*dz
+              ! jih jul2020
+              tem3=((u1(i,n+1)-u1(i,n))/dz)**2
+              tem3=tem3+((v1(i,n+1)-v1(i,n))/dz)**2
+              tem3=cs0*sqrt(tem3)*sqrt(tke(i,k))
+              ptem = (gotvx(i,n)*(thvx(i,n+1)-thvx(i,k))+tem3)*dz
+!             ptem = (gotvx(i,n)*(thlvx(i,n+1)-thlvx(i,k)+tem3)*dz
               bsum = bsum + ptem
               zlup = zlup + dz
               if(bsum >= tke(i,k)) then
@@ -784,13 +902,21 @@
               if(n == 1) then
                 dz = zl(i,1)
                 tem1 = tsea(i)*(1.+fv*max(q1(i,1,1),qmin))
+                !jih jul2020
+                tem3 = (u1(i,1)/dz)**2
+                tem3 = tem3+(v1(i,1)/dz)**2
+                tem3 = cs0*sqrt(tem3)*sqrt(tke(i,1))
               else
                 dz = zl(i,n) - zl(i,n-1)
                 tem1 = thvx(i,n-1)
 !               tem1 = thlvx(i,n-1)
+                !jih jul2020
+                tem3 = ((u1(i,n)-u1(i,n-1))/dz)**2
+                tem3 = tem3+((v1(i,n)-v1(i,n-1))/dz)**2
+                tem3 = cs0*sqrt(tem3)*sqrt(tke(i,k))
               endif
-              ptem = gotvx(i,n)*(thvx(i,k)-tem1)*dz
-!             ptem = gotvx(i,n)*(thlvx(i,k)-tem1)*dz
+              ptem = (gotvx(i,n)*(thvx(i,k)-tem1)+tem3)*dz !jih jul2020
+!             ptem = (gotvx(i,n)*(thlvx(i,k)-tem1)+tem3)*dz
               bsum = bsum + ptem
               zldn = zldn + dz
               if(bsum >= tke(i,k)) then
@@ -856,15 +982,20 @@
 !
       do k = 1, km1
         do i = 1, im
+           xkzo(i,k) = 0.5 * (xkzo(i,k) + xkzo(i,k+1))
+           xkzmo(i,k) = 0.5 * (xkzmo(i,k) + xkzmo(i,k+1))
+        enddo
+      enddo
+      do k = 1, km1
+        do i = 1, im
            tem = 0.5 * (elm(i,k) + elm(i,k+1))
            tem = tem * sqrt(tkeh(i,k))
-           ri = max(bf(i,k)/shr2(i,k),rimin)
            if(k < kpbl(i)) then
              if(pcnvflg(i)) then
                dku(i,k) = ckz(i,k) * tem
                dkt(i,k) = dku(i,k) / prn(i,k)
              else
-               if(ri < 0.) then ! unstable regime
+               if(ri(i,k) < 0.) then ! unstable regime
                  dku(i,k) = ckz(i,k) * tem
                  dkt(i,k) = dku(i,k) / prn(i,k)
                else             ! stable regime
@@ -873,12 +1004,12 @@
                endif
              endif
            else
-              if(ri < 0.) then ! unstable regime
+              if(ri(i,k) < 0.) then ! unstable regime
                 dku(i,k) = ck1 * tem
                 dkt(i,k) = rchck * dku(i,k)
               else             ! stable regime
                 dkt(i,k) = ch1 * tem
-                prnum = 1.0 + 2.1 * ri
+                prnum = 1.0 + 2.1 * ri(i,k)
                 prnum = min(prnum,prmax)
                 dku(i,k) = dkt(i,k) * prnum
               endif
@@ -911,13 +1042,14 @@
         do i = 1, im
           if(k == 1) then
             tem = ckz(i,1)
-            tem1 = xkzmo(i,1)
+            tem1 = 0.5 * xkzmo(i,1)
           else
             tem = 0.5 * (ckz(i,k-1) + ckz(i,k))
             tem1 = 0.5 * (xkzmo(i,k-1) + xkzmo(i,k))
           endif
           ptem = tem1 / (tem * elm(i,k))
           tkmnz(i,k) = ptem * ptem
+          tkmnz(i,k) = min(tkmnz(i,k), tkminx)
           tkmnz(i,k) = max(tkmnz(i,k), tkmin)
         enddo
       enddo

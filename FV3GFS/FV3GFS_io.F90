@@ -480,7 +480,7 @@ module FV3GFS_io_mod
     nvar_s3  = 3
 
     if (Model%lsm == Model%lsm_noahmp) then
-      nvar_s2mp = 29       !mp 2D
+      nvar_s2mp = 34       !mp 2D
       nvar_s3mp = 5        !mp 3D
     else
       nvar_s2mp = 0        !mp 2D
@@ -722,6 +722,12 @@ module FV3GFS_io_mod
         sfc_name2(nvar_s2m+45) = 'smcwtdxy'
         sfc_name2(nvar_s2m+46) = 'deeprechxy'
         sfc_name2(nvar_s2m+47) = 'rechxy'
+        sfc_name2(nvar_s2m+48) = 'drainncprv'
+        sfc_name2(nvar_s2m+49) = 'draincprv'
+        sfc_name2(nvar_s2m+50) = 'dsnowprv'
+        sfc_name2(nvar_s2m+51) = 'dgraupelprv'
+        sfc_name2(nvar_s2m+52) = 'diceprv'
+
       endif
  
       !--- register the 2D fields
@@ -1011,6 +1017,11 @@ module FV3GFS_io_mod
              Sfcprop(nb)%smcwtdxy(ix)   = sfc_var2(i,j,nvar_s2m+45)
              Sfcprop(nb)%deeprechxy(ix) = sfc_var2(i,j,nvar_s2m+46)
              Sfcprop(nb)%rechxy(ix)     = sfc_var2(i,j,nvar_s2m+47)
+             Sfcprop(nb)%drainncprv(ix) = sfc_var2(i,j,nvar_s2m+48)
+             Sfcprop(nb)%draincprv(ix)  = sfc_var2(i,j,nvar_s2m+49)
+             Sfcprop(nb)%dsnowprv(ix)   = sfc_var2(i,j,nvar_s2m+50)
+             Sfcprop(nb)%dgraupelprv(ix)= sfc_var2(i,j,nvar_s2m+51)
+             Sfcprop(nb)%diceprv(ix)    = sfc_var2(i,j,nvar_s2m+52)
            endif
 
 
@@ -1152,6 +1163,11 @@ module FV3GFS_io_mod
               Sfcprop(nb)%smcwtdxy(ix) = missing_value
               Sfcprop(nb)%deeprechxy(ix) = missing_value
               Sfcprop(nb)%rechxy(ix)     = missing_value
+              Sfcprop(nb)%drainncprv(ix) = 0.
+              Sfcprop(nb)%draincprv(ix)  = 0.
+              Sfcprop(nb)%dsnowprv(ix)   = 0.
+              Sfcprop(nb)%dgraupelprv(ix)= 0.
+              Sfcprop(nb)%diceprv(ix)    = 0.
 
               Sfcprop(nb)%snowxy (ix)   = missing_value
               Sfcprop(nb)%snicexy(ix, -2:0) = missing_value
@@ -1602,7 +1618,7 @@ module FV3GFS_io_mod
     nvar2mp = 0
     nvar3mp = 0
     if (Model%lsm == Model%lsm_noahmp) then
-      nvar2mp = 29
+      nvar2mp = 34
       nvar3mp = 5
     endif
 
@@ -1726,6 +1742,11 @@ module FV3GFS_io_mod
         sfc_name2(nvar2m+45) = 'smcwtdxy'
         sfc_name2(nvar2m+46) = 'deeprechxy'
         sfc_name2(nvar2m+47) = 'rechxy'
+        sfc_name2(nvar2m+48) = 'drainncprv'
+        sfc_name2(nvar2m+49) = 'draincprv'
+        sfc_name2(nvar2m+50) = 'dsnowprv'
+        sfc_name2(nvar2m+51) = 'dgraupelprv'
+        sfc_name2(nvar2m+52) = 'diceprv'
       endif
  
       !--- register the 2D fields
@@ -1887,6 +1908,11 @@ module FV3GFS_io_mod
           sfc_var2(i,j,nvar2m+45) = Sfcprop(nb)%smcwtdxy(ix)
           sfc_var2(i,j,nvar2m+46) = Sfcprop(nb)%deeprechxy(ix)
           sfc_var2(i,j,nvar2m+47) = Sfcprop(nb)%rechxy(ix)
+          sfc_var2(i,j,nvar2m+48) = Sfcprop(nb)%drainncprv(ix)
+          sfc_var2(i,j,nvar2m+49) = Sfcprop(nb)%draincprv(ix)
+          sfc_var2(i,j,nvar2m+50) = Sfcprop(nb)%dsnowprv(ix)
+          sfc_var2(i,j,nvar2m+51) = Sfcprop(nb)%dgraupelprv(ix)
+          sfc_var2(i,j,nvar2m+52) = Sfcprop(nb)%diceprv(ix)
         endif
 
         !--- 3D variables

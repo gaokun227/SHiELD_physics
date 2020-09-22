@@ -2360,6 +2360,26 @@ module module_physics_driver
                           Model%evfact_deep, Model%evfactl_deep,                 &
                           Model%pgcon_deep)
           elseif (Model%imfdeepcnv == 2) then
+            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
+                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            endif
+            call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
+                            Stateout%gq0(:,:,1),                        &
+                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            Model%ext_rain_deep, qrn,                     &
+                            cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
+                            garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_deep, Model%c0s_deep,                       &
+                            Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
+                            Model%evfact_deep, Model%evfactl_deep,                 &
+                            Model%pgcon_deep, Model%asolfac_deep)
+!           if (lprnt) print *,' rain1=',rain1(ipr)
+            if (Model%ncld == 5 .and. Model%ext_rain_deep) then
+                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
+            endif
+          elseif (Model%imfdeepcnv == 3) then
             if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
                nsamftrac = 0
             else
@@ -2815,6 +2835,41 @@ module module_physics_driver
             endif
 
           elseif (Model%imfshalcnv == 2) then
+            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
+                qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
+            endif
+            call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
+                            Stateout%gq0(:,:,1:1),                        &
+                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            Model%ext_rain_shal, qrn,                     &
+                            rain1, kbot, ktop, kcnv, islmsk, garea,       &
+                            Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                            Model%pgcon_shal, Model%asolfac_shal,         &
+                            Model%evfact_shal, Model%evfactl_shal)
+
+            raincs(:)     = frain * rain1(:)
+            Diag%rainc(:) = Diag%rainc(:) + raincs(:)
+            if (Model%lssav) then
+              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
+            endif
+! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
+            if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
+              num2 = Model%num_p3d + 2
+              num3 = num2 + 1
+              Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
+              Tbd%phy_f3d(:,:,num3) = Tbd%phy_f3d(:,:,num3) + cnvc(:,:)
+            elseif ((Model%npdf3d == 0) .and. (Model%ncnvcld3d == 1)) then
+              num2 = Model%num_p3d + 1
+              Tbd%phy_f3d(:,:,num2) = Tbd%phy_f3d(:,:,num2) + cnvw(:,:)
+            endif
+            if (Model%ncld == 5 .and. Model%ext_rain_shal) then
+                Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
+            endif
+
+          elseif (Model%imfshalcnv == 3) then
             if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
                nsamftrac = 0
             else

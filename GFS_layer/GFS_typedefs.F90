@@ -637,12 +637,14 @@ module GFS_typedefs
                                             !<     1: July 2010 version of mass-flux shallow conv scheme
                                             !<         current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux shallow conv scheme (2017)
+                                            !<     3: scale- & aerosol-aware mass-flux shallow conv scheme (2020)
                                             !<     0: modified Tiedtke's eddy-diffusion shallow conv scheme
                                             !<    -1: no shallow convection used
     integer              :: imfdeepcnv      !< flag for mass-flux deep convection scheme
                                             !<     1: July 2010 version of SAS conv scheme
                                             !<           current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
+                                            !<     3: scale- & aerosol-aware mass-flux deep conv scheme (2020)
                                             !<     0: old SAS Convection scheme before July 2010
     integer              :: isatmedmf       !< flag for scale-aware TKE-based moist edmf scheme                        
                                             !<     0: initial version of satmedmf (Nov 2018) modified by kgao at GFDL
@@ -1962,12 +1964,14 @@ module GFS_typedefs
                                                                       !<     1: July 2010 version of mass-flux shallow conv scheme
                                                                       !<         current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux shallow conv scheme (2017)
+                                                                      !<     3: scale- & aerosol-aware mass-flux shallow conv scheme (2020)
                                                                       !<     0: modified Tiedtke's eddy-diffusion shallow conv scheme
                                                                       !<    -1: no shallow convection used
     integer              :: imfdeepcnv     =  1                       !< flag for mass-flux deep convection scheme
                                                                       !<     1: July 2010 version of SAS conv scheme
                                                                       !<           current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux deep conv scheme (2017)
+                                                                      !<     3: scale- & aerosol-aware mass-flux deep conv scheme (2020)
     integer              :: isatmedmf      =  0                       !< flag for scale-aware TKE-based moist edmf scheme
     logical              :: do_deep        = .true.                   !< whether to do deep convection
     integer              :: nmtvr          = 14                       !< number of topographic variables such as variance etc
@@ -2683,7 +2687,7 @@ module GFS_typedefs
                  print *,' old SAS Convection scheme before July 2010 used'
               elseif(Model%imfdeepcnv == 1) then
                  print *,' July 2010 version of SAS conv scheme used'
-              elseif(Model%imfdeepcnv == 2) then
+              elseif(Model%imfdeepcnv == 2 .or. Model%imfdeepcnv == 3) then
                  print *,' scale & aerosol-aware mass-flux deep conv scheme'
               endif
            else
@@ -2708,7 +2712,7 @@ module GFS_typedefs
           print *,' modified Tiedtke eddy-diffusion shallow conv scheme used'
         elseif (Model%imfshalcnv == 1) then
           print *,' July 2010 version of mass-flux shallow conv scheme used'
-        elseif (Model%imfshalcnv == 2) then
+        elseif (Model%imfshalcnv == 2 .or. Model%imfshalcnv == 3) then
           print *,' scale- & aerosol-aware mass-flux shallow conv scheme (2017)'
         else
           print *,' unknown mass-flux scheme in use - defaulting to no shallow convection'
@@ -2817,7 +2821,7 @@ module GFS_typedefs
     !--- BEGIN CODE FROM GLOOPR
     !--- set up parameters for Xu & Randell's cloudiness computation (Radiation)
     Model%lmfshal  = (Model%shal_cnv .and. (Model%imfshalcnv > 0))
-    Model%lmfdeep2 = (Model%imfdeepcnv == 2)
+    Model%lmfdeep2 = (Model%imfdeepcnv == 2 .or. Model%imfdeepcnv == 3)
     !--- END CODE FROM GLOOPR
 
     !--- BEGIN CODE FROM GLOOPB

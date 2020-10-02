@@ -53,9 +53,10 @@
      &     tsea,heat,evap,stress,spd1,kpbl,
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
-     &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl, xkzm_mi,xkzm_hi,
-     &     xkzm_s,xkzinv,
-     &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out)
+     &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl,xkzm_mi,xkzm_hi,
+     &     xkzm_s,xkzinv,rlmx,
+     &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out,
+     &     flux_up, flux_dn)
 !
       use machine  , only : kind_phys
       use funcphys , only : fpvs
@@ -98,7 +99,7 @@
 !
       logical dspheat, do_dk_hb19
 !          flag for tke dissipative heating
-      real(kind=kind_phys),dimension(1:im,1:km),intent(OUT)::dkt_out
+      real(kind=kind_phys)::dkt_out(im,km),flux_up(im,km),flux_dn(im,km)
 !
 !----------------------------------------------------------------------
 !***
@@ -212,7 +213,7 @@
       parameter(vk=0.4,rimin=-100.)
       parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
       parameter(rlmn=30.,rlmn1=5.,rlmn2=10.)
-      parameter(rlmx=300.,elmx=300.)
+!      parameter(rlmx=300.,elmx=300.)
       parameter(prmin=0.25,prmax=4.0)
       parameter(pr0=1.0,prtke=1.0,prscu=0.67)
       parameter(f0=1.e-4,crbmin=0.15,crbmax=0.35)
@@ -229,8 +230,12 @@
       parameter(rchck=1.5,ndt=20)
 !
 !************************************************************************
+      elmx = rlmx
       dt2  = delt
       rdt = 1. / dt2
+      dkt_out = 0.
+      flux_up = 0.
+      flux_dn = 0. 
 !
 ! kgao note (jul 2019) 
 ! the code was originally written assuming ntke=ntrac
@@ -332,7 +337,6 @@
         !  xkzm_mx(i) = 0.01 + tem2 * ptem
         !endif
 
-                ! kgao change - set surface value of background diff (dk) below
         if (do_dk_hb19) then               ! use eq43 in HB2019
 
           if(gdx(i) >= xkgdx) then         ! resolution coarser than xkgdx
@@ -1358,8 +1362,11 @@ c
              ptem2     = dtodsu * ptem
              tem       = t1(i,k) + t1(i,k+1)
              ptem      = tcko(i,k) + tcko(i,k+1)
-             f1(i,k)   = f1(i,k)+dtodsd*dsdzt-(ptem-tem)*ptem1
-             f1(i,k+1) = t1(i,k+1)-dtodsu*dsdzt+(ptem-tem)*ptem2
+             f1(i,k)   = f1(i,k)+dtodsd*dsdzt -(ptem-tem)*ptem1
+             f1(i,k+1) = t1(i,k+1)-dtodsu*dsdzt +(ptem-tem)*ptem2
+             ! kgao - t flux by updraft
+             flux_up(i,k) = 0.5*(ptem-tem)*xmf(i,k)
+
              tem       = q1(i,k,1) + q1(i,k+1,1)
              ptem      = qcko(i,k,1) + qcko(i,k+1,1)
              f2(i,k)   = f2(i,k) - (ptem - tem) * ptem1
@@ -1379,6 +1386,9 @@ c
               tem       = t1(i,k) + t1(i,k+1)
               f1(i,k)   = f1(i,k) + (ptem - tem) * ptem1
               f1(i,k+1) = f1(i,k+1) - (ptem - tem) * ptem2
+              ! kgao - t flux by downdraft
+              flux_dn(i,k) = -0.5*(ptem-tem)*xmfd(i,k)
+
               tem       = q1(i,k,1) + q1(i,k+1,1)
               ptem      = qcdo(i,k,1) + qcdo(i,k+1,1)
               f2(i,k)   = f2(i,k) + (ptem - tem) * ptem1

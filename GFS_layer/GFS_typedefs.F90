@@ -620,6 +620,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkgdx           !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
+    real(kind=kind_phys) :: zolcru          !< [in] zolcru used in satmedmfdifq.f 
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac          !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr         !< updraft fraction in boundary layer mass flux scheme
@@ -1959,6 +1960,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx           = 500.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
+    real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] default zolcru  
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme
@@ -2135,7 +2137,8 @@ module GFS_typedefs
                                do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
-                               cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx, rlmx, rlmn,       &
+                               cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx,                   &
+                               rlmx, rlmn, zolcru,                                          &
                                xkzm_m, xkzm_h, xkzm_ml, xkzm_hl, xkzm_mi, xkzm_hi,          &
                                xkzm_s, xkzminv, moninq_fac, dspfac,                         &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
@@ -2380,6 +2383,7 @@ module GFS_typedefs
     Model%xkgdx            = xkgdx
     Model%rlmn             = rlmn 
     Model%rlmx             = rlmx
+    Model%zolcru           = zolcru 
     Model%moninq_fac       = moninq_fac
     Model%dspfac           = dspfac
     Model%bl_upfr          = bl_upfr
@@ -3039,6 +3043,7 @@ module GFS_typedefs
       print *, ' xkgdx             : ', Model%xkgdx
       print *, ' rlmn              : ', Model%rlmn
       print *, ' rlmx              : ', Model%rlmx
+      print *, ' zolcru            : ', Model%zolcru
       print *, ' moninq_fac        : ', Model%moninq_fac
       print *, ' dspfac            : ', Model%dspfac
       print *, ' bl_upfr           : ', Model%bl_upfr

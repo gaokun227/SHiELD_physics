@@ -54,7 +54,7 @@
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
      &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl,xkzm_mi,xkzm_hi,
-     &     xkzm_s,xkzinv,rlmx,
+     &     xkzm_s,xkzinv,rlmx,zolcru,
      &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out,
      &     flux_up, flux_dn)
 !
@@ -211,7 +211,8 @@
       parameter(wfac=7.0,cfac=4.5)
       parameter(gamcrt=3.,gamcrq=0.,sfcfrac=0.1)
       parameter(vk=0.4,rimin=-100.)
-      parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
+!      parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
+      parameter(rbcr=0.25,tdzmin=1.e-3)
       parameter(rlmn=30.,rlmn1=5.,rlmn2=10.)
 !      parameter(rlmx=300.,elmx=300.)
       parameter(prmin=0.25,prmax=4.0)

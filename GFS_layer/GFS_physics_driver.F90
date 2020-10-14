@@ -622,6 +622,7 @@ module module_physics_driver
       else
         nn = ntrac + 1
       endif
+      nn = ntrac
       allocate (clw(ix,levs,nn))
       allocate( clw_trac_idx(nn) )
 
@@ -629,14 +630,12 @@ module module_physics_driver
       ntk       = 0
       tottracer = 0
       if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
-        otspt(:,:)   = .true.     ! otspt is used only for cscnv
-        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
+!        otspt(:,:)   = .true.     ! otspt is used only for cscnv
+!        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
         tracers = 2
         nn = 1
         do n=2,ntrac
-          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt .and. &
-               n /= Model%ntrw  .and. n /= Model%ntsw  .and. n /= Model%ntrnc   .and. &
-               n /= Model%ntsnc .and. n /= Model%ntgl  .and. n /= Model%ntgnc) then
+          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt ) then
             tracers = tracers + 1
             clw_trac_idx(nn) = n
             nn =nn + 1
@@ -646,13 +645,13 @@ module module_physics_driver
               enddo
             enddo
             if (Model%ntke  == n ) then
-              otspt(tracers+1,1) = .false.
+!              otspt(tracers+1,1) = .false.
               ntk = tracers
             endif
-            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
+!            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
 !           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
 !               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
-                    otspt(tracers+1,1) = .false.
+!                    otspt(tracers+1,1) = .false.
             if (trans_aero .and. Model%ntchs == n) itc = tracers
           endif
         enddo
@@ -660,11 +659,7 @@ module module_physics_driver
       endif   ! end if_ras or cfscnv or samf
 
 
-!     if (lprnt) write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
-!                write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
-!    &                   tottracer,' trc_shft=',trc_shft,' kdt=',kdt
-!    &,                  ntrac-ncld+2,' clstp=',clstp,' kdt=',kdt
-!    &,' ntk=',ntk,' lat=',lat
+      if (kdt == 1 .and. me ==0) write(0,*)' ntk=',ntk,' tottracer=', tottracer
 
       skip_macro = .false.
 

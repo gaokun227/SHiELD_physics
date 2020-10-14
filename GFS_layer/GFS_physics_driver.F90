@@ -622,44 +622,10 @@ module module_physics_driver
       else
         nn = ntrac + 1
       endif
-      nn = ntrac
       allocate (clw(ix,levs,nn))
-      allocate( clw_trac_idx(nn) )
+      allocate( clw_trac_idx(nn-2) )
+  
 
-      itc       = 0
-      ntk       = 0
-      tottracer = 0
-      if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
-!        otspt(:,:)   = .true.     ! otspt is used only for cscnv
-!        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
-        tracers = 2
-        nn = 1
-        do n=2,ntrac
-          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt ) then
-            tracers = tracers + 1
-            clw_trac_idx(nn) = n
-            nn =nn + 1
-            do k=1,levs
-              do i=1,im
-                clw(i,k,tracers) = Statein%qgrs(i,k,n)
-              enddo
-            enddo
-            if (Model%ntke  == n ) then
-!              otspt(tracers+1,1) = .false.
-              ntk = tracers
-            endif
-!            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
-!           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
-!               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
-!                    otspt(tracers+1,1) = .false.
-            if (trans_aero .and. Model%ntchs == n) itc = tracers
-          endif
-        enddo
-        tottracer = tracers - 2
-      endif   ! end if_ras or cfscnv or samf
-
-
-      if (kdt == 1 .and. me ==0) write(0,*)' ntk=',ntk,' tottracer=', tottracer
 
       skip_macro = .false.
 
@@ -2204,9 +2170,47 @@ module module_physics_driver
         cnvw(:,:)  = 0.0
       endif
 
+      
+!  --- ...  for convective tracer transport (while using samf)
+      
+      itc       = 0
+      ntk       = 0
+      tottracer = 0
+
+      if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
+!        otspt(:,:)   = .true.     ! otspt is used only for cscnv
+!        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
+        tracers = 2
+        nn = 1
+        do n=2,ntrac
+          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt ) then
+            tracers = tracers + 1
+            clw_trac_idx(nn) = n
+            nn =nn + 1
+            do k=1,levs
+              do i=1,im
+                clw(i,k,tracers) = Stateout%gq0(i,k,n)
+
+              enddo
+            enddo
+            if (Model%ntke  == n ) then
+!              otspt(tracers+1,1) = .false.
+              ntk = tracers
+            endif
+!            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
+!           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
+!               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
+!                    otspt(tracers+1,1) = .false.
+            if (trans_aero .and. Model%ntchs == n) itc = tracers
+          endif
+        enddo
+        tottracer = tracers - 2
+      endif   ! end if_ras or cfscnv or samf
+
+      if (kdt == 1 .and. me ==0) write(0,*)' ntk=',ntk,' tottracer=', tottracer
+
 !     write(0,*)' before cnv clstp=',clstp,' kdt=',kdt,' lat=',lat
 
-!  --- ...  for convective tracer transport (while using ras)
 
 
       ktop(:)  = 1
@@ -2566,13 +2570,6 @@ module module_physics_driver
                                       Stateout%gq0(:,:,Model%ntcw)) * frain
         endif ! if (lgocart)
 
-!  --- ...  update the tracers due to convective transport
-
-        if (tottracer > 0) then
-          do n=1, tottracer
-            Stateout%gq0(:,:,clw_trac_idx(n)) = clw(:,:,2+n)
-          enddo
-        endif
       endif   ! end if_not_ras
 
 !     if (lprnt) then
@@ -3028,6 +3025,21 @@ module module_physics_driver
 !         write(0,*) ' aftshgt0=',gt0(ipr,:)
 !         write(0,*) ' aftshgq0=',gq0(ipr,:,1)
 !       endif
+
+!------------------------------------------------------------------------------
+!  --- update the tracers due to deep & shallow cumulus convective transport
+!           (except for suspended water and ice)
+!
+      if (tottracer > 0) then
+        do n=1,tottracer
+          do k=1,levs
+            do i=1,im
+              Stateout%gq0(i,k,clw_trac_idx(n)) = clw(i,k,2+n)
+            enddo
+          enddo
+        enddo
+      endif
+
 
       if (Model%ntcw > 0) then
 
@@ -3717,6 +3729,7 @@ module module_physics_driver
       endif
 
       deallocate (clw)
+      deallocate (clw_trac_idx)
       if (Model%do_shoc) then
         deallocate (qpl, qpi, ncpl, ncpi)
       endif

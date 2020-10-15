@@ -2178,8 +2178,6 @@ module module_physics_driver
       tottracer = 0
 
       if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
-!        otspt(:,:)   = .true.     ! otspt is used only for cscnv
-!        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
         tracers = 2
         nn = 1
         do n=2,ntrac
@@ -2193,23 +2191,17 @@ module module_physics_driver
 
               enddo
             enddo
+            
             if (Model%ntke  == n ) then
-!              otspt(tracers+1,1) = .false.
               ntk = tracers
             endif
-!            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
-!           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
-!               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
-!                    otspt(tracers+1,1) = .false.
+            
             if (trans_aero .and. Model%ntchs == n) itc = tracers
+            
           endif
         enddo
         tottracer = tracers - 2
       endif   ! end if_ras or cfscnv or samf
-
-      if (kdt == 1 .and. me ==0) write(0,*)' ntk=',ntk,' tottracer=', tottracer
-
-!     write(0,*)' before cnv clstp=',clstp,' kdt=',kdt,' lat=',lat
 
 
 
@@ -2464,6 +2456,8 @@ module module_physics_driver
 !     if (lprnt) write(0,*)' do_awdd=',do_awdd
 !GFDL  again lat replaced with "1"
 !GFDL     &                  otspt, lat, kdt     ,                     &
+
+! Initialization of otspt has been removed since cs_convr is obsolete in SHiELD 
           call cs_convr (ix, im, levs, tottracer+3, Model%nctp, otspt, 1, &
                          kdt, Stateout%gt0, Stateout%gq0(:,:,1:1), rain1, &
                          clw, Statein%phil, Statein%phii, Statein%prsl,   &

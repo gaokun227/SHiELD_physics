@@ -471,7 +471,7 @@ module module_physics_driver
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
            !--- for CS-convection
            wcbmax
-		   
+           
       logical, dimension(size(Grid%xlon,1))                ::           &
            wet, dry,              icy
 !
@@ -590,18 +590,18 @@ module module_physics_driver
       do i = 1, im
         if(nint(Sfcprop%slmsk(i)) == 1) then
           frland(i) = 1.0
-		  dry(i)    = .true.
+          dry(i)    = .true.
         else
           frland(i) = 0.
-		  dry(i)     = .false.
+          dry(i)     = .false.
         endif
-		
+        
          z01d(i)   = 0.
          zt1d(i)   = 0.
          bexp1d(i) = 0.
          xlai1d(i) = 0.
          vegf1d(i) = 0.
-		
+        
       enddo
 
       ! perform aerosol convective transport and PBL diffusion
@@ -962,8 +962,8 @@ module module_physics_driver
       Diag%zlvl(:)    = Statein%phil(:,1) * onebg
       Diag%smcwlt2(:) = 0.0
       Diag%smcref2(:) = 0.0
-	  
-	  
+      
+      
 
 !  --- ...  lu: iter-loop over (sfc_diff,sfc_drv,sfc_ocean,sfc_sice)
 
@@ -1228,7 +1228,7 @@ module module_physics_driver
             dry, wind, slopetyp,                                       &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess,                      &
-			Model%lheatstrg, Model%isot, Model%ivegsrc,                &
+            Model%lheatstrg, Model%isot, Model%ivegsrc,                &
             bexp1d, xlai1d, vegf1d, Model%pertvegf,                    &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
@@ -1241,7 +1241,7 @@ module module_physics_driver
 
 !     if (lprnt) write(0,*)' tseae=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' phy_f2d=',phy_f2d(ipr,num_p2d)
-		elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
+        elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
           call noahmpdrv                                               &
 !  ---  inputs:
            (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &

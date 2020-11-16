@@ -1633,7 +1633,7 @@ module module_physics_driver
                        kinver, Model%xkzm_m, Model%xkzm_h,                          & 
                        Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  &
                        Model%xkzm_s, Model%xkzminv, Model%rlmx, Model%zolcru,       &
-                       Model%do_dk_hb19, Model%xkgdx,                               &
+                       Model%cs0, Model%do_dk_hb19, Model%xkgdx,                    &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt,             &
                        flux_cg, flux_en) !cg as up and en as down
         endif

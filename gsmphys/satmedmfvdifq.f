@@ -54,7 +54,7 @@
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
      &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl,xkzm_mi,xkzm_hi,
-     &     xkzm_s,xkzinv,rlmx,zolcru,
+     &     xkzm_s,xkzinv,rlmx,zolcru,cs0,
      &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out,
      &     flux_up, flux_dn)
 !
@@ -878,12 +878,13 @@
           do n = k, km1
             if(mlenflg) then
               dz = zl(i,n+1) - zl(i,n)
-              ! jih jul2020
+              ! kgao note - new: with shear effect  
               tem3=((u1(i,n+1)-u1(i,n))/dz)**2
               tem3=tem3+((v1(i,n+1)-v1(i,n))/dz)**2
               tem3=cs0*sqrt(tem3)*sqrt(tke(i,k))
               ptem = (gotvx(i,n)*(thvx(i,n+1)-thvx(i,k))+tem3)*dz
-!             ptem = (gotvx(i,n)*(thlvx(i,n+1)-thlvx(i,k)+tem3)*dz
+              ! kgao note - old: no shear effect 
+              !ptem = gotvx(i,n)*(thvx(i,n+1)-thvx(i,k))*dz
               bsum = bsum + ptem
               zlup = zlup + dz
               if(bsum >= tke(i,k)) then
@@ -915,13 +916,15 @@
                 dz = zl(i,n) - zl(i,n-1)
                 tem1 = thvx(i,n-1)
 !               tem1 = thlvx(i,n-1)
-                !jih jul2020
+                ! kgao note - shear effect 
                 tem3 = ((u1(i,n)-u1(i,n-1))/dz)**2
                 tem3 = tem3+((v1(i,n)-v1(i,n-1))/dz)**2
                 tem3 = cs0*sqrt(tem3)*sqrt(tke(i,k))
               endif
-              ptem = (gotvx(i,n)*(thvx(i,k)-tem1)+tem3)*dz !jih jul2020
-!             ptem = (gotvx(i,n)*(thlvx(i,k)-tem1)+tem3)*dz
+              ! kgao note - new: shear effect
+              ptem = (gotvx(i,n)*(thvx(i,k)-tem1)+tem3)*dz
+              ! kgao note - old: no shear effect
+              !ptem = gotvx(i,n)*(thvx(i,k)-tem1)*dz
               bsum = bsum + ptem
               zldn = zldn + dz
               if(bsum >= tke(i,k)) then

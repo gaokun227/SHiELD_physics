@@ -35,7 +35,6 @@
      &,                   sihfcs,sicfcs,sitfcs                 
      &,                   swdfcs,slcfcs      
      &,                   vmnfcs,vmxfcs,slpfcs,absfcs
-!    &,                   tsffcs,snofcs,zorfcs,albfcs,tg3fcs
      &,                   tsffcs,tsfclm, snofcs,zorfcs,albfcs
      &,                   mldclm,qfluxadj
      &,                   tg3fcs,cnpfcs,smcfcs,stcfcs,slifcs,aisfcs,f10m
@@ -626,7 +625,7 @@
 !
       data fnwetc/'        '/
       data fnmldc/'        '/
-      data fnqfluxc/'        '/
+      data fnqfluxc/'      '/
       data fnplrc/'        '/
       data fnstcc/'        '/
       data fnscvc/'        '/
@@ -7235,8 +7234,6 @@ cjfe
           endif
           if (me .eq. 0) write(6,*) 'climatological vegetation',
      &                              ' type read in.'
-          landice_cat=13
-          if (maxval(vet)> 13.0) landice_cat=15
         elseif(index(fnsmcc,'soilmgldas') /= 0) then ! new soil moisture climo
           if (me .eq. 0) write(6,*) 'fatal error: must choose'
           if (me .eq. 0) write(6,*) 'climatological veg type when'

@@ -471,7 +471,7 @@ module module_physics_driver
            tisfc_cice, tsea_cice, hice_cice, fice_cice,                 &
            !--- for CS-convection
            wcbmax
-		   
+           
       logical, dimension(size(Grid%xlon,1))                ::           &
            wet, dry,              icy
 !
@@ -590,18 +590,18 @@ module module_physics_driver
       do i = 1, im
         if(nint(Sfcprop%slmsk(i)) == 1) then
           frland(i) = 1.0
-		  dry(i)    = .true.
+          dry(i)    = .true.
         else
           frland(i) = 0.
-		  dry(i)     = .false.
+          dry(i)     = .false.
         endif
-		
+        
          z01d(i)   = 0.
          zt1d(i)   = 0.
          bexp1d(i) = 0.
          xlai1d(i) = 0.
          vegf1d(i) = 0.
-		
+        
       enddo
 
       ! perform aerosol convective transport and PBL diffusion
@@ -623,48 +623,9 @@ module module_physics_driver
         nn = ntrac + 1
       endif
       allocate (clw(ix,levs,nn))
-      allocate( clw_trac_idx(nn) )
+      allocate( clw_trac_idx(nn-2) )
+  
 
-      itc       = 0
-      ntk       = 0
-      tottracer = 0
-      if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
-        otspt(:,:)   = .true.     ! otspt is used only for cscnv
-        otspt(1:3,:) = .false.    ! this is for sp.hum, ice and liquid water
-        tracers = 2
-        nn = 1
-        do n=2,ntrac
-          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt .and. &
-               n /= Model%ntrw  .and. n /= Model%ntsw  .and. n /= Model%ntrnc   .and. &
-               n /= Model%ntsnc .and. n /= Model%ntgl  .and. n /= Model%ntgnc) then
-            tracers = tracers + 1
-            clw_trac_idx(nn) = n
-            nn =nn + 1
-            do k=1,levs
-              do i=1,im
-                clw(i,k,tracers) = Statein%qgrs(i,k,n)
-              enddo
-            enddo
-            if (Model%ntke  == n ) then
-              otspt(tracers+1,1) = .false.
-              ntk = tracers
-            endif
-            if (Model%ntlnc == n .or. Model%ntinc == n .or. Model%ntrnc == n .or. Model%ntsnc == n .or. Model%ntgnc == n)    &
-!           if (ntlnc == n .or. ntinc == n .or. ntrnc == n .or. ntsnc == n .or.&
-!               ntrw  == n .or. ntsw  == n .or. ntgl  == n)                    &
-                    otspt(tracers+1,1) = .false.
-            if (trans_aero .and. Model%ntchs == n) itc = tracers
-          endif
-        enddo
-        tottracer = tracers - 2
-      endif   ! end if_ras or cfscnv or samf
-
-
-!     if (lprnt) write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
-!                write(0,*)' trans_trac=',trans_trac,' tottracer=',     &
-!    &                   tottracer,' trc_shft=',trc_shft,' kdt=',kdt
-!    &,                  ntrac-ncld+2,' clstp=',clstp,' kdt=',kdt
-!    &,' ntk=',ntk,' lat=',lat
 
       skip_macro = .false.
 
@@ -1001,8 +962,8 @@ module module_physics_driver
       Diag%zlvl(:)    = Statein%phil(:,1) * onebg
       Diag%smcwlt2(:) = 0.0
       Diag%smcref2(:) = 0.0
-	  
-	  
+      
+      
 
 !  --- ...  lu: iter-loop over (sfc_diff,sfc_drv,sfc_ocean,sfc_sice)
 
@@ -1267,7 +1228,7 @@ module module_physics_driver
             dry, wind, slopetyp,                                       &
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess,                      &
-			Model%lheatstrg, Model%isot, Model%ivegsrc,                &
+            Model%lheatstrg, Model%isot, Model%ivegsrc,                &
             bexp1d, xlai1d, vegf1d, Model%pertvegf,                    &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
@@ -1280,7 +1241,7 @@ module module_physics_driver
 
 !     if (lprnt) write(0,*)' tseae=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' phy_f2d=',phy_f2d(ipr,num_p2d)
-		elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
+        elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
           call noahmpdrv                                               &
 !  ---  inputs:
            (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
@@ -2209,9 +2170,39 @@ module module_physics_driver
         cnvw(:,:)  = 0.0
       endif
 
-!     write(0,*)' before cnv clstp=',clstp,' kdt=',kdt,' lat=',lat
+      
+!  --- ...  for convective tracer transport (while using samf)
+      
+      itc       = 0
+      ntk       = 0
+      tottracer = 0
 
-!  --- ...  for convective tracer transport (while using ras)
+      if (Model%cscnv .or. Model%satmedmf .or. Model%trans_trac ) then
+        tracers = 2
+        nn = 1
+        do n=2,ntrac
+          if ( n /= Model%ntcw  .and. n /= Model%ntiw  .and. n /= Model%ntclamt ) then
+            tracers = tracers + 1
+            clw_trac_idx(nn) = n
+            nn =nn + 1
+            do k=1,levs
+              do i=1,im
+                clw(i,k,tracers) = Stateout%gq0(i,k,n)
+
+              enddo
+            enddo
+            
+            if (Model%ntke  == n ) then
+              ntk = tracers
+            endif
+            
+            if (trans_aero .and. Model%ntchs == n) itc = tracers
+            
+          endif
+        enddo
+        tottracer = tracers - 2
+      endif   ! end if_ras or cfscnv or samf
+
 
 
       ktop(:)  = 1
@@ -2465,6 +2456,8 @@ module module_physics_driver
 !     if (lprnt) write(0,*)' do_awdd=',do_awdd
 !GFDL  again lat replaced with "1"
 !GFDL     &                  otspt, lat, kdt     ,                     &
+
+! Initialization of otspt has been removed since cs_convr is obsolete in SHiELD 
           call cs_convr (ix, im, levs, tottracer+3, Model%nctp, otspt, 1, &
                          kdt, Stateout%gt0, Stateout%gq0(:,:,1:1), rain1, &
                          clw, Statein%phil, Statein%phii, Statein%prsl,   &
@@ -2571,13 +2564,6 @@ module module_physics_driver
                                       Stateout%gq0(:,:,Model%ntcw)) * frain
         endif ! if (lgocart)
 
-!  --- ...  update the tracers due to convective transport
-
-        if (tottracer > 0) then
-          do n=1, tottracer
-            Stateout%gq0(:,:,clw_trac_idx(n)) = clw(:,:,2+n)
-          enddo
-        endif
       endif   ! end if_not_ras
 
 !     if (lprnt) then
@@ -3033,6 +3019,21 @@ module module_physics_driver
 !         write(0,*) ' aftshgt0=',gt0(ipr,:)
 !         write(0,*) ' aftshgq0=',gq0(ipr,:,1)
 !       endif
+
+!------------------------------------------------------------------------------
+!  --- update the tracers due to deep & shallow cumulus convective transport
+!           (except for suspended water and ice)
+!
+      if (tottracer > 0) then
+        do n=1,tottracer
+          do k=1,levs
+            do i=1,im
+              Stateout%gq0(i,k,clw_trac_idx(n)) = clw(i,k,2+n)
+            enddo
+          enddo
+        enddo
+      endif
+
 
       if (Model%ntcw > 0) then
 
@@ -3722,6 +3723,7 @@ module module_physics_driver
       endif
 
       deallocate (clw)
+      deallocate (clw_trac_idx)
       if (Model%do_shoc) then
         deallocate (qpl, qpi, ncpl, ncpi)
       endif

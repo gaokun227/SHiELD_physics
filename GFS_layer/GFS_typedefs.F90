@@ -261,6 +261,11 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: smcwtdxy(:)  => null()  !<
     real (kind=kind_phys), pointer :: deeprechxy(:)=> null()  !<
     real (kind=kind_phys), pointer :: rechxy  (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albdvis (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albdnir (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albivis (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albinir (:)  => null()  !<
+    real (kind=kind_phys), pointer :: emiss   (:)  => null()  !<
 
     real (kind=kind_phys), pointer :: snicexy   (:,:) => null()  !<
     real (kind=kind_phys), pointer :: snliqxy   (:,:) => null()  !<
@@ -1442,7 +1447,12 @@ module GFS_typedefs
     allocate (Sfcprop%taussxy  (IM))
     allocate (Sfcprop%smcwtdxy (IM))
     allocate (Sfcprop%deeprechxy (IM))
-    allocate (Sfcprop%rechxy    (IM))
+    allocate (Sfcprop%rechxy     (IM))
+    allocate (Sfcprop%albdvis    (IM))
+    allocate (Sfcprop%albdnir    (IM))
+    allocate (Sfcprop%albivis    (IM))
+    allocate (Sfcprop%albinir    (IM))
+    allocate (Sfcprop%emiss      (IM))
     allocate (Sfcprop%snicexy    (IM,-2:0))
     allocate (Sfcprop%snliqxy    (IM,-2:0))
     allocate (Sfcprop%tsnoxy     (IM,-2:0))
@@ -1478,6 +1488,11 @@ module GFS_typedefs
     Sfcprop%smcwtdxy   = clear_val
     Sfcprop%deeprechxy = clear_val
     Sfcprop%rechxy     = clear_val
+    Sfcprop%albdvis    = clear_val
+    Sfcprop%albdnir    = clear_val
+    Sfcprop%albivis    = clear_val
+    Sfcprop%albinir    = clear_val
+    Sfcprop%emiss      = clear_val
 
     Sfcprop%snicexy    = clear_val
     Sfcprop%snliqxy    = clear_val

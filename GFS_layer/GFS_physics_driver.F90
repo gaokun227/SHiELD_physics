@@ -1242,45 +1242,86 @@ module module_physics_driver
 !     if (lprnt) write(0,*)' tseae=',tsea(ipr),' tsurf=',tsurf(ipr),iter
 !    &,' phy_f2d=',phy_f2d(ipr,num_p2d)
         elseif (Model%lsm == Model%lsm_noahmp) then  ! noah mp call
-          call noahmpdrv                                               &
+          if (Model%ialb == 2) then
+            call noahmpdrv                                               &
 !  ---  inputs:
-           (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
-            Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
-            Radtend%semis, adjsfcdlw, adjsfcdsw, adjsfcnsw, dtf,       &
-            Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
-            Diag%zlvl, dry,   wind, slopetyp,                          &
-            Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
-            Radtend%sfalb,    flag_iter,       flag_guess,             &
-            Model%iopt_dveg,  Model%iopt_crs,  Model%iopt_btr,         &
-            Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
-            Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
-            Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
-            grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
-            Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
-            Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
+             (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
+              Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
+              Sfcprop%emiss, adjsfcdlw, adjsfcdsw, adjsfcnsw, dtf,       &
+              Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
+              Diag%zlvl, dry,   wind, slopetyp,                          &
+              Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
+              Radtend%sfalb,    flag_iter,       flag_guess,             &
+              Model%iopt_dveg,  Model%iopt_crs,  Model%iopt_btr,         &
+              Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
+              Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
+              Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
+              grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
+              Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
+              Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
 !  ---  in/outs:
-            Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
-            Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
-            trans, tsurf, Sfcprop%zorl,                                &
+              Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
+              Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
+              trans, tsurf, Sfcprop%zorl,                                &
 !
-            Sfcprop%snowxy,   Sfcprop%tvxy,    Sfcprop%tgxy,  Sfcprop%canicexy, &
-            Sfcprop%canliqxy, Sfcprop%eahxy,   Sfcprop%tahxy, Sfcprop%cmxy,     &
-            Sfcprop%chxy,     Sfcprop%fwetxy,  Sfcprop%sneqvoxy,                &
-            Sfcprop%alboldxy, Sfcprop%qsnowxy, Sfcprop%wslakexy,                &
-            Sfcprop%zwtxy,    Sfcprop%waxy,    Sfcprop%wtxy, Sfcprop%tsnoxy,    &
-            Sfcprop%zsnsoxy,  Sfcprop%snicexy, Sfcprop%snliqxy,                 &
-            Sfcprop%lfmassxy, Sfcprop%rtmassxy,                                 &
-            Sfcprop%stmassxy, Sfcprop%woodxy,  Sfcprop%stblcpxy,                &
-            Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
-            Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
-            Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
-            Sfcprop%albdvis, Sfcprop%albdnir,  Sfcprop%albivis,  Sfcprop%albinir,&
+              Sfcprop%snowxy,   Sfcprop%tvxy,    Sfcprop%tgxy,  Sfcprop%canicexy, &
+              Sfcprop%canliqxy, Sfcprop%eahxy,   Sfcprop%tahxy, Sfcprop%cmxy,     &
+              Sfcprop%chxy,     Sfcprop%fwetxy,  Sfcprop%sneqvoxy,                &
+              Sfcprop%alboldxy, Sfcprop%qsnowxy, Sfcprop%wslakexy,                &
+              Sfcprop%zwtxy,    Sfcprop%waxy,    Sfcprop%wtxy, Sfcprop%tsnoxy,    &
+              Sfcprop%zsnsoxy,  Sfcprop%snicexy, Sfcprop%snliqxy,                 &
+              Sfcprop%lfmassxy, Sfcprop%rtmassxy,                                 &
+              Sfcprop%stmassxy, Sfcprop%woodxy,  Sfcprop%stblcpxy,                &
+              Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
+              Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
+              Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
+              Sfcprop%albdvis, Sfcprop%albdnir,  Sfcprop%albivis,  Sfcprop%albinir,&
 !  ---  outputs:
-            Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
-            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,           &
-            snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
+              Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
+              Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,           &
+              snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
 
+              Radtend%semis = Sfcprop%emiss
 
+          else
+            call noahmpdrv                                               &
+!  ---  inputs:
+             (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
+              Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
+              Radtend%semis, adjsfcdlw, adjsfcdsw, adjsfcnsw, dtf,       &
+              Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
+              Diag%zlvl, dry,   wind, slopetyp,                          &
+              Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
+              Radtend%sfalb,    flag_iter,       flag_guess,             &
+              Model%iopt_dveg,  Model%iopt_crs,  Model%iopt_btr,         &
+              Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
+              Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
+              Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
+              grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
+              Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
+              Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
+!  ---  in/outs:
+              Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
+              Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
+              trans, tsurf, Sfcprop%zorl,                                &
+!
+              Sfcprop%snowxy,   Sfcprop%tvxy,    Sfcprop%tgxy,  Sfcprop%canicexy, &
+              Sfcprop%canliqxy, Sfcprop%eahxy,   Sfcprop%tahxy, Sfcprop%cmxy,     &
+              Sfcprop%chxy,     Sfcprop%fwetxy,  Sfcprop%sneqvoxy,                &
+              Sfcprop%alboldxy, Sfcprop%qsnowxy, Sfcprop%wslakexy,                &
+              Sfcprop%zwtxy,    Sfcprop%waxy,    Sfcprop%wtxy, Sfcprop%tsnoxy,    &
+              Sfcprop%zsnsoxy,  Sfcprop%snicexy, Sfcprop%snliqxy,                 &
+              Sfcprop%lfmassxy, Sfcprop%rtmassxy,                                 &
+              Sfcprop%stmassxy, Sfcprop%woodxy,  Sfcprop%stblcpxy,                &
+              Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
+              Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
+              Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
+              Sfcprop%albdvis, Sfcprop%albdnir,  Sfcprop%albivis,  Sfcprop%albinir,&
+!  ---  outputs:
+              Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
+              Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,           &
+              snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
+          endif
         endif
 
 !       if (lprnt) write(0,*)' tseabeficemodel =',tsea(ipr),' me=',me   &

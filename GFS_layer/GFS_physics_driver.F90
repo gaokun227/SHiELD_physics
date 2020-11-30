@@ -447,8 +447,7 @@ module module_physics_driver
            !--- experimental for shoc sub-stepping 
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
-           crain, csnow,                                                &
-           z0fun
+           crain, csnow
 
       real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
            fscav, fswtr
@@ -489,7 +488,7 @@ module module_physics_driver
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
           gsize, hs, land, rain0, snow0, ice0, graupel0, cond0, dep0,   &
-          reevap0, sub0, zvfun
+          reevap0, sub0
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -1581,20 +1580,12 @@ module module_physics_driver
                    Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
 
              elseif (Model%isatmedmf == 1) then   
-                do i=1,im
-                   if (islmsk(i) == 1) then
-                      z0fun =  min(max((Sfcprop%zorl(i)*0.01-0.1)/0.9, 0.0), 1.0) ! jih jul2020:  (z0fun=0.~1.0)
-                      zvfun(i) = sqrt( max(sigmaf(i), 0.1) * z0fun ) !jih jul2020: over land, zvfun=0 over ocean
-                   else
-                      zvfun(i) = 0.
-                   endif
-                enddo
                 ! updated version of satmedmfvdif (May 2019) modified by kgao
                 call satmedmfvdifq(ix, im, levs, nvdiff,                            &
                        Model%ntcw, Model%ntiw, Model%ntke,                          &
                        dvdt, dudt, dtdt, dqdt,                                      &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
-                       Radtend%htrsw, Radtend%htrlw, xmu, garea, zvfun, islmsk,     &
+                       Radtend%htrsw, Radtend%htrlw, xmu, garea, islmsk,            &
                        Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                        Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
                        stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &

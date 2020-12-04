@@ -187,7 +187,7 @@ module FV3GFS_io_mod
    ntr = size(IPD_Data(1)%Statein%qgrs,3)
 
    if(Model%lsm == Model%lsm_noahmp) then
-     nsfcprop2d = 149  
+     nsfcprop2d = 154  
    else
      nsfcprop2d = 100
    endif
@@ -344,7 +344,12 @@ module FV3GFS_io_mod
         temp2d(i,j,idx_opt+46) = IPD_Data(nb)%Sfcprop%zsnsoxy(ix,2)
         temp2d(i,j,idx_opt+47) = IPD_Data(nb)%Sfcprop%zsnsoxy(ix,3)
         temp2d(i,j,idx_opt+48) = IPD_Data(nb)%Sfcprop%zsnsoxy(ix,4)
-        idx_opt = 134
+        temp2d(i,j,idx_opt+49) = IPD_Data(nb)%Sfcprop%albdvis(ix)
+        temp2d(i,j,idx_opt+50) = IPD_Data(nb)%Sfcprop%albdnir(ix)
+        temp2d(i,j,idx_opt+51) = IPD_Data(nb)%Sfcprop%albivis(ix)
+        temp2d(i,j,idx_opt+52) = IPD_Data(nb)%Sfcprop%albinir(ix)
+        temp2d(i,j,idx_opt+53) = IPD_Data(nb)%Sfcprop%emiss(ix)
+        idx_opt = 139
        endif
 
        if (Model%nstf_name(1) > 0) then
@@ -480,7 +485,7 @@ module FV3GFS_io_mod
     nvar_s3  = 3
 
     if (Model%lsm == Model%lsm_noahmp) then
-      nvar_s2mp = 34       !mp 2D
+      nvar_s2mp = 39       !mp 2D
       nvar_s3mp = 5        !mp 3D
     else
       nvar_s2mp = 0        !mp 2D
@@ -690,7 +695,7 @@ module FV3GFS_io_mod
       sfc_name2(nvar_s2m+17) = 'dt_cool'
       sfc_name2(nvar_s2m+18) = 'qrain'
 !
-! Only needed when Noah MP LSM is used - 29 2D
+! Only needed when Noah MP LSM is used - 39 2D
 !
       if (Model%lsm == Model%lsm_noahmp) then
         sfc_name2(nvar_s2m+19) = 'snowxy'
@@ -727,6 +732,11 @@ module FV3GFS_io_mod
         sfc_name2(nvar_s2m+50) = 'dsnowprv'
         sfc_name2(nvar_s2m+51) = 'dgraupelprv'
         sfc_name2(nvar_s2m+52) = 'diceprv'
+        sfc_name2(nvar_s2m+53) = 'albdvis'
+        sfc_name2(nvar_s2m+54) = 'albdnir'
+        sfc_name2(nvar_s2m+55) = 'albivis'
+        sfc_name2(nvar_s2m+56) = 'albinir'
+        sfc_name2(nvar_s2m+57) = 'emiss'
 
       endif
  
@@ -1022,6 +1032,11 @@ module FV3GFS_io_mod
              Sfcprop(nb)%dsnowprv(ix)   = sfc_var2(i,j,nvar_s2m+50)
              Sfcprop(nb)%dgraupelprv(ix)= sfc_var2(i,j,nvar_s2m+51)
              Sfcprop(nb)%diceprv(ix)    = sfc_var2(i,j,nvar_s2m+52)
+             Sfcprop(nb)%albdvis(ix)    = sfc_var2(i,j,nvar_s2m+53)
+             Sfcprop(nb)%albdnir(ix)    = sfc_var2(i,j,nvar_s2m+54)
+             Sfcprop(nb)%albivis(ix)    = sfc_var2(i,j,nvar_s2m+55)
+             Sfcprop(nb)%albinir(ix)    = sfc_var2(i,j,nvar_s2m+56)
+             Sfcprop(nb)%emiss(ix)      = sfc_var2(i,j,nvar_s2m+57)
            endif
 
 
@@ -1168,6 +1183,11 @@ module FV3GFS_io_mod
               Sfcprop(nb)%dsnowprv(ix)   = 0.
               Sfcprop(nb)%dgraupelprv(ix)= 0.
               Sfcprop(nb)%diceprv(ix)    = 0.
+              Sfcprop(nb)%albdvis(ix)    = missing_value
+              Sfcprop(nb)%albdnir(ix)    = missing_value
+              Sfcprop(nb)%albivis(ix)    = missing_value
+              Sfcprop(nb)%albinir(ix)    = missing_value
+              Sfcprop(nb)%emiss(ix)      = missing_value
 
               Sfcprop(nb)%snowxy (ix)   = missing_value
               Sfcprop(nb)%snicexy(ix, -2:0) = missing_value
@@ -1206,6 +1226,11 @@ module FV3GFS_io_mod
                 Sfcprop(nb)%wslakexy(ix) = 0.0
                 Sfcprop(nb)%taussxy(ix)  = 0.0
 
+                Sfcprop(nb)%albdvis(ix)  = 0.2
+                Sfcprop(nb)%albdnir(ix)  = 0.2
+                Sfcprop(nb)%albivis(ix)  = 0.2
+                Sfcprop(nb)%albinir(ix)  = 0.2
+                Sfcprop(nb)%emiss(ix)    = 0.95
 
                 Sfcprop(nb)%waxy(ix)     = 4900.0
                 Sfcprop(nb)%wtxy(ix)     = Sfcprop(nb)%waxy(ix)
@@ -1747,6 +1772,11 @@ module FV3GFS_io_mod
         sfc_name2(nvar2m+50) = 'dsnowprv'
         sfc_name2(nvar2m+51) = 'dgraupelprv'
         sfc_name2(nvar2m+52) = 'diceprv'
+        sfc_name2(nvar2m+53) = 'albdvis'
+        sfc_name2(nvar2m+54) = 'albdnir'
+        sfc_name2(nvar2m+55) = 'albivis'
+        sfc_name2(nvar2m+56) = 'albinir'
+        sfc_name2(nvar2m+57) = 'emiss'
       endif
  
       !--- register the 2D fields
@@ -1913,6 +1943,11 @@ module FV3GFS_io_mod
           sfc_var2(i,j,nvar2m+50) = Sfcprop(nb)%dsnowprv(ix)
           sfc_var2(i,j,nvar2m+51) = Sfcprop(nb)%dgraupelprv(ix)
           sfc_var2(i,j,nvar2m+52) = Sfcprop(nb)%diceprv(ix)
+          sfc_var2(i,j,nvar2m+53) = Sfcprop(nb)%albdvis(ix)
+          sfc_var2(i,j,nvar2m+54) = Sfcprop(nb)%albdnir(ix)
+          sfc_var2(i,j,nvar2m+55) = Sfcprop(nb)%albivis(ix)
+          sfc_var2(i,j,nvar2m+56) = Sfcprop(nb)%albinir(ix)
+          sfc_var2(i,j,nvar2m+57) = Sfcprop(nb)%emiss(ix)
         endif
 
         !--- 3D variables

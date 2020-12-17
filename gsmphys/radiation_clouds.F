@@ -2524,7 +2524,7 @@
 #ifdef fvGFS_2017
       use gfdl_cloud_microphys_mod, only: cloud_diagnosis
 #else
-      use cld_eff_rad_mod, only: cld_eff_rad
+      use gfdl_cld_mp_mod, only: cld_eff_rad
 #endif
 !
       implicit none

@@ -13,9 +13,6 @@ module GFS_driver
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
   use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init
-#ifndef fvGFS_2017
-  use cld_eff_rad_mod,          only: cld_eff_rad_init
-#endif
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
 
@@ -217,9 +214,6 @@ module GFS_driver
     if (.not. Model%do_inline_mp .and. Model%ncld == 5) then
       call gfdl_cld_mp_init (Model%me, Model%master, Model%nlunit, Model%input_nml_file, &
                                       Init_parm%logunit, Model%fn_nml)
-#ifndef fvGFS_2017
-      call cld_eff_rad_init (Model%nlunit, Model%input_nml_file, Init_parm%logunit, Model%fn_nml)
-#endif
     endif
 
     !--- initialize ras

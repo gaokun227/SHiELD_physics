@@ -211,7 +211,7 @@ module GFS_driver
     endif
 
     !--- initialize GFDL Cloud microphysics
-    if (.not. Model%do_inline_mp .and. Model%ncld == 5) then
+    if (Model%ncld == 5) then
       call gfdl_cld_mp_init (Model%me, Model%master, Model%nlunit, Model%input_nml_file, &
                                       Init_parm%logunit, Model%fn_nml)
     endif

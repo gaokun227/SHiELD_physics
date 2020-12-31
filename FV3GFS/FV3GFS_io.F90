@@ -53,7 +53,7 @@ module FV3GFS_io_mod
 !--- needed for dq3dt output
   use ozne_def,           only: oz_coeff
 !--- needed for cold-start capability to initialize q2m
-  use gfdl_cld_mp_mod,    only: wqs1, qsmith_init
+  use gfdl_cld_mp_mod,    only: wqs, qsmith_init
 !
 !-----------------------------------------------------------------------
   implicit none
@@ -1529,7 +1529,7 @@ module FV3GFS_io_mod
              !--- t2m ! slt. unstable
              Sfcprop(nb)%t2m(ix)    = Sfcprop(nb)%t2m(ix) * 0.98
              !--- q2m ! use RH = 98% and assume ps = 1000 mb
-             Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
+             Sfcprop(nb)%q2m(ix)    = wqs (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
              !--- vtype
              Sfcprop(nb)%vtype(ix)  = 0
              !--- stype
@@ -1566,7 +1566,7 @@ module FV3GFS_io_mod
              !--- t2m
              Sfcprop(nb)%t2m(ix)    = stc * 0.98 !slt unstable
              !--- q2m ! use RH = 98%
-             Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
+             Sfcprop(nb)%q2m(ix)    = wqs (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
              !--- vtype
              Sfcprop(nb)%vtype(ix)  = vegtype
              !--- stype

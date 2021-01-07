@@ -21,7 +21,7 @@ module FV3GFS_io_mod
   use fms_io_mod,         only: restart_file_type, free_restart_type, &
                                 register_restart_field,               &
                                 restore_state, save_restart
-  use mpp_domains_mod,    only: domain2d
+  use mpp_domains_mod,    only: domain2d, mpp_get_compute_domain
   use time_manager_mod,   only: time_type
   use diag_manager_mod,   only: register_diag_field, send_data
   use fv_mp_mod,          only: is_master, mp_reduce_sum, mp_reduce_min, mp_reduce_max
@@ -54,16 +54,23 @@ module FV3GFS_io_mod
   use ozne_def,           only: oz_coeff
 !--- needed for cold-start capability to initialize q2m
   use gfdl_cld_mp_mod,    only: wqs1, qsmith_init
-!
+  use coarse_graining_mod, only: block_mode, block_upsample, block_min, block_max, block_sum, weighted_block_average
+  use coarse_graining_mod, only: MODEL_LEVEL, PRESSURE_LEVEL
+  use coarse_graining_mod, only: vertical_remapping_requirements, get_coarse_array_bounds
+  use coarse_graining_mod, only: vertically_remap_field, mask_area_weights
+!  
 !-----------------------------------------------------------------------
   implicit none
   private
  
   !--- public interfaces ---
-  public  FV3GFS_restart_read, FV3GFS_restart_write
+  public  FV3GFS_restart_read, FV3GFS_restart_write, FV3GFS_restart_write_coarse
   public  FV3GFS_IPD_checksum
   public  gfdl_diag_register, gfdl_diag_output
-
+  public  FV3GFS_diag_register_coarse, register_diag_manager_controlled_diagnostics
+  public  register_coarse_diag_manager_controlled_diagnostics
+  public  send_diag_manager_controlled_diagnostic_data
+  
   !--- GFDL filenames
   character(len=32)  :: fn_oro = 'oro_data.nc'
   character(len=32)  :: fn_srf = 'sfc_data.nc'
@@ -81,6 +88,13 @@ module FV3GFS_io_mod
   !--- Noah MP restart containers
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3sn,sfc_var3eq,sfc_var3zn
 
+  ! Coarse graining
+  real(kind=kind_phys), allocatable, target, dimension(:,:,:) :: sfc_var2_coarse
+  real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3_coarse
+  type(restart_file_type) :: sfc_restart_coarse
+
+  integer :: isco, ieco, jsco, jeco, levo
+  
 !-RAB
   type data_subtype
     real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
@@ -99,6 +113,18 @@ module FV3GFS_io_mod
     character(len=64)    :: unit
     real(kind=kind_phys) :: cnvfac
     type(data_subtype), dimension(:), allocatable :: data
+    
+    ! Add an attribute that specifies the coarse-graining method for the
+    ! variable.  By default we will set this as unspecified and raise an error
+    ! if a user asks to coarse-grain a variable that does not have a supported
+    ! method for coarse-graining.  Currently supported methods are:
+    !
+    ! 'area_weighted'
+    ! 'mass_weighted'
+    !
+    ! In the future we may want to support more methods, e.g. for the land
+    ! surface variables, which may require masking.
+    character(len=64) :: coarse_graining_method = 'unspecified'
 !rab    real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
 !rab    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL()
    end type gfdl_diag_type
@@ -107,13 +133,16 @@ module FV3GFS_io_mod
    integer :: tot_diag_idx = 0
    integer, parameter :: DIAG_SIZE = 250
    real(kind=kind_phys), parameter :: missing_value = 1.d30
-   type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag
+   type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
 
  
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
 
+  character(len=64) :: AREA_WEIGHTED = 'area_weighted'
+  character(len=64) :: MASS_WEIGHTED = 'mass_weighted'
+  
   CONTAINS
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -162,6 +191,22 @@ module FV3GFS_io_mod
 
   end subroutine FV3GFS_restart_write
 
+  subroutine FV3GFS_restart_write_coarse (IPD_Data, IPD_Restart, Atm_block, Model, coarse_domain, timestamp)
+    type(IPD_data_type),         intent(inout) :: IPD_Data(:)
+    type(IPD_restart_type),      intent(inout) :: IPD_Restart
+    type(block_control_type),    intent(in)    :: Atm_block
+    type(IPD_control_type),      intent(in)    :: Model
+    type(domain2d),              intent(in)    :: coarse_domain
+    character(len=32), optional, intent(in)    :: timestamp
+
+    if (present(timestamp)) then
+      call sfc_prop_restart_write_coarse (IPD_Data%Sfcprop, Atm_block, Model, &
+            coarse_domain, IPD_Data%Grid, timestamp)
+    else
+      call sfc_prop_restart_write_coarse (IPD_Data%Sfcprop, Atm_block, Model, &
+            coarse_domain, IPD_Data%Grid)
+    endif
+  end subroutine FV3GFS_restart_write_coarse
 
 !--------------------
 ! FV3GFS_IPD_checksum
@@ -1945,7 +1990,362 @@ module FV3GFS_io_mod
 
   end subroutine sfc_prop_restart_write
 
+  subroutine sfc_prop_restart_write_coarse(Sfcprop, Atm_block, Model, coarse_domain, Grid, timestamp)
+    type(GFS_sfcprop_type),      intent(in) :: Sfcprop(:)
+    type(block_control_type),    intent(in) :: atm_block
+    type(IPD_control_type),      intent(in) :: Model
+    type(domain2d),              intent(in) :: coarse_domain
+    type(GFS_grid_type),         intent(in) :: Grid(:)
+    character(len=32), optional, intent(in) :: timestamp
 
+    integer :: i, j, k, nb, ix, lsoil, num
+    integer :: isc, iec, jsc, jec, npz, nx, ny
+    integer :: id_restart
+    integer :: nvar2m, nvar2o, nvar3
+    logical :: mand
+
+    integer :: is_coarse, ie_coarse, js_coarse, je_coarse, nx_coarse, ny_coarse
+    character(len=32) :: fn_srf_coarse = 'sfc_data_coarse.nc'
+    real(kind=kind_phys), allocatable, dimension(:,:) :: area, &
+      dominant_sfc_type, dominant_vtype, dominant_stype, &
+      tisfc_area_average, only_area_weighted_zorl, &
+      only_area_weighted_canopy, coarsened_area_times_fice, &
+      coarsened_area_times_sncovr, coarsened_area_times_vfrac
+    logical, allocatable, dimension(:,:) :: sfc_type_mask, sfc_and_vtype_mask, sfc_and_stype_mask
+    real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p_coarse => NULL()
+    real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p_coarse => NULL()
+    real(kind=kind_phys) :: FREEZING, VTYPE_LAND_ICE, STYPE_LAND_ICE, SHDMIN_CANOPY_THRESHOLD
+
+    if (Model%cplflx .or. (Model%lsm .eq. Model%lsm_noahmp) .or. (Model%nstf_name(1) > 0)) then
+      call mpp_error(FATAL, 'Coarse graining strategy not defined for land surface model configuration')
+    endif
+
+    nvar2m = 32
+    nvar3 = 3
+
+    isc = Atm_block%isc
+    iec = Atm_block%iec
+    jsc = Atm_block%jsc
+    jec = Atm_block%jec
+    npz = Atm_block%npz
+    nx = (iec - isc + 1)
+    ny = (jec - jsc + 1)
+
+    call mpp_get_compute_domain(coarse_domain, is_coarse, ie_coarse, js_coarse, je_coarse)
+    nx_coarse = ie_coarse - is_coarse + 1
+    ny_coarse = je_coarse - js_coarse + 1
+
+    allocate(area(isc:iec,jsc:jec))
+    do nb = 1, Atm_block%nblks
+      do ix = 1, Atm_block%blksz(nb)
+        i = Atm_block%index(nb)%ii(ix)
+        j = Atm_block%index(nb)%jj(ix)
+        area(i,j) = Grid(nb)%area(ix)
+      enddo
+    enddo
+
+    allocate(dominant_sfc_type(isc:iec,jsc:jec))
+    allocate(dominant_vtype(isc:iec,jsc:jec))
+    allocate(dominant_stype(isc:iec,jsc:jec))
+    allocate(sfc_type_mask(isc:iec,jsc:jec))
+    allocate(sfc_and_vtype_mask(isc:iec,jsc:jec))
+    allocate(sfc_and_stype_mask(isc:iec,jsc:jec))
+    allocate(tisfc_area_average(is_coarse:ie_coarse,js_coarse:je_coarse))
+    allocate(only_area_weighted_zorl(is_coarse:ie_coarse,js_coarse:je_coarse))
+    allocate(only_area_weighted_canopy(is_coarse:ie_coarse,js_coarse:je_coarse))
+    allocate(coarsened_area_times_fice(is_coarse:ie_coarse,js_coarse:je_coarse))
+    allocate(coarsened_area_times_sncovr(is_coarse:ie_coarse,js_coarse:je_coarse))
+    allocate(coarsened_area_times_vfrac(is_coarse:ie_coarse,js_coarse:je_coarse))
+
+    if (.not. allocated(sfc_var2_coarse)) then
+      allocate(sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,nvar2m))
+      allocate(sfc_var3_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,Model%lsoil,nvar3))
+
+      call register_coarse_sfc_prop_restart_fields(sfc_restart_coarse, &
+        sfc_var2_coarse, sfc_var3_coarse, fn_srf_coarse, &
+        var2_p_coarse, var3_p_coarse, sfc_name2, sfc_name3, coarse_domain, &
+        Model, nvar2m, nvar3)
+    endif
+
+    if (.not. allocated(sfc_name2)) then
+      !--- allocate the various containers needed for restarts
+      allocate(sfc_name2(nvar2m))
+      allocate(sfc_name3(nvar3))
+      allocate(sfc_var2(isc:iec,jsc:jec,nvar2m))
+      allocate(sfc_var3(isc:iec,jsc:jec,Model%lsoil,nvar3))
+      sfc_var2 = -9999._kind_phys
+      sfc_var3 = -9999._kind_phys
+
+      !--- names of the 2D variables to save
+      sfc_name2(1)  = 'slmsk'
+      sfc_name2(2)  = 'tsea'    !tsfc
+      sfc_name2(3)  = 'sheleg'  !weasd
+      sfc_name2(4)  = 'tg3'
+      sfc_name2(5)  = 'zorl'
+      sfc_name2(6)  = 'alvsf'
+      sfc_name2(7)  = 'alvwf'
+      sfc_name2(8)  = 'alnsf'
+      sfc_name2(9)  = 'alnwf'
+      sfc_name2(10) = 'facsf'
+      sfc_name2(11) = 'facwf'
+      sfc_name2(12) = 'vfrac'
+      sfc_name2(13) = 'canopy'
+      sfc_name2(14) = 'f10m'
+      sfc_name2(15) = 't2m'
+      sfc_name2(16) = 'q2m'
+      sfc_name2(17) = 'vtype'
+      sfc_name2(18) = 'stype'
+      sfc_name2(19) = 'uustar'
+      sfc_name2(20) = 'ffmm'
+      sfc_name2(21) = 'ffhh'
+      sfc_name2(22) = 'hice'
+      sfc_name2(23) = 'fice'
+      sfc_name2(24) = 'tisfc'
+      sfc_name2(25) = 'tprcp'
+      sfc_name2(26) = 'srflag'
+      sfc_name2(27) = 'snwdph'  !snowd
+      sfc_name2(28) = 'shdmin'
+      sfc_name2(29) = 'shdmax'
+      sfc_name2(30) = 'slope'
+      sfc_name2(31) = 'snoalb'
+      sfc_name2(32) = 'sncovr'
+   endif
+
+   do nb = 1, Atm_block%nblks
+    do ix = 1, Atm_block%blksz(nb)
+       i = Atm_block%index(nb)%ii(ix)
+       j = Atm_block%index(nb)%jj(ix)
+       sfc_var2(i,j,1)  = Sfcprop(nb)%slmsk(ix)
+       sfc_var2(i,j,2)  = Sfcprop(nb)%tsfc(ix)
+       sfc_var2(i,j,3)  = Sfcprop(nb)%weasd(ix)
+       sfc_var2(i,j,4)  = Sfcprop(nb)%tg3(ix)
+       sfc_var2(i,j,5)  = Sfcprop(nb)%zorl(ix)
+       sfc_var2(i,j,6)  = Sfcprop(nb)%alvsf(ix)
+       sfc_var2(i,j,7)  = Sfcprop(nb)%alvwf(ix)
+       sfc_var2(i,j,8)  = Sfcprop(nb)%alnsf(ix)
+       sfc_var2(i,j,9)  = Sfcprop(nb)%alnwf(ix)
+       sfc_var2(i,j,10) = Sfcprop(nb)%facsf(ix)
+       sfc_var2(i,j,11) = Sfcprop(nb)%facwf(ix)
+       sfc_var2(i,j,12) = Sfcprop(nb)%vfrac(ix)
+       sfc_var2(i,j,13) = Sfcprop(nb)%canopy(ix)
+       sfc_var2(i,j,14) = Sfcprop(nb)%f10m(ix)
+       sfc_var2(i,j,15) = Sfcprop(nb)%t2m(ix)
+       sfc_var2(i,j,16) = Sfcprop(nb)%q2m(ix)
+       sfc_var2(i,j,17) = Sfcprop(nb)%vtype(ix)
+       sfc_var2(i,j,18) = Sfcprop(nb)%stype(ix)
+       sfc_var2(i,j,19) = Sfcprop(nb)%uustar(ix)
+       sfc_var2(i,j,20) = Sfcprop(nb)%ffmm(ix)
+       sfc_var2(i,j,21) = Sfcprop(nb)%ffhh(ix)
+       sfc_var2(i,j,22) = Sfcprop(nb)%hice(ix)
+       sfc_var2(i,j,23) = Sfcprop(nb)%fice(ix)
+       sfc_var2(i,j,24) = Sfcprop(nb)%tisfc(ix)
+       sfc_var2(i,j,25) = Sfcprop(nb)%tprcp(ix)
+       sfc_var2(i,j,26) = Sfcprop(nb)%srflag(ix)
+       sfc_var2(i,j,27) = Sfcprop(nb)%snowd(ix)
+       sfc_var2(i,j,28) = Sfcprop(nb)%shdmin(ix)
+       sfc_var2(i,j,29) = Sfcprop(nb)%shdmax(ix)
+       sfc_var2(i,j,30) = Sfcprop(nb)%slope(ix)
+       sfc_var2(i,j,31) = Sfcprop(nb)%snoalb(ix)
+       sfc_var2(i,j,32) = Sfcprop(nb)%sncovr(ix)
+       do lsoil = 1,Model%lsoil
+        sfc_var3(i,j,lsoil,1) = Sfcprop(nb)%stc(ix,lsoil)
+        sfc_var3(i,j,lsoil,2) = Sfcprop(nb)%smc(ix,lsoil)
+        sfc_var3(i,j,lsoil,3) = Sfcprop(nb)%slc(ix,lsoil)
+      enddo
+    enddo
+  enddo
+
+    ! Coarse grain all the variables
+
+    ! First coarse-grain the land surface type and upsample it back to the native resolution
+    call block_mode(sfc_var2(isc:iec,jsc:jec,1), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,1))
+    call block_upsample(sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,1), dominant_sfc_type)
+    sfc_type_mask = (dominant_sfc_type .eq. sfc_var2(isc:iec,jsc:jec,1))
+
+    ! Then coarse-grain the vegetation and soil types and upsample them too
+    call block_mode(sfc_var2(isc:iec,jsc:jec,17), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,17))
+    call block_upsample(sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,17), dominant_vtype)
+    call block_mode(sfc_var2(isc:iec,jsc:jec,18), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,18))
+    call block_upsample(sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,18), dominant_stype)
+
+    sfc_and_vtype_mask = (sfc_type_mask .and. (dominant_vtype .eq. sfc_var2(isc:iec,jsc:jec,17)))
+    sfc_and_stype_mask = (sfc_type_mask .and. (dominant_stype .eq. sfc_var2(isc:iec,jsc:jec,18)))
+
+    ! Take the area weighted mean over full blocks for the surface temperature
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,2), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,2))
+
+    ! Take the area weighted average over the dominant surface type for tg3
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,4), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,4))
+
+    ! Take the area weighted average over the dominant surface type for vfrac
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,12), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,12))
+
+    ! Take the area and vfrac weighted average over the dominant surface and vegetation type for zorl and canopy
+    call weighted_block_average(area * sfc_var2(isc:iec,jsc:jec,12), sfc_var2(isc:iec,jsc:jec,5), sfc_and_vtype_mask, &
+         sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,5))
+    call weighted_block_average(area * sfc_var2(isc:iec,jsc:jec,12), sfc_var2(isc:iec,jsc:jec,13), sfc_and_vtype_mask, &
+         sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,13))
+
+    ! Also compute a simple area weighted average over the dominant surface and
+    ! vegetation type for zorl and canopy; this will be used in the event that
+    ! the sum of vfrac is equal to zero.
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,5), sfc_and_vtype_mask, &
+         only_area_weighted_zorl)
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,13), sfc_and_vtype_mask, &
+         only_area_weighted_canopy)
+
+    call block_sum(area * sfc_var2(isc:iec,jsc:jec,12), sfc_and_vtype_mask, coarsened_area_times_vfrac)
+
+    ! If the dominant surface type is ocean or sea-ice then just use the
+    ! area weighted average over the dominant surface and vegetation type for zorl or canopy.
+    where (coarsened_area_times_vfrac .eq. 0.0)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,5) = only_area_weighted_zorl
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,13) = only_area_weighted_canopy
+    endwhere
+
+    ! Take the area weighted average of the albedo variables
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,6), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,6))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,7), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,7))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,8), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,8))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,9), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,9))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,10), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,10))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,11), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,11))
+
+    ! Take the area weighted average of f10, t2m, q2m, uustar, ffmm, and ffhh
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,14), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,14))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,15), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,15))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,16), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,16))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,19), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,19))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,20), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,20))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,21), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,21))
+
+    ! Take the area weighted average over the dominant surface type for fice
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,23), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,23))
+
+    ! Compute the area weighted average of tpcrp
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,25), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,25))
+
+    ! Take the mode for srflag
+    call block_mode(sfc_var2(isc:iec,jsc:jec,26), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,26))
+
+    ! Take the area weighted average for snow depth
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,27), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,27))
+
+    ! Take the min and max over the dominant sfc type for shdmin and shdmax
+    call block_min(sfc_var2(isc:iec,jsc:jec,28), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,28))
+    call block_max(sfc_var2(isc:iec,jsc:jec,29), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,29))
+
+    ! Take the masked block mode over the dominant surface type for slope
+    call block_mode(sfc_var2(isc:iec,jsc:jec,30), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,30))  
+
+    ! Take the block maximum for the snoalb
+    call block_max(sfc_var2(isc:iec,jsc:jec,31), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,31))
+
+    ! Take the area weighted average over the dominant surface type for sncovr
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,32), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,32))
+
+    ! For sheleg take the area and sncovr weighted average; zero out any regions where the snow cover fraction is zero over the block.
+    call weighted_block_average(area * sfc_var2(isc:iec,jsc:jec,32), sfc_var2(isc:iec,jsc:jec,3), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,3))
+    call block_sum(area * sfc_var2(isc:iec,jsc:jec,32), coarsened_area_times_sncovr)
+    where (coarsened_area_times_sncovr .eq. 0.0)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,3) = 0.0
+    endwhere
+
+    ! Do something similar for hice
+    call weighted_block_average(area * sfc_var2(isc:iec,jsc:jec,23), sfc_var2(isc:iec,jsc:jec,22), sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,22))
+    call block_sum(area * sfc_var2(isc:iec,jsc:jec,23), coarsened_area_times_fice)
+    where (coarsened_area_times_fice .eq. 0.0)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,22) = 0.0
+    endwhere
+
+    ! Over sea ice compute the area and ice fraction weighted average of tisfc; over all
+    ! other surfaces use just the area weighted average of tisfc.
+    call weighted_block_average(area * sfc_var2(isc:iec,jsc:jec,23), sfc_var2(isc:iec,jsc:jec,24), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,24))
+    call weighted_block_average(area, sfc_var2(isc:iec,jsc:jec,24), sfc_type_mask, tisfc_area_average)
+    where (sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,1) .lt. 2.0)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,24) = tisfc_area_average
+    endwhere
+
+    ! Apply corrections to 2D variables based on surface_chgres.F90
+    FREEZING = 273.16
+    VTYPE_LAND_ICE = 15.0
+    STYPE_LAND_ICE = 16.0
+    SHDMIN_CANOPY_THRESHOLD = 0.011
+
+    ! Correction (1)
+    ! Clip tsea and tg3 at 273.16 K if a cell contains land ice.
+    where ((sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,2) .gt. FREEZING) .and. (sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,17) .eq. VTYPE_LAND_ICE))
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,2) = FREEZING
+    endwhere
+    where ((sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,4) .gt. FREEZING) .and. (sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,17) .eq. VTYPE_LAND_ICE))
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,4) = FREEZING
+    endwhere
+
+    ! Correction (2)
+    ! If a cell contains land ice, make sure the soil type is ice.
+    where (sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,17) .eq. VTYPE_LAND_ICE)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,18) = STYPE_LAND_ICE
+    endwhere
+
+    ! Correction (3)
+    ! If a cell does not contain vegetation, i.e. if shdmin < 0.011,
+    ! then set the canopy moisture content to zero.
+    where (sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,28) .lt. SHDMIN_CANOPY_THRESHOLD)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,13) = 0.0
+    endwhere
+
+    ! Correction (4)
+    ! If a cell contains land ice, then shdmin is set to zero.
+    where (sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,17) .eq. VTYPE_LAND_ICE)
+       sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,28) = 0.0
+    endwhere
+
+    ! For the 3D variables (all soil properties) take the area weighted average
+    ! over the dominant surface and soil type.
+    do num = 1,nvar3
+      call weighted_block_average(area, sfc_var3(isc:iec,jsc:jec,:,num), sfc_and_stype_mask, Model%lsoil, sfc_var3_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,:,num))
+    enddo
+
+    call save_restart(sfc_restart_coarse, timestamp)
+  end subroutine sfc_prop_restart_write_coarse
+
+  subroutine register_coarse_sfc_prop_restart_fields(restart, sfc_var2_coarse, sfc_var3_coarse, filename, &
+    var2_p_coarse, var3_p_coarse, variable_names_2d, variable_names_3d, domain, &
+    Model, nvar2m, nvar3)
+    type(restart_file_type), intent(inout) :: restart
+    real(kind=kind_phys), target, intent(inout) :: sfc_var2_coarse(:,:,:)
+    real(kind=kind_phys), target, intent(inout) :: sfc_var3_coarse(:,:,:,:)
+    character(len=32), intent(in) :: filename
+    real(kind=kind_phys), pointer, intent(inout) :: var2_p_coarse(:,:)
+    real(kind=kind_phys), pointer, intent(inout) :: var3_p_coarse(:,:,:)
+    character(len=32), intent(in) :: variable_names_2d(:), variable_names_3d(:)
+    type(domain2d), intent(in) :: domain
+    type(IPD_control_type), intent(in) :: Model
+    integer, intent(in) :: nvar2m, nvar3
+
+    integer :: num, id_restart
+    logical :: mand
+
+    do num = 1,nvar2m
+        var2_p_coarse => sfc_var2_coarse(:,:,num)
+        if (trim(variable_names_2d(num)) == 'sncovr') then
+          id_restart = register_restart_field(restart, filename, &
+                variable_names_2d(num), var2_p_coarse, domain=domain, mandatory=.false.)
+        else
+          id_restart = register_restart_field(restart, filename, &
+                variable_names_2d(num), var2_p_coarse, domain=domain)
+        endif
+    enddo
+    nullify(var2_p_coarse)
+
+    do num = 1,nvar3
+        var3_p_coarse => sfc_var3_coarse(:,:,:,num)
+        id_restart = register_restart_field(restart, filename, &
+            variable_names_3d(num), var3_p_coarse, domain=domain)
+    enddo
+    nullify(var3_p_coarse)
+ end subroutine register_coarse_sfc_prop_restart_fields
+  
 !----------------------------------------------------------------------      
 ! phys_restart_read
 !----------------------------------------------------------------------      
@@ -2126,6 +2526,360 @@ module FV3GFS_io_mod
 
   end subroutine phys_restart_write
 
+subroutine register_diag_manager_controlled_diagnostics(Time, IntDiag, nblks, axes)
+  type(time_type), intent(in) :: Time
+  type(GFS_diag_type), intent(in) :: IntDiag(:)
+  integer, intent(in) :: nblks
+  integer, intent(in) :: axes(4)
+
+  integer :: nb
+  integer :: index = 1
+  
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_longwave_heating'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to longwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,1)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_shortwave_heating'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to shortwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,2)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_turbulence'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to turbulence scheme'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,3)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_deep_convection'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to deep convection'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,4)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_shallow_convection'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to shallow convection'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,5)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_microphysics'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to micro-physics'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,6)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_dissipation_of_gravity_waves'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to gravity wave drag'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,7)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_longwave_heating_assuming_clear_sky'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to clear sky longwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,8)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_shortwave_heating_assuming_clear_sky'
+  Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to clear sky shortwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'K/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%t_dt(:,:,9)
+  enddo
+
+! Vertically integrated instantaneous temperature tendency diagnostics
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_longwave_heating'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to longwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,1)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_shortwave_heating'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to shortwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,2)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_turbulence'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to turbulence scheme'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,3)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_deep_convection'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to deep convection'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,4)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_shallow_convection'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to shallow convection'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,5)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_microphysics'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to micro-physics'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,6)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_dissipation_of_gravity_waves'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to gravity wave drag'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,7)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_longwave_heating_assuming_clear_sky'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to clear sky longwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,8)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_air_temperature_due_to_shortwave_heating_assuming_clear_sky'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated temperature tendency due to clear sky shortwave radiation'
+  Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%t_dt_int(:,9)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_specific_humidity_due_to_turbulence'
+  Diag_diag_manager_controlled(index)%desc = 'water vapor tendency due to turbulence scheme'
+  Diag_diag_manager_controlled(index)%unit = 'kg/kg/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%q_dt(:,:,1)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_specific_humidity_due_to_deep_convection'
+  Diag_diag_manager_controlled(index)%desc = 'water vapor tendency due to deep convection'
+  Diag_diag_manager_controlled(index)%unit = 'kg/kg/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%q_dt(:,:,2)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_specific_humidity_due_to_shallow_convection'
+  Diag_diag_manager_controlled(index)%desc = 'water vapor tendency due to shallow convection'
+  Diag_diag_manager_controlled(index)%unit = 'kg/kg/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%q_dt(:,:,3)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_specific_humidity_due_to_microphysics'
+  Diag_diag_manager_controlled(index)%desc = 'water vapor tendency due to microphysics'
+  Diag_diag_manager_controlled(index)%unit = 'kg/kg/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%q_dt(:,:,4)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 3
+  Diag_diag_manager_controlled(index)%name = 'tendency_of_specific_humidity_due_to_change_in_atmosphere_mass'
+  Diag_diag_manager_controlled(index)%desc = 'residual water vapor tendency'
+  Diag_diag_manager_controlled(index)%unit = 'kg/kg/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'mass_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var3 => IntDiag(nb)%q_dt(:,:,5)
+  enddo
+
+  ! Vertically integrated instantaneous specific humidity tendency diagnostics
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_specific_humidity_due_to_turbulence'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated water vapor tendency due to turbulence scheme'
+  Diag_diag_manager_controlled(index)%unit = 'kg/m**2/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%q_dt_int(:,1)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_specific_humidity_due_to_deep_convection'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated water vapor tendency due to deep convection'
+  Diag_diag_manager_controlled(index)%unit = 'kg/m**2/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%q_dt_int(:,2)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_specific_humidity_due_to_shallow_convection'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated water vapor tendency due to shallow convection'
+  Diag_diag_manager_controlled(index)%unit = 'kg/m**2/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%q_dt_int(:,3)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_specific_humidity_due_to_microphysics'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated water vapor tendency due to microphysics'
+  Diag_diag_manager_controlled(index)%unit = 'kg/m**2/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%q_dt_int(:,4)
+  enddo
+
+  index = index + 1
+  Diag_diag_manager_controlled(index)%axes = 2
+  Diag_diag_manager_controlled(index)%name = 'vertically_integrated_tendency_of_specific_humidity_due_to_change_in_atmosphere_mass'
+  Diag_diag_manager_controlled(index)%desc = 'vertically integrated residual water vapor tendency'
+  Diag_diag_manager_controlled(index)%unit = 'kg/m**2/s'
+  Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+  Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+  allocate (Diag_diag_manager_controlled(index)%data(nblks))
+  do nb = 1,nblks
+    Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%q_dt_int(:,5)
+ enddo
+
+ do index = 1, DIAG_SIZE
+    if (trim(Diag_diag_manager_controlled(index)%name) .eq. '') exit  ! No need to populate non-existent diagnostics
+    Diag_diag_manager_controlled(index)%id = register_diag_field(trim(Diag_diag_manager_controlled(index)%mod_name), trim(Diag_diag_manager_controlled(index)%name),  &
+         axes(1:Diag_diag_manager_controlled(index)%axes), Time, trim(Diag_diag_manager_controlled(index)%desc), &
+         trim(Diag_diag_manager_controlled(index)%unit), missing_value=real(missing_value))
+ enddo
+end subroutine register_diag_manager_controlled_diagnostics
+  
 !-------------------------------------------------------------------------      
 !--- gfdl_diag_register ---
 !-------------------------------------------------------------------------      
@@ -2142,7 +2896,7 @@ module FV3GFS_io_mod
 !    13+NFXR - radiation
 !    76+pl_coeff - physics
 !-------------------------------------------------------------------------      
-  subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Atm_block, axes, NFXR, ldiag3d, nkld)
+  subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Atm_block, axes, NFXR, ldiag3d, nkld, levs)
     use physcons,  only: con_g
 !--- subroutine interface variable definitions
     type(time_type),           intent(in) :: Time
@@ -2153,6 +2907,7 @@ module FV3GFS_io_mod
     integer,                   intent(in) :: NFXR
     logical,                   intent(in) :: ldiag3d
     integer,                   intent(in) :: nkld
+    integer,                   intent(in) :: levs
 !--- local variables
     integer :: idx, num, nb, nblks, nx, ny, k
     integer, allocatable :: blksz(:)
@@ -2166,6 +2921,12 @@ module FV3GFS_io_mod
     allocate (blksz(nblks))
     blksz(:) = Atm_block%blksz(:)
 
+    isco   = Atm_block%isc
+    ieco   = Atm_block%iec
+    jsco   = Atm_block%jsc
+    jeco   = Atm_block%jec
+    levo   = levs
+    
     Diag(:)%id = -99
     Diag(:)%axes = -99
     Diag(:)%cnvfac = 1.0_kind_phys
@@ -2180,6 +2941,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2  => Gfs_diag(nb)%fluxr(:,3)
@@ -2194,6 +2956,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,19)
@@ -2207,6 +2970,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,20)
@@ -2220,6 +2984,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,4)
@@ -2233,6 +2998,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,3)
@@ -2246,6 +3012,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,23)
@@ -2259,6 +3026,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,2)
@@ -2272,6 +3040,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,1)
@@ -2285,6 +3054,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,17)
@@ -2298,6 +3068,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,5)
@@ -2311,6 +3082,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,7)
@@ -2324,6 +3096,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_100
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,6)
@@ -2339,6 +3112,7 @@ module FV3GFS_io_mod
       Diag(idx)%unit = 'XXX'
       Diag(idx)%mod_name = 'gfs_phys'
       allocate (Diag(idx)%data(nblks))
+      Diag(idx)%coarse_graining_method = 'area_weighted'
       do nb = 1,nblks
         Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%fluxr(:,num)
       enddo
@@ -2394,6 +3168,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'total sky upward sw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%topfsw(:)%upfxc
@@ -2405,6 +3180,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'total sky downward sw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%topfsw(:)%dnfxc
@@ -2416,6 +3192,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'clear sky upward sw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%topfsw(:)%upfx0
@@ -2427,6 +3204,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'total sky upward lw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%topflw(:)%upfxc
@@ -2438,6 +3216,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'clear sky upward lw flux at toa - GFS radiation'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%topflw(:)%upfx0
@@ -2564,6 +3343,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dusfc(:)
@@ -2577,6 +3357,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dvsfc(:)
@@ -2590,6 +3371,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dtsfc(:)
@@ -2603,6 +3385,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dqsfc(:)
@@ -2616,6 +3399,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totprcp(:)
@@ -2629,6 +3413,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2  => Gfs_diag(nb)%gflux(:)
@@ -2641,6 +3426,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'time accumulated downward lw flux at surface- GFS physics'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dlwsfc(:)
@@ -2652,6 +3438,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'time accumulated upward lw flux at surface- GFS physics'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%ulwsfc(:)
@@ -2663,6 +3450,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'sunshine duration time'
     Diag(idx)%unit = 's'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%suntim(:)
@@ -2685,6 +3473,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'potential evaporation'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%ep(:)
@@ -2709,6 +3498,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dugwd(:)
@@ -2722,6 +3512,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dvgwd(:)
@@ -2733,6 +3524,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface pressure'
     Diag(idx)%unit = 'kPa'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%psmean(:)
@@ -2746,6 +3538,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cnvprcp(:)
@@ -2757,6 +3550,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'minimum specific humidity'
     Diag(idx)%unit = 'kg/kg'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%spfhmin(:)
@@ -2869,6 +3663,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totice(:)
@@ -2882,6 +3677,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totsnw(:)
@@ -2895,6 +3691,7 @@ module FV3GFS_io_mod
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totgrp(:)
@@ -2907,6 +3704,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = '10 meter u wind [m/s]'
     Diag(idx)%unit = 'm/s'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%u10m(:)
@@ -2918,6 +3716,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = '10 meter v wind [m/s]'
     Diag(idx)%unit = 'm/s'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%v10m(:)
@@ -2929,6 +3728,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = '2 meter dew point temperature [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dpt2m(:)
@@ -2940,6 +3740,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'layer 1 height'
     Diag(idx)%unit = 'm'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%zlvl(:)
@@ -2951,6 +3752,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface pressure [Pa]'
     Diag(idx)%unit = 'Pa'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%psurf(:)
@@ -2962,6 +3764,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface planetary boundary layer height [m]'
     Diag(idx)%unit = 'm'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%hpbl(:)
@@ -2973,6 +3776,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'ysu counter-gradient heat flux factor'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%hgamt(:)
@@ -2984,6 +3788,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'ysu entrainment heat flux factor'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%hfxpbl(:)
@@ -2995,6 +3800,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'atmos column precipitable water [kg/m**2]'
     Diag(idx)%unit = 'kg/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%pwat(:)
@@ -3072,6 +3878,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous sfc downward lw flux'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dlwsfci(:)
@@ -3083,6 +3890,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous sfc upward lw flux'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%ulwsfci(:)
@@ -3094,6 +3902,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous sfc downward sw flux'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dswsfci(:)
@@ -3105,6 +3914,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous sfc upward sw flux'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%uswsfci(:)
@@ -3116,6 +3926,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous u component of surface stress'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dusfci(:)
@@ -3127,6 +3938,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous v component of surface stress'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dvsfci(:)
@@ -3138,6 +3950,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous surface sensible heat flux'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dtsfci(:)
@@ -3149,6 +3962,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous surface latent heat flux'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%dqsfci(:)
@@ -3160,6 +3974,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous surface ground heat flux'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%gfluxi(:)
@@ -3171,6 +3986,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'instantaneous surface potential evaporation'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%epi(:)
@@ -3232,6 +4048,7 @@ module FV3GFS_io_mod
       Diag(idx)%unit = 'XXX'
       Diag(idx)%mod_name = 'gfs_phys'
       Diag(idx)%time_avg = .TRUE.
+      Diag(idx)%coarse_graining_method = 'mass_weighted'
       allocate (Diag(idx)%data(nblks))
       do nb = 1,nblks
         Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dt3dt(:,:,num)
@@ -3247,6 +4064,7 @@ module FV3GFS_io_mod
       Diag(idx)%unit = 'XXX'
       Diag(idx)%mod_name = 'gfs_phys'
       Diag(idx)%time_avg = .TRUE.
+      Diag(idx)%coarse_graining_method = 'mass_weighted'
       allocate (Diag(idx)%data(nblks))
       do nb = 1,nblks
         Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%dq3dt(:,:,num)
@@ -3382,6 +4200,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'mean nir albedo with strong cosz dependency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%alnsf(:)
@@ -3393,6 +4212,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'mean nir albedo with weak cosz dependency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%alnwf(:)
@@ -3404,6 +4224,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'mean vis albedo with strong cosz dependency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%alvsf(:)
@@ -3415,6 +4236,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'mean vis albedo with weak cosz dependency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%alvwf(:)
@@ -3437,6 +4259,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = '10-meter wind speed divided by lowest model wind speed'
     Diag(idx)%unit = 'N/A'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%f10m(:)
@@ -3448,6 +4271,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'fractional coverage with strong cosz dependency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%facsf(:)
@@ -3459,6 +4283,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'fractional coverage with weak cosz dependency'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%facwf(:)
@@ -3470,6 +4295,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'fh parameter from PBL scheme'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%ffhh(:)
@@ -3481,6 +4307,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'fm parameter from PBL scheme'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%ffmm(:)
@@ -3492,6 +4319,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'uustar surface frictional wind'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%uustar(:)
@@ -3614,6 +4442,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'surface temperature [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%tsfc(:)
@@ -3658,6 +4487,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'total precipitation'
     Diag(idx)%unit = 'XXX'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%tprcp(:)
@@ -3692,6 +4522,7 @@ module FV3GFS_io_mod
     Diag(idx)%unit = 'gpm'
     Diag(idx)%mod_name = 'gfs_sfc'
     Diag(idx)%cnvfac = con_g
+    Diag(idx)%coarse_graining_method = 'area_weighted'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%oro(:)
@@ -3896,6 +4727,154 @@ module FV3GFS_io_mod
     enddo
 
   end subroutine gfdl_diag_register
+
+  subroutine populate_coarse_diag_type(diagnostic, coarse_diagnostic)
+    type(gfdl_diag_type), intent(in) :: diagnostic
+    type(gfdl_diag_type), intent(inout) :: coarse_diagnostic
+
+    ! We leave the data attribute empty for these, because we will coarsen it
+    ! directly from the data attribute in the full resolution version of each
+    ! diagnostic. 
+    coarse_diagnostic%axes = diagnostic%axes
+    coarse_diagnostic%time_avg = diagnostic%time_avg
+    coarse_diagnostic%mod_name = diagnostic%mod_name
+    coarse_diagnostic%name = trim(diagnostic%name) // '_coarse'
+    coarse_diagnostic%desc = diagnostic%desc
+    coarse_diagnostic%unit = diagnostic%unit
+    coarse_diagnostic%cnvfac = diagnostic%cnvfac
+    coarse_diagnostic%coarse_graining_method = diagnostic%coarse_graining_method
+  end subroutine populate_coarse_diag_type
+
+  subroutine fv3gfs_diag_register_coarse(Time, coarse_axes)
+    type(time_type), intent(in) :: Time
+    integer, intent(in) :: coarse_axes(4)
+
+    integer :: index
+ 
+    do index = 1, DIAG_SIZE
+       if (Diag(index)%name .eq. '') exit  ! No need to populate non-existent coarse diagnostics
+       call populate_coarse_diag_type(Diag(index), Diag_coarse(index))
+       Diag_coarse(index)%id = register_diag_field( &
+            trim(Diag_coarse(index)%mod_name), trim(Diag_coarse(index)%name),  &
+            coarse_axes(1:Diag_coarse(index)%axes), Time, trim(Diag_coarse(index)%desc), &
+            trim(Diag_coarse(index)%unit), missing_value=real(missing_value))       
+    enddo
+  end subroutine fv3gfs_diag_register_coarse
+
+  subroutine register_coarse_diag_manager_controlled_diagnostics(Time, coarse_axes)
+    type(time_type), intent(in) :: Time
+    integer, intent(in) :: coarse_axes(4)
+
+    integer :: index
+ 
+    do index = 1, DIAG_SIZE
+       if (Diag(index)%name .eq. '') exit  ! No need to populate non-existent coarse diagnostics
+       call populate_coarse_diag_type(Diag_diag_manager_controlled(index), Diag_diag_manager_controlled_coarse(index))
+       Diag_diag_manager_controlled_coarse(index)%id = register_diag_field( &
+            trim(Diag_diag_manager_controlled_coarse(index)%mod_name), trim(Diag_diag_manager_controlled_coarse(index)%name),  &
+            coarse_axes(1:Diag_diag_manager_controlled_coarse(index)%axes), Time, trim(Diag_diag_manager_controlled_coarse(index)%desc), &
+            trim(Diag_diag_manager_controlled_coarse(index)%unit), missing_value=real(missing_value))       
+    enddo
+  end subroutine register_coarse_diag_manager_controlled_diagnostics
+
+  subroutine send_diag_manager_controlled_diagnostic_data(Time, Atm_block, IPD_Data, nx, ny, levs, &
+    write_coarse_diagnostics, delp, coarsening_strategy, ptop)
+    type(time_type),           intent(in) :: Time
+    type(block_control_type),  intent(in) :: Atm_block
+    type(IPD_data_type),       intent(in) :: IPD_Data(:)
+    integer,                   intent(in) :: nx, ny, levs
+    logical,                   intent(in) :: write_coarse_diagnostics
+    real(kind=kind_phys),      intent(in) :: delp(isco:ieco,jsco:jeco,1:levo)
+    character(len=64),         intent(in) :: coarsening_strategy
+    real(kind=kind_phys),      intent(in) :: ptop
+
+    logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
+    real(kind=kind_phys), allocatable :: area(:,:)
+    real(kind=kind_phys), allocatable :: mass(:,:,:), phalf(:,:,:), phalf_coarse_on_fine(:,:,:)
+    real(kind=kind_phys), allocatable :: masked_area(:,:,:)
+
+    real(kind=kind_phys) :: var2d(nx, ny)
+    real(kind=kind_phys) :: var3d(nx, ny, levs)
+    integer :: i, j, ii, jj, k, isc, jsc, ix, nb, index, used
+
+    isc   = atm_block%isc
+    jsc   = atm_block%jsc
+
+    if (write_coarse_diagnostics) then
+      call determine_required_coarse_graining_weights(Diag_diag_manager_controlled_coarse, coarsening_strategy, require_area, require_masked_area, require_mass, require_vertical_remapping)
+      if (.not. require_vertical_remapping) then
+        if (require_area) then
+          allocate(area(nx, ny))
+          call get_area(Atm_block, IPD_Data, nx, ny, area)
+        endif
+        if (require_mass) then
+          allocate(mass(nx, ny, levs))
+          call get_mass(Atm_block, IPD_Data, delp, nx, ny, levs, mass)
+        endif
+      else
+        allocate(area(nx, ny))
+        allocate(phalf(nx, ny, levs + 1))
+        allocate(phalf_coarse_on_fine(nx, ny, levs + 1))
+        allocate(masked_area(nx, ny, levs))
+        call get_area(Atm_block, IPD_Data, nx, ny, area)
+        call vertical_remapping_requirements(delp, area, ptop, phalf, phalf_coarse_on_fine)
+        call mask_area_weights(area, phalf, phalf_coarse_on_fine, masked_area)
+      endif
+    endif
+
+    do index = 1, DIAG_SIZE
+      if (trim(Diag_diag_manager_controlled(index)%name) .eq. '') exit
+      if (Diag_diag_manager_controlled(index)%id .gt. 0 .or. Diag_diag_manager_controlled_coarse(index)%id .gt. 0) then
+        if (Diag_diag_manager_controlled(index)%axes .eq. 2) then
+          do j = 1, ny
+            jj = j + jsc - 1
+            do i = 1, nx
+                ii = i + isc - 1
+                nb = Atm_block%blkno(ii,jj)
+                ix = Atm_block%ixp(ii,jj)
+                var2d(i,j) = Diag_diag_manager_controlled(index)%data(nb)%var2(ix)
+            enddo
+          enddo
+          if (Diag_diag_manager_controlled(index)%id > 0) then
+            used = send_data(Diag_diag_manager_controlled(index)%id, var2d, Time)
+          endif
+          if (Diag_diag_manager_controlled_coarse(index)%id > 0) then
+            call store_data2D_coarse(Diag_diag_manager_controlled_coarse(index)%id, Diag_diag_manager_controlled_coarse(index)%name, &
+              Diag_diag_manager_controlled_coarse(index)%coarse_graining_method, nx, ny, var2d, area, Time)
+          endif
+        elseif (Diag_diag_manager_controlled(index)%axes .eq. 3) then
+          do k=1, levs
+            do j = 1, ny
+              jj = j + jsc - 1
+              do i = 1, nx
+                  ii = i + isc - 1
+                  nb = Atm_block%blkno(ii,jj)
+                  ix = Atm_block%ixp(ii,jj)
+                  var3d(i,j,k) = Diag_diag_manager_controlled(index)%data(nb)%var3(ix,levs - k + 1)
+              enddo
+            enddo
+          enddo
+          if (Diag_diag_manager_controlled(index)%id .gt. 0) then
+            used = send_data(Diag_diag_manager_controlled(index)%id, var3d, Time)
+          endif
+          if (Diag_diag_manager_controlled_coarse(index)%id > 0) then
+            if (trim(coarsening_strategy) .eq. MODEL_LEVEL) then
+              call store_data3D_coarse_model_level(Diag_diag_manager_controlled_coarse(index)%id, Diag_diag_manager_controlled_coarse(index)%name, &
+                  Diag_diag_manager_controlled_coarse(index)%coarse_graining_method, &
+                  nx, ny, levs, var3d, area, mass, Time)
+            elseif (trim(coarsening_strategy) .eq. PRESSURE_LEVEL) then
+              call store_data3D_coarse_pressure_level(Diag_diag_manager_controlled_coarse(index)%id, Diag_diag_manager_controlled_coarse(index)%name, &
+                Diag_diag_manager_controlled_coarse(index)%coarse_graining_method, &
+                nx, ny, levs, var3d, phalf, phalf_coarse_on_fine, masked_area, Time, ptop)
+            else
+              call mpp_error(FATAL, 'Invalid coarse-graining strategy provided.')
+            endif
+          endif
+        endif
+      endif
+    enddo
+  end subroutine send_diag_manager_controlled_diagnostic_data
+  
 !-------------------------------------------------------------------------      
 
 
@@ -3910,7 +4889,9 @@ module FV3GFS_io_mod
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
   subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
-                             levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr, prt_stats)
+                             levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr, &
+                             prt_stats, write_coarse_diagnostics, delp, &
+                             coarsening_strategy, ptop)
 !--- subroutine interface variable definitions
     logical :: fprint
     type(time_type),           intent(in) :: Time
@@ -3924,6 +4905,10 @@ module FV3GFS_io_mod
     real(kind=kind_phys),      intent(in) :: time_int
     real(kind=kind_phys),      intent(in) :: fhswr, fhlwr
     logical,                   intent(in) :: prt_stats
+    logical,                   intent(in) :: write_coarse_diagnostics
+    real(kind=kind_phys),      intent(in) :: delp(isco:ieco,jsco:jeco,1:levo)
+    character(len=64),         intent(in) :: coarsening_strategy
+    real(kind=kind_phys),      intent(in) :: ptop
 !--- local variables
     integer :: i, j, k, idx, nblks, nb, ix, ii, jj, kflip
     integer :: is_in, js_in, isc, jsc
@@ -3935,6 +4920,11 @@ module FV3GFS_io_mod
     real(kind=kind_phys) :: rdt, rtime_int, lcnvfac
     logical :: used
 
+    ! Local variables required for coarse-grianing
+    logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
+    real(kind=kind_phys), allocatable :: mass(:,:,:), phalf(:,:,:), phalf_coarse_on_fine(:,:,:)
+    real(kind=kind_phys), allocatable :: masked_area(:,:,:)
+    
      nblks = Atm_block%nblks
      rdt = 1.0d0/dt
      rtime_int = 1.0d0/time_int
@@ -3959,8 +4949,25 @@ module FV3GFS_io_mod
            seamask(i,j)  = 1. - landmask(i,j) 
         enddo
      enddo
+     
+     if (write_coarse_diagnostics) then
+        call determine_required_coarse_graining_weights(diag_coarse, coarsening_strategy, require_area, require_masked_area, require_mass, require_vertical_remapping)
+        if (.not. require_vertical_remapping) then
+          if (require_mass) then
+             allocate(mass(nx, ny, levs))
+             call get_mass(Atm_block, IPD_Data, delp, nx, ny, levs, mass)
+          endif
+       else
+          allocate(phalf(nx, ny, levs + 1))
+          allocate(phalf_coarse_on_fine(nx, ny, levs + 1))
+          allocate(masked_area(nx, ny, levs))
+          call vertical_remapping_requirements(delp, area, ptop, phalf, phalf_coarse_on_fine)
+          call mask_area_weights(area, phalf, phalf_coarse_on_fine, masked_area)
+       endif
+    endif
+  
      do idx = 1,tot_diag_idx
-       if (Diag(idx)%id > 0) then
+       if ((Diag(idx)%id > 0) .or. (diag_coarse(idx)%id > 0)) then
          lcnvfac = Diag(idx)%cnvfac
          if (trim(Diag(idx)%name) == 'DLWRFsfc' .or. trim(Diag(idx)%name) == 'ULWRFsfc' .or. &
              trim(Diag(idx)%name) == 'ULWRFtoa') then
@@ -4024,7 +5031,13 @@ module FV3GFS_io_mod
              enddo
            endif
 !rab           used=send_data(Diag(idx)%id, var2, Time, is_in=is_in, js_in=js_in)
-           used=send_data(Diag(idx)%id, var2, Time)
+           if (Diag(idx)%id > 0) then
+              used=send_data(Diag(idx)%id, var2, Time)
+            endif
+            if (Diag_coarse(idx)%id > 0) then
+               call store_data2D_coarse(Diag_coarse(idx)%id, Diag_coarse(idx)%name, &
+                    Diag_coarse(idx)%coarse_graining_method, nx, ny, var2, area, Time)
+            endif
 
            !!!! Accumulated diagnostics --- lmh 19 sep 17
            if (fprint .or. prt_stats) then
@@ -4072,7 +5085,23 @@ module FV3GFS_io_mod
             enddo
             enddo
             enddo
-            used=send_data(Diag(idx)%id, var3, Time)
+            if (Diag(idx)%id > 0) then
+               used=send_data(Diag(idx)%id, var3, Time)
+            endif
+            if (Diag_coarse(idx)%id > 0) then
+               if (trim(coarsening_strategy) .eq. MODEL_LEVEL) then
+                  call store_data3D_coarse_model_level(Diag_coarse(idx)%id, Diag_coarse(idx)%name, &
+                       Diag_coarse(idx)%coarse_graining_method, &
+                       nx, ny, levo, var3, area, mass, Time)
+               elseif (trim(coarsening_strategy) .eq. PRESSURE_LEVEL) then
+                  call store_data3D_coarse_pressure_level(Diag_coarse(idx)%id, Diag_coarse(idx)%name, &
+                       Diag_coarse(idx)%coarse_graining_method, &
+                       nx, ny, levo, var3, phalf, phalf_coarse_on_fine, masked_area, Time, ptop)
+               else
+                  call mpp_error(FATAL, 'Invalid coarse-graining strategy provided.')
+               endif
+            endif
+            
 !!$               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
 !!$               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
 #ifdef JUNK
@@ -4323,7 +5352,167 @@ module FV3GFS_io_mod
 
    end subroutine prt_gb_nh_sh_us
 
+ subroutine determine_required_coarse_graining_weights(coarse_diag, coarsening_strategy, require_area, require_masked_area, require_mass, require_vertical_remapping)
+   type(gfdl_diag_type), intent(in) :: coarse_diag(:)
+   character(len=64), intent(in) :: coarsening_strategy
+   logical, intent(out) :: require_area, require_masked_area, require_mass, require_vertical_remapping
 
+   require_area = any(coarse_diag%id .gt. 0 .and. coarse_diag%coarse_graining_method .eq. AREA_WEIGHTED)
+   require_mass = any(coarse_diag%id .gt. 0 .and. coarse_diag%coarse_graining_method .eq. MASS_WEIGHTED)
+
+   if (trim(coarsening_strategy) .eq. PRESSURE_LEVEL) then
+     require_masked_area = any(coarse_diag%id .gt. 0 .and. coarse_diag%axes .eq. 3 .and. coarse_diag%coarse_graining_method .eq. AREA_WEIGHTED)
+     require_vertical_remapping = any(coarse_diag%id .gt. 0 .and. coarse_diag%axes .eq. 3)
+   else
+     require_masked_area = .false.
+     require_vertical_remapping = .false.
+   endif
+ end subroutine determine_required_coarse_graining_weights
+
+ subroutine get_area(Atm_block, IPD_Data, nx, ny, area)
+   type(block_control_type), intent(in) :: Atm_block
+   type(IPD_data_type), intent(in) :: IPD_Data(:)
+   integer, intent(in) :: nx, ny
+   real(kind=kind_phys), intent(out) :: area(1:nx,1:ny)
+
+   integer :: i, ii, j, jj, block_number, column
+   do j = 1, ny
+      jj = j + jsco - 1
+      do i = 1, nx
+         ii = i + isco - 1
+         block_number = Atm_block%blkno(ii,jj)
+         column = Atm_block%ixp(ii,jj)
+         area(i,j) = IPD_Data(block_number)%Grid%area(column)
+      enddo
+   enddo
+ end subroutine get_area
+
+ subroutine get_mass(Atm_block, IPD_Data, delp, nx, ny, nz, mass)
+   type(block_control_type), intent(in) :: Atm_block
+   type(IPD_data_type), intent(in) :: IPD_Data(:)
+   integer, intent(in) :: nx, ny, nz
+   real(kind=kind_phys), intent(in) :: delp(1:nx,1:ny,1:nz)
+   real(kind=kind_phys), intent(out) :: mass(1:nx,1:ny,1:nz)
+
+   integer :: i, ii, j, jj, k, block_number, column, isc, jsc
+   real(kind=kind_phys) :: area_value
+   
+   do k = 1, nz
+      do j = 1, ny
+         jj = j + jsco - 1
+         do i = 1, nx
+            ii = i + isco - 1
+            block_number = Atm_block%blkno(ii,jj)
+            column = Atm_block%ixp(ii,jj)
+            area_value = IPD_Data(block_number)%Grid%area(column)
+            mass(i,j,k) = area_value * delp(i,j,k)
+         enddo
+      enddo
+   enddo
+ end subroutine get_mass
+
+ subroutine store_data2D_coarse(id, name, method, nx, ny, full_resolution_field, area, Time)
+   integer, intent(in) :: id
+   character(len=64), intent(in) :: name
+   character(len=64), intent(in) :: method
+   integer, intent(in) :: nx, ny
+   real(kind=kind_phys), intent(in) :: full_resolution_field(1:nx,1:ny)
+   real(kind=kind_phys), intent(in) :: area(1:nx,1:ny)
+   type(time_type), intent(in) :: Time
+
+   real(kind=kind_phys), allocatable :: coarse(:,:)
+   character(len=128) :: message
+   integer :: is_coarse, ie_coarse, js_coarse, je_coarse, nx_coarse, ny_coarse
+   logical :: used
+
+   call get_coarse_array_bounds(is_coarse, ie_coarse, js_coarse, je_coarse)
+   nx_coarse = ie_coarse - is_coarse + 1
+   ny_coarse = je_coarse - js_coarse + 1
+
+   allocate(coarse(nx_coarse, ny_coarse))
+
+   if (method .eq. AREA_WEIGHTED) then
+      call weighted_block_average(area, full_resolution_field, coarse)
+   elseif (method .eq. MASS_WEIGHTED) then
+      message = 'mass_weighted is not a valid coarse_graining_method for 2D variable ' // trim(name)
+      call mpp_error(FATAL, message)
+   else
+      message = 'A valid coarse_graining_method must be specified for ' // trim(name)
+      call mpp_error(FATAL, message)
+   endif
+   used = send_data(id, coarse, Time)
+ end subroutine store_data2D_coarse
+
+ subroutine store_data3D_coarse_model_level(id, name, method, nx, ny, nz, full_resolution_field, &
+      area, mass, Time)
+   integer, intent(in) :: id
+   character(len=64), intent(in) :: name
+   character(len=64), intent(in) :: method
+   integer, intent(in) :: nx, ny, nz
+   real(kind=kind_phys), intent(in) :: full_resolution_field(1:nx,1:ny,1:nz)
+   real(kind=kind_phys), intent(in) :: area(1:nx,1:ny)
+   real(kind=kind_phys), intent(in) :: mass(1:nx,1:ny,1:nz)
+   type(time_type), intent(in) :: Time
+
+   real(kind=kind_phys), allocatable :: coarse(:,:,:)
+   character(len=128) :: message
+   integer :: is_coarse, ie_coarse, js_coarse, je_coarse, nx_coarse, ny_coarse
+   logical :: used
+
+   call get_coarse_array_bounds(is_coarse, ie_coarse, js_coarse, je_coarse)
+   nx_coarse = ie_coarse - is_coarse + 1
+   ny_coarse = je_coarse - js_coarse + 1
+
+   allocate(coarse(nx_coarse, ny_coarse, nz))
+
+   if (method .eq. AREA_WEIGHTED) then
+      call weighted_block_average(area, full_resolution_field, coarse)
+   elseif (method .eq. MASS_WEIGHTED) then
+      call weighted_block_average(mass, full_resolution_field, coarse)
+   else
+      message = 'A valid coarse_graining_method must be specified for ' // trim(name)
+      call mpp_error(FATAL, message)
+   endif
+   used = send_data(id, coarse, Time)
+ end subroutine store_data3D_coarse_model_level
+
+ subroutine store_data3D_coarse_pressure_level(id, name, method, nx, ny, nz, full_resolution_field, &
+  phalf, phalf_coarse_on_fine, masked_area, Time, ptop)
+    integer, intent(in) :: id
+    character(len=64), intent(in) :: name
+    character(len=64), intent(in) :: method
+    integer, intent(in) :: nx, ny, nz
+    real(kind=kind_phys), intent(in) :: full_resolution_field(1:nx,1:ny,1:nz)
+    real(kind=kind_phys), intent(in) :: phalf(1:nx,1:ny,1:nz + 1)
+    real(kind=kind_phys), intent(in) :: phalf_coarse_on_fine(1:nx,1:ny,1:nz + 1)
+    real(kind=kind_phys), intent(in) :: masked_area(1:nx,1:ny,1:nz)
+    type(time_type), intent(in) :: Time
+    real(kind=kind_phys), intent(in) :: ptop
+
+    real(kind=kind_phys), allocatable :: remapped(:,:,:), coarse(:,:,:)
+    character(len=128) :: message
+    integer :: is_coarse, ie_coarse, js_coarse, je_coarse, nx_coarse, ny_coarse
+    logical :: used
+
+    call get_coarse_array_bounds(is_coarse, ie_coarse, js_coarse, je_coarse)
+    nx_coarse = ie_coarse - is_coarse + 1
+    ny_coarse = je_coarse - js_coarse + 1
+
+    allocate(remapped(nx, ny, nz))
+    allocate(coarse(nx_coarse, ny_coarse, nz))
+
+    call vertically_remap_field(phalf, full_resolution_field, phalf_coarse_on_fine, ptop, remapped)
+
+    ! AREA_WEIGHTED and MASS_WEIGHTED are equivalent in pressure level coarse-graining
+    if (method .eq. AREA_WEIGHTED .or. method .eq. MASS_WEIGHTED) then
+      call weighted_block_average(masked_area, remapped, coarse)
+    else
+      message = 'A valid coarse_graining_method must be specified for ' // trim(name)
+      call mpp_error(FATAL, message)
+    endif
+    used = send_data(id, coarse, Time)
+end subroutine store_data3D_coarse_pressure_level
+ 
 end module FV3GFS_io_mod
 
 

@@ -119,9 +119,11 @@ module GFS_typedefs
 
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
-
+    logical, pointer :: dycore_hydrostatic        => null()  !< whether the dynamical core is hydrostatic
+    integer, pointer :: nwat                      => null()  !< number of water species used in the model
     contains
       procedure :: create  => statein_create  !<   allocate array data
+      
   end type GFS_statein_type
 
 
@@ -1081,8 +1083,12 @@ module GFS_typedefs
                                                                 !< lz note: 1: pbl, 2: oro gwd, 3: rf, 4: con gwd
     real (kind=kind_phys), pointer :: dt3dt (:,:,:) => null()   !< temperature change due to physics
                                                                 !< lz note: 1: lw, 2: sw, 3: pbl, 4: deep con, 5: shal con, 6: mp 
+    real (kind=kind_phys), pointer :: t_dt(:,:,:)   => null()   !< temperature tendency due to physics
+    real (kind=kind_phys), pointer :: t_dt_int(:,:) => null() !< vertically integrated temperature change due to physics scaled by cp / cvm or cp / cpm
     real (kind=kind_phys), pointer :: dq3dt (:,:,:) => null()   !< moisture change due to physics
                                                                 !< lz note: 1: pbl, 2: deep con, 3: shal con, 4: mp, 5: ozone
+    real (kind=kind_phys), pointer :: q_dt(:,:,:)   => null()   !< specific humidity tendency due to physics
+    real (kind=kind_phys), pointer :: q_dt_int(:,:) => null()   !< vertically integrated moisture tendency due to physics, adjusted to dycore mass fraction convention
     real (kind=kind_phys), pointer :: dkt   (:,:)   => null()
     real (kind=kind_phys), pointer :: flux_cg(:,:)  => null()
     real (kind=kind_phys), pointer :: flux_en(:,:)  => null()
@@ -1177,6 +1183,11 @@ module GFS_typedefs
 
     Statein%sst = clear_val
 
+    allocate(Statein%dycore_hydrostatic)
+    Statein%dycore_hydrostatic = .true.
+
+    allocate(Statein%nwat)
+    Statein%nwat = 6    
   end subroutine statein_create
 
 
@@ -3457,8 +3468,12 @@ module GFS_typedefs
     if (Model%ldiag3d) then
       allocate (Diag%du3dt  (IM,Model%levs,4))
       allocate (Diag%dv3dt  (IM,Model%levs,4))
-      allocate (Diag%dt3dt  (IM,Model%levs,6))
+      allocate (Diag%dt3dt  (IM,Model%levs,9))
+      allocate (Diag%t_dt   (IM,Model%levs,9))
+      allocate (Diag%t_dt_int   (IM,9))
       allocate (Diag%dq3dt  (IM,Model%levs,oz_coeff+5))
+      allocate (Diag%q_dt   (IM,Model%levs,oz_coeff+5))
+      allocate (Diag%q_dt_int   (IM,oz_coeff+5))
       allocate (Diag%dkt    (IM,Model%levs))
       allocate (Diag%flux_cg(IM,Model%levs))
       allocate (Diag%flux_en(IM,Model%levs))

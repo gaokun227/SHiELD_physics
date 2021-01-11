@@ -548,7 +548,7 @@ subroutine update_atmos_model_state (Atmos)
 !--- local variables
   integer :: isec,seconds
   real(kind=kind_phys) :: time_int
-  integer :: is, ie, js, je
+  integer :: is, ie, js, je, kt
   
     call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
@@ -565,7 +565,7 @@ subroutine update_atmos_model_state (Atmos)
 !------ advance time ------
     Atmos % Time = Atmos % Time + Atmos % Time_step
 
-    call get_fine_array_bounds(is, ie, js, je)
+    call atmosphere_control_data(is, ie, js, je, kt)
     call send_diag_manager_controlled_diagnostic_data(Atmos%Time, &
        Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, IPD_Control%levs, &
        Atm(mygrid)%coarse_graining%write_coarse_diagnostics, &

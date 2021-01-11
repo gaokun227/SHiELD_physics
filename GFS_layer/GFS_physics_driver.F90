@@ -898,7 +898,7 @@ module module_physics_driver
               Diag%dt3dt(:,k,1) = Diag%dt3dt(:,k,1) + Radtend%htrlw(:,k)*dtf
               Diag%dt3dt(:,k,2) = Diag%dt3dt(:,k,2) + Radtend%htrsw(:,k)*dtf*xmu(:)
               Diag%dt3dt(:,k,8) = Diag%dt3dt(:,k,8) + Radtend%lwhc(:,k)*dtf
-              Diag%dt3dt(:,k,9) = Diag%dt3dt(:,k,9) + Radtend%swhc(:,k)*dtf*xmu(i)  
+              Diag%dt3dt(:,k,9) = Diag%dt3dt(:,k,9) + Radtend%swhc(:,k)*dtf*xmu(:)  
             enddo
           endif
         endif

@@ -95,7 +95,6 @@ use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
 use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, register_coarse_diag_manager_controlled_diagnostics
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
 use module_ocean,       only: ocean_init
-use coarse_graining_mod, only: get_fine_array_bounds
 !-----------------------------------------------------------------------
 
 implicit none

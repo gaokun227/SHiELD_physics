@@ -1881,10 +1881,10 @@ module module_physics_driver
          Diag%tclim_iano   (:) = Diag%tclim_iano(:) + Sfcprop%ts_clim_iano(:)*dtf
          Diag%MLD          (:) = Diag%MLD(:) + Sfcprop%mld(:)*dtf
 !
-        if (Model%use_ec_sst) then
-         do i = 1, im 
-          if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
-         enddo
+        if (Model%use_ec_sst .and. .not. Model%do_ocean) then
+           do i = 1, im 
+              if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
+           enddo
         endif 
 !-------------------------------------------------------lssav if loop ----------
       if (Model%lssav) then

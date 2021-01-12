@@ -108,7 +108,7 @@ module FV3GFS_io_mod
     integer :: axes
     logical :: time_avg
     character(len=64)    :: mod_name
-    character(len=64)    :: name
+    character(len=128)    :: name
     character(len=128)   :: desc
     character(len=64)    :: unit
     real(kind=kind_phys) :: cnvfac

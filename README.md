@@ -1,6 +1,6 @@
 # SHiELD Physics  
 
-The SHiELD Phyics is a component to the SHiELD atmosphere model.  This code is a derivative work of GFS physics developed at NOAA Environmental Modeling Center (EMC).
+The SHiELD Physics is a component to the SHiELD atmosphere model.  This code is a derivative work of GFS physics developed at NOAA Environmental Modeling Center (EMC).
 
 More information is available on the [GFDL SHiELD page](https://www.gfdl.noaa.gov/shield/).
 

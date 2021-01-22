@@ -1,6 +1,6 @@
-# SHiELD Physics  
+# SHiELD_driver
 
-The SHiELD Physics is a component to the SHiELD atmosphere model.
+SHiELD_driver contains the SHiELD Physics component of the SHiELD atmosphere model.
 
 More information is available on the [GFDL SHiELD page](https://www.gfdl.noaa.gov/shield/).
 

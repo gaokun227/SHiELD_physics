@@ -1,5 +1,11 @@
+!>  \file module_sf_noahmplsm.f90
+!!  This file contains the NoahMP land surface model.
+
+!>\ingroup NoahMP_LSM
 module module_sf_noahmplsm
+#ifndef CCPP  
   use  module_wrf_utl
+#endif
 
   implicit none
 
@@ -74,7 +80,7 @@ module module_sf_noahmplsm
 
   integer :: opt_crs  ! options for canopy stomatal resistance
                       ! **1 -> ball-berry
-          !   2 -> jarvis
+		      !   2 -> jarvis
 
   integer :: opt_btr  ! options for soil moisture factor for stomatal resistance
                       ! **1 -> noah (soil moisture) 
@@ -87,16 +93,16 @@ module module_sf_noahmplsm
                       !   3 -> original surface and subsurface runoff (free drainage)
                       !   4 -> bats surface and subsurface runoff (free drainage)
                       !   5 -> miguez-macho&fan groundwater scheme (miguez-macho et al. 2007 jgr; fan et al. 2007 jgr)
-          !          (needs further testing for public use)
+		      !          (needs further testing for public use)
 
   integer :: opt_sfc  ! options for surface layer drag coeff (ch & cm)
                       ! **1 -> m-o
-          ! **2 -> original noah (chen97)
-          ! **3 -> myj consistent; 4->ysu consistent. mb: removed in v3.7 for further testing
+		      ! **2 -> original noah (chen97)
+		      ! **3 -> myj consistent; 4->ysu consistent. mb: removed in v3.7 for further testing
 
   integer :: opt_frz  ! options for supercooled liquid water (or ice fraction)
                       ! **1 -> no iteration (niu and yang, 2006 jhm)
-          !   2 -> koren's iteration 
+		      !   2 -> koren's iteration 
 
   integer :: opt_inf  ! options for frozen soil permeability
                       ! **1 -> linear effects, more permeable (niu and yang, 2006, jhm)
@@ -109,13 +115,13 @@ module module_sf_noahmplsm
 
   integer :: opt_alb  ! options for ground snow surface albedo
                       !   1 -> bats
-          ! **2 -> class
+		      ! **2 -> class
 
   integer :: opt_snf  ! options for partitioning  precipitation into rainfall & snowfall
                       ! **1 -> jordan (1991)
-          !   2 -> bats: when sfctmp<tfrz+2.2 
-          !   3 -> sfctmp < tfrz
-          !   4 -> use wrf microphysics output
+		      !   2 -> bats: when sfctmp<tfrz+2.2 
+		      !   3 -> sfctmp < tfrz
+		      !   4 -> use wrf microphysics output
 
   integer :: opt_tbot ! options for lower boundary condition of soil temperature
                       !   1 -> zero heat flux from bottom (zbot and tbot not used)
@@ -123,7 +129,7 @@ module module_sf_noahmplsm
 
   integer :: opt_stc  ! options for snow/soil temperature time scheme (only layer 1)
                       ! **1 -> semi-implicit; flux top boundary condition
-          !   2 -> full implicit (original noah); temperature top boundary condition
+		      !   2 -> full implicit (original noah); temperature top boundary condition
                       !   3 -> same as 1, but fsno for ts calculation (generally improves snow; v3.7)
 
 !------------------------------------------------------------------------------------------!
@@ -275,6 +281,7 @@ contains
 !
 !== begin noahmp_sflx ==============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine noahmp_sflx (parameters, &
                    iloc    , jloc    , lat     , yearlen , julian  , cosz    , & ! in : time/space-related
                    dt      , dx      , dz8w    , nsoil   , zsoil   , nsnow   , & ! in : model configuration 
@@ -282,7 +289,7 @@ contains
                    smceq   ,                                                   & ! in : vegetation/soil characteristics
                    sfctmp  , sfcprs  , psfc    , uu      , vv      , q2      , & ! in : forcing
                    qc      , soldn   , lwdn    ,                               & ! in : forcing
-             prcpconv, prcpnonc, prcpshcv, prcpsnow, prcpgrpl, prcphail, & ! in : forcing
+	           prcpconv, prcpnonc, prcpshcv, prcpsnow, prcpgrpl, prcphail, & ! in : forcing
                    tbot    , co2air  , o2air   , foln    , ficeold , zlvl    , & ! in : forcing
                    albold  , sneqvo  ,                                         & ! in/out : 
                    stc     , sh2o    , smc     , tah     , eah     , fwet    , & ! in/out : 
@@ -292,7 +299,7 @@ contains
                    stmass  , wood    , stblcp  , fastcp  , lai     , sai     , & ! in/out : 
                    cm      , ch      , tauss   ,                               & ! in/out : 
                    smcwtd  ,deeprech , rech                                  , & ! in/out :
-       z0wrf   , &
+		   z0wrf   , &
                    fsa     , fsr     , fira    , fsh     , ssoil   , fcev    , & ! out : 
                    fgev    , fctr    , ecan    , etran   , edir    , trad    , & ! out :
                    tgb     , tgv     , t2mv    , t2mb    , q2v     , q2b     , & ! out :
@@ -300,10 +307,14 @@ contains
                    fsno    , nee     , gpp     , npp     , fveg    , albedo  , & ! out :
                    qsnbot  , ponding , ponding1, ponding2, rssun   , rssha   , & ! out :
                    bgap    , wgap    , chv     , chb     , emissi  ,           & ! out :
-       shg     , shc     , shb     , evg     , evb     , ghv     , & ! out :
-       ghb     , irg     , irc     , irb     , tr      , evc     , & ! out :
-       chleaf  , chuc    , chv2    , chb2    , fpice   , pahv    , &
-                   pahg    , pahb    , pah     , esnow) 
+		   shg     , shc     , shb     , evg     , evb     , ghv     , & ! out :
+		   ghb     , irg     , irc     , irb     , tr      , evc     , & ! out :
+		   chleaf  , chuc    , chv2    , chb2    , fpice   , pahv    , &
+#ifdef CCPP
+                   pahg    , pahb    , pah     , esnow, errmsg, errflg)
+#else
+                   pahg    , pahb    , pah     , esnow)
+#endif
 
 ! --------------------------------------------------------------------------------------------------
 ! initial code: guo-yue niu, oct. 2007
@@ -432,6 +443,10 @@ contains
   real              :: q1
   real, intent(out) :: emissi
 !jref:end
+#ifdef CCPP
+  character(len=*), intent(inout)    :: errmsg
+  integer,          intent(inout)    :: errflg
+#endif
 
 ! local
   integer                                        :: iz     !do-loop index
@@ -606,7 +621,13 @@ contains
         if(fveg <= 0.05) fveg = 0.05
      else
         write(*,*) "-------- fatal called in sflx -----------"
+#ifdef CCPP
+        errflg = 1
+        errmsg = "namelist parameter dveg unknown"
+        return 
+#else
         call wrf_error_fatal("namelist parameter dveg unknown") 
+#endif
      endif
      if(parameters%urban_flag .or. vegtyp == parameters%isbarren) fveg = 0.0
      if(elai+esai == 0.0) fveg = 0.0
@@ -617,7 +638,7 @@ contains
                      canliq ,canice ,tv     ,sfctmp ,tg     ,         & !in
                      qintr  ,qdripr ,qthror ,qints  ,qdrips ,qthros , & !out
                      pahv   ,pahg   ,pahb   ,qrain  ,qsnow  ,snowhin, & !out
-               fwet   ,cmc                                    )   !out
+	             fwet   ,cmc                                    )   !out
 
 ! compute energy budget (momentum & energy fluxes and phase changes) 
 
@@ -629,7 +650,7 @@ contains
                  elai   ,esai   ,fwet   ,foln   ,         & !in
                  fveg   ,pahv   ,pahg   ,pahb   ,                 & !in
                  qsnow  ,dzsnso ,lat    ,canliq ,canice ,iloc, jloc , & !in
-     z0wrf  ,                                         &
+                 z0wrf  ,                                         &
                  imelt  ,snicev ,snliqv ,epore  ,t2m    ,fsno   , & !out
                  sav    ,sag    ,qmelt  ,fsa    ,fsr    ,taux   , & !out
                  tauy   ,fira   ,fsh    ,fcev   ,fgev   ,fctr   , & !out
@@ -638,16 +659,22 @@ contains
                  tv     ,tg     ,stc    ,snowh  ,eah    ,tah    , & !inout
                  sneqvo ,sneqv  ,sh2o   ,smc    ,snice  ,snliq  , & !inout
                  albold ,cm     ,ch     ,dx     ,dz8w   ,q2     , & !inout
-                 tauss                                          , & !inout
+#ifdef CCPP
+                 tauss  ,errmsg ,errflg ,                         & !inout
+#else
+                 tauss  ,                                         & !inout
+#endif
 !jref:start
                  qc     ,qsfc   ,psfc   , & !in 
                  t2mv   ,t2mb  ,fsrv   , &
                  fsrg   ,rssun   ,rssha ,bgap   ,wgap, tgv,tgb,&
                  q1     ,q2v    ,q2b    ,q2e    ,chv   ,chb     , & !out
                  emissi ,pah    ,                                 &
-         shg,shc,shb,evg,evb,ghv,ghb,irg,irc,irb,tr,evc,chleaf,chuc,chv2,chb2 )                                            !out
+                 shg,shc,shb,evg,evb,ghv,ghb,irg,irc,irb,tr,evc,chleaf,chuc,chv2,chb2 )                                            !out
 !jref:end
-
+#ifdef CCPP
+    if (errflg /= 0) return
+#endif
     sice(:) = max(0.0, smc(:) - sh2o(:))   
     sneqvo  = sneqv
 
@@ -662,7 +689,7 @@ contains
                  esai   ,sfctmp ,qvap   ,qdew   ,zsoil  ,btrani , & !in
                  ficeold,ponding,tg     ,ist    ,fveg   ,iloc,jloc , smceq , & !in
                  bdfall ,fp     ,rain   ,snow   ,                 & !in  mb/an: v3.7
-     qsnow  ,qrain  ,snowhin,latheav,latheag,frozen_canopy,frozen_ground,  & !in  mb
+		 qsnow  ,qrain  ,snowhin,latheav,latheag,frozen_canopy,frozen_ground,  & !in  mb
                  isnow  ,canliq ,canice ,tv     ,snowh  ,sneqv  , & !inout
                  snice  ,snliq  ,stc    ,zsnso  ,sh2o   ,smc    , & !inout
                  sice   ,zwt    ,wa     ,wt     ,dzsnso ,wslake , & !inout
@@ -693,7 +720,15 @@ contains
                  etran  ,edir   ,runsrf ,runsub ,dt     ,nsoil  , & !in
                  nsnow  ,ist    ,errwat ,iloc   , jloc  ,fveg   , &
                  sav    ,sag    ,fsrv   ,fsrg   ,zwt    ,pah    , &
+#ifdef CCPP
+                 pahv   ,pahg   ,pahb   ,errmsg, errflg)   !in ( except errwat [out] and errmsg, errflg [inout] )
+#else
                  pahv   ,pahg   ,pahb   )   !in ( except errwat, which is out )
+#endif
+
+#ifdef CCPP
+     if (errflg /= 0) return
+#endif
 
 ! urban - jref
     qfx = etran + ecan + edir
@@ -718,11 +753,12 @@ contains
 
 !== begin atm ======================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine atm (parameters,sfcprs  ,sfctmp   ,q2      ,                             &
                   prcpconv,prcpnonc ,prcpshcv,prcpsnow,prcpgrpl,prcphail , &
                   soldn   ,cosz     ,thair   ,qair    ,                    & 
                   eair    ,rhoair   ,qprecc  ,qprecl  ,solad   , solai   , &
-      swdown  ,bdfall   ,rain    ,snow    ,fp      , fpice   ,prcp )     
+		  swdown  ,bdfall   ,rain    ,snow    ,fp      , fpice   ,prcp )     
 ! --------------------------------------------------------------------------------------------------
 ! re-process atmospheric forcing
 ! ----------------------------------------------------------------------
@@ -793,7 +829,7 @@ contains
 
 !      if(opt_snf == 4) then
          qprecc = prcpconv + prcpshcv
-   qprecl = prcpnonc
+	 qprecl = prcpnonc
 !      else
 !        qprecc = 0.10 * prcp          ! should be from the atmospheric model
 !        qprecl = 0.90 * prcp          ! should be from the atmospheric model
@@ -846,14 +882,14 @@ contains
      if(opt_snf == 4) then
         prcp_frozen = prcpsnow + prcpgrpl + prcphail
         if(prcpnonc > 0. .and. prcp_frozen > 0.) then
-    fpice = min(1.0,prcp_frozen/prcp)
-    fpice = max(0.0,fpice)
-    bdfall = bdfall*(prcpsnow/prcp_frozen) + rho_grpl*(prcpgrpl/prcp_frozen) + &
-               rho_hail*(prcphail/prcp_frozen)
-  else
-    fpice = 0.0
+	  fpice = min(1.0,prcp_frozen/prcp)
+	  fpice = max(0.0,fpice)
+	  bdfall = bdfall*(prcpsnow/prcp_frozen) + rho_grpl*(prcpgrpl/prcp_frozen) + &
+	             rho_hail*(prcphail/prcp_frozen)
+	else
+	  fpice = 0.0
         endif
-  
+	
      endif
 
      rain   = prcp * (1.-fpice)
@@ -864,6 +900,7 @@ contains
 
 !== begin phenology ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine phenology (parameters,vegtyp , snowh  , tv     , lat   , yearlen , julian , & !in
                         lai    , sai    , troot  , elai    , esai   , igs)
 
@@ -940,7 +977,12 @@ contains
 
      if(parameters%hvt> 0. .and. parameters%hvt <= 1.0) then          !mb: change to 1.0 and 0.2 to reflect
        snowhc = parameters%hvt*exp(-snowh/0.2)             !      changes to hvt in mptable
-       fb     = min(snowh,snowhc)/snowhc
+!      fb     = min(snowh,snowhc)/snowhc
+       if (snowh < snowhc) then
+          fb = snowh/snowhc
+        else
+          fb = 1.0
+       endif
      endif
 
      elai =  lai*(1.-fb)
@@ -958,13 +1000,14 @@ contains
 
 !== begin precip_heat ==============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine precip_heat (parameters,iloc   ,jloc   ,vegtyp ,dt     ,uu     ,vv     , & !in
                           elai   ,esai   ,fveg   ,ist    ,                 & !in
                           bdfall ,rain   ,snow   ,fp     ,                 & !in
                           canliq ,canice ,tv     ,sfctmp ,tg     ,         & !in
                           qintr  ,qdripr ,qthror ,qints  ,qdrips ,qthros , & !out
-        pahv   ,pahg   ,pahb   ,qrain  ,qsnow  ,snowhin, & !out
-        fwet   ,cmc                                    )   !out
+			  pahv   ,pahg   ,pahb   ,qrain  ,qsnow  ,snowhin, & !out
+			  fwet   ,cmc                                    )   !out
 
 ! ------------------------ code history ------------------------------
 ! michael barlage: oct 2013 - split canwater to calculate precip movement for 
@@ -1066,10 +1109,10 @@ contains
          qintr  = 0.
          qdripr = 0.
          qthror = rain
-   if(canliq > 0.) then             ! for case of canopy getting buried
-     qdripr = qdripr + canliq/dt
-     canliq = 0.0
-   end if
+	 if(canliq > 0.) then             ! for case of canopy getting buried
+	   qdripr = qdripr + canliq/dt
+	   canliq = 0.0
+	 end if
       end if
       
 ! heat transported by liquid water
@@ -1092,8 +1135,8 @@ contains
          qints = max(qints, 0.)
          ft = max(0.0,(tv - 270.15) / 1.87e5)
          fv = sqrt(uu*uu + vv*vv) / 1.56e5
-   ! mb: changed below to reflect the rain assumption that all precip gets intercepted 
-   icedrip = max(0.,canice) * (fv+ft)    !mb: removed /dt
+	 ! mb: changed below to reflect the rain assumption that all precip gets intercepted 
+	 icedrip = max(0.,canice) * (fv+ft)    !mb: removed /dt
          qdrips = (fveg * snow - qints) + icedrip
          qthros = (1.0-fveg) * snow
          canice= max(0.,canice + (qints - icedrip)*dt)
@@ -1101,10 +1144,10 @@ contains
          qints  = 0.
          qdrips = 0.
          qthros = snow
-   if(canice > 0.) then             ! for case of canopy getting buried
-     qdrips = qdrips + canice/dt
-     canice = 0.0
-   end if
+	 if(canice > 0.) then             ! for case of canopy getting buried
+	   qdrips = qdrips + canice/dt
+	   canice = 0.0
+	 end if
       endif
 !      print*, "precip_heat canopy through:",3600.0*(fveg * snow - qints)
 !      print*, "precip_heat canopy drip:",3600.0*max(0.,canice) * (fv+ft)
@@ -1134,13 +1177,13 @@ contains
       
       if (fveg > 0.0 .and. fveg < 1.0) then
         pahg = pahg / fveg         ! these will be multiplied by fraction later
-  pahb = pahb / (1.0-fveg)
+	pahb = pahb / (1.0-fveg)
       elseif (fveg <= 0.0) then
         pahb = pahg + pahb         ! for case of canopy getting buried
         pahg = 0.0
-  pahv = 0.0
+	pahv = 0.0
       elseif (fveg >= 1.0) then
-  pahb = 0.0
+	pahb = 0.0
       end if
       
       pahv = max(pahv,-20.0)       ! put some artificial limits here for stability
@@ -1187,13 +1230,18 @@ contains
 
 !== begin error ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine error (parameters,swdown ,fsa    ,fsr    ,fira   ,fsh    ,fcev   , &
                     fgev   ,fctr   ,ssoil  ,beg_wb ,canliq ,canice , &
                     sneqv  ,wa     ,smc    ,dzsnso ,prcp   ,ecan   , &
                     etran  ,edir   ,runsrf ,runsub ,dt     ,nsoil  , &
                     nsnow  ,ist    ,errwat, iloc   ,jloc   ,fveg   , &
                     sav    ,sag    ,fsrv   ,fsrg   ,zwt    ,pah    , &
+#ifdef CCPP
+                    pahv   ,pahg   ,pahb   ,errmsg, errflg)
+#else
                     pahv   ,pahg   ,pahb   )
+#endif
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -1242,6 +1290,11 @@ contains
   real, intent(in)   :: pahg    !precipitation advected heat - total (w/m2)
   real, intent(in)   :: pahb    !precipitation advected heat - total (w/m2)
 
+#ifdef CCPP
+  character(len=*)               , intent(inout) :: errmsg
+  integer                        , intent(inout) :: errflg
+#endif
+
   integer                                     :: iz     !do-loop index
   real                                        :: end_wb !water storage at end of a timestep [mm]
   !kwm real                                        :: errwat !error in water balance [mm/timestep]
@@ -1271,36 +1324,89 @@ contains
    write(*,*) "fsa    =",fsa
 !jref:end   
       write(message,*) 'errsw =',errsw
+#ifdef CCPP
+      errflg = 1
+      errmsg = trim(message)//NEW_LINE('A')//"stop in noah-mp"
+      return 
+#else
       call wrf_message(trim(message))
       call wrf_error_fatal("stop in noah-mp")
+#endif
    end if
 
    erreng = sav+sag-(fira+fsh+fcev+fgev+fctr+ssoil) +pah
 !   erreng = fveg*sav+sag-(fira+fsh+fcev+fgev+fctr+ssoil)
    if(abs(erreng) > 0.01) then
       write(message,*) 'erreng =',erreng,' at i,j: ',iloc,jloc
+#ifdef CCPP
+      errmsg = trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "net solar:       ",fsa
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "net longwave:    ",fira
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "total sensible:  ",fsh
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "canopy evap:     ",fcev
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "ground evap:     ",fgev
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "transpiration:   ",fctr
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "total ground:    ",ssoil
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,4f10.4)') "precip advected: ",pah,pahv,pahg,pahb
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "precip: ",prcp
+#ifdef CCPP
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
       call wrf_message(trim(message))
+#endif
       write(message,'(a17,f10.4)') "veg fraction: ",fveg
+#ifdef CCPP
+      errflg = 1
+      errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)//NEW_LINE('A')//"energy budget problem in noahmp lsm"
+      return
+#else
       call wrf_message(trim(message))
       call wrf_error_fatal("energy budget problem in noahmp lsm")
+#endif
+      
    end if
 
    if (ist == 1) then                                       !soil
@@ -1318,6 +1424,7 @@ contains
 
 !== begin energy ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine energy (parameters,ice    ,vegtyp ,ist    ,nsnow  ,nsoil  , & !in
                      isnow  ,dt     ,rhoair ,sfcprs ,qair   , & !in
                      sfctmp ,thair  ,lwdn   ,uu     ,vv     ,zref   , & !in
@@ -1326,7 +1433,7 @@ contains
                      elai   ,esai   ,fwet   ,foln   ,         & !in
                      fveg   ,pahv   ,pahg   ,pahb   ,                 & !in
                      qsnow  ,dzsnso ,lat    ,canliq ,canice ,iloc   , jloc, & !in
-         z0wrf  ,                                         &
+		     z0wrf  ,                                         &
                      imelt  ,snicev ,snliqv ,epore  ,t2m    ,fsno   , & !out
                      sav    ,sag    ,qmelt  ,fsa    ,fsr    ,taux   , & !out
                      tauy   ,fira   ,fsh    ,fcev   ,fgev   ,fctr   , & !out
@@ -1335,13 +1442,17 @@ contains
                      tv     ,tg     ,stc    ,snowh  ,eah    ,tah    , & !inout
                      sneqvo ,sneqv  ,sh2o   ,smc    ,snice  ,snliq  , & !inout
                      albold ,cm     ,ch     ,dx     ,dz8w   ,q2     , &   !inout
-                     tauss                                          , & !inout
+#ifdef CCPP
+                     tauss  ,errmsg ,errflg,                          & !inout
+#else
+                     tauss  ,                                         & !inout
+#endif
 !jref:start
                      qc     ,qsfc   ,psfc   , & !in 
                      t2mv   ,t2mb   ,fsrv   , &
                      fsrg   ,rssun  ,rssha  ,bgap   ,wgap,tgv,tgb,&
                      q1     ,q2v    ,q2b    ,q2e    ,chv  ,chb, emissi,pah  ,&
-         shg,shc,shb,evg,evb,ghv,ghb,irg,irc,irb,tr,evc,chleaf,chuc,chv2,chb2 )   !out 
+		     shg,shc,shb,evg,evb,ghv,ghb,irg,irc,irb,tr,evc,chleaf,chuc,chv2,chb2 )   !out 
 !jref:end                            
 
 ! --------------------------------------------------------------------------------------------------
@@ -1499,6 +1610,10 @@ contains
   real                              , intent(inout) :: cm     !momentum drag coefficient
   real                              , intent(inout) :: ch     !sensible heat exchange coefficient
   real                              , intent(inout) :: q1
+#ifdef CCPP
+  character(len=*)                  , intent(inout) :: errmsg
+  integer                           , intent(inout) :: errflg
+#endif
 !  real                                              :: q2e
   real,                               intent(out)   :: emissi
   real,                               intent(out)   :: pah    !precipitation advected heat - total (w/m2)
@@ -1629,6 +1744,10 @@ contains
 ! ground snow cover fraction [niu and yang, 2007, jgr]
 
      fsno = 0.
+    if(snowh <= 1.e-6 .or. sneqv <= 1.e-3) then
+     snowh = 0.0
+     sneqv = 0.0
+    end if
      if(snowh.gt.0.)  then
          bdsno    = sneqv / snowh
          fmelt    = (bdsno/100.)**parameters%mfsno
@@ -1757,19 +1876,19 @@ contains
 
      if (tv .gt. tfrz) then           ! barlage: add distinction between ground and 
         latheav = hvap                ! vegetation in v3.6
-  frozen_canopy = .false.
+	frozen_canopy = .false.
      else
         latheav = hsub
-  frozen_canopy = .true.
+	frozen_canopy = .true.
      end if
      gammav = cpair*sfcprs/(0.622*latheav)
 
      if (tg .gt. tfrz) then
         latheag = hvap
-  frozen_ground = .false.
+	frozen_ground = .false.
      else
         latheag = hsub
-  frozen_ground = .true.
+	frozen_ground = .true.
      end if
      gammag = cpair*sfcprs/(0.622*latheag)
 
@@ -1793,21 +1912,28 @@ contains
                     uu      ,vv      ,sfctmp  ,thair   ,qair    , & !in
                     eair    ,rhoair  ,snowh   ,vai     ,gammav  ,gammag    , & !in
                     fwet    ,laisun  ,laisha  ,cwp     ,dzsnso  , & !in
-                    zlvl    ,zpd     ,z0m     ,fveg             , & !in
+                    zlvl    ,zpd     ,z0m     ,fveg    ,          & !in
                     z0mg    ,emv     ,emg     ,canliq  ,fsno, & !in
                     canice  ,stc     ,df      ,rssun   ,rssha   , & !in
                     rsurf   ,latheav ,latheag ,parsun  ,parsha  ,igs     , & !in
                     foln    ,co2air  ,o2air   ,btran   ,sfcprs  , & !in
                     rhsur   ,iloc    ,jloc    ,q2      ,pahv  ,pahg  , & !in
                     eah     ,tah     ,tv      ,tgv     ,cmv     , & !inout
+#ifdef CCPP
+                    chv     ,dx      ,dz8w    ,errmsg  ,errflg  , & !inout
+#else
                     chv     ,dx      ,dz8w    ,                   & !inout
+#endif
                     tauxv   ,tauyv   ,irg     ,irc     ,shg     , & !out
                     shc     ,evg     ,evc     ,tr      ,ghv     , & !out
                     t2mv    ,psnsun  ,psnsha  ,                   & !out
 !jref:start
                     qc      ,qsfc    ,psfc    , & !in
                     q2v     ,chv2, chleaf, chuc)               !inout 
-!jref:end                            
+!jref:end
+#ifdef CCPP
+        if (errflg /= 0) return 
+#endif                           
     end if
 
     tgb = tg
@@ -1819,14 +1945,20 @@ contains
                     dzsnso  ,zlvl    ,zpdg    ,z0mg    ,fsno,             & !in
                     emg     ,stc     ,df      ,rsurf   ,latheag  , & !in
                     gammag   ,rhsur   ,iloc    ,jloc    ,q2      ,pahb  , & !in
+#ifdef CCPP
+                    tgb     ,cmb     ,chb     ,errmsg  ,errflg   , & !inout
+#else
                     tgb     ,cmb     ,chb     ,                   & !inout
+#endif
                     tauxb   ,tauyb   ,irb     ,shb     ,evb     , & !out
                     ghb     ,t2mb    ,dx      ,dz8w    ,vegtyp  , & !out
 !jref:start
                     qc      ,qsfc    ,psfc    , & !in
                     sfcprs  ,q2b,   chb2)                          !in 
-!jref:end                            
-
+!jref:end
+#ifdef CCPP
+    if (errflg /= 0) return
+#endif
 !energy balance at vege canopy: sav          =(irc+shc+evc+tr)     *fveg  at   fveg 
 !energy balance at vege ground: sag*    fveg =(irg+shg+evg+ghv)    *fveg  at   fveg
 !energy balance at bare ground: sag*(1.-fveg)=(irb+shb+evb+ghb)*(1.-fveg) at 1-fveg
@@ -1840,7 +1972,7 @@ contains
         ssoil = fveg * ghv       + (1.0 - fveg) * ghb
         fcev  = evc
         fctr  = tr
-  pah   = fveg * pahg      + (1.0 - fveg) * pahb   + pahv
+	pah   = fveg * pahg      + (1.0 - fveg) * pahb   + pahv
         tg    = fveg * tgv       + (1.0 - fveg) * tgb
         t2m   = fveg * t2mv      + (1.0 - fveg) * t2mb
         ts    = fveg * tv        + (1.0 - fveg) * tgb
@@ -1848,7 +1980,7 @@ contains
         ch    = fveg * chv       + (1.0 - fveg) * chb
         q1    = fveg * (eah*0.622/(sfcprs - 0.378*eah)) + (1.0 - fveg)*qsfc
         q2e   = fveg * q2v       + (1.0 - fveg) * q2b
-  z0wrf = z0m
+	z0wrf = z0m
     else
         taux  = tauxb
         tauy  = tauyb
@@ -1860,7 +1992,7 @@ contains
         t2m   = t2mb
         fcev  = 0.
         fctr  = 0.
-  pah   = pahb
+	pah   = pahb
         ts    = tg
         cm    = cmb
         ch    = chb
@@ -1870,7 +2002,7 @@ contains
         rssha = 0.0
         tgv   = tgb
         chv   = chb
-  z0wrf = z0mg
+	z0wrf = z0mg
     end if
 
     fire = lwdn + fira
@@ -1880,7 +2012,14 @@ contains
        write(6,*) 'input of shdfac with lai'
        write(6,*) iloc, jloc, 'shdfac=',fveg,'vai=',vai,'tv=',tv,'tg=',tg
        write(6,*) 'lwdn=',lwdn,'fira=',fira,'snowh=',snowh
-       call wrf_error_fatal("stop in noah-mp")
+#ifdef CCPP
+      errflg = 1
+      errmsg = "stop in noah-mp"
+      return
+#else
+      call wrf_error_fatal("stop in noah-mp")
+#endif
+       
     end if
 
     ! compute a net emissivity
@@ -1905,7 +2044,15 @@ contains
                   tbot    ,zsnso   ,ssoil   ,df      ,hcpct   , & !in
                   sag     ,dt      ,snowh   ,dzsnso  , & !in
                   tg      ,iloc    ,jloc    ,                   & !in
+#ifdef CCPP
+                  stc     ,errmsg  ,errflg     )                  !inout
+#else
                   stc     )                                       !inout
+#endif
+
+#ifdef CCPP
+    if (errflg /= 0) return
+#endif
 
 ! adjusting snow surface temperature
      if(opt_stc == 2) then
@@ -1927,14 +2074,21 @@ contains
  call phasechange (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,fact    , & !in
                    dzsnso  ,hcpct   ,ist     ,iloc    ,jloc    , & !in
                    stc     ,snice   ,snliq   ,sneqv   ,snowh   , & !inout
+#ifdef CCPP
+                   smc     ,sh2o    ,errmsg  ,errflg  ,          & !inout
+#else
                    smc     ,sh2o    ,                            & !inout
+#endif
                    qmelt   ,imelt   ,ponding )                     !out
-
+#ifdef CCPP
+    if (errflg /= 0) return
+#endif
 
   end subroutine energy
 
 !== begin thermoprop ===============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine thermoprop (parameters,nsoil   ,nsnow   ,isnow   ,ist     ,dzsnso  , & !in
                          dt      ,snowh   ,snice   ,snliq   , & !in
                          smc     ,sh2o    ,tg      ,stc     ,ur      , & !in
@@ -2046,6 +2200,7 @@ contains
 
 !== begin csnow ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine csnow (parameters,isnow   ,nsnow   ,nsoil   ,snice   ,snliq   ,dzsnso  , & !in
                     tksno   ,cvsno   ,snicev  ,snliqv  ,epore   )   !out
 ! --------------------------------------------------------------------------------------------------
@@ -2105,6 +2260,7 @@ contains
 
 !== begin tdfcnd ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine tdfcnd (parameters, df, smc, sh2o)
 ! --------------------------------------------------------------------------------------------------
 ! calculate thermal diffusivity and conductivity of the soil.
@@ -2171,7 +2327,7 @@ contains
     thks = (thkqtz ** parameters%quartz)* (thko ** (1. - parameters%quartz))
 
 ! unfrozen volume for saturation (porosity*xunfroz)
-    xunfroz = (sh2o + 1.e-9) / (smc + 1.e-9)
+    xunfroz = sh2o / smc
 ! saturated thermal conductivity
     xu = xunfroz * parameters%smcmax
 
@@ -2214,6 +2370,7 @@ contains
 
 !== begin radiation ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine radiation (parameters,vegtyp  ,ist     ,ice     ,nsoil   , & !in
                         sneqvo  ,sneqv   ,dt      ,cosz    ,snowh   , & !in
                         tg      ,tv      ,fsno    ,qsnow   ,fwet    , & !in
@@ -2338,6 +2495,7 @@ contains
 
 !== begin albedo ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine albedo (parameters,vegtyp ,ist    ,ice    ,nsoil  , & !in
                      dt     ,cosz   ,fage   ,elai   ,esai   , & !in
                      tg     ,tv     ,snowh  ,fsno   ,fwet   , & !in
@@ -2520,6 +2678,7 @@ contains
 
 !== begin surrad ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine surrad (parameters,mpe     ,fsun    ,fsha    ,elai    ,vai     , & !in
                      laisun  ,laisha  ,solad   ,solai   ,fabd    , & !in
                      fabi    ,ftdd    ,ftid    ,ftii    ,albgrd  , & !in
@@ -2645,6 +2804,7 @@ contains
 
 !== begin snow_age =================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine snow_age (parameters,dt,tg,sneqvo,sneqv,tauss,fage)
 ! ----------------------------------------------------------------------
   implicit none
@@ -2699,6 +2859,7 @@ contains
 
 !== begin snowalb_bats =============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine snowalb_bats (parameters,nband,fsno,cosz,fage,albsnd,albsni)
 ! --------------------------------------------------------------------------------------------------
   implicit none
@@ -2754,6 +2915,7 @@ contains
 
 !== begin snowalb_class ============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine snowalb_class (parameters,nband,qsnow,dt,alb,albold,albsnd,albsni,iloc,jloc)
 ! ----------------------------------------------------------------------
   implicit none
@@ -2807,6 +2969,7 @@ contains
 
 !== begin groundalb ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine groundalb (parameters,nsoil   ,nband   ,ice     ,ist     , & !in
                         fsno    ,smc     ,albsnd  ,albsni  ,cosz    , & !in
                         tg      ,iloc    ,jloc    ,                   & !in
@@ -2871,6 +3034,7 @@ contains
 
 !== begin twostream ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine twostream (parameters,ib     ,ic      ,vegtyp  ,cosz    ,vai    , & !in
                         fwet   ,t       ,albgrd  ,albgri  ,rho    , & !in
                         tau    ,fveg    ,ist     ,iloc    ,jloc   , & !in
@@ -2967,7 +3131,7 @@ contains
          kopen   = 1.0
      else
          if(opt_rad == 1) then
-     denfveg = -log(max(1.0-fveg,0.01))/(pai*parameters%rc**2)
+	   denfveg = -log(max(1.0-fveg,0.01))/(pai*parameters%rc**2)
            hd      = parameters%hvt - parameters%hvb
            bb      = 0.5 * hd           
            thetap  = atan(bb/parameters%rc * tan(acos(max(0.01,cosz))) )
@@ -3121,19 +3285,24 @@ contains
 
 !== begin vege_flux ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine vege_flux(parameters,nsnow   ,nsoil   ,isnow   ,vegtyp  ,veg     , & !in
                        dt      ,sav     ,sag     ,lwdn    ,ur      , & !in
                        uu      ,vv      ,sfctmp  ,thair   ,qair    , & !in
                        eair    ,rhoair  ,snowh   ,vai     ,gammav   ,gammag,  & !in
                        fwet    ,laisun  ,laisha  ,cwp     ,dzsnso  , & !in
-                       zlvl    ,zpd     ,z0m     ,fveg             , & !in
+                       zlvl    ,zpd     ,z0m     ,fveg    ,          & !in
                        z0mg    ,emv     ,emg     ,canliq  ,fsno,          & !in
                        canice  ,stc     ,df      ,rssun   ,rssha   , & !in
                        rsurf   ,latheav ,latheag  ,parsun  ,parsha  ,igs     , & !in
                        foln    ,co2air  ,o2air   ,btran   ,sfcprs  , & !in
                        rhsur   ,iloc    ,jloc    ,q2      ,pahv    ,pahg     , & !in
                        eah     ,tah     ,tv      ,tg      ,cm      , & !inout
-                       ch      ,dx      ,dz8w    ,                   & !
+#ifdef CCPP
+                       ch      ,dx      ,dz8w    ,errmsg  ,errflg  , & !inout
+#else
+                       ch      ,dx      ,dz8w    ,                   & !inout
+#endif
                        tauxv   ,tauyv   ,irg     ,irc     ,shg     , & !out
                        shc     ,evg     ,evc     ,tr      ,gh      , & !out
                        t2mv    ,psnsun  ,psnsha  ,                   & !out
@@ -3227,6 +3396,11 @@ contains
   real,                         intent(inout) :: tg     !ground temperature (k)
   real,                         intent(inout) :: cm     !momentum drag coefficient
   real,                         intent(inout) :: ch     !sensible heat exchange coefficient
+
+#ifdef CCPP
+  character(len=*),             intent(inout) :: errmsg
+  integer,                      intent(inout) :: errflg
+#endif
 
 ! output
 ! -fsa + fira + fsh + (fcev + fctr + fgev) + fcst + ssoil = 0
@@ -3398,16 +3572,39 @@ contains
         uc = ur*log((hcan-zpd+z0m)/z0m)/log(zlvl/z0m)   ! mb: add zpd v3.7
         if((hcan-zpd) <= 0.) then
           write(message,*) "critical problem: hcan <= zpd"
+#ifdef CCPP
+          errmsg = trim(message)
+#else
           call wrf_message ( message )
+#endif
           write(message,*) 'i,j point=',iloc, jloc
+#ifdef CCPP
+          errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
           call wrf_message ( message )
+#endif
           write(message,*) 'hcan  =',hcan
+#ifdef CCPP
+          errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
           call wrf_message ( message )
+#endif
           write(message,*) 'zpd   =',zpd
+#ifdef CCPP
+          errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
           call wrf_message ( message )
+#endif
           write (message, *) 'snowh =',snowh
+#ifdef CCPP
+          errflg = 1
+          errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)//NEW_LINE('A')//"critical problem in module_sf_noahmplsm:vegeflux"
+          return
+#else
           call wrf_message ( message )
           call wrf_error_fatal ( "critical problem in module_sf_noahmplsm:vegeflux" )
+#endif
+          
         end if
 
 ! prepare for longwave rad.
@@ -3432,8 +3629,15 @@ contains
           call sfcdif1(parameters,iter   ,sfctmp ,rhoair ,h      ,qair   , & !in
                        zlvl   ,zpd    ,z0m    ,z0h    ,ur     , & !in
                        mpe    ,iloc   ,jloc   ,                 & !in
-                       moz    ,mozsgn ,fm     ,fh     ,fm2,fh2, & !inout
+#ifdef CCPP
+                       moz ,mozsgn ,fm ,fh ,fm2 ,fh2 ,errmsg ,errflg ,& !inout
+#else
+                       moz ,mozsgn ,fm ,fh ,fm2 ,fh2 ,           & !inout
+#endif
                        cm     ,ch     ,fv     ,ch2     )          !out
+#ifdef CCPP
+          if (errflg /= 0) return
+#endif
        endif
      
        if(opt_sfc == 2) then
@@ -3527,11 +3731,11 @@ contains
         shc = fveg*rhoair*cpair*cvh * (  tv-tah)
         evc = fveg*rhoair*cpair*cew * (estv-eah) / gammav ! barlage: change to v in v3.6
         tr  = fveg*rhoair*cpair*ctw * (estv-eah) / gammav
-  if (tv > tfrz) then
+	if (tv > tfrz) then
           evc = min(canliq*latheav/dt,evc)    ! barlage: add if block for canice in v3.6
-  else
+	else
           evc = min(canice*latheav/dt,evc)
-  end if
+	end if
 
         b   = sav-irc-shc-evc-tr+pahv                          !additional w/m2
         a   = fveg*(4.*cir*tv**3 + csh + (cev+ctr)*destv) !volumetric heat capacity
@@ -3567,7 +3771,7 @@ contains
         air = - emg*(1.-emv)*lwdn - emg*emv*sb*tv**4
         cir = emg*sb
         csh = rhoair*cpair/rahg
-        cev = rhoair*cpair/(gammag*(rawg+rsurf))  ! barlage: change to ground v3.6
+        cev = rhoair*cpair / (gammag*(rawg+rsurf))  ! barlage: change to ground v3.6
         cgh = 2.*df(isnow+1)/dzsnso(isnow+1)
 !        write(*,*)'inside tg=',tg,'stc(1)=',stc(1)
 
@@ -3606,7 +3810,7 @@ contains
 
      if(opt_stc == 1 .or. opt_stc == 3) then
      if (snowh > 0.05 .and. tg > tfrz) then
-        tg  = tfrz
+        if(opt_stc == 1) tg  = tfrz
         if(opt_stc == 3) tg  = (1.-fsno)*tg + fsno*tfrz   ! mb: allow tg>0c during melt v3.7
         irg = cir*tg**4 - emg*(1.-emv)*lwdn - emg*emv*sb*tv**4
         shg = csh * (tg         - tah)
@@ -3653,13 +3857,18 @@ contains
 
 !== begin bare_flux ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine bare_flux (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,sag     , & !in
                         lwdn    ,ur      ,uu      ,vv      ,sfctmp  , & !in
                         thair   ,qair    ,eair    ,rhoair  ,snowh   , & !in
                         dzsnso  ,zlvl    ,zpd     ,z0m     ,fsno    , & !in
                         emg     ,stc     ,df      ,rsurf   ,lathea  , & !in
                         gamma   ,rhsur   ,iloc    ,jloc    ,q2      ,pahb  , & !in
+#ifdef CCPP
+                        tgb     ,cm      ,ch      ,errmsg  ,errflg  , & !inout
+#else
                         tgb     ,cm      ,ch      ,          & !inout
+#endif
                         tauxb   ,tauyb   ,irb     ,shb     ,evb     , & !out
                         ghb     ,t2mb    ,dx      ,dz8w    ,ivgtyp  , & !out
                         qc      ,qsfc    ,psfc    ,                   & !in
@@ -3722,6 +3931,10 @@ contains
   real,                         intent(inout) :: tgb    !ground temperature (k)
   real,                         intent(inout) :: cm     !momentum drag coefficient
   real,                         intent(inout) :: ch     !sensible heat exchange coefficient
+#ifdef CCPP
+  character(len=*),             intent(inout) :: errmsg
+  integer,                      intent(inout) :: errflg
+#endif
 
 ! output
 ! -sab + irb[tg] + shb[tg] + evb[tg] + ghb[tg] = 0
@@ -3841,8 +4054,15 @@ contains
           call sfcdif1(parameters,iter   ,sfctmp ,rhoair ,h      ,qair   , & !in
                        zlvl   ,zpd    ,z0m    ,z0h    ,ur     , & !in
                        mpe    ,iloc   ,jloc   ,                 & !in
-                       moz    ,mozsgn ,fm     ,fh     ,fm2,fh2, & !inout
+#ifdef CCPP
+                       moz ,mozsgn ,fm ,fh ,fm2 ,fh2 ,errmsg ,errflg ,& !inout
+#else
+                       moz ,mozsgn ,fm ,fh ,fm2 ,fh2 ,           & !inout
+#endif
                        cm     ,ch     ,fv     ,ch2     )          !out
+#ifdef CCPP
+          if (errflg /= 0) return
+#endif
         endif
 
         if(opt_sfc == 2) then
@@ -3924,7 +4144,7 @@ contains
 
      if(opt_stc == 1 .or. opt_stc == 3) then
      if (snowh > 0.05 .and. tgb > tfrz) then
-          tgb = tfrz
+          if(opt_stc == 1) tgb = tfrz
           if(opt_stc == 3) tgb  = (1.-fsno)*tgb + fsno*tfrz  ! mb: allow tg>0c during melt v3.7
           irb = cir * tgb**4 - emg*lwdn
           shb = csh * (tgb        - sfctmp)
@@ -3961,6 +4181,7 @@ contains
 
 !== begin ragrb ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine ragrb(parameters,iter   ,vai    ,rhoair ,hg     ,tah    , & !in
                    zpd    ,z0mg   ,z0hg   ,hcan   ,uc     , & !in
                    z0h    ,fv     ,cwp    ,vegtyp ,mpe    , & !in
@@ -4061,10 +4282,15 @@ contains
 
 !== begin sfcdif1 ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine sfcdif1(parameters,iter   ,sfctmp ,rhoair ,h      ,qair   , & !in
        &             zlvl   ,zpd    ,z0m    ,z0h    ,ur     , & !in
        &             mpe    ,iloc   ,jloc   ,                 & !in
+#ifdef CCPP
+       &             moz    ,mozsgn ,fm     ,fh     ,fm2,fh2,errmsg,errflg, & !inout
+#else
        &             moz    ,mozsgn ,fm     ,fh     ,fm2,fh2, & !inout
+#endif
        &             cm     ,ch     ,fv     ,ch2     )          !out
 ! -------------------------------------------------------------------------------------------------
 ! computing surface drag coefficient cm for momentum and ch for heat
@@ -4095,6 +4321,10 @@ contains
     real,              intent(inout) :: fh     !sen heat stability correction, weighted by prior iters
     real,              intent(inout) :: fm2    !sen heat stability correction, weighted by prior iters
     real,              intent(inout) :: fh2    !sen heat stability correction, weighted by prior iters
+#ifdef CCPP
+    character(len=*),  intent(inout) :: errmsg
+    integer,           intent(inout) :: errflg
+#endif
 
 ! outputs
 
@@ -4127,7 +4357,13 @@ contains
   
     if(zlvl <= zpd) then
        write(*,*) 'critical problem: zlvl <= zpd; model stops'
-       call wrf_error_fatal("stop in noah-mp")
+#ifdef CCPP
+       errflg = 1
+       errmsg = "stop in noah-mp"
+       return
+#else
+      call wrf_error_fatal("stop in noah-mp")
+#endif
     endif
 
     tmpcm = log((zlvl-zpd) / z0m)
@@ -4136,7 +4372,7 @@ contains
     tmpch2 = log((2.0 + z0h) / z0h)
 
     if(iter == 1) then
-       fv   = 0.0
+       fv   = 0.1
        moz  = 0.0
        mol  = 0.0
        moz2 = 0.0
@@ -4225,6 +4461,7 @@ contains
 
 !== begin sfcdif2 ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine sfcdif2(parameters,iter   ,z0     ,thz0   ,thlm   ,sfcspd , & !in
                      zlm    ,iloc   ,jloc   ,         & !in
                      akms   ,akhs   ,rlmo   ,wstar2 ,         & !in
@@ -4427,6 +4664,7 @@ contains
 
 !== begin esat =====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine esat(t, esw, esi, desw, desi)
 !---------------------------------------------------------------------------------------------------
 ! use polynomials to calculate saturation vapor pressure and derivative with
@@ -4480,6 +4718,7 @@ contains
 
 !== begin stomata ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine stomata (parameters,vegtyp  ,mpe     ,apar    ,foln    ,iloc    , jloc, & !in
                       tv      ,ei      ,ea      ,sfctmp  ,sfcprs  , & !in
                       o2      ,co2     ,igs     ,btran   ,rb      , & !in
@@ -4613,6 +4852,7 @@ contains
 
 !== begin canres ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine canres (parameters,par   ,sfctmp,rcsoil ,eah   ,sfcprs , & !in
                      rc    ,psn   ,iloc   ,jloc  )           !out
 
@@ -4697,6 +4937,7 @@ contains
 
 !== begin calhum ===================================================================================
 
+!>\ingroup NoahMP_LSM
         subroutine calhum(parameters,sfctmp, sfcprs, q2sat, dqsdt2)
 
         implicit none
@@ -4728,11 +4969,16 @@ contains
 
 !== begin tsnosoi ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine tsnosoi (parameters,ice     ,nsoil   ,nsnow   ,isnow   ,ist     , & !in
                       tbot    ,zsnso   ,ssoil   ,df      ,hcpct   , & !in
                       sag     ,dt      ,snowh   ,dzsnso  , & !in
                       tg      ,iloc    ,jloc    ,                   & !in
+#ifdef CCPP
+                      stc     ,errmsg  ,errflg)                       !inout
+#else
                       stc     )                                       !inout
+#endif
 ! --------------------------------------------------------------------------------------------------
 ! compute snow (up to 3l) and soil (4l) temperature. note that snow temperatures
 ! during melting season may exceed melting point (tfrz) but later in phasechange
@@ -4765,6 +5011,10 @@ contains
 !input and output
 
     real, dimension(-nsnow+1:nsoil), intent(inout) :: stc
+#ifdef CCPP
+    character(len=*)               , intent(inout) :: errmsg
+    integer                        , intent(inout) :: errflg
+#endif
 
 !local
 
@@ -4827,7 +5077,7 @@ contains
        err_est = err_est + (stc(iz)-tbeg(iz)) * dzsnso(iz) * hcpct(iz) / dt
     enddo
 
-    if (opt_stc == 1) then   ! semi-implicit
+    if (opt_stc == 1 .or. opt_stc == 3) then   ! semi-implicit
        err_est = err_est - (ssoil +eflxb)
     else                     ! full-implicit
        ssoil2 = df(isnow+1)*(tg-stc(isnow+1))/(0.5*dzsnso(isnow+1))   !m. barlage
@@ -4836,10 +5086,18 @@ contains
 
     if (abs(err_est) > 1.) then    ! w/m2
        write(message,*) 'tsnosoi is losing(-)/gaining(+) false energy',err_est,' w/m2'
+#ifdef CCPP
+       errmsg = trim(message)
+#else
        call wrf_message(trim(message))
+#endif
        write(message,'(i6,1x,i6,1x,i3,f18.13,5f20.12)') &
             iloc, jloc, ist,err_est,ssoil,snowh,tg,stc(isnow+1),eflxb
+#ifdef CCPP
+       errmsg = trim(errmsg)//NEW_LINE('A')//trim(message)
+#else
        call wrf_message(trim(message))
+#endif
        !niu      stop
     end if
 
@@ -4847,6 +5105,7 @@ contains
 
 !== begin hrt ======================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine hrt (parameters,nsnow     ,nsoil     ,isnow     ,zsnso     , &
                   stc       ,tbot      ,zbot      ,dt        , &
                   df        ,hcpct     ,ssoil     ,phi       , &
@@ -4927,7 +5186,7 @@ contains
         if (k == isnow+1) then
            ai(k)    =   0.0
            ci(k)    = - df(k)   * ddz(k) / denom(k)
-           if (opt_stc == 1) then
+           if (opt_stc == 1 .or. opt_stc == 3) then
               bi(k) = - ci(k)
            end if                                        
            if (opt_stc == 2) then
@@ -4949,6 +5208,7 @@ contains
 
 !== begin hstep ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine hstep (parameters,nsnow     ,nsoil     ,isnow     ,dt        ,  &
                     ai        ,bi        ,ci        ,rhsts     ,  &
                     stc       )  
@@ -5008,6 +5268,7 @@ contains
 
 !== begin rosr12 ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine rosr12 (p,a,b,c,d,delta,ntop,nsoil,nsnow)
 ! ----------------------------------------------------------------------
 ! subroutine rosr12
@@ -5069,10 +5330,15 @@ contains
 
 !== begin phasechange ==============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine phasechange (parameters,nsnow   ,nsoil   ,isnow   ,dt      ,fact    , & !in
                           dzsnso  ,hcpct   ,ist     ,iloc    ,jloc    , & !in
                           stc     ,snice   ,snliq   ,sneqv   ,snowh   , & !inout
+#ifdef CCPP
+                          smc     ,sh2o    ,errmsg  ,errflg  ,          & !inout
+#else
                           smc     ,sh2o    ,                            & !inout
+#endif
                           qmelt   ,imelt   ,ponding )                     !out
 ! ----------------------------------------------------------------------
 ! melting/freezing of snow water and soil water
@@ -5107,6 +5373,10 @@ contains
   real, dimension(       1:nsoil), intent(inout)  :: smc    !total soil water [m3/m3]
   real, dimension(-nsnow+1:0)    , intent(inout)  :: snice  !snow layer ice [mm]
   real, dimension(-nsnow+1:0)    , intent(inout)  :: snliq  !snow layer liquid water [mm]
+#ifdef CCPP
+  character(len=*)               , intent(inout)  :: errmsg
+  integer                        , intent(inout)  :: errflg
+#endif
 
 ! local
 
@@ -5165,7 +5435,12 @@ contains
             end if
          end if
          if (opt_frz == 2) then
+#ifdef CCPP
+               call frh2o (parameters,supercool(j),stc(j),smc(j),sh2o(j),errmsg,errflg)
+               if (errflg /=0) return
+#else
                call frh2o (parameters,supercool(j),stc(j),smc(j),sh2o(j))
+#endif
                supercool(j) = supercool(j)*dzsnso(j)*1000.        !(mm)
          end if
       enddo
@@ -5280,7 +5555,13 @@ contains
 
 !== begin frh2o ====================================================================================
 
-  subroutine frh2o (parameters,free,tkelv,smc,sh2o)
+!>\ingroup NoahMP_LSM
+  subroutine frh2o (parameters,free,tkelv,smc,sh2o&
+#ifdef CCPP
+     ,errmsg,errflg)
+#else
+     )
+#endif
 
 ! ----------------------------------------------------------------------
 ! subroutine frh2o
@@ -5313,6 +5594,10 @@ contains
   type (noahmp_parameters), intent(in) :: parameters
     real, intent(in)     :: sh2o,smc,tkelv
     real, intent(out)    :: free
+#ifdef CCPP
+    character(len=*), intent(inout)  :: errmsg
+    integer, intent(inout)           :: errflg
+#endif
     real                 :: bx,denom,df,dswl,fk,swl,swlk
     integer              :: nlog,kcount
 !      parameter(ck = 0.0)
@@ -5400,7 +5685,11 @@ contains
 ! ----------------------------------------------------------------------
        if (kcount == 0) then
           write(message, '("flerchinger used in new version. iterations=", i6)') nlog
+#ifdef CCPP
+          errmsg = trim(message)
+#else
           call wrf_message(trim(message))
+#endif
           fk = ( ( (hfus / (grav * ( - parameters%psisat)))*                    &
                ( (tkelv - tfrz)/ tkelv))** ( -1/ bx))* parameters%smcmax
           if (fk < 0.02) fk = 0.02
@@ -5419,12 +5708,13 @@ contains
 
 !== begin water ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine water (parameters,vegtyp ,nsnow  ,nsoil  ,imelt  ,dt     ,uu     , & !in
                     vv     ,fcev   ,fctr   ,qprecc ,qprecl ,elai   , & !in
                     esai   ,sfctmp ,qvap   ,qdew   ,zsoil  ,btrani , & !in
                     ficeold,ponding,tg     ,ist    ,fveg   ,iloc   ,jloc ,smceq , & !in
                     bdfall ,fp     ,rain   ,snow,                    & !in  mb/an: v3.7
-        qsnow  ,qrain  ,snowhin,latheav,latheag,frozen_canopy,frozen_ground,    & !in  mb
+		    qsnow  ,qrain  ,snowhin,latheav,latheag,frozen_canopy,frozen_ground,    & !in  mb
                     isnow  ,canliq ,canice ,tv     ,snowh  ,sneqv  , & !inout
                     snice  ,snliq  ,stc    ,zsnso  ,sh2o   ,smc    , & !inout
                     sice   ,zwt    ,wa     ,wt     ,dzsnso ,wslake , & !inout
@@ -5650,6 +5940,7 @@ contains
 
 !== begin canwater =================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine canwater (parameters,vegtyp ,dt     , & !in
                        fcev   ,fctr   ,elai   , & !in
                        esai   ,tg     ,fveg   ,iloc   , jloc , & !in
@@ -5782,6 +6073,7 @@ contains
 
 !== begin snowwater ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine snowwater (parameters,nsnow  ,nsoil  ,imelt  ,dt     ,zsoil  , & !in
                         sfctmp ,snowhin,qsnow  ,qsnfro ,qsnsub , & !in
                         qrain  ,ficeold,iloc   ,jloc   ,         & !in
@@ -5915,6 +6207,7 @@ contains
 
 !== begin snowfall =================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine snowfall (parameters,nsoil  ,nsnow  ,dt     ,qsnow  ,snowhin , & !in
                        sfctmp ,iloc   ,jloc   ,                  & !in
                        isnow  ,snowh  ,dzsnso ,stc    ,snice   , & !inout
@@ -5985,6 +6278,7 @@ contains
 
 !== begin combine ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine combine (parameters,nsnow  ,nsoil  ,iloc   ,jloc   ,         & !in
                       isnow  ,sh2o   ,stc    ,snice  ,snliq  , & !inout
                       dzsnso ,sice   ,snowh  ,sneqv  ,         & !inout
@@ -6040,19 +6334,19 @@ contains
                 snliq(j-1) = snliq(j-1) + snliq(j)
                 snice(j-1) = snice(j-1) + snice(j)
                else
-           if(snice(j) >= 0.) then
+	         if(snice(j) >= 0.) then
                   ponding1 = snliq(j)    ! isnow will get set to zero below; ponding1 will get 
                   sneqv = snice(j)       ! added to ponding from phasechange ponding should be
                   snowh = dzsnso(j)      ! zero here because it was calculated for thin snow
-     else   ! snice over-sublimated earlier
-      ponding1 = snliq(j) + snice(j)
-      if(ponding1 < 0.) then  ! if snice and snliq sublimates remove from soil
-       sice(1) = max(0.0,sice(1)+ponding1/(dzsnso(1)*1000.))
+		 else   ! snice over-sublimated earlier
+		  ponding1 = snliq(j) + snice(j)
+		  if(ponding1 < 0.) then  ! if snice and snliq sublimates remove from soil
+		   sice(1) = max(0.0,sice(1)+ponding1/(dzsnso(1)*1000.))
                    ponding1 = 0.0
-      end if
+		  end if
                   sneqv = 0.0
                   snowh = 0.0
-     end if
+		 end if
                  snliq(j) = 0.0
                  snice(j) = 0.0
                  dzsnso(j) = 0.0
@@ -6171,6 +6465,7 @@ contains
 
 !== begin divide ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine divide (parameters,nsnow  ,nsoil  ,                         & !in
                      isnow  ,stc    ,snice  ,snliq  ,dzsnso  )  !inout
 ! ----------------------------------------------------------------------
@@ -6299,6 +6594,7 @@ contains
 
 !== begin combo ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine combo(parameters,dz,  wliq,  wice, t, dz2, wliq2, wice2, t2)
 ! ----------------------------------------------------------------------
     implicit none
@@ -6353,6 +6649,7 @@ contains
 
 !== begin compact ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine compact (parameters,nsnow  ,nsoil  ,dt     ,stc    ,snice  , & !in
                       snliq  ,zsoil  ,imelt  ,ficeold,iloc   , jloc , & !in
                       isnow  ,dzsnso ,zsnso )                    !inout
@@ -6458,6 +6755,7 @@ contains
 
 !== begin snowh2o ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine snowh2o (parameters,nsnow  ,nsoil  ,dt     ,qsnfro ,qsnsub , & !in 
                       qrain  ,iloc   ,jloc   ,                 & !in
                       isnow  ,dzsnso ,snowh  ,sneqv  ,snice  , & !inout
@@ -6611,6 +6909,7 @@ contains
 
 !== begin soilwater ================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine soilwater (parameters,nsoil  ,nsnow  ,dt     ,zsoil  ,dzsnso , & !in
                         qinsur ,qseva  ,etrani ,sice   ,iloc   , jloc, & !in
                         sh2o   ,smc    ,zwt    ,vegtyp ,& !inout
@@ -6871,6 +7170,7 @@ contains
 
 !== begin zwteq ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine zwteq (parameters,nsoil  ,nsnow  ,zsoil  ,dzsnso ,sh2o   ,zwt)
 ! ----------------------------------------------------------------------
 ! calculate equilibrium water table depth (niu et al., 2005)
@@ -6927,6 +7227,7 @@ contains
 
 !== begin infil ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine infil (parameters,nsoil  ,dt     ,zsoil  ,sh2o   ,sice   , & !in
                     sicemax,qinsur ,                         & !in
                     pddum  ,runsrf )                           !out
@@ -7027,6 +7328,7 @@ contains
 
 !== begin srt ======================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine srt (parameters,nsoil  ,zsoil  ,dt     ,pddum  ,etrani , & !in
                   qseva  ,sh2o   ,smc    ,zwt    ,fcr    , & !in
                   sicemax,fcrmax ,iloc   ,jloc   ,smcwtd ,         & !in
@@ -7160,6 +7462,7 @@ contains
 
 !== begin sstep ====================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine sstep (parameters,nsoil  ,nsnow  ,dt     ,zsoil  ,dzsnso , & !in
                     sice   ,iloc   ,jloc   ,zwt            ,                 & !in
                     sh2o   ,smc    ,ai     ,bi     ,ci     , & !inout
@@ -7271,6 +7574,7 @@ contains
 
 !== begin wdfcnd1 ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine wdfcnd1 (parameters,wdf,wcnd,smc,fcr)
 ! ----------------------------------------------------------------------
 ! calculate soil water diffusivity and soil hydraulic conductivity.
@@ -7309,6 +7613,7 @@ contains
 
 !== begin wdfcnd2 ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine wdfcnd2 (parameters,wdf,wcnd,smc,sice)
 ! ----------------------------------------------------------------------
 ! calculate soil water diffusivity and soil hydraulic conductivity.
@@ -7350,6 +7655,7 @@ contains
 
 !== begin groundwater ==============================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine groundwater(parameters,nsnow  ,nsoil  ,dt     ,sice   ,zsoil  , & !in
                          stc    ,wcnd   ,fcrmax ,iloc   ,jloc   , & !in
                          sh2o   ,zwt    ,wa     ,wt     ,         & !inout
@@ -7537,6 +7843,7 @@ contains
 
 !== begin shallowwatertable ========================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine shallowwatertable (parameters,nsnow  ,nsoil  ,zsoil, dt    , & !in
                          dzsnso ,smceq ,iloc   ,jloc         , & !in
                          smc    ,wtd   ,smcwtd ,rech, qdrain  )  !inout
@@ -7676,6 +7983,7 @@ end  subroutine shallowwatertable
 
 !== begin carbon ===================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine carbon (parameters,nsnow  ,nsoil  ,vegtyp ,dt     ,zsoil  , & !in
                      dzsnso ,stc    ,smc    ,tv     ,tg     ,psn    , & !in
                      foln   ,btran  ,apar   ,fveg   ,igs    , & !in
@@ -7789,6 +8097,7 @@ end  subroutine shallowwatertable
 
 !== begin co2flux ==================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine co2flux (parameters,nsnow  ,nsoil  ,vegtyp ,igs    ,dt     , & !in
                       dzsnso ,stc    ,psn    ,troot  ,tv     , & !in
                       wroot  ,wstres ,foln   ,lapm   ,         & !in
@@ -8157,6 +8466,7 @@ end  subroutine shallowwatertable
 
 !== begin noahmp_options ===========================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine noahmp_options(idveg     ,iopt_crs  ,iopt_btr  ,iopt_run  ,iopt_sfc  ,iopt_frz , & 
                              iopt_inf  ,iopt_rad  ,iopt_alb  ,iopt_snf  ,iopt_tbot, iopt_stc )
 
@@ -8197,5 +8507,4 @@ end  subroutine shallowwatertable
  
 
 end module module_sf_noahmplsm
-
 

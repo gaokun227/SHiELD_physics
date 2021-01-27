@@ -1,40 +1,116 @@
+#ifdef CCPP
+!>  \file sfc_noahmp_drv.f
+!!  This file contains the NoahMP land surface scheme driver.
+
+!>\defgroup NoahMP_LSM NoahMP LSM Model
+!! \brief This is the NoahMP LSM driver module, with the functionality of 
+!! preparing variables to run the NoahMP LSM subroutine noahmp_sflx(), calling NoahMP LSM and post-processing
+!! variables for return to the parent model suite including unit conversion, as well
+!! as diagnotics calculation.
+
+!> This module contains the CCPP-compliant NoahMP land surface model driver.
+      module noahmpdrv
+
+      implicit none
+
+      private
+
+      public :: noahmpdrv_init, noahmpdrv, noahmpdrv_finalize
+
+      contains
+
+!> \ingroup NoahMP_LSM
+!! \brief This subroutine is called during the CCPP initialization phase and calls set_soilveg() to 
+!! initialize soil and vegetation parameters for the chosen soil and vegetation data sources.
+!! \section arg_table_noahmpdrv_init Argument Table
+!! \htmlinclude noahmpdrv_init.html
+!!
+      subroutine noahmpdrv_init(me, isot, ivegsrc, nlunit, errmsg,      &
+     &                          errflg)
+        
+        use set_soilveg_mod,  only: set_soilveg
+        
+        implicit none
+      
+        integer,              intent(in)  :: me, isot, ivegsrc, nlunit
+        character(len=*),     intent(out) :: errmsg
+        integer,              intent(out) :: errflg
+
+        ! Initialize CCPP error handling variables
+        errmsg = ''
+        errflg = 0
+
+        !--- initialize soil vegetation
+        call set_soilveg(me, isot, ivegsrc, nlunit)
+      
+      end subroutine noahmpdrv_init
+
+      subroutine noahmpdrv_finalize
+      end subroutine noahmpdrv_finalize
+#endif
+
+!> \ingroup NoahMP_LSM
+!! \brief This subroutine is the main CCPP entry point for the NoahMP LSM.
+!! \section arg_table_noahmpdrv_run Argument Table
+!! \htmlinclude noahmpdrv_run.html
+!!
+!! \section general_noahmpdrv NoahMP Driver General Algorithm
+!!  @{
+!!    - Initialize CCPP error handling variables.
+!!    - Set a flag to only continue with each grid cell if the fraction of land is non-zero.
+!!    - This driver may be called as part of an iterative loop. If called as the first "guess" run, 
+!!        save land-related prognostic fields to restore.
+!!    - Initialize output variables to zero and prepare variables for input into the NoahMP LSM.
+!!    - Call transfer_mp_parameters() to fill a derived datatype for input into the NoahMP LSM.
+!!    - Call noahmp_options() to set module-level scheme options for the NoahMP LSM.
+!!    - If the vegetation type is ice for the grid cell, call noahmp_options_glacier() to set 
+!!        module-level scheme options for NoahMP Glacier and call noahmp_glacier().
+!!    - For other vegetation types, call noahmp_sflx(), the entry point of the NoahMP LSM.
+!!    - Set output variables from the output of noahmp_glacier() and/or noahmp_sflx().
+!!    - Call penman() to calculate potential evaporation.
+!!    - Calculate the surface specific humidity and convert surface sensible and latent heat fluxes in W m-2 from their kinematic values.
+!!    - If a "guess" run, restore the land-related prognostic fields.
 !                                                                       !
 !-----------------------------------
       subroutine noahmpdrv                                              &
 !...................................
 !  ---  inputs:
-     &     ( im, km,itime,ps, u1, v1, t1, q1, soiltyp, vegtype, sigmaf, &
-     &       sfcemis, dlwflx, dswsfc, snet, delt, tg3, cm, ch,          &
+     &     ( im, km, itime, ps, u1, v1, t1, q1, soiltyp, vegtype,       &
+     &       sigmaf, sfcemis, dlwflx, dswsfc, snet, delt, tg3, cm, ch,  &
      &       prsl1, prslki, zf, dry, wind, slopetyp,                    &
      &       shdmin, shdmax, snoalb, sfalb, flag_iter, flag_guess,      &
-     &       idveg,iopt_crs, iopt_btr, iopt_run, iopt_sfc, iopt_frz,    &
-     &       iopt_inf,iopt_rad, iopt_alb, iopt_snf,iopt_tbot,iopt_stc,  &
-     &       xlatin,xcoszin, iyrlen, julian,imon,                       &
-     &       rainn_mp,rainc_mp,snow_mp,graupel_mp,ice_mp,               &
+     &       idveg, iopt_crs, iopt_btr, iopt_run, iopt_sfc, iopt_frz,   &
+     &       iopt_inf, iopt_rad, iopt_alb, iopt_snf, iopt_tbot,         &
+     &       iopt_stc, xlatin, xcoszin, iyrlen, julian,                 &
+     &       rainn_mp, rainc_mp, snow_mp, graupel_mp, ice_mp,           &
+     &       con_hvap, con_cp, con_jcal, rhoh2o, con_eps, con_epsm1,    &
+     &       con_fvirt, con_rd, con_hfus,                               &
 
 !  ---  in/outs:
      &       weasd, snwdph, tskin, tprcp, srflag, smc, stc, slc,        &
-     &       canopy, trans, tsurf,zorl,                                 &
+     &       canopy, trans, tsurf, zorl,                                &
 
 ! --- Noah MP specific
 
-     &      snowxy, tvxy, tgxy, canicexy,canliqxy, eahxy,tahxy,cmxy,    &
-     &      chxy, fwetxy, sneqvoxy, alboldxy, qsnowxy, wslakexy,        &
-     &      zwtxy, waxy, wtxy, tsnoxy,zsnsoxy,  snicexy,  snliqxy,      &
-     &      lfmassxy, rtmassxy,stmassxy, woodxy, stblcpxy, fastcpxy,    &
-     &      xlaixy,xsaixy,taussxy,smoiseq,smcwtdxy,deeprechxy,rechxy,   &
+     &       snowxy, tvxy, tgxy, canicexy, canliqxy, eahxy, tahxy, cmxy,&
+     &       chxy, fwetxy, sneqvoxy, alboldxy, qsnowxy, wslakexy, zwtxy,&
+     &       waxy, wtxy, tsnoxy, zsnsoxy, snicexy, snliqxy, lfmassxy,   &
+     &       rtmassxy, stmassxy, woodxy, stblcpxy, fastcpxy, xlaixy,    &
+     &       xsaixy, taussxy, smoiseq, smcwtdxy, deeprechxy, rechxy,    &
 
 !  ---  outputs:
      &       sncovr1, qsurf, gflux, drain, evap, hflx, ep, runoff,      &
      &       cmm, chh, evbs, evcw, sbsno, snowc, stm, snohf,            &
-     &       smcwlt2, smcref2,wet1,t2mmp,q2mp)     
+#ifdef CCPP
+     &       smcwlt2, smcref2, wet1, t2mmp, q2mp, errmsg, errflg)     
+#else
+     &       smcwlt2, smcref2, wet1, t2mmp, q2mp)     
+#endif
 !
 !
       use machine ,   only : kind_phys
 !     use date_def,   only : idate
       use funcphys,   only : fpvs
-      use physcons,   only : con_g, con_hvap, con_cp, con_jcal,         &
-     &                con_eps, con_epsm1, con_fvirt, con_rd,con_hfus
 
       use module_sf_noahmplsm
       use module_sf_noahmp_glacier
@@ -44,22 +120,12 @@
      &                       saim_table,laim_table
 
       implicit none
-
-!  ---  constant parameters:
-
-      real(kind=kind_phys), parameter :: cpinv   = 1.0/con_cp
-      real(kind=kind_phys), parameter :: hvapi   = 1.0/con_hvap
-      real(kind=kind_phys), parameter :: elocp   = con_hvap/con_cp
-      real(kind=kind_phys), parameter :: rhoh2o  = 1000.0
-      real(kind=kind_phys), parameter :: convrad = con_jcal*1.e4/60.0
+      
       real(kind=kind_phys), parameter :: a2      = 17.2693882
       real(kind=kind_phys), parameter :: a3      = 273.16
       real(kind=kind_phys), parameter :: a4      = 35.86
       real(kind=kind_phys), parameter :: a23m4   = a2*(a3-a4)
-!
-!  ---
-!
-
+      
       real, parameter                 :: undefined       =  -1.e36
 
       real                            :: dz8w    =  undefined
@@ -80,7 +146,7 @@
 !  ---  input:
 !
 
-      integer, intent(in) :: im, km, itime,imon
+      integer, intent(in) :: im, km, itime
 
       integer, dimension(im), intent(in) :: soiltyp, vegtype, slopetyp
 
@@ -105,9 +171,13 @@
       real (kind=kind_phys),  intent(in) :: delt
       logical, dimension(im), intent(in) :: flag_iter, flag_guess
 
+      real (kind=kind_phys),  intent(in) :: con_hvap, con_cp, con_jcal, &
+     &                      rhoh2o, con_eps, con_epsm1, con_fvirt,      &
+     &                      con_rd, con_hfus
+
 !  ---  in/out:
       real (kind=kind_phys), dimension(im), intent(inout) :: weasd,     &
-     &       snwdph, tskin, tprcp, srflag, canopy, trans, tsurf,zorl
+     &       snwdph, tskin, tprcp, srflag, canopy, trans, tsurf, zorl
 
       real (kind=kind_phys), dimension(im,km), intent(inout) ::         &
      &       smc, stc, slc
@@ -128,14 +198,20 @@
       integer, dimension(im)                   :: jsnowxy
       real (kind=kind_phys),dimension(im)      :: snodep
       real (kind=kind_phys),dimension(im,-2:4) :: tsnsoxy
-
+      
 !  ---  output:
 
       real (kind=kind_phys), dimension(im), intent(out) :: sncovr1,     &
      &       qsurf, gflux, drain, evap, hflx, ep, runoff, cmm, chh,     &
-     &    evbs, evcw, sbsno, snowc, stm, snohf, smcwlt2, smcref2,wet1,  &
-     &    t2mmp,q2mp 
-    
+     &    evbs, evcw, sbsno, snowc, stm, snohf, smcwlt2, smcref2, wet1
+      real (kind=kind_phys), dimension(:), intent(out) :: t2mmp, q2mp
+
+#ifdef CCPP
+! error messages
+      character(len=*), intent(out)    :: errmsg
+      integer,          intent(out)    :: errflg
+#endif
+
 !  ---  locals:
       real (kind=kind_phys), dimension(im) :: rch, rho,                 &
      &       q0, qs1, theta1, tv1,  weasd_old, snwdph_old,              &
@@ -199,12 +275,26 @@
       integer :: i, k, ice, stype, vtype ,slope,nroot,couple
       logical :: flag(im)
       logical :: snowng,frzgra
+      
+      !  ---  local derived constants:
 
+      real(kind=kind_phys) :: cpinv, hvapi, convrad, elocp
+      
       type(noahmp_parameters) :: parameters
 
 !
 !===> ...  begin here
-!
+!     
+      cpinv   = 1.0/con_cp
+      hvapi   = 1.0/con_hvap
+      convrad = con_jcal*1.e4/60.0
+      elocp   = con_hvap/con_cp
+
+#ifdef CCPP
+! Initialize CCPP error handling variables
+      errmsg = ''
+      errflg = 0
+#endif
 
 !  --- ...  set flag for land points
 
@@ -591,8 +681,15 @@
      &             fsa     ,fsr     ,fira    ,fsh     ,fgev  ,ssoil   , & ! out : 
      &             trad    ,edir    ,runsrf  ,runsub  ,sag   ,albedo  , & ! out : albedo is surface albedo
      &             qsnbot  ,ponding ,ponding1,ponding2,t2mb  ,q2b     , & ! out :
+#ifdef CCPP
+     &             emissi  ,fpice   ,ch2b    ,esnow, errmsg, errflg )
+#else
      &             emissi  ,fpice   ,ch2b    ,esnow )
+#endif
 
+#ifdef CCPP
+       if (errflg /= 0) return
+#endif
 !
 ! in/out and outs
 !
@@ -671,13 +768,20 @@
      &        shg     , shc     , shb     , evg     , evb     , ghv    ,&! out :
      &        ghb     , irg     , irc     , irb     , tr      , evc    ,& ! out :
      &        chleaf  , chuc    , chv2    , chb2    , fpice   , pahv   ,& ! out
-     &        pahg    , pahb    , pah     , esnow   ) 
+#ifdef CCPP
+     &        pahg    , pahb    , pah     , esnow, errmsg, errflg   )
+#else
+     &        pahg    , pahb    , pah     , esnow   )
+#endif
 
+#ifdef CCPP
+       if (errflg /= 0) return
+#endif
 
        eta  = fcev + fgev + fctr     ! the flux w/m2
 
-        t2mmp(i) = t2mv*fveg+t2mb*(1-fveg) 
-        q2mp(i) = q2v*fveg+q2b*(1-fveg) 
+       t2mmp(i) = t2mv*fveg+t2mb*(1-fveg) 
+       q2mp(i) = q2v*fveg+q2b*(1-fveg)
 
       endif          ! glacial split ends
 
@@ -887,8 +991,12 @@
       return
 !...................................
       end subroutine noahmpdrv
+!> @}
 !-----------------------------------
 
+!> \ingroup NoahMP_LSM
+!! \brief This subroutine fills in a derived data type of type noahmp_parameters with data
+!! from the module \ref noahmp_tables.
       subroutine transfer_mp_parameters (vegtype,soiltype,slopetype,    &
      &                                          soilcolor,parameters)
      
@@ -1053,7 +1161,10 @@
 
 !-----------------------------------------------------------------------&
 
-
+!> \ingroup NoahMP_LSM
+!! brief Calculate potential evaporation for the current point. Various
+!! partial sums/products are also calculated and passed back to the
+!! calling routine for later use.
       subroutine penman (sfctmp,sfcprs,ch,t2v,th2,prcp,fdown,ssoil,     &
      &                   q2,q2sat,etp,snowng,frzgra,ffrozp,             &
      &                   dqsdt2,emissi_in,sncovr)
@@ -1063,14 +1174,10 @@
 ! ----------------------------------------------------------------------
 ! subroutine penman
 ! ----------------------------------------------------------------------
-! calculate potential evaporation for the current point.  various
-! partial sums/products are also calculated and passed back to the
-! calling routine for later use.
-! ----------------------------------------------------------------------
       implicit none
       logical, intent(in)     :: snowng, frzgra
       real, intent(in)        :: ch, dqsdt2,fdown,prcp,ffrozp,          &
-     &                           q2, q2sat, ssoil, sfcprs, sfctmp,      &
+     &                           q2, q2sat,ssoil, sfcprs, sfctmp,       &
      &                           t2v, th2,emissi_in,sncovr
       real, intent(out)       :: etp
       real                    :: epsca,flx2,rch,rr,t24
@@ -1135,5 +1242,6 @@
 ! ----------------------------------------------------------------------
       end subroutine penman
 
-
-
+#ifdef CCPP
+      end module noahmpdrv
+#endif

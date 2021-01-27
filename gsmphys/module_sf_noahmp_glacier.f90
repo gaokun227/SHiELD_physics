@@ -1,3 +1,7 @@
+!>  \file module_sf_noahmp_glacier.f90
+!!  This file contains the NoahMP Glacier scheme.
+
+!>\ingroup NoahMP_LSM
 module noahmp_glacier_globals
 
   implicit none
@@ -109,9 +113,12 @@ module noahmp_glacier_globals
 end module noahmp_glacier_globals
 !------------------------------------------------------------------------------------------!
 
+!>\ingroup NoahMP_LSM
 module noahmp_glacier_routines
   use noahmp_glacier_globals
+#ifndef CCPP
   use  module_wrf_utl
+#endif
   implicit none
 
   public  :: noahmp_options_glacier
@@ -148,6 +155,7 @@ contains
 !
 ! ==================================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine noahmp_glacier (&
                    iloc    ,jloc    ,cosz    ,nsnow   ,nsoil   ,dt      , & ! in : time/space/model-related
                    sfctmp  ,sfcprs  ,uu      ,vv      ,q2      ,soldn   , & ! in : forcing
@@ -158,7 +166,12 @@ contains
                    fsa     ,fsr     ,fira    ,fsh     ,fgev    ,ssoil   , & ! out : 
                    trad    ,edir    ,runsrf  ,runsub  ,sag     ,albedo  , & ! out :
                    qsnbot  ,ponding ,ponding1,ponding2,t2m     ,q2e     , & ! out :
+#ifdef CCPP
+                   emissi,  fpice   ,ch2b    , esnow, errmsg, errflg) 
+#else
                    emissi,  fpice   ,ch2b    , esnow) 
+#endif
+                   
 
 ! --------------------------------------------------------------------------------------------------
 ! initial code: guo-yue niu, oct. 2007
@@ -232,6 +245,11 @@ contains
   real                           , intent(out)   :: ch2b
   real                           , intent(out)   :: esnow
 
+#ifdef CCPP  
+  character(len=*), intent(inout)    :: errmsg
+  integer,          intent(inout)    :: errflg
+#endif
+  
 ! local
   integer                                        :: iz     !do-loop index
   integer, dimension(-nsnow+1:nsoil)             :: imelt  !phase change index [1-melt; 2-freeze]
@@ -282,10 +300,18 @@ contains
                          tbot   ,zbot   ,zsnso  ,dzsnso ,                 & !in
                          tg     ,stc    ,snowh  ,sneqv  ,sneqvo ,sh2o   , & !inout
                          smc    ,snice  ,snliq  ,albold ,cm     ,ch     , & !inout
+#ifdef CCPP
+                         tauss  ,qsfc   ,errmsg ,errflg ,                 & !inout
+#else
                          tauss  ,qsfc   ,                                 & !inout
+#endif
                          imelt  ,snicev ,snliqv ,epore  ,qmelt  ,ponding, & !out
-             sag    ,fsa    ,fsr    ,fira   ,fsh    ,fgev   , & !out
-             trad   ,t2m    ,ssoil  ,lathea ,q2e    ,emissi, ch2b )   !out
+                         sag    ,fsa    ,fsr    ,fira   ,fsh    ,fgev   , & !out
+                         trad   ,t2m    ,ssoil  ,lathea ,q2e    ,emissi, ch2b )   !out
+
+#ifdef CCPP
+    if (errflg /= 0) return
+#endif
 
     sice = max(0.0, smc - sh2o)   
     sneqvo  = sneqv
@@ -312,7 +338,15 @@ contains
 
      call error_glacier (iloc   ,jloc   ,swdown ,fsa    ,fsr    ,fira   , &
                          fsh    ,fgev   ,ssoil  ,sag    ,prcp   ,edir   , &
-             runsrf ,runsub ,sneqv  ,dt     ,beg_wb )
+#ifdef CCPP
+                         runsrf ,runsub ,sneqv  ,dt     ,beg_wb, errmsg, errflg )
+#else
+                         runsrf ,runsub ,sneqv  ,dt     ,beg_wb )
+#endif
+
+#ifdef CCPP
+     if (errflg /= 0) return
+#endif
 
     if(snowh <= 1.e-6 .or. sneqv <= 1.e-3) then
      snowh = 0.0
@@ -328,6 +362,7 @@ contains
 
   end subroutine noahmp_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine atm_glacier (sfcprs ,sfctmp ,q2     ,soldn  ,cosz   ,thair  , &
                           qair   ,eair   ,rhoair ,solad  ,solai  , &
                           swdown )     
@@ -381,13 +416,18 @@ contains
   end subroutine atm_glacier
 ! ==================================================================================================
 ! --------------------------------------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine energy_glacier (nsnow  ,nsoil  ,isnow  ,dt     ,qsnow  ,rhoair , & !in
                              eair   ,sfcprs ,qair   ,sfctmp ,lwdn   ,uu     , & !in
                              vv     ,solad  ,solai  ,cosz   ,zref   ,         & !in
                              tbot   ,zbot   ,zsnso  ,dzsnso ,                 & !in
                              tg     ,stc    ,snowh  ,sneqv  ,sneqvo ,sh2o   , & !inout
                              smc    ,snice  ,snliq  ,albold ,cm     ,ch     , & !inout
+#ifdef CCPP
+                             tauss  ,qsfc   ,errmsg, errflg,                  & !inout
+#else
                              tauss  ,qsfc   ,                                 & !inout
+#endif
                              imelt  ,snicev ,snliqv ,epore  ,qmelt  ,ponding, & !out
                              sag    ,fsa    ,fsr    ,fira   ,fsh    ,fgev   , & !out
                              trad   ,t2m    ,ssoil  ,lathea ,q2e    ,emissi, ch2b )   !out
@@ -437,6 +477,11 @@ contains
   real                              , intent(inout) :: ch     !sensible heat exchange coefficient
   real                              , intent(inout) :: tauss  !snow aging factor
   real                              , intent(inout) :: qsfc   !mixing ratio at lowest model layer
+  
+#ifdef CCPP  
+  character(len=*)                  , intent(inout) :: errmsg
+  integer                           , intent(inout) :: errflg
+#endif
 
 ! outputs
   integer, dimension(-nsnow+1:nsoil), intent(out)   :: imelt  !phase change index [1-melt; 2-freeze]
@@ -519,17 +564,29 @@ contains
 
     call glacier_flux (nsoil   ,nsnow   ,emg     ,isnow   ,df      ,dzsnso  ,z0mg    , & !in
                        zlvl    ,zpd     ,qair    ,sfctmp  ,rhoair  ,sfcprs  , & !in
-           ur      ,gamma   ,rsurf   ,lwdn    ,rhsur   ,smc     , & !in
-           eair    ,stc     ,sag     ,snowh   ,lathea  ,sh2o    , & !in
-           cm      ,ch      ,tg      ,qsfc    ,          & !inout
-           fira    ,fsh     ,fgev    ,ssoil   ,          & !out
-           t2m     ,q2e     ,ch2b)                         !out 
+                       ur      ,gamma   ,rsurf   ,lwdn    ,rhsur   ,smc     , & !in
+                       eair    ,stc     ,sag     ,snowh   ,lathea  ,sh2o    , & !in
+#ifdef CCPP
+                       cm      ,ch      ,tg      ,qsfc    ,errmsg  ,errflg  , & !inout
+#else
+                       cm      ,ch      ,tg      ,qsfc    ,          & !inout
+#endif
+                       fira    ,fsh     ,fgev    ,ssoil   ,          & !out
+                       t2m     ,q2e     ,ch2b)                         !out 
 
 !energy balance at surface: sag=(irb+shb+evb+ghb)
 
     fire = lwdn + fira
 
-    if(fire <=0.) call wrf_error_fatal("stop in noah-mp: emitted longwave <0")
+    if(fire <=0.) then
+#ifdef CCPP
+      errflg = 1
+      errmsg = "stop in noah-mp: emitted longwave <0"
+      return 
+#else
+      call wrf_error_fatal("stop in noah-mp: emitted longwave <0")
+#endif
+    end if
 
     ! compute a net emissivity
     emissi = emg
@@ -544,7 +601,7 @@ contains
 
     call tsnosoi_glacier (nsoil   ,nsnow   ,isnow   ,dt      ,tbot    , & !in
                           ssoil   ,snowh   ,zbot    ,zsnso   ,df      , & !in
-              hcpct   ,                                     & !in
+		          hcpct   ,                                     & !in
                           stc     )                                       !inout
 
 ! adjusting snow surface temperature
@@ -563,6 +620,7 @@ contains
 
   end subroutine energy_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine thermoprop_glacier (nsoil   ,nsnow   ,isnow   ,dzsnso  , & !in
                                  dt      ,snowh   ,snice   ,snliq   , & !in
                                  df      ,hcpct   ,snicev  ,snliqv  ,epore   , & !out
@@ -636,6 +694,7 @@ contains
   end subroutine thermoprop_glacier
 ! ==================================================================================================
 ! --------------------------------------------------------------------------------------------------
+!>\ingroup NoahMP_LSM  
   subroutine csnow_glacier (isnow   ,nsnow   ,nsoil   ,snice   ,snliq   ,dzsnso  , & !in
                             tksno   ,cvsno   ,snicev  ,snliqv  ,epore   )   !out
 ! --------------------------------------------------------------------------------------------------
@@ -692,6 +751,7 @@ contains
 
   end subroutine csnow_glacier
 !===================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine radiation_glacier (dt      ,tg      ,sneqvo  ,sneqv   ,cosz    , & !in
                                 qsnow   ,solad   ,solai   ,                   & !in
                                 albold  ,tauss   ,                            & !inout
@@ -782,6 +842,7 @@ contains
 
   end subroutine radiation_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine snow_age_glacier (dt,tg,sneqvo,sneqv,tauss,fage)
 ! --------------------------------------------------------------------------------------------------
   implicit none
@@ -836,6 +897,7 @@ contains
   end subroutine snow_age_glacier
 ! ==================================================================================================
 ! --------------------------------------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine snowalb_bats_glacier (nband,cosz,fage,albsnd,albsni)
 ! --------------------------------------------------------------------------------------------------
   implicit none
@@ -885,6 +947,7 @@ contains
   end subroutine snowalb_bats_glacier
 ! ==================================================================================================
 ! --------------------------------------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine snowalb_class_glacier (nband,qsnow,dt,alb,albold,albsnd,albsni)
 ! --------------------------------------------------------------------------------------------------
   implicit none
@@ -930,11 +993,16 @@ contains
 
   end subroutine snowalb_class_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine glacier_flux (nsoil   ,nsnow   ,emg     ,isnow   ,df      ,dzsnso  ,z0m     , & !in
                            zlvl    ,zpd     ,qair    ,sfctmp  ,rhoair  ,sfcprs  , & !in
-         ur      ,gamma   ,rsurf   ,lwdn    ,rhsur   ,smc     , & !in
-         eair    ,stc     ,sag     ,snowh   ,lathea  ,sh2o    , & !in
+                           ur      ,gamma   ,rsurf   ,lwdn    ,rhsur   ,smc     , & !in
+                           eair    ,stc     ,sag     ,snowh   ,lathea  ,sh2o    , & !in
+#ifdef CCPP
+                           cm      ,ch      ,tgb     ,qsfc    ,errmsg  ,errflg  , & !inout
+#else
                            cm      ,ch      ,tgb     ,qsfc    ,          & !inout
+#endif
                            irb     ,shb     ,evb     ,ghb     ,          & !out
                            t2mb    ,q2b     ,ehb2)                         !out 
 
@@ -981,7 +1049,12 @@ contains
   real,                         intent(inout) :: ch     !sensible heat exchange coefficient
   real,                         intent(inout) :: tgb    !ground temperature (k)
   real,                         intent(inout) :: qsfc   !mixing ratio at lowest model layer
-
+  
+#ifdef CCPP  
+  character(len=*),             intent(inout) :: errmsg
+  integer,                      intent(inout) :: errflg
+#endif
+  
 ! output
 ! -sab + irb[tg] + shb[tg] + evb[tg] + ghb[tg] = 0
   real,                           intent(out) :: irb    !net longwave rad (w/m2)   [+ to atm]
@@ -1038,6 +1111,8 @@ contains
         dtg    = 0.
         mozsgn = 0
         mozold = 0.
+        moz    = 0.
+
         h      = 0.
         fv     = 0.1
 
@@ -1053,9 +1128,16 @@ contains
 
         call sfcdif1_glacier(iter   ,zlvl   ,zpd    ,z0h    ,z0m    , & !in
                      qair   ,sfctmp ,h      ,rhoair ,mpe    ,ur     , & !in
-       &             moz    ,mozsgn ,fm     ,fh     ,fm2    ,fh2    , & !inout
+#ifdef CCPP
+       &             moz ,mozsgn ,fm ,fh ,fm2 ,fh2   ,errmsg, errflg, & !inout
+#else 
+       &             moz ,mozsgn ,fm ,fh ,fm2 ,fh2                  , & !inout
+#endif
        &             fv     ,cm     ,ch     ,ch2)                       !out
 
+#ifdef CCPP
+        if (errflg /= 0) return
+#endif
         ramb = max(1.,1./(cm*ur))
         rahb = max(1.,1./(ch*ur))
         rawb = rahb
@@ -1112,7 +1194,7 @@ contains
 ! if snow on ground and tg > tfrz: reset tg = tfrz. reevaluate ground fluxes.
 
      sice = smc - sh2o
-     if(opt_stc == 1) then
+     if(opt_stc == 1 .or. opt_stc == 3) then
      if ((maxval(sice) > 0.0 .or. snowh > 0.0) .and. tgb > tfrz) then
           tgb = tfrz
           irb = cir * tgb**4 - emg*lwdn
@@ -1138,6 +1220,7 @@ contains
 
   end subroutine glacier_flux
 !  ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine esat(t, esw, esi, desw, desi)
 !---------------------------------------------------------------------------------------------------
 ! use polynomials to calculate saturation vapor pressure and derivative with
@@ -1189,10 +1272,14 @@ contains
 
   end subroutine esat
 ! ==================================================================================================
-
+!>\ingroup NoahMP_LSM
   subroutine sfcdif1_glacier(iter   ,zlvl   ,zpd    ,z0h    ,z0m    , & !in
                      qair   ,sfctmp ,h      ,rhoair ,mpe    ,ur     , & !in
-       &             moz    ,mozsgn ,fm     ,fh     ,fm2    ,fh2    , & !inout
+#ifdef CCPP
+       &             moz ,mozsgn ,fm ,fh ,fm2 ,fh2 ,errmsg ,errflg  , & !inout
+#else
+       &             moz ,mozsgn ,fm ,fh ,fm2 ,fh2                  , & !inout
+#endif
        &             fv     ,cm     ,ch     ,ch2     )                  !out
 ! -------------------------------------------------------------------------------------------------
 ! computing surface drag coefficient cm for momentum and ch for heat
@@ -1219,6 +1306,11 @@ contains
     real,              intent(inout) :: fh     !sen heat stability correction, weighted by prior iters
     real,              intent(inout) :: fm2    !sen heat stability correction, weighted by prior iters
     real,              intent(inout) :: fh2    !sen heat stability correction, weighted by prior iters
+
+#ifdef CCPP  
+    character(len=*),  intent(inout) :: errmsg
+    integer,           intent(inout) :: errflg
+#endif
 
 ! outputs
     real,                intent(out) :: fv     !friction velocity (m/s)
@@ -1252,7 +1344,13 @@ contains
   
     if(zlvl <= zpd) then
        write(*,*) 'critical glacier problem: zlvl <= zpd; model stops', zlvl, zpd
+#ifdef CCPP
+       errflg = 1
+       errmsg = "stop in noah-mp glacier"
+       return 
+#else
        call wrf_error_fatal("stop in noah-mp glacier")
+#endif
     endif
 
     tmpcm = log((zlvl-zpd) / z0m)
@@ -1265,7 +1363,6 @@ contains
        moz  = 0.0
        mol  = 0.0
        moz2 = 0.0
-       mozold = 0.0
     else
        tvir = (1. + 0.61*qair) * sfctmp
        tmp1 = vkc * (grav/tvir) * h/(rhoair*cpair)
@@ -1276,6 +1373,7 @@ contains
     endif
 
 ! accumulate number of times moz changes sign.
+
     if (mozold*moz .lt. 0.) mozsgn = mozsgn+1
     if (mozsgn .ge. 2) then
        moz = 0.
@@ -1348,9 +1446,10 @@ contains
 
   end subroutine sfcdif1_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine tsnosoi_glacier (nsoil   ,nsnow   ,isnow   ,dt      ,tbot    , & !in
                               ssoil   ,snowh   ,zbot    ,zsnso   ,df      , & !in
-            hcpct   ,                                     & !in
+			      hcpct   ,                                     & !in
                               stc     )                                       !inout
 ! --------------------------------------------------------------------------------------------------
 ! compute snow (up to 3l) and soil (4l) temperature. note that snow temperatures
@@ -1411,6 +1510,7 @@ contains
   end subroutine tsnosoi_glacier
 ! ==================================================================================================
 ! ----------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine hrt_glacier (nsnow     ,nsoil     ,isnow     ,zsnso     , & !in
                           stc       ,tbot      ,zbot      ,df        , & !in
                           hcpct     ,ssoil     ,phi       ,            & !in
@@ -1488,7 +1588,7 @@ contains
         if (k == isnow+1) then
            ai(k)    =   0.0
            ci(k)    = - df(k)   * ddz(k) / denom(k)
-           if (opt_stc == 1) then
+           if (opt_stc == 1 .or. opt_stc == 3) then
               bi(k) = - ci(k)
            end if                                        
            if (opt_stc == 2) then
@@ -1509,6 +1609,7 @@ contains
   end subroutine hrt_glacier
 ! ==================================================================================================
 ! ----------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine hstep_glacier (nsnow     ,nsoil     ,isnow     ,dt        ,  & !in
                             ai        ,bi        ,ci        ,rhsts     ,  & !inout
                             stc       )                                     !inout
@@ -1563,6 +1664,7 @@ contains
 
   end subroutine hstep_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine rosr12_glacier (p,a,b,c,d,delta,ntop,nsoil,nsnow)
 ! ----------------------------------------------------------------------
 ! subroutine rosr12
@@ -1623,6 +1725,7 @@ contains
   end subroutine rosr12_glacier
 ! ----------------------------------------------------------------------
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine phasechange_glacier (nsnow   ,nsoil   ,isnow   ,dt      ,fact    , & !in
                                   dzsnso  ,                                     & !in
                                   stc     ,snice   ,snliq   ,sneqv   ,snowh   , & !inout
@@ -1744,11 +1847,11 @@ contains
         if (heatr(1) > 0.) then
               xm(1) = heatr(1)*dt/hfus             
               hm(1) = heatr(1) 
-        imelt(1) = 1                   
+	      imelt(1) = 1                   
         else
               xm(1) = 0.
               hm(1) = 0.
-        imelt(1) = 0                   
+	      imelt(1) = 0                   
         endif
         qmelt   = max(0.,(temp1-sneqv))/dt
         xmf     = hfus*qmelt
@@ -1795,21 +1898,21 @@ contains
     if (any(stc(1:4) > tfrz) .and. any(stc(1:4) < tfrz)) then
       do j = 1,nsoil
         if ( stc(j) > tfrz ) then                                       
-    heatr(j) = (stc(j)-tfrz)/fact(j)
+	  heatr(j) = (stc(j)-tfrz)/fact(j)
           do k = 1,nsoil
-      if (j .ne. k .and. stc(k) < tfrz .and. heatr(j) > 0.1) then
-        heatr(k) = (stc(k)-tfrz)/fact(k)
-        if (abs(heatr(k)) > heatr(j)) then  ! layer absorbs all
-          heatr(k) = heatr(k) + heatr(j)
-    stc(k) = tfrz + heatr(k)*fact(k)
-    heatr(j) = 0.0
+	    if (j .ne. k .and. stc(k) < tfrz .and. heatr(j) > 0.1) then
+	      heatr(k) = (stc(k)-tfrz)/fact(k)
+	      if (abs(heatr(k)) > heatr(j)) then  ! layer absorbs all
+	        heatr(k) = heatr(k) + heatr(j)
+		stc(k) = tfrz + heatr(k)*fact(k)
+		heatr(j) = 0.0
               else
-          heatr(j) = heatr(j) + heatr(k)
-    heatr(k) = 0.0
-    stc(k) = tfrz
+	        heatr(j) = heatr(j) + heatr(k)
+		heatr(k) = 0.0
+		stc(k) = tfrz
               end if
-      end if
-    end do
+	    end if
+	  end do
           stc(j) = tfrz + heatr(j)*fact(j)
         end if
       end do
@@ -1820,21 +1923,21 @@ contains
     if (any(stc(1:4) > tfrz) .and. any(stc(1:4) < tfrz)) then
       do j = 1,nsoil
         if ( stc(j) < tfrz ) then                                       
-    heatr(j) = (stc(j)-tfrz)/fact(j)
+	  heatr(j) = (stc(j)-tfrz)/fact(j)
           do k = 1,nsoil
-      if (j .ne. k .and. stc(k) > tfrz .and. heatr(j) < -0.1) then
-        heatr(k) = (stc(k)-tfrz)/fact(k)
-        if (heatr(k) > abs(heatr(j))) then  ! layer absorbs all
-          heatr(k) = heatr(k) + heatr(j)
-    stc(k) = tfrz + heatr(k)*fact(k)
-    heatr(j) = 0.0
+	    if (j .ne. k .and. stc(k) > tfrz .and. heatr(j) < -0.1) then
+	      heatr(k) = (stc(k)-tfrz)/fact(k)
+	      if (heatr(k) > abs(heatr(j))) then  ! layer absorbs all
+	        heatr(k) = heatr(k) + heatr(j)
+		stc(k) = tfrz + heatr(k)*fact(k)
+		heatr(j) = 0.0
               else
-          heatr(j) = heatr(j) + heatr(k)
-    heatr(k) = 0.0
-    stc(k) = tfrz
+	        heatr(j) = heatr(j) + heatr(k)
+		heatr(k) = 0.0
+		stc(k) = tfrz
               end if
-      end if
-    end do
+	    end if
+	  end do
           stc(j) = tfrz + heatr(j)*fact(j)
         end if
       end do
@@ -1845,25 +1948,25 @@ contains
     if (any(stc(1:4) > tfrz) .and. any(mice(1:4) > 0.)) then
       do j = 1,nsoil
         if ( stc(j) > tfrz ) then                                       
-    heatr(j) = (stc(j)-tfrz)/fact(j)
+	  heatr(j) = (stc(j)-tfrz)/fact(j)
           xm(j) = heatr(j)*dt/hfus                           
           do k = 1,nsoil
-      if (j .ne. k .and. mice(k) > 0. .and. xm(j) > 0.1) then
-        if (mice(k) > xm(j)) then  ! layer absorbs all
-          mice(k) = mice(k) - xm(j)
-    xmf = xmf + hfus * xm(j)/dt
-    stc(k) = tfrz
-    xm(j) = 0.0
+	    if (j .ne. k .and. mice(k) > 0. .and. xm(j) > 0.1) then
+	      if (mice(k) > xm(j)) then  ! layer absorbs all
+	        mice(k) = mice(k) - xm(j)
+		xmf = xmf + hfus * xm(j)/dt
+		stc(k) = tfrz
+		xm(j) = 0.0
               else
-          xm(j) = xm(j) - mice(k)
-    xmf = xmf + hfus * mice(k)/dt
-    mice(k) = 0.0
-    stc(k) = tfrz
+	        xm(j) = xm(j) - mice(k)
+		xmf = xmf + hfus * mice(k)/dt
+		mice(k) = 0.0
+		stc(k) = tfrz
               end if
               mliq(k) = max(0.,wmass0(k)-mice(k))
-      end if
-    end do
-    heatr(j) = xm(j)*hfus/dt
+	    end if
+	  end do
+	  heatr(j) = xm(j)*hfus/dt
           stc(j) = tfrz + heatr(j)*fact(j)
         end if
       end do
@@ -1874,25 +1977,25 @@ contains
     if (any(stc(1:4) < tfrz) .and. any(mliq(1:4) > 0.)) then
       do j = 1,nsoil
         if ( stc(j) < tfrz ) then                                       
-    heatr(j) = (stc(j)-tfrz)/fact(j)
+	  heatr(j) = (stc(j)-tfrz)/fact(j)
           xm(j) = heatr(j)*dt/hfus                           
           do k = 1,nsoil
-      if (j .ne. k .and. mliq(k) > 0. .and. xm(j) < -0.1) then
-        if (mliq(k) > abs(xm(j))) then  ! layer absorbs all
-          mice(k) = mice(k) - xm(j)
-    xmf = xmf + hfus * xm(j)/dt
-    stc(k) = tfrz
-    xm(j) = 0.0
+	    if (j .ne. k .and. mliq(k) > 0. .and. xm(j) < -0.1) then
+	      if (mliq(k) > abs(xm(j))) then  ! layer absorbs all
+	        mice(k) = mice(k) - xm(j)
+		xmf = xmf + hfus * xm(j)/dt
+		stc(k) = tfrz
+		xm(j) = 0.0
               else
-          xm(j) = xm(j) + mliq(k)
-    xmf = xmf - hfus * mliq(k)/dt
-    mice(k) = wmass0(k)
-    stc(k) = tfrz
+	        xm(j) = xm(j) + mliq(k)
+		xmf = xmf - hfus * mliq(k)/dt
+		mice(k) = wmass0(k)
+		stc(k) = tfrz
               end if
               mliq(k) = max(0.,wmass0(k)-mice(k))
-      end if
-    end do
-    heatr(j) = xm(j)*hfus/dt
+	    end if
+	  end do
+	  heatr(j) = xm(j)*hfus/dt
           stc(j) = tfrz + heatr(j)*fact(j)
         end if
       end do
@@ -1912,6 +2015,7 @@ contains
    
   end subroutine phasechange_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine water_glacier (nsnow  ,nsoil  ,imelt  ,dt     ,prcp   ,sfctmp , & !in
                             qvap   ,qdew   ,ficeold,zsoil  ,                 & !in
                             isnow  ,snowh  ,sneqv  ,snice  ,snliq  ,stc    , & !inout
@@ -2093,6 +2197,7 @@ contains
   end subroutine water_glacier
 ! ==================================================================================================
 ! ----------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine snowwater_glacier (nsnow  ,nsoil  ,imelt  ,dt     ,sfctmp , & !in
                                 snowhin,qsnow  ,qsnfro ,qsnsub ,qrain  , & !in
                                 ficeold,zsoil  ,                         & !in
@@ -2175,7 +2280,7 @@ contains
                           qrain  ,                                 & !in
                           isnow  ,dzsnso ,snowh  ,sneqv  ,snice  , & !inout
                           snliq  ,sh2o   ,sice   ,stc    ,         & !inout
-        ponding1       ,ponding2       ,         & !inout
+			  ponding1       ,ponding2       ,         & !inout
                           qsnbot )                                   !out
 
 !to obtain equilibrium state of snow in glacier region
@@ -2219,6 +2324,7 @@ contains
 
   end subroutine snowwater_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine snowfall_glacier (nsoil  ,nsnow  ,dt     ,qsnow  ,snowhin , & !in
                                sfctmp ,                                  & !in
                                isnow  ,snowh  ,dzsnso ,stc    ,snice   , & !inout
@@ -2284,6 +2390,7 @@ contains
   end subroutine snowfall_glacier
 ! ==================================================================================================
 ! ----------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine compact_glacier (nsnow  ,nsoil  ,dt     ,stc    ,snice , & !in
                               snliq  ,imelt  ,ficeold,                & !in
                               isnow  ,dzsnso )                          !inout
@@ -2383,6 +2490,7 @@ contains
 
   end subroutine compact_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine combine_glacier (nsnow  ,nsoil  ,                         & !in
                               isnow  ,sh2o   ,stc    ,snice  ,snliq  , & !inout
                               dzsnso ,sice   ,snowh  ,sneqv  ,         & !inout
@@ -2555,6 +2663,7 @@ contains
 ! ==================================================================================================
 
 ! ----------------------------------------------------------------------
+!>\ingroup NoahMP_LSM
   subroutine combo_glacier(dz,  wliq,  wice, t, dz2, wliq2, wice2, t2)
 ! ----------------------------------------------------------------------
     implicit none
@@ -2606,6 +2715,7 @@ contains
 
   end subroutine combo_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine divide_glacier (nsnow  ,nsoil  ,                         & !in
                              isnow  ,stc    ,snice  ,snliq  ,dzsnso  )  !inout
 ! ----------------------------------------------------------------------
@@ -2731,6 +2841,7 @@ contains
 
   end subroutine divide_glacier
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine snowh2o_glacier (nsnow  ,nsoil  ,dt     ,qsnfro ,qsnsub , & !in 
                               qrain  ,                                 & !in
                               isnow  ,dzsnso ,snowh  ,sneqv  ,snice  , & !inout
@@ -2878,9 +2989,14 @@ contains
   end subroutine snowh2o_glacier
 ! ********************* end of water subroutines ******************************************
 ! ==================================================================================================
+!>\ingroup NoahMP_LSM
   subroutine error_glacier (iloc   ,jloc   ,swdown ,fsa    ,fsr    ,fira   , &
                             fsh    ,fgev   ,ssoil  ,sag    ,prcp   ,edir   , &
-                runsrf ,runsub ,sneqv  ,dt     ,beg_wb )
+#ifdef CCPP
+                           runsrf ,runsub ,sneqv  ,dt     ,beg_wb, errmsg, errflg )
+#else 
+                           runsrf ,runsub ,sneqv  ,dt     ,beg_wb )
+#endif
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -2906,6 +3022,11 @@ contains
   real                           , intent(in) :: dt     !time step [sec]
   real                           , intent(in) :: beg_wb !water storage at begin of a timesetp [mm]
 
+#ifdef CCPP  
+  character(len=*)               , intent(inout) :: errmsg
+  integer                        , intent(inout) :: errflg
+#endif
+
   real                                        :: end_wb !water storage at end of a timestep [mm]
   real                                        :: errwat !error in water balance [mm/timestep]
   real                                        :: erreng !error in surface energy balance [w/m2]
@@ -2918,17 +3039,33 @@ contains
      write(*,*) "fsa    =",fsa
      write(*,*) "fsr    =",fsr
      write(message,*) 'errsw =',errsw
+#ifdef CCPP
+     errflg = 1
+     errmsg = trim(message)//NEW_LINE('A')//"radiation budget problem in noahmp glacier"
+     return 
+#else
      call wrf_message(trim(message))
      call wrf_error_fatal("radiation budget problem in noahmp glacier")
+#endif
    end if
 
    erreng = sag-(fira+fsh+fgev+ssoil)
    if(erreng > 0.01) then
       write(message,*) 'erreng =',erreng
+#ifdef CCPP
+      errmsg = trim(message)    
+#else
       call wrf_message(trim(message))
+#endif  
       write(message,'(i6,1x,i6,1x,5f10.4)')iloc,jloc,sag,fira,fsh,fgev,ssoil
-      call wrf_message(trim(message))
-      call wrf_error_fatal("energy budget problem in noahmp glacier")
+#ifdef CCPP
+     errflg = 1
+     errmsg = trim(errmsg)//NEW_LINE('A')//"energy budget problem in noahmp glacier"
+     return 
+#else
+     call wrf_message(trim(message))
+     call wrf_error_fatal("energy budget problem in noahmp glacier")
+#endif
    end if
 
    end_wb = sneqv
@@ -2938,6 +3075,7 @@ contains
  end subroutine error_glacier
 ! ==================================================================================================
 
+!>\ingroup NoahMP_LSM
   subroutine noahmp_options_glacier(idveg     ,iopt_crs  ,iopt_btr  ,iopt_run  ,iopt_sfc  ,iopt_frz , & 
                              iopt_inf  ,iopt_rad  ,iopt_alb  ,iopt_snf  ,iopt_tbot, iopt_stc )
 
@@ -2985,7 +3123,4 @@ module module_sf_noahmp_glacier
   use noahmp_glacier_globals
 
 end module module_sf_noahmp_glacier
-
-
-
 

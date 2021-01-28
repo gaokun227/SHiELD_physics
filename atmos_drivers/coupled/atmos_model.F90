@@ -76,6 +76,10 @@ use atmosphere_mod,     only: atmosphere_etalvls, atmosphere_hgt
 use atmosphere_mod,     only: atmosphere_nggps_diag
 use atmosphere_mod,     only: atmosphere_scalar_field_halo
 use atmosphere_mod,     only: set_atmosphere_pelist
+use atmosphere_mod,     only: atmosphere_coarse_graining_parameters
+use atmosphere_mod,     only: atmosphere_coarse_diag_axes
+use atmosphere_mod,     only: atmosphere_coarsening_strategy
+use atmosphere_mod,     only: Atm, mygrid
 use block_control_mod,  only: block_control_type, define_blocks_packed
 use IPD_typedefs,       only: IPD_init_type, IPD_control_type, &
                               IPD_data_type, IPD_diag_type,    &
@@ -86,7 +90,10 @@ use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
                               IPD_physics_step2
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_IPD_checksum,                       &
-                              gfdl_diag_register, gfdl_diag_output
+                              gfdl_diag_register, gfdl_diag_output, &
+                              FV3GFS_restart_write_coarse, FV3GFS_diag_register_coarse
+use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, register_coarse_diag_manager_controlled_diagnostics
+use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
 use module_ocean,       only: ocean_init
 !-----------------------------------------------------------------------
 
@@ -125,7 +132,11 @@ public atmos_model_restart
      real(kind=kind_phys), pointer, dimension(:,:) :: dx
      real(kind=kind_phys), pointer, dimension(:,:) :: dy
      real(kind=8), pointer, dimension(:,:) :: area
- end type atmos_data_type
+     type(domain2d)                :: coarse_domain      ! domain decomposition of the coarse grid
+     logical                       :: write_coarse_restart_files  ! whether to write coarse restart files
+     logical                       :: write_only_coarse_intermediate_restarts  ! whether to write only coarse intermediate restart files
+     character(len=64)             :: coarsening_strategy  ! Strategy for coarse-graining diagnostics and restart files
+end type atmos_data_type
 !</PUBLICTYPE >
 
 integer :: fv3Clock, getClock, updClock, setupClock, radClock, physClock
@@ -311,7 +322,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   integer :: ntracers
   integer :: kdt_prev
   character(len=32), allocatable, target :: tracer_names(:)
-!-----------------------------------------------------------------------
+  integer :: coarse_diagnostic_axes(4)
+  !-----------------------------------------------------------------------
 
 !---- set the atmospheric model time ------
 
@@ -357,7 +369,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call atmosphere_grid_ctr (Atmos%lon, Atmos%lat)
    call atmosphere_hgt (Atmos%layer_hgt, 'layer', relative=.false., flip=.true.)
    call atmosphere_hgt (Atmos%level_hgt, 'level', relative=.false., flip=.true.)
-
+   call atmosphere_coarse_graining_parameters(Atmos%coarse_domain, Atmos%write_coarse_restart_files, Atmos%write_only_coarse_intermediate_restarts)
+   call atmosphere_coarsening_strategy(Atmos%coarsening_strategy)
+   
 !-----------------------------------------------------------------------
 !--- before going any further check definitions for 'blocks'
 !-----------------------------------------------------------------------
@@ -442,7 +456,15 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !rab   call atmosphere_tracer_postinit (IPD_Data, Atm_block)
 
    call atmosphere_nggps_diag (Time, init=.true.)
-   call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, Atm_block, Atmos%axes, IPD_Control%nfxr, IPD_Control%ldiag3d, IPD_Control%nkld)
+   call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag,&
+        Atm_block, Atmos%axes, IPD_Control%nfxr, IPD_Control%ldiag3d, &
+        IPD_Control%nkld, IPD_Control%levs)
+   call register_diag_manager_controlled_diagnostics(Time, IPD_Data(:)%IntDiag, Atm_block%nblks, Atmos%axes)
+   if (Atm(mygrid)%coarse_graining%write_coarse_diagnostics) then
+       call atmosphere_coarse_diag_axes(coarse_diagnostic_axes)
+       call FV3GFS_diag_register_coarse(Time, coarse_diagnostic_axes)
+       call register_coarse_diag_manager_controlled_diagnostics(Time, coarse_diagnostic_axes)
+    endif
    if (.not. dycore_only) &
       call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
       if (chksum_debug) then
@@ -525,7 +547,8 @@ subroutine update_atmos_model_state (Atmos)
 !--- local variables
   integer :: isec,seconds
   real(kind=kind_phys) :: time_int
-
+  integer :: is, ie, js, je, kt
+  
     call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
     call mpp_clock_begin(updClock)
@@ -541,6 +564,13 @@ subroutine update_atmos_model_state (Atmos)
 !------ advance time ------
     Atmos % Time = Atmos % Time + Atmos % Time_step
 
+    call atmosphere_control_data(is, ie, js, je, kt)
+    call send_diag_manager_controlled_diagnostic_data(Atmos%Time, &
+       Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, IPD_Control%levs, &
+       Atm(mygrid)%coarse_graining%write_coarse_diagnostics, &
+       real(Atm(mygrid)%delp(is:ie,js:je,:), kind=kind_phys), &
+       Atmos%coarsening_strategy, real(Atm(mygrid)%ptop, kind=kind_phys))
+    
     call get_time (Atmos%Time - diag_time, isec)
     call get_time (Atmos%Time - Atmos%Time_init, seconds)
 !LZ if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
@@ -551,7 +581,10 @@ subroutine update_atmos_model_state (Atmos)
       call atmosphere_nggps_diag(Atmos%Time)
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, fprint, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int, IPD_Control%fhswr, IPD_Control%fhlwr, &
-                            mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0)
+                            mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0, &
+                            Atm(mygrid)%coarse_graining%write_coarse_diagnostics,&
+                            real(Atm(mygrid)%delp(is:ie,js:je,:), kind=kind_phys), &
+                            Atmos%coarsening_strategy, real(Atm(mygrid)%ptop, kind=kind_phys))
       call diag_send_complete_instant (Atmos%Time)
       if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
@@ -591,9 +624,14 @@ subroutine atmos_model_end (Atmos)
 !---- termination routine for atmospheric model ----
                                               
     call atmosphere_end (Atmos % Time, Atmos%grid)
-    if (.not. dycore_only) &
+    if (.not. dycore_only) then
        call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
-                               IPD_Control, Atmos%domain)
+            IPD_Control, Atmos%domain)
+       if (Atmos%write_coarse_restart_files) then
+          call FV3GFS_restart_write_coarse(IPD_Data, IPD_Restart, Atm_block, &
+            IPD_Control, Atmos%coarse_domain)
+       endif
+    endif
 
 end subroutine atmos_model_end
 
@@ -608,10 +646,16 @@ subroutine atmos_model_restart(Atmos, timestamp)
   character(len=*),  intent(in)           :: timestamp
 
     call atmosphere_restart(timestamp)
-    if (.not. dycore_only) &
-       call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
-                               IPD_Control, Atmos%domain, timestamp)
-
+    if (.not. dycore_only) then
+       if (.not. Atmos%write_only_coarse_intermediate_restarts) then
+          call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
+               IPD_Control, Atmos%domain, timestamp)
+       endif
+       if (Atmos%write_coarse_restart_files) then
+          call FV3GFS_restart_write_coarse(IPD_Data, IPD_Restart, Atm_block, &
+               IPD_Control, Atmos%coarse_domain, timestamp)
+       endif
+    endif
 end subroutine atmos_model_restart
 ! </SUBROUTINE>
 

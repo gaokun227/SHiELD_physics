@@ -1265,7 +1265,7 @@ module module_physics_driver
             Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
             Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
             Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
-            grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
+            grid%xlat, xcosz, Model%yearlen,   Model%julian,           &
             Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
             Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
 !  ---  in/outs:

@@ -206,8 +206,8 @@
 
       real (kind=kind_phys), dimension(im), intent(out) :: sncovr1,     &
      &       qsurf, gflux, drain, evap, hflx, ep, runoff, cmm, chh,     &
-     &    evbs, evcw, sbsno, snowc, stm, snohf, smcwlt2, smcref2, wet1
-      real (kind=kind_phys), dimension(:), intent(out) :: t2mmp, q2mp
+     &    evbs, evcw, sbsno, snowc, stm, snohf, smcwlt2, smcref2,wet1,  &
+     &    t2mmp,q2mp 
 
 #ifdef CCPP
 ! error messages

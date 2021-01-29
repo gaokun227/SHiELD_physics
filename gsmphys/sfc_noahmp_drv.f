@@ -83,8 +83,6 @@
      &       iopt_inf, iopt_rad, iopt_alb, iopt_snf, iopt_tbot,         &
      &       iopt_stc, xlatin, xcoszin, iyrlen, julian,                 &
      &       rainn_mp, rainc_mp, snow_mp, graupel_mp, ice_mp,           &
-     &       con_hvap, con_cp, con_jcal, rhoh2o, con_eps, con_epsm1,    &
-     &       con_fvirt, con_rd, con_hfus,                               &
 
 !  ---  in/outs:
      &       weasd, snwdph, tskin, tprcp, srflag, smc, stc, slc,        &
@@ -111,6 +109,8 @@
       use machine ,   only : kind_phys
 !     use date_def,   only : idate
       use funcphys,   only : fpvs
+      use physcons,   only : con_g, con_hvap, con_cp, con_jcal,         &
+     &                con_eps, con_epsm1, con_fvirt, con_rd,con_hfus
 
       use module_sf_noahmplsm
       use module_sf_noahmp_glacier
@@ -120,7 +120,14 @@
      &                       saim_table,laim_table
 
       implicit none
-      
+
+!  ---  constant parameters:
+
+      real(kind=kind_phys), parameter :: cpinv   = 1.0/con_cp
+      real(kind=kind_phys), parameter :: hvapi   = 1.0/con_hvap
+      real(kind=kind_phys), parameter :: elocp   = con_hvap/con_cp
+      real(kind=kind_phys), parameter :: rhoh2o  = 1000.0
+      real(kind=kind_phys), parameter :: convrad = con_jcal*1.e4/60.0
       real(kind=kind_phys), parameter :: a2      = 17.2693882
       real(kind=kind_phys), parameter :: a3      = 273.16
       real(kind=kind_phys), parameter :: a4      = 35.86
@@ -170,10 +177,6 @@
 
       real (kind=kind_phys),  intent(in) :: delt
       logical, dimension(im), intent(in) :: flag_iter, flag_guess
-
-      real (kind=kind_phys),  intent(in) :: con_hvap, con_cp, con_jcal, &
-     &                      rhoh2o, con_eps, con_epsm1, con_fvirt,      &
-     &                      con_rd, con_hfus
 
 !  ---  in/out:
       real (kind=kind_phys), dimension(im), intent(inout) :: weasd,     &
@@ -275,20 +278,12 @@
       integer :: i, k, ice, stype, vtype ,slope,nroot,couple
       logical :: flag(im)
       logical :: snowng,frzgra
-      
-      !  ---  local derived constants:
 
-      real(kind=kind_phys) :: cpinv, hvapi, convrad, elocp
-      
       type(noahmp_parameters) :: parameters
 
 !
 !===> ...  begin here
-!     
-      cpinv   = 1.0/con_cp
-      hvapi   = 1.0/con_hvap
-      convrad = con_jcal*1.e4/60.0
-      elocp   = con_hvap/con_cp
+!
 
 #ifdef CCPP
 ! Initialize CCPP error handling variables

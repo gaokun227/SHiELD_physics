@@ -1255,7 +1255,7 @@ module module_physics_driver
 !  ---  inputs:
            (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
             Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
-            Radtend%semis, adjsfcdlw, adjsfcdsw, adjsfcnsw, dtf,       &
+            Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
             Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
             Diag%zlvl, dry,   wind, slopetyp,                          &
             Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
@@ -1264,7 +1264,7 @@ module module_physics_driver
             Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
             Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
             Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
-            grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
+            grid%xlat, xcosz, Model%yearlen,   Model%julian,           &
             Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
             Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
 !  ---  in/outs:
@@ -1283,11 +1283,11 @@ module module_physics_driver
             Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
             Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
             Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
-            Sfcprop%albdvis, Sfcprop%albdnir,  Sfcprop%albivis,  Sfcprop%albinir,&
 !  ---  outputs:
             Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
-            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,           &
+            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,  &
             snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
+
 
         endif
 

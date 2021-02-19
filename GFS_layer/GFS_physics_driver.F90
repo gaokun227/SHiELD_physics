@@ -713,9 +713,29 @@ module module_physics_driver
 
       frain = dtf / dtp
 
+      do i= 1, im
+        if (Model%use_ec_sst .and. Statein%ci(i) > -1. .and. Statein%ci(i) < 2.) then !Avoid bad values
+           if (Statein%ci(i) >= 0.15 .and. nint(Sfcprop%slmsk(i)) == 0) then !create sea ice
+              Sfcprop%fice(i) = Statein%ci(i)
+              Sfcprop%slmsk(i) = 2
+              Sfcprop%hice(i) = 0.1 !minimum value
+           elseif (nint(Sfcprop%slmsk(i)) == 2) then
+              if (Statein%ci(i) < 0.15) then !remove sea ice
+                 Sfcprop%slmsk(i) = 0
+                 Sfcprop%fice(i) = 0.0
+                 Sfcprop%hice(i) = 0.0
+              else
+                 Sfcprop%fice(i) = Statein%ci(i)
+              endif
+              
+           endif
+        endif
+      enddo
+
       do i = 1, im
         sigmaf(i)   = max( Sfcprop%vfrac(i),0.01 )
         islmsk(i)   = nint(Sfcprop%slmsk(i))
+
 
         if (islmsk(i) == 2) then
           if (Model%isot == 1) then
@@ -1891,11 +1911,11 @@ module module_physics_driver
          Diag%tclim_iano   (:) = Diag%tclim_iano(:) + Sfcprop%ts_clim_iano(:)*dtf
          Diag%MLD          (:) = Diag%MLD(:) + Sfcprop%mld(:)*dtf
 !
-        if (Model%use_ec_sst) then
-         do i = 1, im 
-          if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
-         enddo
-        endif 
+        if (Model%use_ec_sst .and. .not. Model%do_ocean) then
+           do i = 1, im 
+              if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
+           enddo
+        endif
 !-------------------------------------------------------lssav if loop ----------
       if (Model%lssav) then
         Diag%dusfc (:) = Diag%dusfc(:) + dusfc1(:)*dtf

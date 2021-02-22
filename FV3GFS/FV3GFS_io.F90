@@ -141,6 +141,7 @@ module FV3GFS_io_mod
   logical :: module_is_initialized = .FALSE.
 
   character(len=64) :: AREA_WEIGHTED = 'area_weighted'
+  character(len=64) :: MASKED_AREA_WEIGHTED = 'masked_area_weighted'
   character(len=64) :: MASS_WEIGHTED = 'mass_weighted'
   character(len=64) :: MODE = 'mode'
   
@@ -3315,6 +3316,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     Diag(idx)%unit = 'kg/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
+    Diag(idx)%coarse_graining_method = MASKED_AREA_WEIGHTED
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2  => Gfs_diag(nb)%soilm(:)
@@ -5442,6 +5444,8 @@ end subroutine register_diag_manager_controlled_diagnostics
 
    if (method .eq. AREA_WEIGHTED) then
       call weighted_block_average(area, full_resolution_field, coarse)
+   elseif (method .eq. MASKED_AREA_WEIGHTED) then
+      call weighted_block_average(area, full_resolution_field, full_resolution_field .ne. missing_value, coarse)
    elseif (method .eq. MODE) then
       call block_mode(full_resolution_field, coarse)
    elseif (method .eq. MASS_WEIGHTED) then
@@ -5478,6 +5482,9 @@ end subroutine register_diag_manager_controlled_diagnostics
 
    if (method .eq. AREA_WEIGHTED) then
       call weighted_block_average(area, full_resolution_field, coarse)
+   elseif (method .eq. MASKED_AREA_WEIGHTED) then
+      message = 'Masked area-weighted coarse-graining is not currently implemented for 3D variables'
+      call mpp_error(FATAL, message)
    elseif (method .eq. MASS_WEIGHTED) then
       call weighted_block_average(mass, full_resolution_field, coarse)
    elseif (method .eq. MODE) then
@@ -5520,6 +5527,9 @@ end subroutine register_diag_manager_controlled_diagnostics
     ! AREA_WEIGHTED and MASS_WEIGHTED are equivalent in pressure level coarse-graining
     if (method .eq. AREA_WEIGHTED .or. method .eq. MASS_WEIGHTED) then
       call weighted_block_average(masked_area, remapped, coarse)
+    elseif (method .eq. MASKED_AREA_WEIGHTED) then
+      message = 'Masked area-weighted coarse-graining is not currently implemented for 3D variables'
+      call mpp_error(FATAL, message)
     elseif (method .eq. MODE) then
       message = 'Block mode coarse-graining is not currently implemented for 3D variables'
       call mpp_error(FATAL, message)

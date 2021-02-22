@@ -142,6 +142,7 @@ module FV3GFS_io_mod
 
   character(len=64) :: AREA_WEIGHTED = 'area_weighted'
   character(len=64) :: MASS_WEIGHTED = 'mass_weighted'
+  character(len=64) :: MODE = 'mode'
   
   CONTAINS
 
@@ -4541,6 +4542,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     Diag(idx)%desc = 'sea-land-ice mask (0-sea, 1-land, 2-ice)'
     Diag(idx)%unit = 'N/A'
     Diag(idx)%mod_name = 'gfs_sfc'
+    Diag(idx)%coarse_graining_method = MODE
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Sfcprop(nb)%slmsk(:)
@@ -5440,6 +5442,8 @@ end subroutine register_diag_manager_controlled_diagnostics
 
    if (method .eq. AREA_WEIGHTED) then
       call weighted_block_average(area, full_resolution_field, coarse)
+   elseif (method .eq. MODE) then
+      call block_mode(full_resolution_field, coarse)
    elseif (method .eq. MASS_WEIGHTED) then
       message = 'mass_weighted is not a valid coarse_graining_method for 2D variable ' // trim(name)
       call mpp_error(FATAL, message)
@@ -5476,6 +5480,9 @@ end subroutine register_diag_manager_controlled_diagnostics
       call weighted_block_average(area, full_resolution_field, coarse)
    elseif (method .eq. MASS_WEIGHTED) then
       call weighted_block_average(mass, full_resolution_field, coarse)
+   elseif (method .eq. MODE) then
+      message = 'Block mode coarse-graining is not currently implemented for 3D variables'
+      call mpp_error(FATAL, message)
    else
       message = 'A valid coarse_graining_method must be specified for ' // trim(name)
       call mpp_error(FATAL, message)
@@ -5513,6 +5520,9 @@ end subroutine register_diag_manager_controlled_diagnostics
     ! AREA_WEIGHTED and MASS_WEIGHTED are equivalent in pressure level coarse-graining
     if (method .eq. AREA_WEIGHTED .or. method .eq. MASS_WEIGHTED) then
       call weighted_block_average(masked_area, remapped, coarse)
+    elseif (method .eq. MODE) then
+      message = 'Block mode coarse-graining is not currently implemented for 3D variables'
+      call mpp_error(FATAL, message)
     else
       message = 'A valid coarse_graining_method must be specified for ' // trim(name)
       call mpp_error(FATAL, message)

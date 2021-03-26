@@ -94,6 +94,7 @@ use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_restart_write_coarse, FV3GFS_diag_register_coarse
 use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, register_coarse_diag_manager_controlled_diagnostics
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
+use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize
 use module_ocean,       only: ocean_init
 !-----------------------------------------------------------------------
 
@@ -119,6 +120,7 @@ public atmos_model_restart
      type (time_type)              :: Time               ! current time
      type (time_type)              :: Time_step          ! atmospheric time step.
      type (time_type)              :: Time_init          ! reference time.
+     integer                       :: iau_offset         ! iau running window length
      integer, pointer              :: pelist(:) =>null() ! pelist where atmosphere is running.
      logical                       :: pe                 ! current pe.
      type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
@@ -163,6 +165,11 @@ type(IPD_control_type)              :: IPD_Control
 type(IPD_data_type),    allocatable :: IPD_Data(:)  ! number of blocks
 type(IPD_diag_type)                 :: IPD_Diag(250)
 type(IPD_restart_type)              :: IPD_Restart
+
+!--------------
+! IAU container
+!--------------
+type(iau_external_data_type)        :: IAU_Data ! number of blocks
 
 !-----------------
 !  Block container
@@ -298,10 +305,11 @@ subroutine update_atmos_radiation_physics (Atmos)
 ! Routine to initialize the atmospheric model
 ! </OVERVIEW>
 
-subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
+subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
 
   type (atmos_data_type), intent(inout) :: Atmos
   type (time_type), intent(in) :: Time_init, Time, Time_step
+  integer, intent(in) :: iau_offset
 !--- local variables ---
   integer :: unit, ntdiag, ntfamily, i, j, k
   integer :: mlon, mlat, nlon, nlat, nlev, sec, dt, sec_prev
@@ -330,6 +338,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Atmos % Time_init = Time_init
    Atmos % Time      = Time
    Atmos % Time_step = Time_step
+   Atmos % iau_offset = iau_offset
    call get_time (Atmos % Time_step, sec)
    call get_time (Atmos%Time - Atmos%Time_init, sec_prev)
    dt_phys = real(sec)      ! integer seconds
@@ -412,6 +421,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    Init_parm%cdat(:)         =  cdat(:)
    Init_parm%dt_dycore       =  dt_phys
    Init_parm%dt_phys         =  dt_phys
+   Init_parm%iau_offset      =  Atmos%iau_offset
    Init_parm%blksz           => Atm_block%blksz
    Init_parm%ak              => Atmos%ak
    Init_parm%bk              => Atmos%bk

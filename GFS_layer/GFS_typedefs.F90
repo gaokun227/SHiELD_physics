@@ -2746,7 +2746,7 @@ module GFS_typedefs
         print *,' OSU no longer supported - job aborted'
         stop
       else
-        print *,' Unsupported LSM type - job aborted - lsm=',Model%lsm, Model%lsm_noah
+        print *,' Unsupported LSM type - job aborted - lsm=',Model%lsm
         stop
       endif
 

@@ -1108,8 +1108,8 @@ module physics_diag_layer
     IPD_Diag(idx)%output_name    = 'uflx'
     IPD_Diag(idx)%mod_name       = 'physics'
     IPD_Diag(idx)%file_name      = 'flx'
-    IPD_Diag(idx)%desc           = 'Zonal momentum flux [W/m**2] at surface'
-    IPD_Diag(idx)%unit           = 'W/m**2'
+    IPD_Diag(idx)%desc           = 'Zonal momentum flux [Ns/m**2] at surface'
+    IPD_Diag(idx)%unit           = 'Ns/m**2'
     IPD_Diag(idx)%type_stat_proc = 'acc'
     IPD_Diag(idx)%level_type     = 'sfc'
     IPD_Diag(idx)%level          = 1
@@ -1126,8 +1126,8 @@ module physics_diag_layer
     IPD_Diag(idx)%output_name    = 'vflx'
     IPD_Diag(idx)%mod_name       = 'physics'
     IPD_Diag(idx)%file_name      = 'flx'
-    IPD_Diag(idx)%desc           = 'meridional momentum flux [W/m**2] at surface'
-    IPD_Diag(idx)%unit           = 'W/m**2'
+    IPD_Diag(idx)%desc           = 'meridional momentum flux [Ns/m**2] at surface'
+    IPD_Diag(idx)%unit           = 'Ns/m**2'
     IPD_Diag(idx)%type_stat_proc = 'acc'
     IPD_Diag(idx)%level_type     = 'sfc'
     IPD_Diag(idx)%level          = 1

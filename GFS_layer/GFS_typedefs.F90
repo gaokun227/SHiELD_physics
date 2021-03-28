@@ -119,6 +119,7 @@ module GFS_typedefs
 
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
+    real (kind=kind_phys), pointer :: ci (:)      => null()   !< sea ice fraction
     logical, pointer :: dycore_hydrostatic        => null()  !< whether the dynamical core is hydrostatic
     integer, pointer :: nwat                      => null()  !< number of water species used in the model
     contains
@@ -1185,8 +1186,10 @@ module GFS_typedefs
     Statein%preg = clear_val
 
     allocate (Statein%sst(IM))
+    allocate (Statein%ci(IM))
 
     Statein%sst = clear_val
+    Statein%ci = -999. ! if below zero it is empty so don't use it
 
     allocate(Statein%dycore_hydrostatic)
     Statein%dycore_hydrostatic = .true.

@@ -88,9 +88,9 @@ use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
                               IPD_radiation_step,             &
                               IPD_physics_step1,              &
                               IPD_physics_step2
-!use stochastic_physics, only: init_stochastic_physics,         &
-!                              run_stochastic_physics
-!use stochastic_physics_sfc, only: run_stochastic_physics_sfc
+use stochastic_physics, only: init_stochastic_physics,         &
+                              run_stochastic_physics
+use stochastic_physics_sfc, only: run_stochastic_physics_sfc
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_IPD_checksum,                       &
                               gfdl_diag_register, gfdl_diag_output, &
@@ -252,9 +252,9 @@ subroutine update_atmos_radiation_physics (Atmos)
       call IPD_setup_step (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart)
 
 !--- call stochastic physics pattern generation / cellular automata
-      !if (IPD_Control%do_sppt .OR. IPD_Control%do_shum .OR. IPD_Control%do_skeb .OR. IPD_Control%do_sfcperts) then
-      !   call run_stochastic_physics(IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Coupling, nthrds)
-      !end if
+      if (IPD_Control%do_sppt .OR. IPD_Control%do_shum .OR. IPD_Control%do_skeb .OR. IPD_Control%do_sfcperts) then
+         call run_stochastic_physics(IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Coupling, nthrds)
+      end if
 
       call mpp_clock_end(setupClock)
 
@@ -475,17 +475,17 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
 
    call IPD_initialize (IPD_Control, IPD_Data, IPD_Diag, IPD_Restart, Init_parm)
 
-   !if (IPD_Control%do_sppt .OR. IPD_Control%do_shum .OR. IPD_Control%do_skeb .OR. IPD_Control%do_sfcperts) then
-   !   ! Initialize stochastic physics
-   !   call init_stochastic_physics(IPD_Control, Init_parm, mpp_npes(), nthrds)
-   !   if (mpp_pe() == mpp_root_pe()) print *,'do_skeb=',IPD_Control%do_skeb
-   !end if
+   if (IPD_Control%do_sppt .OR. IPD_Control%do_shum .OR. IPD_Control%do_skeb .OR. IPD_Control%do_sfcperts) then
+      ! Initialize stochastic physics
+      call init_stochastic_physics(IPD_Control, Init_parm, mpp_npes(), nthrds)
+      if (mpp_pe() == mpp_root_pe()) print *,'do_skeb=',IPD_Control%do_skeb
+   end if
 
-   !if (IPD_Control%do_sfcperts) then
-   !   ! Get land surface perturbations here (move to GFS_time_vary
-   !   ! step if wanting to update each time-step)
-   !   call run_stochastic_physics_sfc(IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Coupling)
-   !end if
+   if (IPD_Control%do_sfcperts) then
+      ! Get land surface perturbations here (move to GFS_time_vary
+      ! step if wanting to update each time-step)
+      call run_stochastic_physics_sfc(IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Coupling)
+   end if
 
    Atm(mygrid)%flagstruct%do_skeb = IPD_Control%do_skeb
 

@@ -664,7 +664,8 @@ subroutine update_atmos_model_state (Atmos)
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call atmosphere_nggps_diag(Atmos%Time)
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, fprint, &
-                            IPD_Control%levs, 1, 1, 1.d0, time_int, IPD_Control%fhswr, IPD_Control%fhlwr, &
+                            IPD_Control%levs, 1, 1, 1.d0, time_int, time_intfull, &
+                            IPD_Control%fhswr, IPD_Control%fhlwr, &
                             mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0, &
                             Atm(mygrid)%coarse_graining%write_coarse_diagnostics,&
                             real(Atm(mygrid)%delp(is:ie,js:je,:), kind=kind_phys), &

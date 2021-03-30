@@ -4903,7 +4903,8 @@ end subroutine register_diag_manager_controlled_diagnostics
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
   subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
-                             levs, ntcw, ntoz, dt, time_int, fhswr, fhlwr, &
+                             levs, ntcw, ntoz, dt, time_int, time_intfull, &
+                             fhswr, fhlwr, &
                              prt_stats, write_coarse_diagnostics, delp, &
                              coarsening_strategy, ptop)
 !--- subroutine interface variable definitions
@@ -4917,6 +4918,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     integer,                   intent(in) :: nx, ny, levs, ntcw, ntoz
     real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
+    real(kind=kind_phys),      intent(in) :: time_intfull
     real(kind=kind_phys),      intent(in) :: fhswr, fhlwr
     logical,                   intent(in) :: prt_stats
     logical,                   intent(in) :: write_coarse_diagnostics
@@ -4931,7 +4933,8 @@ end subroutine register_diag_manager_controlled_diagnostics
     real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
     real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
-    real(kind=kind_phys) :: rdt, rtime_int, lcnvfac
+    real(kind=kind_phys) :: rdt, rtime_int, rtime_intfull, lcnvfac
+    real(kind=kind_phys) :: rtime_radsw, rtime_radlw
     logical :: used
 
     ! Local variables required for coarse-grianing
@@ -4942,6 +4945,9 @@ end subroutine register_diag_manager_controlled_diagnostics
      nblks = Atm_block%nblks
      rdt = 1.0d0/dt
      rtime_int = 1.0d0/time_int
+     rtime_intfull = 1.0d0/time_intfull
+     rtime_radsw   = 1.0d0/fhswr
+     rtime_radlw   = 1.0d0/fhlwr
 
      isc = Atm_block%isc
      jsc = Atm_block%jsc
@@ -4985,13 +4991,15 @@ end subroutine register_diag_manager_controlled_diagnostics
          lcnvfac = Diag(idx)%cnvfac
          if (trim(Diag(idx)%name) == 'DLWRFsfc' .or. trim(Diag(idx)%name) == 'ULWRFsfc' .or. &
              trim(Diag(idx)%name) == 'ULWRFtoa') then
-           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,1.0d0/fhlwr)
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,rtime_radlw)
          elseif (trim(Diag(idx)%name) == 'DSWRFsfc' .or. trim(Diag(idx)%name) == 'USWRFsfc' .or. &
                  trim(Diag(idx)%name) == 'DSWRFtoa' .or. trim(Diag(idx)%name) == 'USWRFtoa') then
-           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,1.0d0/fhswr)
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,rtime_radsw)
          elseif (trim(Diag(idx)%name) == 'TCDCclm' .or. trim(Diag(idx)%name) == 'TCDChcl' .or. &
                  trim(Diag(idx)%name) == 'TCDClcl' .or. trim(Diag(idx)%name) == 'TCDCmcl') then
-           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,max(1.0d0/fhswr,1.0d0/fhlwr))
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*min(rtime_int,max(rtime_radsw,rtime_radlw))
+         elseif (trim(Diag(idx)%name) == 'totprcp' .or. trim(Diag(idx)%name) == 'cnvprcp' ) then
+           if (Diag(idx)%time_avg) lcnvfac = lcnvfac*rtime_intfull
          else
            if (Diag(idx)%time_avg) lcnvfac = lcnvfac*rtime_int
          endif

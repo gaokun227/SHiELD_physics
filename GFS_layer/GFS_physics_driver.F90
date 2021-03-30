@@ -30,6 +30,7 @@ module module_physics_driver
   !--- CONSTANT PARAMETERS
   real(kind=kind_phys), parameter :: hocp    = con_hvap/con_cp
   real(kind=kind_phys), parameter :: qmin    = 1.0e-10
+  real(kind=kind_phys), parameter :: rainmin = 1.0d-13
   real(kind=kind_phys), parameter :: p850    = 85000.0
   real(kind=kind_phys), parameter :: epsq    = 1.e-20
   real(kind=kind_phys), parameter :: hsub    = con_hvap+con_hfus
@@ -447,7 +448,7 @@ module module_physics_driver
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
            crain, csnow,                                                &
-           z0fun
+           z0fun, diag_rain1
 
       real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
            fscav, fswtr
@@ -3341,7 +3342,13 @@ module module_physics_driver
         Diag%snow(:)    = Statein%pres(:)
         Diag%graupel(:) = Statein%preg(:)
         do i = 1, im
-          if (rain1(i) .gt. 0.0) then
+          diag_rain1 = 0.0
+          ! use rainmin following GFS
+          if(Statein%prer(i) > rainmin) diag_rain1 = diag_rain1 + Statein%prer(i)
+          if(Statein%prei(i) > rainmin) diag_rain1 = diag_rain1 + Statein%prei(i)
+          if(Statein%pres(i) > rainmin) diag_rain1 = diag_rain1 + Statein%pres(i)
+          if(Statein%preg(i) > rainmin) diag_rain1 = diag_rain1 + Statein%preg(i)
+          if (diag_rain1 > rainmin) then
             Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
                          /(Statein%prer(i) + Statein%pres(i) + Statein%prei(i) + Statein%preg(i))
           else
@@ -3466,7 +3473,13 @@ module module_physics_driver
         Diag%snow(:)    = snow0   (:)
         Diag%graupel(:) = graupel0(:)
         do i = 1, im
-          if (rain1(i) .gt. 0.0) then
+          ! use rainmin threshold following GFS
+          diag_rain1 = 0.0
+          if(rain0(i) > rainmin) diag_rain1 = diag_rain1 + rain0(i)
+          if(snow0(i) > rainmin) diag_rain1 = diag_rain1 + snow0(i)
+          if(ice0(i) > rainmin) diag_rain1 = diag_rain1 + ice0(i)
+          if(graupel0(i) > rainmin) diag_rain1 = diag_rain1 + graupel0(i)
+          if (diag_rain1 > rainmin) then
             Diag%sr(i)  =              (snow0(i) + ice0(i) + graupel0(i)) &
                          /(rain0(i) + snow0(i) + ice0(i) + graupel0(i))
           else
@@ -3560,13 +3573,16 @@ module module_physics_driver
 !       end do
 !       HCHUANG: use new precipitation type to decide snow flag for LSM snow accumulation
 
-        do i=1,im
-          if(doms(i) > 0.0 .or. domip(i) > 0.0) then
-            Sfcprop%srflag(i) = 1.
-          else
-            Sfcprop%srflag(i) = 0.
-          end if
-        enddo
+        ! the following is not for GFDL Cloud microphysics
+        if( Model%ncld /= 5) then
+          do i=1,im
+            if(doms(i) > 0.0 .or. domip(i) > 0.0) then
+              Sfcprop%srflag(i) = 1.
+            else
+              Sfcprop%srflag(i) = 0.
+            end if
+          enddo
+        endif
       endif
 
       if (Model%lssav) then

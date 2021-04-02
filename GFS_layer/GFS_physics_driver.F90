@@ -482,12 +482,12 @@ module module_physics_driver
 
 #ifdef fvGFS_2017
       real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::           &
-          area, land, rain0, snow0, ice0, graupel0, cond0, dep0,        &
+          area, land, water0, rain0, ice0, snow0, graupel0, cond0, dep0,&
           reevap0, sub0
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          gsize, hs, land, rain0, snow0, ice0, graupel0, cond0, dep0,   &
-          reevap0, sub0
+          gsize, hs, land, water0, rain0, ice0, snow0, graupel0, cond0, &
+          dep0, reevap0, sub0
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -3324,18 +3324,19 @@ module module_physics_driver
         if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
 
         tem = dtp * con_p001 / con_day
+        Statein%prew(:) = Statein%prew(:) * tem
         Statein%prer(:) = Statein%prer(:) * tem
-        Statein%pres(:) = Statein%pres(:) * tem
         Statein%prei(:) = Statein%prei(:) * tem
+        Statein%pres(:) = Statein%pres(:) * tem
         Statein%preg(:) = Statein%preg(:) * tem
-        rain1(:)   = Statein%prer(:)+Statein%pres(:)+Statein%prei(:)+Statein%preg(:)
+        rain1(:)   = Statein%prew(:)+Statein%prer(:)+Statein%prei(:)+Statein%pres(:)+Statein%preg(:)
         Diag%ice(:)     = Statein%prei(:)
         Diag%snow(:)    = Statein%pres(:)
         Diag%graupel(:) = Statein%preg(:)
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
             Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
-                         /(Statein%prer(i) + Statein%pres(i) + Statein%prei(i) + Statein%preg(i))
+                         /(Statein%prew(i) + Statein%prer(i) + Statein%prei(i) + Statein%pres(i) + Statein%preg(i))
           else
             Diag%sr(i) = 0.0
           endif
@@ -3346,9 +3347,10 @@ module module_physics_driver
 #ifdef fvGFS_2017
         land     (:,1)   = frland(:)
         area     (:,1)   = Grid%area(:)
+        water0   (:,1)   = 0.0
         rain0    (:,1)   = 0.0
-        snow0    (:,1)   = 0.0
         ice0     (:,1)   = 0.0
+        snow0    (:,1)   = 0.0
         graupel0 (:,1)   = 0.0
         cond0    (:,1)   = 0.0
         dep0     (:,1)   = 0.0
@@ -3393,15 +3395,15 @@ module module_physics_driver
                                          1, im, 1, 1, 1, levs, 1, levs,     &
                                          seconds)
 
-        rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
+        rain1(:)   = (water0(:,1)+rain0(:,1)+ice0(:,1)+snow0(:,1)+graupel0(:,1))  &
                      * dtp * con_p001 / con_day
         Diag%ice(:)     = ice0    (:,1) * dtp * con_p001 / con_day
         Diag%snow(:)    = snow0   (:,1) * dtp * con_p001 / con_day
         Diag%graupel(:) = graupel0(:,1) * dtp * con_p001 / con_day
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
-            Diag%sr(i)  =              (snow0(i,1) + ice0(i,1) + graupel0(i,1)) &
-                         /(rain0(i,1) + snow0(i,1) + ice0(i,1) + graupel0(i,1))
+            Diag%sr(i)  =              (ice0(i,1) + snow0(i,1) + graupel0(i,1)) &
+                         /(water0(i,1) + rain0(i,1) + ice0(i,1) + snow0(i,1) + graupel0(i,1))
           else
             Diag%sr(i) = 0.0
           endif
@@ -3422,9 +3424,10 @@ module module_physics_driver
 #else
         hs        = Sfcprop%oro(:) * con_g
         gsize     = sqrt(Grid%area(:))
+        water0    = 0.0
         rain0     = 0.0
-        snow0     = 0.0
         ice0      = 0.0
+        snow0     = 0.0
         graupel0  = 0.0
         cond0     = 0.0
         dep0      = 0.0
@@ -3444,23 +3447,24 @@ module module_physics_driver
                                 Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
                                 Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
-                                Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, rain0, snow0, ice0, &
+                                Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, water0, rain0, ice0, snow0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
                                 .false., te(:,levs:1:-1), cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
+        water0(:)   = water0(:)   * tem
         rain0(:)    = rain0(:)    * tem
-        snow0(:)    = snow0(:)    * tem
         ice0(:)     = ice0(:)     * tem
+        snow0(:)    = snow0(:)    * tem
         graupel0(:) = graupel0(:) * tem
-        rain1(:)   = rain0(:)+snow0(:)+ice0(:)+graupel0(:)
+        rain1(:)   = water0(:)+rain0(:)+ice0(:)+snow0(:)+graupel0(:)
         Diag%ice(:)     = ice0    (:)
         Diag%snow(:)    = snow0   (:)
         Diag%graupel(:) = graupel0(:)
         do i = 1, im
           if (rain1(i) .gt. 0.0) then
-            Diag%sr(i)  =              (snow0(i) + ice0(i) + graupel0(i)) &
-                         /(rain0(i) + snow0(i) + ice0(i) + graupel0(i))
+            Diag%sr(i)  =              (ice0(i) + snow0(i) + graupel0(i)) &
+                         /(water0(i) + rain0(i) + ice0(i) + snow0(i) + graupel0(i))
           else
             Diag%sr(i) = 0.0
           endif
@@ -3606,14 +3610,14 @@ module module_physics_driver
               csnow = Diag%rainc(i)
             endif
             if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
-            if ((Statein%pres(i)+Statein%prei(i)+Statein%preg(i)+csnow) .gt. (Statein%prer(i)+crain)) then
+            if ((Statein%prei(i)+Statein%pres(i)+Statein%preg(i)+csnow) .gt. (Statein%prew(i)+Statein%prer(i)+crain)) then
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
             endif
             else
 #ifdef fvGFS_2017
-            if ((snow0(i,1)+ice0(i,1)+graupel0(i,1)+csnow) .gt. (rain0(i,1)+crain)) then
+            if ((ice0(i,1)+snow0(i,1)+graupel0(i,1)+csnow) .gt. (water0(i,1)+rain0(i,1)+crain)) then
 #else
-            if ((snow0(i)+ice0(i)+graupel0(i)+csnow) .gt. (rain0(i)+crain)) then
+            if ((ice0(i)+snow0(i)+graupel0(i)+csnow) .gt. (water0(i)+rain0(i)+crain)) then
 #endif
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
             endif

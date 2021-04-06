@@ -480,7 +480,7 @@ if (intrm_rst .and. restart_start_secs == 0 .and. &
                                  date(4), date(5), date(6))
 
 !----- write restart file ------
-
+    call mpp_set_current_pelist()
     if (mpp_pe() == mpp_root_pe())then
         call mpp_open( unit, 'RESTART/'//trim(timestamp)//'.coupler.res', nohdrs=.TRUE. )
         write( unit, '(i6,8x,a)' )calendar_type, &
@@ -514,9 +514,9 @@ if (intrm_rst .and. restart_start_secs == 0 .and. &
               'final time does not match expected ending time', WARNING)
 
 !----- write restart file ------
-
-    call mpp_open( unit, 'RESTART/coupler.res', nohdrs=.TRUE. )
+    call mpp_set_current_pelist()
     if (mpp_pe() == mpp_root_pe())then
+    call mpp_open( unit, 'RESTART/coupler.res', nohdrs=.TRUE. )
         write( unit, '(i6,8x,a)' )calendar_type, &
              '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
@@ -524,8 +524,8 @@ if (intrm_rst .and. restart_start_secs == 0 .and. &
              'Model start time:   year, month, day, hour, minute, second'
         write( unit, '(6i6,8x,a)' )date, &
              'Current model time: year, month, day, hour, minute, second'
-    endif
     call mpp_close(unit)
+    endif
 
 !----- final output of diagnostic fields ----
 

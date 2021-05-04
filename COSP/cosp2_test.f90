@@ -293,104 +293,104 @@ contains
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   subroutine cosp2_init()
 
-  !call cpu_time(driver_time(1))
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Read in namelists
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Input namelist (cosp setup)
-  !call get_command_argument(1, cosp_input_namelist)
-  !open(10,file=cosp_input_namelist,status='unknown')
-  !read(10,nml=cosp_input)
-  !close(10)
-  inquire (file=trim(cosp_input_namelist), exist=exists)
-  if (.not. exists) then
-    write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_input_namelist),' does not exist'
-    stop
-  else
-    open (unit=nlunit, file=cosp_input_namelist, READONLY, status='OLD', iostat=ios)
-  endif
-  rewind(nlunit)
-  read (nlunit, nml=cosp_input)
-  close (nlunit)
-
-  ! Output namelist (logical flags to turn on/off outputs)
-  !open(10,file=cosp_output_namelist,status='unknown')
-  !read(10,nml=cosp_output)
-  !close(10)
-  inquire (file=trim(cosp_output_namelist), exist=exists)
-  if (.not. exists) then
-    write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_output_namelist),' does not exist'
-    stop
-  else
-    open (unit=nlunit, file=cosp_output_namelist, READONLY, status='OLD', iostat=ios)
-  endif
-  rewind(nlunit)
-  read (nlunit, nml=cosp_output)
-  close (nlunit)
-
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Read in sample input data.
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  allocate(lon(Npoints),lat(Npoints),p(Npoints,Nlevels),ph(Npoints,Nlevels),             &
-           zlev(Npoints,Nlevels),zlev_half(Npoints,Nlevels),T(Npoints,Nlevels),          &
-           sh(Npoints,Nlevels),rh(Npoints,Nlevels),tca(Npoints,Nlevels),                 &
-           cca(Npoints,Nlevels),mr_lsliq(Npoints,Nlevels),mr_lsice(Npoints,Nlevels),     &
-           mr_ccliq(Npoints,Nlevels),mr_ccice(Npoints,Nlevels),                          &
-           fl_lsrain(Npoints,Nlevels),fl_lssnow(Npoints,Nlevels),                        &
-           fl_lsgrpl(Npoints,Nlevels),fl_ccrain(Npoints,Nlevels),                        &
-           fl_ccsnow(Npoints,Nlevels),Reff(Npoints,Nlevels,N_HYDRO),                     &
-           dtau_s(Npoints,Nlevels),dtau_c(Npoints,Nlevels),dem_s(Npoints,Nlevels),       &
-           dem_c(Npoints,Nlevels),skt(Npoints),landmask(Npoints),                        &
-           mr_ozone(Npoints,Nlevels),u_wind(Npoints),v_wind(Npoints),sunlit(Npoints),    &
-           frac_out(Npoints,Ncolumns,Nlevels),surfelev(Npoints))
-
-  fileIN = trim(dinput)//trim(finput)
-  call nc_read_input_file(fileIN,Npoints,Nlevels,N_HYDRO,lon,lat,p,ph,zlev,zlev_half,    &
-                          T,sh,rh,tca,cca,mr_lsliq,mr_lsice,mr_ccliq,mr_ccice,fl_lsrain, &
-                          fl_lssnow,fl_lsgrpl,fl_ccrain,fl_ccsnow,Reff,dtau_s,dtau_c,    &
-                          dem_s,dem_c,skt,landmask,mr_ozone,u_wind,v_wind,sunlit,        &
-                          emsfc_lw,geomode,Nlon,Nlat,surfelev)
-  !call cpu_time(driver_time(2))
-
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Which simulators need to be run? Look at which outputs are requested.
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  if (Lpctisccp .or. Lclisccp .or. Lboxptopisccp .or.  Lboxtauisccp .or. Ltauisccp .or. &
-       Lcltisccp .or. Lmeantbisccp .or. Lmeantbclrisccp .or. Lalbisccp) Lisccp = .true.
-  if (LclMISR) Lmisr = .true.
-  if (Lcltmodis .or. Lclwmodis .or. Lclimodis .or. Lclhmodis .or. Lclmmodis .or.         &
-       Lcllmodis .or. Ltautmodis .or. Ltauwmodis .or. Ltauimodis .or. Ltautlogmodis .or. &
-       Ltauwlogmodis .or. Ltauilogmodis .or. Lreffclwmodis .or. Lreffclimodis .or.       &
-       Lpctmodis .or. Llwpmodis .or. Liwpmodis .or. Lclmodis) Lmodis = .true.
-  if (Lclcalipso2 .or. Lclcalipso .or.  Lclhcalipso .or. Lcllcalipso .or. Lclmcalipso    &
-       .or. Lcltcalipso .or. Lcltlidarradar .or. Lclcalipsoliq .or. Lclcalipsoice .or.   &
-       Lclcalipsoun .or. Lclcalipsotmp .or. Lclcalipsotmpliq .or. Lclcalipsotmpice .or.  &
-       Lclcalipsotmpun .or. Lcltcalipsoliq .or. Lcltcalipsoice .or. Lcltcalipsoun .or.   &
-       Lclhcalipsoliq .or. Lclhcalipsoice .or. Lclhcalipsoun .or. Lclmcalipsoliq .or.    &
-       Lclmcalipsoice .or. Lclmcalipsoun .or. Lcllcalipsoliq .or. Lcllcalipsoice .or.    &
-       Lcllcalipsoun .or. LlidarBetaMol532 .or. LcfadLidarsr532 .or. Lcltlidarradar .or. &
-       Lcltlidarradar .or. Lclopaquecalipso .or. Lclthincalipso .or. Lclzopaquecalipso   &
-       .or. Lclcalipsoopaque .or. Lclcalipsothin .or. Lclcalipsozopaque .or.             &
-       Lclcalipsoopacity .or. Lclopaquetemp .or. Lclthintemp .or. Lclzopaquetemp .or.    &
-       Lclopaquemeanz .or. Lclthinmeanz .or. Lclthinemis .or. Lclopaquemeanzse .or.      & 
-       Lclthinmeanzse .or. Lclzopaquecalipsose) Lcalipso = .true. 
-
-  if (LlidarBetaMol532gr .or. LcfadLidarsr532gr .or. Latb532gr .or. LclgrLidar532 .or.  & 
-       LclhgrLidar532 .or. LcllgrLidar532 .or. LclmgrLidar532 .or. LcltgrLidar532)   & 
-       LgrLidar532 = .true.
-
-  if (LlidarBetaMol355 .or. LcfadLidarsr355 .or. Latb355 .or. Lclatlid .or.              & 
-       Lclhatlid .or. Lcllatlid .or. Lclmatlid .or. Lcltatlid)                           & 
-       Latlid = .true. 
-
-  if (LcfadDbze94 .or. Ldbze94 .or. Lcltlidarradar) Lcloudsat = .true.
-
-  if (LcfadDbze94 .or. Ldbze94 .or. Lcltlidarradar .or. Lptradarflag0 .or. Lptradarflag1 &
-       .or. Lptradarflag2 .or. Lptradarflag3 .or. Lptradarflag4 .or. Lptradarflag5 .or.  &
-       Lptradarflag6 .or. Lptradarflag7 .or. Lptradarflag8 .or. Lptradarflag9 .or.       &
-       Lradarpia) Lcloudsat = .true.
-  if (Lparasolrefl) Lparasol = .true.
-  if (Ltbrttov) Lrttov = .true.
+    !call cpu_time(driver_time(1))
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Read in namelists
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Input namelist (cosp setup)
+    !call get_command_argument(1, cosp_input_namelist)
+    !open(10,file=cosp_input_namelist,status='unknown')
+    !read(10,nml=cosp_input)
+    !close(10)
+    inquire (file=trim(cosp_input_namelist), exist=exists)
+    if (.not. exists) then
+      write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_input_namelist),' does not exist'
+      stop
+    else
+      open (unit=nlunit, file=cosp_input_namelist, READONLY, status='OLD', iostat=ios)
+    endif
+    rewind(nlunit)
+    read (nlunit, nml=cosp_input)
+    close (nlunit)
+ 
+    ! Output namelist (logical flags to turn on/off outputs)
+    !open(10,file=cosp_output_namelist,status='unknown')
+    !read(10,nml=cosp_output)
+    !close(10)
+    inquire (file=trim(cosp_output_namelist), exist=exists)
+    if (.not. exists) then
+      write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_output_namelist),' does not exist'
+      stop
+    else
+      open (unit=nlunit, file=cosp_output_namelist, READONLY, status='OLD', iostat=ios)
+    endif
+    rewind(nlunit)
+    read (nlunit, nml=cosp_output)
+    close (nlunit)
+ 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Read in sample input data.
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    allocate(lon(Npoints),lat(Npoints),p(Npoints,Nlevels),ph(Npoints,Nlevels),             &
+             zlev(Npoints,Nlevels),zlev_half(Npoints,Nlevels),T(Npoints,Nlevels),          &
+             sh(Npoints,Nlevels),rh(Npoints,Nlevels),tca(Npoints,Nlevels),                 &
+             cca(Npoints,Nlevels),mr_lsliq(Npoints,Nlevels),mr_lsice(Npoints,Nlevels),     &
+             mr_ccliq(Npoints,Nlevels),mr_ccice(Npoints,Nlevels),                          &
+             fl_lsrain(Npoints,Nlevels),fl_lssnow(Npoints,Nlevels),                        &
+             fl_lsgrpl(Npoints,Nlevels),fl_ccrain(Npoints,Nlevels),                        &
+             fl_ccsnow(Npoints,Nlevels),Reff(Npoints,Nlevels,N_HYDRO),                     &
+             dtau_s(Npoints,Nlevels),dtau_c(Npoints,Nlevels),dem_s(Npoints,Nlevels),       &
+             dem_c(Npoints,Nlevels),skt(Npoints),landmask(Npoints),                        &
+             mr_ozone(Npoints,Nlevels),u_wind(Npoints),v_wind(Npoints),sunlit(Npoints),    &
+             frac_out(Npoints,Ncolumns,Nlevels),surfelev(Npoints))
+ 
+    fileIN = trim(dinput)//trim(finput)
+    call nc_read_input_file(fileIN,Npoints,Nlevels,N_HYDRO,lon,lat,p,ph,zlev,zlev_half,    &
+                            T,sh,rh,tca,cca,mr_lsliq,mr_lsice,mr_ccliq,mr_ccice,fl_lsrain, &
+                            fl_lssnow,fl_lsgrpl,fl_ccrain,fl_ccsnow,Reff,dtau_s,dtau_c,    &
+                            dem_s,dem_c,skt,landmask,mr_ozone,u_wind,v_wind,sunlit,        &
+                            emsfc_lw,geomode,Nlon,Nlat,surfelev)
+    !call cpu_time(driver_time(2))
+ 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Which simulators need to be run? Look at which outputs are requested.
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if (Lpctisccp .or. Lclisccp .or. Lboxptopisccp .or.  Lboxtauisccp .or. Ltauisccp .or. &
+         Lcltisccp .or. Lmeantbisccp .or. Lmeantbclrisccp .or. Lalbisccp) Lisccp = .true.
+    if (LclMISR) Lmisr = .true.
+    if (Lcltmodis .or. Lclwmodis .or. Lclimodis .or. Lclhmodis .or. Lclmmodis .or.         &
+         Lcllmodis .or. Ltautmodis .or. Ltauwmodis .or. Ltauimodis .or. Ltautlogmodis .or. &
+         Ltauwlogmodis .or. Ltauilogmodis .or. Lreffclwmodis .or. Lreffclimodis .or.       &
+         Lpctmodis .or. Llwpmodis .or. Liwpmodis .or. Lclmodis) Lmodis = .true.
+    if (Lclcalipso2 .or. Lclcalipso .or.  Lclhcalipso .or. Lcllcalipso .or. Lclmcalipso    &
+         .or. Lcltcalipso .or. Lcltlidarradar .or. Lclcalipsoliq .or. Lclcalipsoice .or.   &
+         Lclcalipsoun .or. Lclcalipsotmp .or. Lclcalipsotmpliq .or. Lclcalipsotmpice .or.  &
+         Lclcalipsotmpun .or. Lcltcalipsoliq .or. Lcltcalipsoice .or. Lcltcalipsoun .or.   &
+         Lclhcalipsoliq .or. Lclhcalipsoice .or. Lclhcalipsoun .or. Lclmcalipsoliq .or.    &
+         Lclmcalipsoice .or. Lclmcalipsoun .or. Lcllcalipsoliq .or. Lcllcalipsoice .or.    &
+         Lcllcalipsoun .or. LlidarBetaMol532 .or. LcfadLidarsr532 .or. Lcltlidarradar .or. &
+         Lcltlidarradar .or. Lclopaquecalipso .or. Lclthincalipso .or. Lclzopaquecalipso   &
+         .or. Lclcalipsoopaque .or. Lclcalipsothin .or. Lclcalipsozopaque .or.             &
+         Lclcalipsoopacity .or. Lclopaquetemp .or. Lclthintemp .or. Lclzopaquetemp .or.    &
+         Lclopaquemeanz .or. Lclthinmeanz .or. Lclthinemis .or. Lclopaquemeanzse .or.      & 
+         Lclthinmeanzse .or. Lclzopaquecalipsose) Lcalipso = .true. 
+ 
+    if (LlidarBetaMol532gr .or. LcfadLidarsr532gr .or. Latb532gr .or. LclgrLidar532 .or.  & 
+         LclhgrLidar532 .or. LcllgrLidar532 .or. LclmgrLidar532 .or. LcltgrLidar532)   & 
+         LgrLidar532 = .true.
+ 
+    if (LlidarBetaMol355 .or. LcfadLidarsr355 .or. Latb355 .or. Lclatlid .or.              & 
+         Lclhatlid .or. Lcllatlid .or. Lclmatlid .or. Lcltatlid)                           & 
+         Latlid = .true. 
+ 
+    if (LcfadDbze94 .or. Ldbze94 .or. Lcltlidarradar) Lcloudsat = .true.
+ 
+    if (LcfadDbze94 .or. Ldbze94 .or. Lcltlidarradar .or. Lptradarflag0 .or. Lptradarflag1 &
+         .or. Lptradarflag2 .or. Lptradarflag3 .or. Lptradarflag4 .or. Lptradarflag5 .or.  &
+         Lptradarflag6 .or. Lptradarflag7 .or. Lptradarflag8 .or. Lptradarflag9 .or.       &
+         Lradarpia) Lcloudsat = .true.
+    if (Lparasolrefl) Lparasol = .true.
+    if (Ltbrttov) Lrttov = .true.
   
   end subroutine cosp2_init
 
@@ -399,160 +399,160 @@ contains
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   subroutine cosp2_main()
 
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !                 IF IMPLEMTING COSP IN GCM, HERE IS WHERE TO START!!!
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Initialize COSP
-  !*This only needs to be done the first time that COSP is called.*
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-  ! Initialize quickbeam_optics, also if two-moment radar microphysics scheme is wanted...
-  if (cloudsat_micro_scheme == 'MMF_v3.5_two_moment')  then
-     ldouble = .true. 
-     lsingle = .false.
-  endif
-  call quickbeam_optics_init()
-
-  ! Initialize the distributional parameters for hydrometeors in radar simulator
-  call hydro_class_init(lsingle,ldouble,sd)
-
-  ! Initialize COSP simulator
-  call COSP_INIT(Lisccp, Lmodis, Lmisr, Lcloudsat, Lcalipso, LgrLidar532, Latlid,        &
-       Lparasol, Lrttov,                                                                 &
-       cloudsat_radar_freq, cloudsat_k2, cloudsat_use_gas_abs,                           &
-       cloudsat_do_ray, isccp_topheight, isccp_topheight_direction, surface_radar,       &
-       rcfg_cloudsat, use_vgrid, csat_vgrid, Nlvgrid, Nlevels, cloudsat_micro_scheme)
-  !call cpu_time(driver_time(3))
-  
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Construct output derived type.
-  ! *NOTE* The "construct/destroy" subroutines are local to this module and should be
-  !        modified for your configuration. E.g. it may be overkill to query each field.
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  call construct_cosp_outputs(Lpctisccp, Lclisccp, Lboxptopisccp, Lboxtauisccp,          &
-       Ltauisccp, Lcltisccp, Lmeantbisccp, Lmeantbclrisccp, Lalbisccp, LclMISR,          &
-       Lcltmodis, Lclwmodis, Lclimodis, Lclhmodis, Lclmmodis, Lcllmodis, Ltautmodis,     &
-       Ltauwmodis, Ltauimodis, Ltautlogmodis, Ltauwlogmodis, Ltauilogmodis,              &
-       Lreffclwmodis, Lreffclimodis, Lpctmodis, Llwpmodis, Liwpmodis, Lclmodis, Latb532, &
-       Latb532gr, Latb355, LlidarBetaMol532, LlidarBetaMol532gr, LlidarBetaMol355,       & 
-       LcfadLidarsr532, LcfadLidarsr532gr, LcfadLidarsr355, Lclcalipso2,                 & 
-       Lclcalipso, LclgrLidar532, Lclatlid, Lclhcalipso, Lcllcalipso, Lclmcalipso,       & 
-       Lcltcalipso, LclhgrLidar532, LcllgrLidar532, LclmgrLidar532, LcltgrLidar532,      & 
-       Lclhatlid, Lcllatlid, Lclmatlid, Lcltatlid, Lcltlidarradar,  Lcloudsat_tcc,             &
-       Lcloudsat_tcc2, Lclcalipsoliq,        & 
-       Lclcalipsoice, Lclcalipsoun, Lclcalipsotmp, Lclcalipsotmpliq, Lclcalipsotmpice,   &
-       Lclcalipsotmpun, Lcltcalipsoliq, Lcltcalipsoice, Lcltcalipsoun, Lclhcalipsoliq,   &
-       Lclhcalipsoice, Lclhcalipsoun, Lclmcalipsoliq, Lclmcalipsoice, Lclmcalipsoun,     &
-       Lcllcalipsoliq, Lcllcalipsoice, Lcllcalipsoun, Lclopaquecalipso, Lclthincalipso,  & 
-       Lclzopaquecalipso, Lclcalipsoopaque, Lclcalipsothin, Lclcalipsozopaque,           & 
-       Lclcalipsoopacity, Lclopaquetemp, Lclthintemp, Lclzopaquetemp, Lclopaquemeanz,    & 
-       Lclthinmeanz, Lclthinemis, Lclopaquemeanzse, Lclthinmeanzse, Lclzopaquecalipsose, &
-       LcfadDbze94, Ldbze94, Lparasolrefl,                                               &
-       Ltbrttov, Lptradarflag0,Lptradarflag1,Lptradarflag2,Lptradarflag3,Lptradarflag4,  &
-       Lptradarflag5,Lptradarflag6,Lptradarflag7,Lptradarflag8,Lptradarflag9,Lradarpia,  &
-       Lwr_occfreq, Lcfodd,                                                              &
-       Npoints, Ncolumns, Nlevels, Nlvgrid_local, rttov_Nchannels, cospOUT)
-
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Break COSP up into pieces and loop over each COSP 'chunk'.
-  ! nChunks = # Points to Process (nPoints) / # Points per COSP iteration (nPoints_it)
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  nChunks = nPoints/nPoints_it+1
-  if (nPoints .eq. nPoints_it) nChunks = 1
-  do iChunk=1,nChunks
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     ! Determine indices for "chunking" (again, if necessary)
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     if (nChunks .eq. 1) then
-        start_idx = 1
-        end_idx   = nPoints
-        nPtsPerIt = nPoints
-     else
-        start_idx = (iChunk-1)*nPoints_it+1
-        end_idx   = iChunk*nPoints_it
-        if (end_idx .gt. nPoints) end_idx=nPoints
-        nPtsPerIt = end_idx-start_idx+1
-     endif
-
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     ! Construct COSP input types
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     if (iChunk .eq. 1) then
-        call construct_cospIN(Nptsperit,nColumns,nLevels,cospIN)
-        call construct_cospstateIN(Nptsperit,nLevels,rttov_nChannels,cospstateIN)
-     endif
-     if (iChunk .eq. nChunks) then
-        call destroy_cospIN(cospIN)
-        call destroy_cospstateIN(cospstateIN)
-        call construct_cospIN(Nptsperit,nColumns,nLevels,cospIN)
-        call construct_cospstateIN(Nptsperit,nLevels,rttov_nChannels,cospstateIN)    
-     endif
-     !call cpu_time(driver_time(4))
-
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     ! Populate input types with model fields.
-     ! Here the 3D sample model fields (temperature,pressure,etc...) are ordered from the
-     ! surface-2-TOA, whereas COSP expects all fields to be ordered from TOA-2-SFC. So the
-     ! vertical fields are flipped prior to storing to COSP input type.
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     cospIN%emsfc_lw         = emsfc_lw
-     cospIN%rcfg_cloudsat    = rcfg_cloudsat
-     cospstateIN%hgt_matrix  = zlev(start_idx:end_idx,Nlevels:1:-1) ! km
-     cospstateIN%sunlit      = sunlit(start_idx:end_idx)            ! 0-1
-     cospstateIN%skt         = skt(start_idx:end_idx)               ! K
-     cospstateIN%surfelev    = surfelev(start_idx:end_idx)          ! m
-     cospstateIN%land        = landmask(start_idx:end_idx)          ! 0-1 (*note* model specific)
-     cospstateIN%qv          = sh(start_idx:end_idx,Nlevels:1:-1)   ! kg/kg
-     cospstateIN%at          = T(start_idx:end_idx,Nlevels:1:-1)    ! K
-     cospstateIN%pfull       = p(start_idx:end_idx,Nlevels:1:-1)    ! Pa 
-     ! Pressure at interface (nlevels+1). Set uppermost interface to 0.
-     cospstateIN%phalf(:,2:Nlevels+1) = ph(start_idx:end_idx,Nlevels:1:-1)   ! Pa  
-     cospstateIN%phalf(:,1)           = 0._wp
-     ! Height at interface (nlevels+1). Set lowermost interface to 0.
-     cospstateIN%hgt_matrix_half(:,1:Nlevels) = zlev_half(start_idx:end_idx,Nlevels:1:-1) ! km
-     cospstateIN%hgt_matrix_half(:,Nlevels+1) = 0._wp
-     
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     ! Generate subcolumns and compute optical inputs.
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     call subsample_and_optics(nPtsPerIt,nLevels,nColumns,N_HYDRO,overlap,                     &
-          use_precipitation_fluxes,lidar_ice_type,sd,                                          &
-          tca(start_idx:end_idx,Nlevels:1:-1),cca(start_idx:end_idx,Nlevels:1:-1),             &
-          fl_lsrain(start_idx:end_idx,Nlevels:1:-1),fl_lssnow(start_idx:end_idx,Nlevels:1:-1), &
-          fl_lsgrpl(start_idx:end_idx,Nlevels:1:-1),fl_ccrain(start_idx:end_idx,Nlevels:1:-1), &
-          fl_ccsnow(start_idx:end_idx,Nlevels:1:-1),mr_lsliq(start_idx:end_idx,Nlevels:1:-1),  &
-          mr_lsice(start_idx:end_idx,Nlevels:1:-1),mr_ccliq(start_idx:end_idx,Nlevels:1:-1),   &
-          mr_ccice(start_idx:end_idx,Nlevels:1:-1),Reff(start_idx:end_idx,Nlevels:1:-1,:),     &
-          dtau_c(start_idx:end_idx,nLevels:1:-1),dtau_s(start_idx:end_idx,nLevels:1:-1),       &
-          dem_c(start_idx:end_idx,nLevels:1:-1),dem_s(start_idx:end_idx,nLevels:1:-1),         &
-          cospstateIN,cospIN)
-
-     !call cpu_time(driver_time(6))
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !                 IF IMPLEMTING COSP IN GCM, HERE IS WHERE TO START!!!
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Initialize COSP
+    !*This only needs to be done the first time that COSP is called.*
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+    ! Initialize quickbeam_optics, also if two-moment radar microphysics scheme is wanted...
+    if (cloudsat_micro_scheme == 'MMF_v3.5_two_moment')  then
+       ldouble = .true. 
+       lsingle = .false.
+    endif
+    call quickbeam_optics_init()
+ 
+    ! Initialize the distributional parameters for hydrometeors in radar simulator
+    call hydro_class_init(lsingle,ldouble,sd)
+ 
+    ! Initialize COSP simulator
+    call COSP_INIT(Lisccp, Lmodis, Lmisr, Lcloudsat, Lcalipso, LgrLidar532, Latlid,        &
+         Lparasol, Lrttov,                                                                 &
+         cloudsat_radar_freq, cloudsat_k2, cloudsat_use_gas_abs,                           &
+         cloudsat_do_ray, isccp_topheight, isccp_topheight_direction, surface_radar,       &
+         rcfg_cloudsat, use_vgrid, csat_vgrid, Nlvgrid, Nlevels, cloudsat_micro_scheme)
+    !call cpu_time(driver_time(3))
     
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     ! Call COSP
-     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-     cosp_status = COSP_SIMULATOR(cospIN, cospstateIN, cospOUT,start_idx,end_idx,.false.)
-     do ij=1,size(cosp_status,1)
-        if (cosp_status(ij) .ne. '') print*,trim(cosp_status(ij))
-     end do
-     
-     !call cpu_time(driver_time(7))
-  enddo
-  !print*,'Time to read in data:     ',driver_time(2)-driver_time(1)
-  !print*,'Time to initialize:       ',driver_time(3)-driver_time(2)
-  !print*,'Time to construct types:  ',driver_time(4)-driver_time(3)
-  !print*,'Time to compute optics:   ',driver_time(6)-driver_time(4)
-  !print*,'Time to run COSP:         ',driver_time(7)-driver_time(6)
-  !print*,'Total time:               ',driver_time(7)-driver_time(1)
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Construct output derived type.
+    ! *NOTE* The "construct/destroy" subroutines are local to this module and should be
+    !        modified for your configuration. E.g. it may be overkill to query each field.
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    call construct_cosp_outputs(Lpctisccp, Lclisccp, Lboxptopisccp, Lboxtauisccp,          &
+         Ltauisccp, Lcltisccp, Lmeantbisccp, Lmeantbclrisccp, Lalbisccp, LclMISR,          &
+         Lcltmodis, Lclwmodis, Lclimodis, Lclhmodis, Lclmmodis, Lcllmodis, Ltautmodis,     &
+         Ltauwmodis, Ltauimodis, Ltautlogmodis, Ltauwlogmodis, Ltauilogmodis,              &
+         Lreffclwmodis, Lreffclimodis, Lpctmodis, Llwpmodis, Liwpmodis, Lclmodis, Latb532, &
+         Latb532gr, Latb355, LlidarBetaMol532, LlidarBetaMol532gr, LlidarBetaMol355,       & 
+         LcfadLidarsr532, LcfadLidarsr532gr, LcfadLidarsr355, Lclcalipso2,                 & 
+         Lclcalipso, LclgrLidar532, Lclatlid, Lclhcalipso, Lcllcalipso, Lclmcalipso,       & 
+         Lcltcalipso, LclhgrLidar532, LcllgrLidar532, LclmgrLidar532, LcltgrLidar532,      & 
+         Lclhatlid, Lcllatlid, Lclmatlid, Lcltatlid, Lcltlidarradar,  Lcloudsat_tcc,             &
+         Lcloudsat_tcc2, Lclcalipsoliq,        & 
+         Lclcalipsoice, Lclcalipsoun, Lclcalipsotmp, Lclcalipsotmpliq, Lclcalipsotmpice,   &
+         Lclcalipsotmpun, Lcltcalipsoliq, Lcltcalipsoice, Lcltcalipsoun, Lclhcalipsoliq,   &
+         Lclhcalipsoice, Lclhcalipsoun, Lclmcalipsoliq, Lclmcalipsoice, Lclmcalipsoun,     &
+         Lcllcalipsoliq, Lcllcalipsoice, Lcllcalipsoun, Lclopaquecalipso, Lclthincalipso,  & 
+         Lclzopaquecalipso, Lclcalipsoopaque, Lclcalipsothin, Lclcalipsozopaque,           & 
+         Lclcalipsoopacity, Lclopaquetemp, Lclthintemp, Lclzopaquetemp, Lclopaquemeanz,    & 
+         Lclthinmeanz, Lclthinemis, Lclopaquemeanzse, Lclthinmeanzse, Lclzopaquecalipsose, &
+         LcfadDbze94, Ldbze94, Lparasolrefl,                                               &
+         Ltbrttov, Lptradarflag0,Lptradarflag1,Lptradarflag2,Lptradarflag3,Lptradarflag4,  &
+         Lptradarflag5,Lptradarflag6,Lptradarflag7,Lptradarflag8,Lptradarflag9,Lradarpia,  &
+         Lwr_occfreq, Lcfodd,                                                              &
+         Npoints, Ncolumns, Nlevels, Nlvgrid_local, rttov_Nchannels, cospOUT)
+ 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Break COSP up into pieces and loop over each COSP 'chunk'.
+    ! nChunks = # Points to Process (nPoints) / # Points per COSP iteration (nPoints_it)
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    nChunks = nPoints/nPoints_it+1
+    if (nPoints .eq. nPoints_it) nChunks = 1
+    do iChunk=1,nChunks
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       ! Determine indices for "chunking" (again, if necessary)
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       if (nChunks .eq. 1) then
+          start_idx = 1
+          end_idx   = nPoints
+          nPtsPerIt = nPoints
+       else
+          start_idx = (iChunk-1)*nPoints_it+1
+          end_idx   = iChunk*nPoints_it
+          if (end_idx .gt. nPoints) end_idx=nPoints
+          nPtsPerIt = end_idx-start_idx+1
+       endif
+ 
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       ! Construct COSP input types
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       if (iChunk .eq. 1) then
+          call construct_cospIN(Nptsperit,nColumns,nLevels,cospIN)
+          call construct_cospstateIN(Nptsperit,nLevels,rttov_nChannels,cospstateIN)
+       endif
+       if (iChunk .eq. nChunks) then
+          call destroy_cospIN(cospIN)
+          call destroy_cospstateIN(cospstateIN)
+          call construct_cospIN(Nptsperit,nColumns,nLevels,cospIN)
+          call construct_cospstateIN(Nptsperit,nLevels,rttov_nChannels,cospstateIN)    
+       endif
+       !call cpu_time(driver_time(4))
+ 
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       ! Populate input types with model fields.
+       ! Here the 3D sample model fields (temperature,pressure,etc...) are ordered from the
+       ! surface-2-TOA, whereas COSP expects all fields to be ordered from TOA-2-SFC. So the
+       ! vertical fields are flipped prior to storing to COSP input type.
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       cospIN%emsfc_lw         = emsfc_lw
+       cospIN%rcfg_cloudsat    = rcfg_cloudsat
+       cospstateIN%hgt_matrix  = zlev(start_idx:end_idx,Nlevels:1:-1) ! km
+       cospstateIN%sunlit      = sunlit(start_idx:end_idx)            ! 0-1
+       cospstateIN%skt         = skt(start_idx:end_idx)               ! K
+       cospstateIN%surfelev    = surfelev(start_idx:end_idx)          ! m
+       cospstateIN%land        = landmask(start_idx:end_idx)          ! 0-1 (*note* model specific)
+       cospstateIN%qv          = sh(start_idx:end_idx,Nlevels:1:-1)   ! kg/kg
+       cospstateIN%at          = T(start_idx:end_idx,Nlevels:1:-1)    ! K
+       cospstateIN%pfull       = p(start_idx:end_idx,Nlevels:1:-1)    ! Pa 
+       ! Pressure at interface (nlevels+1). Set uppermost interface to 0.
+       cospstateIN%phalf(:,2:Nlevels+1) = ph(start_idx:end_idx,Nlevels:1:-1)   ! Pa  
+       cospstateIN%phalf(:,1)           = 0._wp
+       ! Height at interface (nlevels+1). Set lowermost interface to 0.
+       cospstateIN%hgt_matrix_half(:,1:Nlevels) = zlev_half(start_idx:end_idx,Nlevels:1:-1) ! km
+       cospstateIN%hgt_matrix_half(:,Nlevels+1) = 0._wp
+       
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       ! Generate subcolumns and compute optical inputs.
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       call subsample_and_optics(nPtsPerIt,nLevels,nColumns,N_HYDRO,overlap,                     &
+            use_precipitation_fluxes,lidar_ice_type,sd,                                          &
+            tca(start_idx:end_idx,Nlevels:1:-1),cca(start_idx:end_idx,Nlevels:1:-1),             &
+            fl_lsrain(start_idx:end_idx,Nlevels:1:-1),fl_lssnow(start_idx:end_idx,Nlevels:1:-1), &
+            fl_lsgrpl(start_idx:end_idx,Nlevels:1:-1),fl_ccrain(start_idx:end_idx,Nlevels:1:-1), &
+            fl_ccsnow(start_idx:end_idx,Nlevels:1:-1),mr_lsliq(start_idx:end_idx,Nlevels:1:-1),  &
+            mr_lsice(start_idx:end_idx,Nlevels:1:-1),mr_ccliq(start_idx:end_idx,Nlevels:1:-1),   &
+            mr_ccice(start_idx:end_idx,Nlevels:1:-1),Reff(start_idx:end_idx,Nlevels:1:-1,:),     &
+            dtau_c(start_idx:end_idx,nLevels:1:-1),dtau_s(start_idx:end_idx,nLevels:1:-1),       &
+            dem_c(start_idx:end_idx,nLevels:1:-1),dem_s(start_idx:end_idx,nLevels:1:-1),         &
+            cospstateIN,cospIN)
+ 
+       !call cpu_time(driver_time(6))
+      
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       ! Call COSP
+       !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+       cosp_status = COSP_SIMULATOR(cospIN, cospstateIN, cospOUT,start_idx,end_idx,.false.)
+       do ij=1,size(cosp_status,1)
+          if (cosp_status(ij) .ne. '') print*,trim(cosp_status(ij))
+       end do
+       
+       !call cpu_time(driver_time(7))
+    enddo
+    !print*,'Time to read in data:     ',driver_time(2)-driver_time(1)
+    !print*,'Time to initialize:       ',driver_time(3)-driver_time(2)
+    !print*,'Time to construct types:  ',driver_time(4)-driver_time(3)
+    !print*,'Time to compute optics:   ',driver_time(6)-driver_time(4)
+    !print*,'Time to run COSP:         ',driver_time(7)-driver_time(6)
+    !print*,'Total time:               ',driver_time(7)-driver_time(1)
 
   end subroutine cosp2_main
 
@@ -561,21 +561,21 @@ contains
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   subroutine cosp2_end()
 
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Output
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  call write_cosp2_output(Npoints, Ncolumns, Nlevels, zlev(1,Nlevels:1:-1), lon, lat, cospOUT, foutput)
-
-  !call cpu_time(driver_time(8))
-  !print*,'Time to write to output:  ',driver_time(8)-driver_time(7)
-
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ! Free up memory
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  call destroy_cosp_outputs(cospOUT)
-  call destroy_cospIN(cospIN)
-  call destroy_cospstateIN(cospstateIN)
-  call cosp_cleanUp()
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Output
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    call write_cosp2_output(Npoints, Ncolumns, Nlevels, zlev(1,Nlevels:1:-1), lon, lat, cospOUT, foutput)
+ 
+    !call cpu_time(driver_time(8))
+    !print*,'Time to write to output:  ',driver_time(8)-driver_time(7)
+ 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Free up memory
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    call destroy_cosp_outputs(cospOUT)
+    call destroy_cospIN(cospIN)
+    call destroy_cospstateIN(cospstateIN)
+    call cosp_cleanUp()
 
   end subroutine cosp2_end
 

@@ -32,7 +32,7 @@
 ! April 2018 - R. Guzman - Added ATLID simulator
 !   Nov 2018 - T. Michibata - Added CloudSat+MODIS Warmrain Diagnostics
 ! %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-program cosp2_test
+module cosp2_test
   use cosp_kinds,          only: wp                         
   USE MOD_COSP_CONFIG,     ONLY: R_UNDEF,PARASOL_NREFL,LIDAR_NCAT,LIDAR_NTYPE,SR_BINS,    &
                                  N_HYDRO,RTTOV_MAX_CHANNELS,numMISRHgtBins,               &
@@ -1719,5 +1719,5 @@ contains
 
    end subroutine destroy_cosp_outputs
   
- end program cosp2_test
+ end module cosp2_test
 

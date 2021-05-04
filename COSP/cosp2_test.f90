@@ -71,8 +71,8 @@ module cosp2_test
   implicit none
 
   ! Input/Output driver file control
-  character(len=64) :: cosp_input_namelist
-  character(len=64),parameter :: cosp_output_namelist = 'cosp2_output_nl.txt'
+  character(len=64) :: cosp_input_namelist = 'input.nml'
+  character(len=64),parameter :: cosp_output_namelist = 'input.nml'
 
   ! Test data
   integer :: &
@@ -236,7 +236,8 @@ module cosp2_test
        latlid      = .false., & !
        lcloudsat   = .false., & !
        lrttov      = .false., & !
-       lparasol    = .false.    !
+       lparasol    = .false., & !
+       exists      = .false.
   type(size_distribution) :: &
        sd                ! Hydrometeor description
   type(radar_cfg) :: &
@@ -247,8 +248,8 @@ module cosp2_test
        cospIN            ! COSP optical (or derived?) fields needed by simulators
   type(cosp_column_inputs) :: &
        cospstateIN       ! COSP model fields needed by simulators
-  integer :: iChunk,nChunks,start_idx,end_idx,nPtsPerIt,ij
-  real(wp),dimension(10) :: driver_time
+  integer :: iChunk,nChunks,start_idx,end_idx,nPtsPerIt,ij,ios,nlunit
+  !real(wp),dimension(10) :: driver_time
   character(len=256),dimension(100) :: cosp_status
 
   ! Indices to address arrays of LS and CONV hydrometeors
@@ -285,20 +286,47 @@ module cosp2_test
        gamma_4 = (/-1., -1.,      6.0,      6.0, -1., -1.,      6.0,      6.0,      6.0/)
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  call cpu_time(driver_time(1))
+contains
+
+  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+  ! SUBROUTINE cosp2
+  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+  subroutine cosp2()
+
+  !call cpu_time(driver_time(1))
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Read in namelists
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Input namelist (cosp setup)
-  call get_command_argument(1, cosp_input_namelist)
-  open(10,file=cosp_input_namelist,status='unknown')
-  read(10,nml=cosp_input)
-  close(10)
+  !call get_command_argument(1, cosp_input_namelist)
+  !open(10,file=cosp_input_namelist,status='unknown')
+  !read(10,nml=cosp_input)
+  !close(10)
+  inquire (file=trim(cosp_input_namelist), exist=exists)
+  if (.not. exists) then
+    write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_input_namelist),' does not exist'
+    stop
+  else
+    open (unit=nlunit, file=cosp_input_namelist, READONLY, status='OLD', iostat=ios)
+  endif
+  rewind(nlunit)
+  read (nlunit, nml=cosp_input)
+  close (nlunit)
 
   ! Output namelist (logical flags to turn on/off outputs)
-  open(10,file=cosp_output_namelist,status='unknown')
-  read(10,nml=cosp_output)
-  close(10)
+  !open(10,file=cosp_output_namelist,status='unknown')
+  !read(10,nml=cosp_output)
+  !close(10)
+  inquire (file=trim(cosp_output_namelist), exist=exists)
+  if (.not. exists) then
+    write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_output_namelist),' does not exist'
+    stop
+  else
+    open (unit=nlunit, file=cosp_output_namelist, READONLY, status='OLD', iostat=ios)
+  endif
+  rewind(nlunit)
+  read (nlunit, nml=cosp_output)
+  close (nlunit)
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Read in sample input data.
@@ -322,7 +350,7 @@ module cosp2_test
                           fl_lssnow,fl_lsgrpl,fl_ccrain,fl_ccsnow,Reff,dtau_s,dtau_c,    &
                           dem_s,dem_c,skt,landmask,mr_ozone,u_wind,v_wind,sunlit,        &
                           emsfc_lw,geomode,Nlon,Nlat,surfelev)
-  call cpu_time(driver_time(2))
+  !call cpu_time(driver_time(2))
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Which simulators need to be run? Look at which outputs are requested.
@@ -395,7 +423,7 @@ module cosp2_test
        cloudsat_radar_freq, cloudsat_k2, cloudsat_use_gas_abs,                           &
        cloudsat_do_ray, isccp_topheight, isccp_topheight_direction, surface_radar,       &
        rcfg_cloudsat, use_vgrid, csat_vgrid, Nlvgrid, Nlevels, cloudsat_micro_scheme)
-  call cpu_time(driver_time(3))
+  !call cpu_time(driver_time(3))
   
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Construct output derived type.
@@ -460,7 +488,7 @@ module cosp2_test
         call construct_cospIN(Nptsperit,nColumns,nLevels,cospIN)
         call construct_cospstateIN(Nptsperit,nLevels,rttov_nChannels,cospstateIN)    
      endif
-     call cpu_time(driver_time(4))
+     !call cpu_time(driver_time(4))
 
      !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
      ! Populate input types with model fields.
@@ -500,7 +528,7 @@ module cosp2_test
           dem_c(start_idx:end_idx,nLevels:1:-1),dem_s(start_idx:end_idx,nLevels:1:-1),         &
           cospstateIN,cospIN)
 
-     call cpu_time(driver_time(6))
+     !call cpu_time(driver_time(6))
     
      !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
      ! Call COSP
@@ -510,22 +538,22 @@ module cosp2_test
         if (cosp_status(ij) .ne. '') print*,trim(cosp_status(ij))
      end do
      
-     call cpu_time(driver_time(7))
+     !call cpu_time(driver_time(7))
   enddo
-  print*,'Time to read in data:     ',driver_time(2)-driver_time(1)
-  print*,'Time to initialize:       ',driver_time(3)-driver_time(2)
-  print*,'Time to construct types:  ',driver_time(4)-driver_time(3)
-  print*,'Time to compute optics:   ',driver_time(6)-driver_time(4)
-  print*,'Time to run COSP:         ',driver_time(7)-driver_time(6)
-  print*,'Total time:               ',driver_time(7)-driver_time(1)
+  !print*,'Time to read in data:     ',driver_time(2)-driver_time(1)
+  !print*,'Time to initialize:       ',driver_time(3)-driver_time(2)
+  !print*,'Time to construct types:  ',driver_time(4)-driver_time(3)
+  !print*,'Time to compute optics:   ',driver_time(6)-driver_time(4)
+  !print*,'Time to run COSP:         ',driver_time(7)-driver_time(6)
+  !print*,'Total time:               ',driver_time(7)-driver_time(1)
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Output
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   call write_cosp2_output(Npoints, Ncolumns, Nlevels, zlev(1,Nlevels:1:-1), lon, lat, cospOUT, foutput)
 
-  call cpu_time(driver_time(8))
-  print*,'Time to write to output:  ',driver_time(8)-driver_time(7)
+  !call cpu_time(driver_time(8))
+  !print*,'Time to write to output:  ',driver_time(8)-driver_time(7)
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Free up memory
@@ -534,7 +562,9 @@ module cosp2_test
   call destroy_cospIN(cospIN)
   call destroy_cospstateIN(cospstateIN)
   call cosp_cleanUp()
-contains
+
+  end subroutine cosp2
+
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   ! SUBROUTINE subsample_and_optics
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  

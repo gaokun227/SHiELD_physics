@@ -70,6 +70,8 @@ module cosp2_test
   
   implicit none
 
+  public :: cosp2_init, cosp2_driver, cosp2_end
+
   ! Input/Output driver file control
   character(len=64) :: cosp_input_namelist = 'input.nml'
   character(len=64),parameter :: cosp_output_namelist = 'input.nml'
@@ -165,8 +167,8 @@ module cosp2_test
        foutput
   character(len=512) :: &
        dinput                       ! Directory where the input files are located
-  character(len=600) :: &
-       fileIN                       ! dinput+finput
+  !character(len=600) :: &
+  !     fileIN                       ! dinput+finput
   namelist/COSP_INPUT/overlap, isccp_topheight, isccp_topheight_direction, npoints,      &
        npoints_it, ncolumns, nlevels, use_vgrid, Nlvgrid, csat_vgrid, dinput, finput,    &
        foutput, cloudsat_radar_freq, surface_radar, cloudsat_use_gas_abs,cloudsat_do_ray,&
@@ -291,17 +293,15 @@ contains
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   ! SUBROUTINE cosp2_init
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-  subroutine cosp2_init()
+  subroutine cosp2_init ()
+
+    implicit none
 
     !call cpu_time(driver_time(1))
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Read in namelists
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Input namelist (cosp setup)
-    !call get_command_argument(1, cosp_input_namelist)
-    !open(10,file=cosp_input_namelist,status='unknown')
-    !read(10,nml=cosp_input)
-    !close(10)
     inquire (file=trim(cosp_input_namelist), exist=exists)
     if (.not. exists) then
       write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_input_namelist),' does not exist'
@@ -314,9 +314,6 @@ contains
     close (nlunit)
  
     ! Output namelist (logical flags to turn on/off outputs)
-    !open(10,file=cosp_output_namelist,status='unknown')
-    !read(10,nml=cosp_output)
-    !close(10)
     inquire (file=trim(cosp_output_namelist), exist=exists)
     if (.not. exists) then
       write(6,*) 'COSP_namelist_read:: namelist file: ',trim(cosp_output_namelist),' does not exist'
@@ -344,12 +341,12 @@ contains
              mr_ozone(Npoints,Nlevels),u_wind(Npoints),v_wind(Npoints),sunlit(Npoints),    &
              frac_out(Npoints,Ncolumns,Nlevels),surfelev(Npoints))
  
-    fileIN = trim(dinput)//trim(finput)
-    call nc_read_input_file(fileIN,Npoints,Nlevels,N_HYDRO,lon,lat,p,ph,zlev,zlev_half,    &
-                            T,sh,rh,tca,cca,mr_lsliq,mr_lsice,mr_ccliq,mr_ccice,fl_lsrain, &
-                            fl_lssnow,fl_lsgrpl,fl_ccrain,fl_ccsnow,Reff,dtau_s,dtau_c,    &
-                            dem_s,dem_c,skt,landmask,mr_ozone,u_wind,v_wind,sunlit,        &
-                            emsfc_lw,geomode,Nlon,Nlat,surfelev)
+    !fileIN = trim(dinput)//trim(finput)
+    !call nc_read_input_file(fileIN,Npoints,Nlevels,N_HYDRO,lon,lat,p,ph,zlev,zlev_half,    &
+    !                        T,sh,rh,tca,cca,mr_lsliq,mr_lsice,mr_ccliq,mr_ccice,fl_lsrain, &
+    !                        fl_lssnow,fl_lsgrpl,fl_ccrain,fl_ccsnow,Reff,dtau_s,dtau_c,    &
+    !                        dem_s,dem_c,skt,landmask,mr_ozone,u_wind,v_wind,sunlit,        &
+    !                        emsfc_lw,geomode,Nlon,Nlat,surfelev)
     !call cpu_time(driver_time(2))
  
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -457,9 +454,50 @@ contains
   end subroutine cosp2_init
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-  ! SUBROUTINE cosp2_main
+  ! SUBROUTINE cosp2_driver
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-  subroutine cosp2_main()
+  subroutine cosp2_driver (im, km, ntrac, tgrs, qgrs, prsl, prsi, phil, phii)
+
+    implicit none
+
+    integer :: im, km, ntrac
+
+    real (kind = kind_phys), dimension (im, km) :: tgrs, prsl, phil
+    real (kind = kind_phys), dimension (im, km + 1) :: prsi, phii
+    real (kind = kind_phys), dimension (im, km, ntrac) :: qgrs
+
+    p = prsl
+    ph = prsi(:,1:Nlevels)
+    zlev = phil
+    zlev_half = phii(:,1:Nlevels)
+    T = tgrs
+    sh = qgrs(:,:,1)
+    rh = 0.0 ! to do
+    !tca = 
+    !cca = 
+    !mr_lsliq
+    !mr_lsice
+    !mr_ccliq
+    !mr_ccice
+    !fl_lsrain
+    !fl_lssnow
+    !fl_lsgrpl
+    !fl_ccrain
+    !fl_ccsnow
+    !Reff
+    !dtau_s
+    !dtau_c
+    !dem_s
+    !dem_c
+    !skt
+    !landmask
+    !mr_ozone
+    !u_wind
+    !v_wind
+    !sunlit
+    !emsfc_lw
+    !geomode
+    !surfelev
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Break COSP up into pieces and loop over each COSP 'chunk'.
@@ -554,17 +592,19 @@ contains
     !print*,'Time to run COSP:         ',driver_time(7)-driver_time(6)
     !print*,'Total time:               ',driver_time(7)-driver_time(1)
 
-  end subroutine cosp2_main
+  end subroutine cosp2_driver
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   ! SUBROUTINE cosp2_end
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-  subroutine cosp2_end()
+  subroutine cosp2_end ()
+
+    implicit none
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Output
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    call write_cosp2_output(Npoints, Ncolumns, Nlevels, zlev(1,Nlevels:1:-1), lon, lat, cospOUT, foutput)
+    !call write_cosp2_output(Npoints, Ncolumns, Nlevels, zlev(1,Nlevels:1:-1), lon, lat, cospOUT, foutput)
  
     !call cpu_time(driver_time(8))
     !print*,'Time to write to output:  ',driver_time(8)-driver_time(7)

@@ -23,6 +23,7 @@ module module_physics_driver
   use wv_saturation,         only: estblf
   
   use module_sfc_drv,        only: sfc_drv
+  use cosp2_test,            only: cosp2_driver
   
   implicit none
 
@@ -3803,6 +3804,15 @@ module module_physics_driver
             dq3dt_initial, Diag%dq3dt, Statein%qgrs(:,:,1:nwat), Stateout%gq0(:,:,1:nwat), &
             final_dynamics_delp, im, levs, nwat, dtp)
       endif
+
+!-----------------------------------------------------------------------
+! The CFMIP Observation Simulator Package (COSP)
+! Added by Linjiong Zhou
+! May 2021
+!-----------------------------------------------------------------------
+
+        call cosp2_driver (im, levs, ntrac, Statein%tgrs, Statein%qgrs, Statein%prsl, Statein%prsi, &
+            Statein%phil, Statein%phii)
       
       return
 !...................................

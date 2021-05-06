@@ -32,6 +32,7 @@ module IPD_driver
   public IPD_radiation_step
   public IPD_physics_step1
   public IPD_physics_step2
+  public IPD_physics_end
 
   CONTAINS
 !*******************************************************************************************
@@ -137,5 +138,14 @@ module IPD_driver
                         IPD_Data%Intdiag)
 
   end subroutine IPD_physics_step2
+
+!-------------------
+!  IPD physics end
+!-------------------
+  subroutine IPD_physics_end ()
+
+    call physics_end ()
+
+  end subroutine IPD_physics_end
 
 end module IPD_driver

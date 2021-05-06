@@ -12,9 +12,10 @@ module GFS_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
-  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init
+  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init, gfdl_cld_mp_end
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
+  use cosp2_test,               only: cosp2_init
 
   implicit none
 
@@ -91,6 +92,7 @@ module GFS_driver
   public  GFS_radiation_driver        !< radiation_driver (was grrad)
   public  GFS_physics_driver          !< physics_driver (was gbphys)
   public  GFS_stochastic_driver       !< stochastic physics
+  public  GFS_physics_end             !< GFS end routine
 
 
   CONTAINS
@@ -247,6 +249,14 @@ module GFS_driver
     !--- FV3GFS handles this as part of the IC ingest
     !--- this note is placed here alertng users to study
     !--- the FV3GFS_io.F90 module
+
+!-----------------------------------------------------------------------
+! The CFMIP Observation Simulator Package (COSP)
+! Added by Linjiong Zhou
+! May 2021
+!-----------------------------------------------------------------------
+
+    call cosp2_init ()
 
   end subroutine GFS_initialize
 
@@ -458,7 +468,22 @@ module GFS_driver
 
   end subroutine GFS_stochastic_driver
 
+!--------------
+! GFS physics end
+!--------------
+  subroutine GFS_physics_end ()
 
+    call gfdl_cld_mp_end ()
+
+!-----------------------------------------------------------------------
+! The CFMIP Observation Simulator Package (COSP)
+! Added by Linjiong Zhou
+! May 2021
+!-----------------------------------------------------------------------
+
+    call cosp2_end ()
+
+  end subroutine GFS_physics_end
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !

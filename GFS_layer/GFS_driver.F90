@@ -92,7 +92,7 @@ module GFS_driver
   public  GFS_radiation_driver        !< radiation_driver (was grrad)
   public  GFS_physics_driver          !< physics_driver (was gbphys)
   public  GFS_stochastic_driver       !< stochastic physics
-  public  GFS_physics_end             !< GFS end routine
+  public  GFS_physics_end             !< GFS physics end routine
 
 
   CONTAINS
@@ -484,6 +484,7 @@ module GFS_driver
     call cosp2_end ()
 
   end subroutine GFS_physics_end
+
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !

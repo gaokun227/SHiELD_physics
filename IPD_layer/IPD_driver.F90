@@ -6,7 +6,7 @@ module IPD_driver
 
   use physics_abstraction_layer,  only: initialize,        time_vary_step,   &
                                         radiation_step1,   physics_step1,    &
-                                        physics_step2
+                                        physics_step2,     physics_end
 
   use physics_diag_layer,         only: diag_populate
 
@@ -139,10 +139,13 @@ module IPD_driver
 
   end subroutine IPD_physics_step2
 
+
 !-------------------
 !  IPD physics end
 !-------------------
   subroutine IPD_physics_end ()
+
+    implicit none
 
     call physics_end ()
 

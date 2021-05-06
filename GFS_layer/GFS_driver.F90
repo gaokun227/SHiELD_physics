@@ -12,7 +12,7 @@ module GFS_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
-  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init
+  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init, gfdl_cld_mp_end
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
 
@@ -91,6 +91,7 @@ module GFS_driver
   public  GFS_radiation_driver        !< radiation_driver (was grrad)
   public  GFS_physics_driver          !< physics_driver (was gbphys)
   public  GFS_stochastic_driver       !< stochastic physics
+  public  GFS_physics_end             !< GFS physics end routine
 
 
   CONTAINS
@@ -458,6 +459,17 @@ module GFS_driver
 
   end subroutine GFS_stochastic_driver
 
+
+!--------------
+! GFS physics end
+!--------------
+  subroutine GFS_physics_end ()
+
+    implicit none
+
+    call gfdl_cld_mp_end ()
+
+  end subroutine GFS_physics_end
 
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

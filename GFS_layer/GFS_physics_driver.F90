@@ -499,6 +499,7 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
           ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en,            &
+          prefluxw, prefluxr, prefluxi, prefluxs, prefluxg,             &
           sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps
 
       !--- GFDL modification for FV3 
@@ -3367,6 +3368,11 @@ module module_physics_driver
         pt_dt    (:,1,:) = 0.0
         udt      (:,1,:) = 0.0
         vdt      (:,1,:) = 0.0
+        prefluxw (:,1,:) = 0.0
+        prefluxr (:,1,:) = 0.0
+        prefluxi (:,1,:) = 0.0
+        prefluxs (:,1,:) = 0.0
+        prefluxg (:,1,:) = 0.0
         do k = 1, levs
           qv1  (:,1,k) = Stateout%gq0(:,levs-k+1,1         )
           ql1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntcw)
@@ -3435,6 +3441,11 @@ module module_physics_driver
         sub0      = 0.0
         qnl1      = 0.0
         qni1      = 0.0
+        prefluxw  = 0.0
+        prefluxr  = 0.0
+        prefluxi  = 0.0
+        prefluxs  = 0.0
+        prefluxg  = 0.0
         do k = 1, levs
           w    (:,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g
@@ -3449,7 +3460,9 @@ module module_physics_driver
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, water0, rain0, ice0, snow0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                                .false., te(:,levs:1:-1), cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
+                                .false., te(:,levs:1:-1), prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
+                                prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
+                                cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         water0(:)   = water0(:)   * tem

@@ -3811,8 +3811,11 @@ module module_physics_driver
 ! May 2021
 !-----------------------------------------------------------------------
 
-        call cosp2_driver (im, levs, ntrac, Statein%tgrs, Statein%qgrs, Statein%prsl, Statein%prsi, &
-            Statein%phil, Statein%phii)
+        call cosp2_driver (im, levs, ntrac, Stateout%gt0, Stateout%gq0(:,:,1), Stateout%gu0, &
+            Stateout%gv0, Statein%prsl, Statein%prsi, Statein%phil, Statein%phii, Sfcprop%tsfc, &
+            Stateout%gq0(:,:,Model%ntoz), 1-abs(Sfcprop%slmsk-1), Sfcprop%oro, &
+            Stateout%gq0(:,:,Model%ntclamt), Tbd%phy_f3d(:,:,num3), Stateout%gq0(:,:,Model%ntcw), &
+            Stateout%gq0(:,:,Model%ntiw), Tbd%phy_f3d(:,:,num2))
       
       return
 !...................................

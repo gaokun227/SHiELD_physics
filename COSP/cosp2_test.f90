@@ -67,6 +67,7 @@ module cosp2_test
   use cosp_optics,         ONLY: cosp_simulator_optics,lidar_optics,modis_optics,         &
                                  modis_optics_partition
   use mod_cosp_stats,      ONLY: COSP_CHANGE_VERTICAL_GRID
+  use machine,             ONLY: kind_phys
   
   implicit none
 
@@ -87,8 +88,6 @@ module cosp2_test
        skt,       & ! Skin temperature (K)
        surfelev,  & ! Surface Elevation (m)
        landmask,  & ! Land/sea mask (0/1)
-       u_wind,    & ! U-component of wind (m/s)
-       v_wind,    & ! V-component of wind (m/s)
        sunlit       ! Sunlit flag
   real(wp),dimension(:,:),allocatable,target :: &
        p,         & ! Model pressure levels (pa)
@@ -100,6 +99,8 @@ module cosp2_test
        rh,        & ! Relative humidity (1)
        tca,       & ! Total cloud fraction (1)
        cca,       & ! Convective cloud fraction (1) 
+       u_wind,    & ! U-component of wind (m/s)
+       v_wind,    & ! V-component of wind (m/s)
        mr_lsliq,  & ! Mass mixing ratio for stratiform cloud liquid (kg/kg)
        mr_lsice,  & ! Mass mixing ratio for stratiform cloud ice (kg/kg)
        mr_ccliq,  & ! Mass mixing ratio for convective cloud liquid (kg/kg)
@@ -338,8 +339,8 @@ contains
              fl_ccsnow(Npoints,Nlevels),Reff(Npoints,Nlevels,N_HYDRO),                     &
              dtau_s(Npoints,Nlevels),dtau_c(Npoints,Nlevels),dem_s(Npoints,Nlevels),       &
              dem_c(Npoints,Nlevels),skt(Npoints),landmask(Npoints),                        &
-             mr_ozone(Npoints,Nlevels),u_wind(Npoints),v_wind(Npoints),sunlit(Npoints),    &
-             frac_out(Npoints,Ncolumns,Nlevels),surfelev(Npoints))
+             mr_ozone(Npoints,Nlevels),u_wind(Npoints,Nlevels),v_wind(Npoints,Nlevels),    &
+             sunlit(Npoints),frac_out(Npoints,Ncolumns,Nlevels),surfelev(Npoints))
  
     !fileIN = trim(dinput)//trim(finput)
     !call nc_read_input_file(fileIN,Npoints,Nlevels,N_HYDRO,lon,lat,p,ph,zlev,zlev_half,    &
@@ -456,29 +457,31 @@ contains
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   ! SUBROUTINE cosp2_driver
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-  subroutine cosp2_driver (im, km, ntrac, tgrs, qgrs, prsl, prsi, phil, phii)
+  subroutine cosp2_driver (im, km, ntrac, tgrs, sphum, ugrs, vgrs, prsl, prsi, phil, phii, tsfc, o3mr, &
+                 slmsk, oro, cld_amt, cnvc, liq_wat, ice_wat, cnvw)
 
     implicit none
 
     integer :: im, km, ntrac
 
-    real (kind = kind_phys), dimension (im, km) :: tgrs, prsl, phil
+    real (kind = kind_phys), dimension (im) :: tsfc, slmsk, oro
+    real (kind = kind_phys), dimension (im, km) :: tgrs, sphum, prsl, phil, ugrs, vgrs, o3mr
+    real (kind = kind_phys), dimension (im, km) :: cld_amt, liq_wat, ice_wat
+    real (kind = kind_phys), dimension (im, km) :: cnvc, cnvw
     real (kind = kind_phys), dimension (im, km + 1) :: prsi, phii
-    real (kind = kind_phys), dimension (im, km, ntrac) :: qgrs
 
     p = prsl
     ph = prsi(:,1:Nlevels)
     zlev = phil
     zlev_half = phii(:,1:Nlevels)
     T = tgrs
-    sh = qgrs(:,:,1)
-    rh = 0.0 ! to do
-    !tca = 
-    !cca = 
-    !mr_lsliq
-    !mr_lsice
-    !mr_ccliq
-    !mr_ccice
+    sh = sphum
+    tca = cld_amt
+    cca = cnvc
+    mr_lsliq = liq_wat
+    mr_lsice = ice_wat
+    mr_ccliq = cnvw
+    mr_ccice = 0.0
     !fl_lsrain
     !fl_lssnow
     !fl_lsgrpl
@@ -489,15 +492,14 @@ contains
     !dtau_c
     !dem_s
     !dem_c
-    !skt
-    !landmask
-    !mr_ozone
-    !u_wind
-    !v_wind
+    skt = tsfc
+    landmask = slmsk
+    mr_ozone = o3mr
+    u_wind = ugrs
+    v_wind = vgrs
     !sunlit
     !emsfc_lw
-    !geomode
-    !surfelev
+    surfelev = oro
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Break COSP up into pieces and loop over each COSP 'chunk'.

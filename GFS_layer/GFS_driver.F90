@@ -15,7 +15,7 @@ module GFS_driver
   use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init, gfdl_cld_mp_end
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
-  use cosp2_test,               only: cosp2_init
+  use cosp2_test,               only: cosp2_init, cosp2_end
 
   implicit none
 

@@ -458,7 +458,7 @@ contains
   ! SUBROUTINE cosp2_driver
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   subroutine cosp2_driver (im, km, ntrac, tgrs, sphum, ugrs, vgrs, prsl, prsi, phil, phii, tsfc, o3mr, &
-                 slmsk, oro, cld_amt, cnvc, liq_wat, ice_wat, cnvw)
+                 slmsk, oro, cld_amt, cnvc, liq_wat, ice_wat, cnvw, pfr, pfs, pfg)
 
     implicit none
 
@@ -467,7 +467,7 @@ contains
     real (kind = kind_phys), dimension (im) :: tsfc, slmsk, oro
     real (kind = kind_phys), dimension (im, km) :: tgrs, sphum, prsl, phil, ugrs, vgrs, o3mr
     real (kind = kind_phys), dimension (im, km) :: cld_amt, liq_wat, ice_wat
-    real (kind = kind_phys), dimension (im, km) :: cnvc, cnvw
+    real (kind = kind_phys), dimension (im, km) :: cnvc, cnvw, pfr, pfs, pfg
     real (kind = kind_phys), dimension (im, km + 1) :: prsi, phii
 
     p = prsl
@@ -482,11 +482,11 @@ contains
     mr_lsice = ice_wat
     mr_ccliq = cnvw
     mr_ccice = 0.0
-    !fl_lsrain
-    !fl_lssnow
-    !fl_lsgrpl
-    !fl_ccrain
-    !fl_ccsnow
+    fl_lsrain = pfr / 86400.
+    fl_lssnow = pfs / 86400.
+    fl_lsgrpl = pfg / 86400.
+    fl_ccrain = 0.0
+    fl_ccsnow = 0.0
     !Reff
     !dtau_s
     !dtau_c

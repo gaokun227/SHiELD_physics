@@ -143,11 +143,13 @@ module IPD_driver
 !-------------------
 !  IPD physics end
 !-------------------
-  subroutine IPD_physics_end ()
+  subroutine IPD_physics_end (IPD_Control)
 
     implicit none
 
-    call physics_end ()
+    type(IPD_control_type), intent(inout) :: IPD_Control
+
+    call physics_end (IPD_Control)
 
   end subroutine IPD_physics_end
 

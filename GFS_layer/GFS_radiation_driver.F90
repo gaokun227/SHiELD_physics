@@ -1630,6 +1630,21 @@
 
       endif                                ! end_if_ntcw
 
+!  ---  pass cloud effective radii out
+
+      if (Model%ncld .eq. 1) then
+          diag%reff(:,:,1) = clouds(:,:,3)
+      else if (Model%ncld .eq. 2) then
+          diag%reff(:,:,1) = clouds(:,:,3)
+          diag%reff(:,:,2) = clouds(:,:,5)
+      else if (Model%ncld .eq. 5) then
+          diag%reff(:,:,1) = clouds(:,:,3)
+          diag%reff(:,:,2) = clouds(:,:,5)
+          diag%reff(:,:,3) = clouds(:,:,7)
+          diag%reff(:,:,4) = clouds(:,:,9)
+          diag%reff(:,:,5) = clouds(:,:,11)
+      endif
+
 !  --- ...  start radiation calculations
 !           remember to set heating rate unit to k/sec!
 !> -# Start SW radiation calculations

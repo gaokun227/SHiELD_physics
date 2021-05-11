@@ -256,7 +256,9 @@ module GFS_driver
 ! May 2021
 !-----------------------------------------------------------------------
 
-    call cosp2_init ()
+    if (Model%do_cosp) then
+        call cosp2_init ()
+    endif
 
   end subroutine GFS_initialize
 
@@ -471,7 +473,10 @@ module GFS_driver
 !--------------
 ! GFS physics end
 !--------------
-  subroutine GFS_physics_end ()
+  subroutine GFS_physics_end (Model)
+
+    !--- interface variables
+    type(GFS_control_type),   intent(inout) :: Model
 
     call gfdl_cld_mp_end ()
 
@@ -481,7 +486,9 @@ module GFS_driver
 ! May 2021
 !-----------------------------------------------------------------------
 
-    call cosp2_end ()
+    if (Model%do_cosp) then
+        call cosp2_end ()
+    endif
 
   end subroutine GFS_physics_end
 

@@ -538,6 +538,9 @@ module GFS_typedefs
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
 
+    !--- The CFMIP Observation Simulator Package (COSP)
+    logical              :: do_cosp         !< flag for COSP
+
     !--- Z-C microphysical parameters
     logical              :: zhao_mic        !< flag for Zhao-Carr microphysics
     real(kind=kind_phys) :: psautco(2)      !< [in] auto conversion coeff from ice to snow
@@ -992,6 +995,7 @@ module GFS_typedefs
                                                                 !< hardcoded field indices, opt. includes aerosols!
     real (kind=kind_phys), pointer :: cloud (:,:,:) => null()   !< to save time accumulated 3-d fields defined as:!
                                                                 !< hardcoded field indices
+    real (kind=kind_phys), pointer :: reff  (:,:,:) => null()   !< to save cloud effective radii
     type (topfsw_type),    pointer :: topfsw(:)     => null()   !< sw radiation fluxes at toa, components:        
                                                !       %upfxc    - total sky upward sw flux at toa (w/m**2)     
                                                !       %dnfxc    - total sky downward sw flux at toa (w/m**2)   
@@ -1889,6 +1893,9 @@ module GFS_typedefs
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
 
+    !--- The CFMIP Observation Simulator Package (COSP)
+    logical              :: do_cosp = .false.                !< flag for COSP
+
     !--- Z-C microphysical parameters
     integer              :: ncld           =  1                 !< cnoice of cloud scheme
     logical              :: zhao_mic       = .false.            !< flag for Zhao-Carr microphysics
@@ -2147,7 +2154,7 @@ module GFS_typedefs
                                fixed_date,                                                  &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
-                               wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
+                               do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !    Noah MP options
@@ -2318,6 +2325,8 @@ module GFS_typedefs
     Model%ncld             = ncld
     !--- GFDL microphysical parameters
     Model%do_inline_mp     = do_inline_mp
+    !--- The CFMIP Observation Simulator Package (COSP)
+    Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
     Model%zhao_mic         = zhao_mic
     Model%psautco          = psautco
@@ -2974,6 +2983,8 @@ module GFS_typedefs
       print *, ' ncld              : ', Model%ncld
       print *, ' GFDL microphysical parameters'
       print *, ' do_inline_mp      : ', Model%do_inline_mp
+      print *, ' The CFMIP Observation Simulator Package (COSP)'
+      print *, ' do_cosp           : ', Model%do_cosp
       print *, ' Z-C microphysical parameters'
       print *, ' zhao_mic          : ', Model%zhao_mic
       print *, ' psautco           : ', Model%psautco
@@ -3412,6 +3423,7 @@ module GFS_typedefs
     !--- Radiation
     allocate (Diag%fluxr   (IM,Model%nfxr))
     allocate (Diag%cloud   (IM,Model%levs,Model%nkld))
+    allocate (Diag%reff    (IM,Model%levs,Model%ncld))
     allocate (Diag%topfsw  (IM))
     allocate (Diag%topflw  (IM))
     !--- Physics
@@ -3526,6 +3538,7 @@ module GFS_typedefs
 
     Diag%fluxr        = zero
     Diag%cloud        = zero
+    Diag%reff         = zero
     Diag%topfsw%upfxc = zero
     Diag%topfsw%dnfxc = zero
     Diag%topfsw%upfx0 = zero

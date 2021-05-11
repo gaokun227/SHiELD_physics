@@ -254,7 +254,7 @@
       real (kind=kind_phys), parameter :: gfac=1.0e5/con_g              &
      &,                                   gord=con_g/con_rd
 !> number of fields in cloud array
-      integer, parameter, public :: NF_CLDS = 9   
+      integer, parameter, public :: NF_CLDS = 11   
 !> number of cloud vertical domains
       integer, parameter, public :: NK_CLDS = 3  
 
@@ -2620,6 +2620,8 @@
           clouds(i,k,7) = rer(i,k)
           clouds(i,k,8) = csp(i,k)
           clouds(i,k,9) = res(i,k)
+          clouds(i,k,10) = cgp(i,k)
+          clouds(i,k,11) = reg(i,k)
         enddo
       enddo
 

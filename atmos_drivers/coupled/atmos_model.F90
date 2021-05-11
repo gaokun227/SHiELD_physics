@@ -620,7 +620,7 @@ subroutine atmos_model_end (Atmos)
 !---local variables
   integer :: idx
 
-    call IPD_physics_end ()
+    call IPD_physics_end (IPD_Control)
 
 !-----------------------------------------------------------------------
 !---- termination routine for atmospheric model ----

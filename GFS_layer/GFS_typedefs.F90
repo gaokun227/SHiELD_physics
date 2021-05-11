@@ -118,6 +118,13 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: pres (:)     => null()  !< snow
     real (kind=kind_phys), pointer :: preg (:)     => null()  !< graupel
 
+    !--- precipitation flux
+    real (kind=kind_phys), pointer :: prefluxw (:,:)     => null()  !< water
+    real (kind=kind_phys), pointer :: prefluxr (:,:)     => null()  !< rain
+    real (kind=kind_phys), pointer :: prefluxi (:,:)     => null()  !< ice
+    real (kind=kind_phys), pointer :: prefluxs (:,:)     => null()  !< snow
+    real (kind=kind_phys), pointer :: prefluxg (:,:)     => null()  !< graupel
+
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
     real (kind=kind_phys), pointer :: ci (:)      => null()   !< sea ice fraction

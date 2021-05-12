@@ -458,19 +458,24 @@ contains
   ! SUBROUTINE cosp2_driver
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
   subroutine cosp2_driver (im, km, ntrac, tgrs, sphum, ugrs, vgrs, prsl, prsi, phil, phii, tsfc, o3mr, &
-                 slmsk, oro, cld_amt, cnvc, liq_wat, ice_wat, cnvw, pfr, pfs, pfg, ncld, r_eff)
+                 slmsk, oro, cld_amt, cnvc, liq_wat, ice_wat, cnvw, pfr, pfs, pfg, ncld, r_eff, coszen, &
+                 ctau)
 
     implicit none
 
     integer :: im, km, ntrac, ncld
 
-    real (kind = kind_phys), dimension (im) :: tsfc, slmsk, oro
+    real (kind = kind_phys), dimension (im) :: tsfc, slmsk, oro, coszen, semis
     real (kind = kind_phys), dimension (im, km) :: tgrs, sphum, prsl, phil, ugrs, vgrs, o3mr
     real (kind = kind_phys), dimension (im, km) :: cld_amt, liq_wat, ice_wat
     real (kind = kind_phys), dimension (im, km) :: cnvc, cnvw, pfr, pfs, pfg
     real (kind = kind_phys), dimension (im, km + 1) :: prsi, phii
     real (kind = kind_phys), dimension (im, km, ncld) :: r_eff
+    real (kind = kind_phys), dimension (im, km, 2) :: ctau
 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    ! Input
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     p = prsl
     ph = prsi(:,1:Nlevels)
     zlev = phil
@@ -494,17 +499,17 @@ contains
     Reff(:,:,3) = r_eff(:,:,3)
     Reff(:,:,4) = r_eff(:,:,4)
     Reff(:,:,9) = r_eff(:,:,5)
-    !dtau_s
-    !dtau_c
-    !dem_s
-    !dem_c
+    dtau_s = ctau(:,:,1)
+    dtau_c = 0.0
+    dem_s = ctau(:,:,2)
+    dem_c = 0.0
     skt = tsfc
     landmask = slmsk
     mr_ozone = o3mr
     u_wind = ugrs
     v_wind = vgrs
-    !sunlit
-    !emsfc_lw
+    sunlit = coszen
+    emsfc_lw = 1.0
     surfelev = oro
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

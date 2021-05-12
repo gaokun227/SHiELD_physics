@@ -3847,7 +3847,8 @@ module module_physics_driver
             Stateout%gv0, Statein%prsl, Statein%prsi, Statein%phil, Statein%phii, Sfcprop%tsfc, &
             Stateout%gq0(:,:,Model%ntoz), 1-abs(Sfcprop%slmsk-1), Sfcprop%oro, &
             Stateout%gq0(:,:,Model%ntclamt), Tbd%phy_f3d(:,:,num3), Stateout%gq0(:,:,Model%ntcw), &
-            Stateout%gq0(:,:,Model%ntiw), Tbd%phy_f3d(:,:,num2), pfr, pfs, pfg, model%ncld, diag%reff)
+            Stateout%gq0(:,:,Model%ntiw), Tbd%phy_f3d(:,:,num2), pfr, pfs, pfg, model%ncld, diag%reff, &
+            Radtend%coszen, diag%ctau)
       
         deallocate (pfr)
         deallocate (pfs)

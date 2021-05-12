@@ -995,7 +995,8 @@ module GFS_typedefs
                                                                 !< hardcoded field indices, opt. includes aerosols!
     real (kind=kind_phys), pointer :: cloud (:,:,:) => null()   !< to save time accumulated 3-d fields defined as:!
                                                                 !< hardcoded field indices
-    real (kind=kind_phys), pointer :: reff  (:,:,:) => null()   !< to save cloud effective radii
+    real (kind=kind_phys), pointer :: reff(:,:,:)   => null()   !< to save cloud effective radii
+    real (kind=kind_phys), pointer :: ctau(:,:,:)   => null()   !< to save cloud optical depth and emissivity
     type (topfsw_type),    pointer :: topfsw(:)     => null()   !< sw radiation fluxes at toa, components:        
                                                !       %upfxc    - total sky upward sw flux at toa (w/m**2)     
                                                !       %dnfxc    - total sky downward sw flux at toa (w/m**2)   
@@ -3424,6 +3425,7 @@ module GFS_typedefs
     allocate (Diag%fluxr   (IM,Model%nfxr))
     allocate (Diag%cloud   (IM,Model%levs,Model%nkld))
     allocate (Diag%reff    (IM,Model%levs,Model%ncld))
+    allocate (Diag%ctau    (IM,Model%levs,2))
     allocate (Diag%topfsw  (IM))
     allocate (Diag%topflw  (IM))
     !--- Physics
@@ -3539,6 +3541,7 @@ module GFS_typedefs
     Diag%fluxr        = zero
     Diag%cloud        = zero
     Diag%reff         = zero
+    Diag%ctau         = zero
     Diag%topfsw%upfxc = zero
     Diag%topfsw%dnfxc = zero
     Diag%topfsw%upfx0 = zero

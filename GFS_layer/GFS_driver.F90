@@ -475,6 +475,8 @@ module GFS_driver
 !--------------
   subroutine GFS_physics_end (Model)
 
+    implicit none
+
     !--- interface variables
     type(GFS_control_type),   intent(inout) :: Model
 

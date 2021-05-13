@@ -3778,7 +3778,7 @@ module GFS_typedefs
       allocate (Diag%cosp%levStat                            (Nlvgrid))
       allocate (Diag%cosp%cosp_scol                          (Ncolumns))
       allocate (Diag%cosp%PARASOL_NREFL_list                 (PARASOL_NREFL))
-      allocate (Diag%cosp%cloudsat_DBZE_BINS_list                 (cloudsat_DBZE_BINS))
+      allocate (Diag%cosp%cloudsat_DBZE_BINS_list            (cloudsat_DBZE_BINS))
       allocate (Diag%cosp%REICE_MODIS                        (numMODISReffIceBins))
       allocate (Diag%cosp%RELIQ_MODIS                        (numMODISReffLiqBins))
       allocate (Diag%cosp%clopaquecalipso                    (IM))

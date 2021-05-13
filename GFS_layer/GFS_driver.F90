@@ -257,7 +257,9 @@ module GFS_driver
 !-----------------------------------------------------------------------
 
     if (Model%do_cosp) then
-        call cosp2_init ()
+       do nb = 1, nblks
+          call cosp2_init (size(Grid(nb)%xlon,1), Model%levs)
+       enddo
     endif
 
   end subroutine GFS_initialize

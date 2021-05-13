@@ -131,7 +131,7 @@ module FV3GFS_io_mod
    real(kind=kind_phys) :: zhour
 !
    integer :: tot_diag_idx = 0
-   integer, parameter :: DIAG_SIZE = 250
+   integer, parameter :: DIAG_SIZE = 500
    real(kind=kind_phys), parameter :: missing_value = 1.d30
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
@@ -4079,6 +4079,866 @@ end subroutine register_diag_manager_controlled_diagnostics
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%sr(:)
+    enddo
+
+!--- 2D diagnostic variables from the CFMIP Observation Simulator Package (COSP), Linjiong Zhou
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltisccp'
+    Diag(idx)%desc = 'ISCCP Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltisccp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'meantbisccp'
+    Diag(idx)%desc = 'ISCCP all-sky 10.5 micron brightness temperature / toa_brightness_temperature'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%meantbisccp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'meantbclrisccp'
+    Diag(idx)%desc = 'ISCCP clear-sky 10.5 micron brightness temperature / toa_brightness_temperature_assuming_clear_sky'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%meantbclrisccp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'pctisccp'
+    Diag(idx)%desc = 'ISCCP Mean Cloud Top Pressure / air_pressure_at_cloud_top'
+    Diag(idx)%unit = 'hPa'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%pctisccp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tauisccp'
+    Diag(idx)%desc = 'ISCCP Mean Optical Depth / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tauisccp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'albisccp'
+    Diag(idx)%desc = 'ISCCP Mean Cloud Albedo / cloud_albedo'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%albisccp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'misr_meanztop'
+    Diag(idx)%desc = 'MISR Mean Cloud Top Height / cloud_top_altitude'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%misr_meanztop(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'misr_cldarea'
+    Diag(idx)%desc = 'MISR cloud cover / cloud_area_fraction'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%misr_cldarea(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltmodis'
+    Diag(idx)%desc = 'MODIS Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clwmodis'
+    Diag(idx)%desc = 'MODIS Liquid Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clwmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'climodis'
+    Diag(idx)%desc = 'MODIS Ice Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%climodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhmodis'
+    Diag(idx)%desc = 'MODIS High Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmmodis'
+    Diag(idx)%desc = 'MODIS Mid Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllmodis'
+    Diag(idx)%desc = 'MODIS Low Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tautmodis'
+    Diag(idx)%desc = 'MODIS Total Cloud Optical Thickness / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tautmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tauwmodis'
+    Diag(idx)%desc = 'MODIS Liquid Cloud Optical Thickness / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tauwmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tauimodis'
+    Diag(idx)%desc = 'MODIS Ice Cloud Optical Thickness / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tauimodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tautlogmodis'
+    Diag(idx)%desc = 'MODIS Total Cloud Optical Thickness (Log10 Mean) / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tautlogmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tauwlogmodis'
+    Diag(idx)%desc = 'MODIS Liquid Cloud Optical Thickness (Log10 Mean) / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tauwlogmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tauilogmodis'
+    Diag(idx)%desc = 'MODIS Ice Cloud Optical Thickness (Log10 Mean) / atmosphere_optical_thickness_due_to_cloud'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%tauilogmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'reffclwmodis'
+    Diag(idx)%desc = 'MODIS Liquid Cloud Particle Size / effective_radius_of_cloud_liquid_water_particle'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%reffclwmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'reffclimodis'
+    Diag(idx)%desc = 'MODIS Ice Cloud Particle Size / effective_radius_of_cloud_liquid_water_particle'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%reffclimodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'pctmodis'
+    Diag(idx)%desc = 'MODIS Cloud Top Pressure / air_pressure_at_cloud_top'
+    Diag(idx)%unit = 'hPa'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%pctmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'lwpmodis'
+    Diag(idx)%desc = 'MODIS Cloud Liquid Water Path / atmosphere_cloud_liquid_water_content'
+    Diag(idx)%unit = 'kg m-2'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%lwpmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'iwpmodis'
+    Diag(idx)%desc = 'MODIS Cloud Ice Water Path / atmosphere_mass_content_of_cloud_ice'
+    Diag(idx)%unit = 'kg m-2'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%iwpmodis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltlidarradar'
+    Diag(idx)%desc = 'CALIPSO and CloudSat Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltlidarradar(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllcalipsoice'
+    Diag(idx)%desc = 'CALIPSO Ice Low Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllcalipsoice(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmcalipsoice'
+    Diag(idx)%desc = 'CALIPSO Ice Mid Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmcalipsoice(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhcalipsoice'
+    Diag(idx)%desc = 'CALIPSO Ice High Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhcalipsoice(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltcalipsoice'
+    Diag(idx)%desc = 'CALIPSO Ice Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltcalipsoice(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllcalipsoliq'
+    Diag(idx)%desc = 'CALIPSO Liquid Low Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllcalipsoliq(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmcalipsoliq'
+    Diag(idx)%desc = 'CALIPSO Liquid Mid Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmcalipsoliq(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhcalipsoliq'
+    Diag(idx)%desc = 'CALIPSO Liquid High Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhcalipsoliq(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltcalipsoliq'
+    Diag(idx)%desc = 'CALIPSO Liquid Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltcalipsoliq(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllcalipsoun'
+    Diag(idx)%desc = 'ALIPSO Undefined-Phase Low Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllcalipsoun(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmcalipsoun'
+    Diag(idx)%desc = 'CALIPSO Undefined-Phase Mid Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmcalipsoun(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhcalipsoun'
+    Diag(idx)%desc = 'CALIPSO Undefined-Phase High Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhcalipsoun(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltcalipsoun'
+    Diag(idx)%desc = 'CALIPSO Undefined-Phase Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltcalipsoun(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllcalipso'
+    Diag(idx)%desc = 'CALIPSO Low Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllcalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmcalipso'
+    Diag(idx)%desc = 'CALIPSO Mid Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmcalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhcalipso'
+    Diag(idx)%desc = 'CALIPSO High Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhcalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltcalipso'
+    Diag(idx)%desc = 'CALIPSO Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltcalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clopaquecalipso'
+    Diag(idx)%desc = 'CALIPSO Opaque Cloud Cover / opaque_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clopaquecalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clthincalipso'
+    Diag(idx)%desc = 'CALIPSO Thin Cloud Cover / thin_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clthincalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clzopaquecalipso'
+    Diag(idx)%desc = 'CALIPSO z_opaque Altitude / z_opaque'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clzopaquecalipso(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clopaquetemp'
+    Diag(idx)%desc = 'CALIPSO Opaque Cloud Temperature / opaque_cloud_temperature'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clopaquetemp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clthintemp'
+    Diag(idx)%desc = 'CALIPSO Thin Cloud Temperature / thin_cloud_temperature'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clthintemp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clzopaquetemp'
+    Diag(idx)%desc = 'CALIPSO z_opaque Temperature / z_opaque_temperature'
+    Diag(idx)%unit = 'K'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clzopaquetemp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clopaquemeanz'
+    Diag(idx)%desc = 'CALIPSO Opaque Cloud Altitude / opaque_cloud_altitude'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clopaquemeanz(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clthinmeanz'
+    Diag(idx)%desc = 'CALIPSO Thin Cloud Altitude / thin_cloud_altitude'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clthinmeanz(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clthinemis'
+    Diag(idx)%desc = 'CALIPSO Thin Cloud Emissivity / thin_cloud_emissivity'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clthinemis(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clopaquemeanzse'
+    Diag(idx)%desc = 'CALIPSO Opaque Cloud Altitude with respect to SE / opaque_cloud_altitude_se'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clopaquemeanzse(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clthinmeanzse'
+    Diag(idx)%desc = 'CALIPSO Thin Cloud Altitude with respect to SE / thin_cloud_altitude_se'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clthinmeanzse(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clzopaquecalipsose'
+    Diag(idx)%desc = 'CALIPSO z_opaque Altitude with respect to SE / z_opaque_se'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clzopaquecalipsose(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllgrLidar532'
+    Diag(idx)%desc = 'GROUND LIDAR Low Level Cloud Cover / grLidar532_low_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllgrLidar532(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmgrLidar532'
+    Diag(idx)%desc = 'GROUND LIDAR Mid Level Cloud Cover / grLidar532_mid_cloud_cover'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmgrLidar532(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhgrLidar532'
+    Diag(idx)%desc = 'GROUND LIDAR High Level Cloud Cover / grLidar532_high_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhgrLidar532(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltgrLidar532'
+    Diag(idx)%desc = 'GROUND LIDAR Total Cloud Cover / grLidar532_total_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltgrLidar532(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cllatlid'
+    Diag(idx)%desc = 'ATLID Low Level Cloud Cover / atlid_low_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cllatlid(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clmatlid'
+    Diag(idx)%desc = 'ATLID Mid Level Cloud Cover / atlid_mid_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clmatlid(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'clhatlid'
+    Diag(idx)%desc = 'ATLID High Level Cloud Cover /  atlid_high_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%clhatlid(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cltatlid'
+    Diag(idx)%desc = 'ATLID Total Cloud Cover / atlid_total_cloud_cover'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cltatlid(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag0'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag0'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag0(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag1'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag1'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag1(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag2'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag2'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag2(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag3'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag3'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag3(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag4'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag4'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag4(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag5'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag5'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag5(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag6'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag6'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag6(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag7'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag7'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag7(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag8'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag8'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag8(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'ptcloudsatflag9'
+    Diag(idx)%desc = 'Cloudsat precipitation cover for flag9'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%ptcloudsatflag9(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cloudsatpia'
+    Diag(idx)%desc = 'Cloudsat path integrated attenuation'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cloudsatpia(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cloudsat_tcc'
+    Diag(idx)%desc = 'CloudSat Total Cloud Fraction / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cloudsat_tcc(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'cloudsat_tcc2'
+    Diag(idx)%desc = 'CloudSat Total Cloud Fraction (no 1km) / cloud_area_fraction'
+    Diag(idx)%unit = '%'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%cloudsat_tcc2(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'npdfcld'
+    Diag(idx)%desc = '# of Non-Precipitating Clouds / number_of_slwc_nonprecip'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%npdfcld(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'npdfdrz'
+    Diag(idx)%desc = '# of Drizzling Clouds / number_of_slwc_drizzle'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%npdfdrz(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'npdfrain'
+    Diag(idx)%desc = '# of Precipitating Clouds / number_of_slwc_precip'
+    Diag(idx)%unit = '1'
+    Diag(idx)%mod_name = 'cosp'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%npdfrain(:)
     enddo
 
 !--- three-dimensional variables that need to be handled special when writing 

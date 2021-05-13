@@ -1357,6 +1357,18 @@ module GFS_typedefs
     Statein%pres = clear_val
     Statein%preg = clear_val
 
+    allocate (Statein%prefluxw(IM,Model%levs))
+    allocate (Statein%prefluxr(IM,Model%levs))
+    allocate (Statein%prefluxi(IM,Model%levs))
+    allocate (Statein%prefluxs(IM,Model%levs))
+    allocate (Statein%prefluxg(IM,Model%levs))
+
+    Statein%prefluxw = clear_val
+    Statein%prefluxr = clear_val
+    Statein%prefluxi = clear_val
+    Statein%prefluxs = clear_val
+    Statein%prefluxg = clear_val
+
     allocate (Statein%sst(IM))
     allocate (Statein%ci(IM))
 

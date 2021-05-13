@@ -778,41 +778,41 @@ contains
     !-----------------------------------------------------------------------
     ! input variables from physics
     !-----------------------------------------------------------------------
-    p           = prsl
-    ph          = prsi(:,1:Nlevels)
-    zlev        = phil
-    zlev_half   = phii(:,1:Nlevels)
-    T           = tgrs
-    sh          = sphum
-    tca         = cld_amt
-    cca         = cnvc
-    mr_lsliq    = liq_wat
-    mr_lsice    = ice_wat
-    mr_ccliq    = cnvw
-    mr_ccice    = 0.0
-    fl_lsrain   = pfr / 86400.
-    fl_lssnow   = pfs / 86400.
-    fl_lsgrpl   = pfg / 86400.
-    fl_ccrain   = 0.0
-    fl_ccsnow   = 0.0
-    Reff        = 0.0
-    Reff(:,:,1) = r_eff(:,:,1)
-    Reff(:,:,2) = r_eff(:,:,2)
-    Reff(:,:,3) = r_eff(:,:,3)
-    Reff(:,:,4) = r_eff(:,:,4)
-    Reff(:,:,9) = r_eff(:,:,5)
-    dtau_s      = ctau(:,:,1)
-    dtau_c      = 0.0
-    dem_s       = ctau(:,:,2)
-    dem_c       = 0.0
-    skt         = tsfc
-    landmask    = slmsk
-    mr_ozone    = o3mr
-    u_wind      = ugrs
-    v_wind      = vgrs
-    sunlit      = coszen
-    emsfc_lw    = 1.0
-    surfelev    = oro
+    p                  = prsl
+    ph                 = prsi(:,1:Nlevels)
+    zlev               = phil
+    zlev_half          = phii(:,1:Nlevels)
+    T                  = tgrs
+    sh                 = sphum
+    tca                = cld_amt
+    cca                = cnvc
+    mr_lsliq           = liq_wat
+    mr_lsice           = ice_wat
+    mr_ccliq           = cnvw
+    mr_ccice           = 0.0
+    fl_lsrain          = pfr / 86400.
+    fl_lssnow          = pfs / 86400.
+    fl_lsgrpl          = pfg / 86400.
+    fl_ccrain          = 0.0
+    fl_ccsnow          = 0.0
+    Reff               = 0.0
+    Reff(:,:,I_LSCLIQ) = r_eff(:,:,1)
+    Reff(:,:,I_LSCICE) = r_eff(:,:,2)
+    Reff(:,:,I_LSRAIN) = r_eff(:,:,3)
+    Reff(:,:,I_LSSNOW) = r_eff(:,:,4)
+    Reff(:,:,I_LSGRPL) = r_eff(:,:,5)
+    dtau_s             = ctau(:,:,1)
+    dtau_c             = 0.0
+    dem_s              = ctau(:,:,2)
+    dem_c              = 0.0
+    skt                = tsfc
+    landmask           = slmsk
+    mr_ozone           = o3mr
+    u_wind             = ugrs
+    v_wind             = vgrs
+    sunlit             = coszen
+    emsfc_lw           = 1.0
+    surfelev           = oro
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Break COSP up into pieces and loop over each COSP 'chunk'.

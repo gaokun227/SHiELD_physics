@@ -135,10 +135,10 @@ contains
     
     
     do i=1,npoints
-       where(cloudIce(i,:, :) <= 0.) 
+       where(cloudIce(i,:, :) <= 1.e-30) 
           fracL(:, :) = 1._wp
        elsewhere
-          where (cloudWater(i,:, :) <= 0.) 
+          where (cloudWater(i,:, :) <= 1.e-30) 
              fracL(:, :) = 0._wp
           elsewhere 
              ! Geometic optics limit - tau as LWP/re  (proportional to LWC/re) 

@@ -132,7 +132,7 @@ module FV3GFS_io_mod
 !
    integer :: tot_diag_idx = 0
    integer, parameter :: DIAG_SIZE = 500
-   real(kind=kind_phys), parameter :: missing_value = 1.d30
+   real(kind=kind_phys), parameter :: missing_value = -1.d30
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
 

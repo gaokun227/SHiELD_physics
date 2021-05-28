@@ -1004,7 +1004,7 @@ contains
     !bnds                               = (/(ij,ij=1,2)/)
     loc                                = (/(ij,ij=1,Npoints)/)
     !lev                                = zlev(1,Nlevels:1:-1)
-    !levStat                            = vgrid_z
+    !levStat                            = vgrid_z_local
     !cosp_scol                          = (/(ij,ij=1,Ncolumns)/)
     !PARASOL_NREFL_list                 = PARASOL_SZA
     !cloudsat_DBZE_BINS_list            = cloudsat_binCenters

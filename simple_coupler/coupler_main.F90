@@ -432,7 +432,7 @@ if (intrm_rst .and. restart_start_secs == 0 .and. &
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
 
-      if (mpp_pe() .EQ. mpp_root_pe() ) then
+      if (mpp_pe() == 0 ) then !one pe should do this check only in case of a nest
          open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
          close(ascii_unit,status="delete")
       endif

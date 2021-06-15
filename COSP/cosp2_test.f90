@@ -469,35 +469,35 @@ contains
   subroutine cosp2_driver (Npoints, Nlevels, tgrs, sphum, ugrs, vgrs, prsl, prsi, &
                  phil, phii, tsfc, o3mr, slmsk, oro, cld_amt, liq_wat, ice_wat, &
                  pfr, pfs, pfg, ncld, r_eff, coszen, ctau, &
-                 longitude, &
-                 latitude, &
-                 tau7, &
-                 tau7_bnds, &
-                 pres7, &
-                 pres7_bnds, &
-                 hgt16, &
-                 hgt16_bnds, &
-                 atb532_perp, &
-                 atb532, &
-                 calipso_tau, &
-                 cfadLidarsr532, &
-                 clcalipso, &
-                 lidarBetaMol532, &
-                 SR_EDGES, &
-                 parasolPix_refl, &
-                 parasolGrid_refl, &
-                 dbze94, &
-                 cfadDbze94, &
+                 !longitude, &
+                 !latitude, &
+                 !tau7, &
+                 !tau7_bnds, &
+                 !pres7, &
+                 !pres7_bnds, &
+                 !hgt16, &
+                 !hgt16_bnds, &
+                 !atb532_perp, &
+                 !atb532, &
+                 !calipso_tau, &
+                 !cfadLidarsr532, &
+                 !clcalipso, &
+                 !lidarBetaMol532, &
+                 !SR_EDGES, &
+                 !parasolPix_refl, &
+                 !parasolGrid_refl, &
+                 !dbze94, &
+                 !cfadDbze94, &
                  cltisccp, &
                  meantbisccp, &
                  meantbclrisccp, &
                  pctisccp, &
                  tauisccp, &
                  albisccp, &
-                 boxtauisccp, &
-                 boxptopisccp, &
-                 clisccp, &
-                 clMISR, &
+                 !boxtauisccp, &
+                 !boxptopisccp, &
+                 !clisccp, &
+                 !clMISR, &
                  misr_meanztop, &
                  misr_cldarea, &
                  cltmodis, &
@@ -517,14 +517,14 @@ contains
                  pctmodis, &
                  lwpmodis, &
                  iwpmodis, &
-                 clmodis, &
-                 modis_Optical_Thickness_vs_ReffICE, &
-                 modis_Optical_Thickness_vs_ReffLIQ, &
-                 clcalipso2, &
+                 !clmodis, &
+                 !modis_Optical_Thickness_vs_ReffICE, &
+                 !modis_Optical_Thickness_vs_ReffLIQ, &
+                 !clcalipso2, &
                  cltlidarradar, &
-                 clcalipsoice, &
-                 clcalipsoliq, &
-                 clcalipsoun, &
+                 !clcalipsoice, &
+                 !clcalipsoliq, &
+                 !clcalipsoun, &
                  cllcalipsoice, &
                  clmcalipsoice, &
                  clhcalipsoice, &
@@ -541,27 +541,27 @@ contains
                  clmcalipso, &
                  clhcalipso, &
                  cltcalipso, &
-                 clcalipsotmp, &
-                 clcalipsotmpice, &
-                 clcalipsotmpliq, &
-                 clcalipsotmpun, &
-                 SR_BINS_list, &
-                 bnds, &
-                 loc, &
-                 lev, &
-                 levStat, &
-                 cosp_scol, &
-                 PARASOL_NREFL_list, &
-                 cloudsat_DBZE_BINS_list, &
-                 REICE_MODIS, &
-                 RELIQ_MODIS, &
+                 !clcalipsotmp, &
+                 !clcalipsotmpice, &
+                 !clcalipsotmpliq, &
+                 !clcalipsotmpun, &
+                 !SR_BINS_list, &
+                 !bnds, &
+                 !loc, &
+                 !lev, &
+                 !levStat, &
+                 !cosp_scol, &
+                 !PARASOL_NREFL_list, &
+                 !cloudsat_DBZE_BINS_list, &
+                 !REICE_MODIS, &
+                 !RELIQ_MODIS, &
                  clopaquecalipso, &
                  clthincalipso, &
                  clzopaquecalipso, &
-                 clcalipsoopaque, &
-                 clcalipsothin, &
-                 clcalipsozopaque, &
-                 clcalipsoopacity, &
+                 !clcalipsoopaque, &
+                 !clcalipsothin, &
+                 !clcalipsozopaque, &
+                 !clcalipsoopacity, &
                  clopaquetemp, &
                  clthintemp, &
                  clzopaquetemp, &
@@ -575,22 +575,22 @@ contains
                  clmgrLidar532, &
                  clhgrLidar532, &
                  cltgrLidar532, &
-                 clgrLidar532, &
-                 lidarBetaMol532gr, &
-                 cfadLidarsr532gr, &
-                 atb532gr, &
-                 SR_BINS_GR, &
-                 SR_EDGES_GR, &
+                 !clgrLidar532, &
+                 !lidarBetaMol532gr, &
+                 !cfadLidarsr532gr, &
+                 !atb532gr, &
+                 !SR_BINS_GR, &
+                 !SR_EDGES_GR, &
                  cllatlid, &
                  clmatlid, &
                  clhatlid, &
                  cltatlid, &
-                 clatlid, &
-                 lidarBetaMol355, &
-                 cfadLidarsr355, &
-                 atb355, &
-                 SR_BINS_ATLID, &
-                 SR_EDGES_ATLID, &
+                 !clatlid, &
+                 !lidarBetaMol355, &
+                 !cfadLidarsr355, &
+                 !atb355, &
+                 !SR_BINS_ATLID, &
+                 !SR_EDGES_ATLID, &
                  ptcloudsatflag0, &
                  ptcloudsatflag1, &
                  ptcloudsatflag2, &
@@ -606,12 +606,12 @@ contains
                  cloudsat_tcc2, &
                  npdfcld, &
                  npdfdrz, &
-                 npdfrain, &
-                 ncfodd1, &
-                 ncfodd2, &
-                 ncfodd3, &
-                 CFODD_NDBZE_list, &
-                 CFODD_NICOD_list)
+                 npdfrain)
+                 !ncfodd1, &
+                 !ncfodd2, &
+                 !ncfodd3, &
+                 !CFODD_NDBZE_list, &
+                 !CFODD_NICOD_list)
 
     implicit none
 
@@ -627,35 +627,35 @@ contains
     real (kind = kind_phys), dimension (Npoints, Nlevels, 2), intent (in) :: ctau
 
     real (kind = kind_phys), intent (out) :: &
-        longitude                          (Npoints), &
-        latitude                           (Npoints), &
-        tau7                               (ntau), &
-        tau7_bnds                          (2,ntau), &
-        pres7                              (npres), &
-        pres7_bnds                         (2,npres), &
-        hgt16                              (nhgt), &
-        hgt16_bnds                         (2,nhgt), &
-        atb532_perp                        (Npoints,Ncolumns,Nlevels), &
-        atb532                             (Npoints,Ncolumns,Nlevels), &
-        calipso_tau                        (Npoints,Ncolumns,Nlevels), &
-        cfadLidarsr532                     (Npoints,SR_BINS,Nlvgrid), &
-        clcalipso                          (Npoints,Nlvgrid), &
-        lidarBetaMol532                    (Npoints,Nlevels), &
-        SR_EDGES                           (2,SR_BINS), &
-        parasolPix_refl                    (Npoints,Ncolumns,PARASOL_NREFL), &
-        parasolGrid_refl                   (Npoints,PARASOL_NREFL), &
-        dbze94                             (Npoints,Ncolumns,Nlevels), &
-        cfadDbze94                         (Npoints,cloudsat_DBZE_BINS,Nlvgrid), &
+        !longitude                          (Npoints), &
+        !latitude                           (Npoints), &
+        !tau7                               (ntau), &
+        !tau7_bnds                          (2,ntau), &
+        !pres7                              (npres), &
+        !pres7_bnds                         (2,npres), &
+        !hgt16                              (nhgt), &
+        !hgt16_bnds                         (2,nhgt), &
+        !atb532_perp                        (Npoints,Ncolumns,Nlevels), &
+        !atb532                             (Npoints,Ncolumns,Nlevels), &
+        !calipso_tau                        (Npoints,Ncolumns,Nlevels), &
+        !cfadLidarsr532                     (Npoints,SR_BINS,Nlvgrid), &
+        !clcalipso                          (Npoints,Nlvgrid), &
+        !lidarBetaMol532                    (Npoints,Nlevels), &
+        !SR_EDGES                           (2,SR_BINS), &
+        !parasolPix_refl                    (Npoints,Ncolumns,PARASOL_NREFL), &
+        !parasolGrid_refl                   (Npoints,PARASOL_NREFL), &
+        !dbze94                             (Npoints,Ncolumns,Nlevels), &
+        !cfadDbze94                         (Npoints,cloudsat_DBZE_BINS,Nlvgrid), &
         cltisccp                           (Npoints), &
         meantbisccp                        (Npoints), &
         meantbclrisccp                     (Npoints), &
         pctisccp                           (Npoints), &
         tauisccp                           (Npoints), &
         albisccp                           (Npoints), &
-        boxtauisccp                        (Npoints,Ncolumns), &
-        boxptopisccp                       (Npoints,Ncolumns), &
-        clisccp                            (Npoints,ntau,npres), &
-        clMISR                             (Npoints,ntau,nhgt), &
+        !boxtauisccp                        (Npoints,Ncolumns), &
+        !boxptopisccp                       (Npoints,Ncolumns), &
+        !clisccp                            (Npoints,ntau,npres), &
+        !clMISR                             (Npoints,ntau,nhgt), &
         misr_meanztop                      (Npoints), &
         misr_cldarea                       (Npoints), &
         cltmodis                           (Npoints), &
@@ -675,14 +675,14 @@ contains
         pctmodis                           (Npoints), &
         lwpmodis                           (Npoints), &
         iwpmodis                           (Npoints), &
-        clmodis                            (Npoints,ntau,npres), &
-        modis_Optical_Thickness_vs_ReffICE (Npoints,ntau,numMODISReffIceBins), &
-        modis_Optical_Thickness_vs_ReffLIQ (Npoints,ntau,numMODISReffLiqBins), &
-        clcalipso2                         (Npoints,Nlvgrid), &
+        !clmodis                            (Npoints,ntau,npres), &
+        !modis_Optical_Thickness_vs_ReffICE (Npoints,ntau,numMODISReffIceBins), &
+        !modis_Optical_Thickness_vs_ReffLIQ (Npoints,ntau,numMODISReffLiqBins), &
+        !clcalipso2                         (Npoints,Nlvgrid), &
         cltlidarradar                      (Npoints), &
-        clcalipsoice                       (Npoints,Nlvgrid), &
-        clcalipsoliq                       (Npoints,Nlvgrid), &
-        clcalipsoun                        (Npoints,Nlvgrid), &
+        !clcalipsoice                       (Npoints,Nlvgrid), &
+        !clcalipsoliq                       (Npoints,Nlvgrid), &
+        !clcalipsoun                        (Npoints,Nlvgrid), &
         cllcalipsoice                      (Npoints), &
         clmcalipsoice                      (Npoints), &
         clhcalipsoice                      (Npoints), &
@@ -699,27 +699,27 @@ contains
         clmcalipso                         (Npoints), &
         clhcalipso                         (Npoints), &
         cltcalipso                         (Npoints), &
-        clcalipsotmp                       (Npoints,Nlvgrid), &
-        clcalipsotmpice                    (Npoints,Nlvgrid), &
-        clcalipsotmpliq                    (Npoints,Nlvgrid), &
-        clcalipsotmpun                     (Npoints,Nlvgrid), &
-        SR_BINS_list                       (SR_BINS), &
-        bnds                               (2), &
-        loc                                (Npoints), &
-        lev                                (Nlevels), &
-        levStat                            (Nlvgrid), &
-        cosp_scol                          (Ncolumns), &
-        PARASOL_NREFL_list                 (PARASOL_NREFL), &
-        cloudsat_DBZE_BINS_list            (cloudsat_DBZE_BINS), &
-        REICE_MODIS                        (numMODISReffIceBins), &
-        RELIQ_MODIS                        (numMODISReffLiqBins), &
+        !clcalipsotmp                       (Npoints,Nlvgrid), &
+        !clcalipsotmpice                    (Npoints,Nlvgrid), &
+        !clcalipsotmpliq                    (Npoints,Nlvgrid), &
+        !clcalipsotmpun                     (Npoints,Nlvgrid), &
+        !SR_BINS_list                       (SR_BINS), &
+        !bnds                               (2), &
+        !loc                                (Npoints), &
+        !lev                                (Nlevels), &
+        !levStat                            (Nlvgrid), &
+        !cosp_scol                          (Ncolumns), &
+        !PARASOL_NREFL_list                 (PARASOL_NREFL), &
+        !cloudsat_DBZE_BINS_list            (cloudsat_DBZE_BINS), &
+        !REICE_MODIS                        (numMODISReffIceBins), &
+        !RELIQ_MODIS                        (numMODISReffLiqBins), &
         clopaquecalipso                    (Npoints), &
         clthincalipso                      (Npoints), &
         clzopaquecalipso                   (Npoints), &
-        clcalipsoopaque                    (Npoints,Nlvgrid), &
-        clcalipsothin                      (Npoints,Nlvgrid), &
-        clcalipsozopaque                   (Npoints,Nlvgrid), &
-        clcalipsoopacity                   (Npoints,Nlvgrid), &
+        !clcalipsoopaque                    (Npoints,Nlvgrid), &
+        !clcalipsothin                      (Npoints,Nlvgrid), &
+        !clcalipsozopaque                   (Npoints,Nlvgrid), &
+        !clcalipsoopacity                   (Npoints,Nlvgrid), &
         clopaquetemp                       (Npoints), &
         clthintemp                         (Npoints), &
         clzopaquetemp                      (Npoints), &
@@ -733,22 +733,22 @@ contains
         clmgrLidar532                      (Npoints), &
         clhgrLidar532                      (Npoints), &
         cltgrLidar532                      (Npoints), &
-        clgrLidar532                       (Npoints,Nlvgrid), &
-        lidarBetaMol532gr                  (Npoints,Nlevels), &
-        cfadLidarsr532gr                   (Npoints,SR_BINS,Nlvgrid), &
-        atb532gr                           (Npoints,Ncolumns,Nlevels), &
-        SR_BINS_GR                         (SR_BINS), &
-        SR_EDGES_GR                        (2,SR_BINS), &
+        !clgrLidar532                       (Npoints,Nlvgrid), &
+        !lidarBetaMol532gr                  (Npoints,Nlevels), &
+        !cfadLidarsr532gr                   (Npoints,SR_BINS,Nlvgrid), &
+        !atb532gr                           (Npoints,Ncolumns,Nlevels), &
+        !SR_BINS_GR                         (SR_BINS), &
+        !SR_EDGES_GR                        (2,SR_BINS), &
         cllatlid                           (Npoints), &
         clmatlid                           (Npoints), &
         clhatlid                           (Npoints), &
         cltatlid                           (Npoints), &
-        clatlid                            (Npoints,Nlvgrid), &
-        lidarBetaMol355                    (Npoints,Nlevels), &
-        cfadLidarsr355                     (Npoints,SR_BINS,Nlvgrid), &
-        atb355                             (Npoints,Ncolumns,Nlevels), &
-        SR_BINS_ATLID                      (SR_BINS), &
-        SR_EDGES_ATLID                     (2,SR_BINS), &
+        !clatlid                            (Npoints,Nlvgrid), &
+        !lidarBetaMol355                    (Npoints,Nlevels), &
+        !cfadLidarsr355                     (Npoints,SR_BINS,Nlvgrid), &
+        !atb355                             (Npoints,Ncolumns,Nlevels), &
+        !SR_BINS_ATLID                      (SR_BINS), &
+        !SR_EDGES_ATLID                     (2,SR_BINS), &
         ptcloudsatflag0                    (Npoints), &
         ptcloudsatflag1                    (Npoints), &
         ptcloudsatflag2                    (Npoints), &
@@ -764,12 +764,12 @@ contains
         cloudsat_tcc2                      (Npoints), &
         npdfcld                            (Npoints), &
         npdfdrz                            (Npoints), &
-        npdfrain                           (Npoints), &
-        ncfodd1                            (Npoints,CFODD_NDBZE,CFODD_NICOD), &
-        ncfodd2                            (Npoints,CFODD_NDBZE,CFODD_NICOD), &
-        ncfodd3                            (Npoints,CFODD_NDBZE,CFODD_NICOD), &
-        CFODD_NDBZE_list                   (CFODD_NDBZE), &
-        CFODD_NICOD_list                   (CFODD_NICOD)
+        npdfrain                           (Npoints)
+        !ncfodd1                            (Npoints,CFODD_NDBZE,CFODD_NICOD), &
+        !ncfodd2                            (Npoints,CFODD_NDBZE,CFODD_NICOD), &
+        !ncfodd3                            (Npoints,CFODD_NDBZE,CFODD_NICOD), &
+        !CFODD_NDBZE_list                   (CFODD_NDBZE), &
+        !CFODD_NICOD_list                   (CFODD_NICOD)
 
     integer :: ij
 
@@ -815,6 +815,53 @@ contains
     sunlit             = coszen
     emsfc_lw           = 1.0
     surfelev           = oro
+
+    !-----------------------------------------------------------------------
+    ! remove bad values
+    !-----------------------------------------------------------------------
+
+    where (sh .lt. 0.0)
+        sh = 0.0
+    endwhere
+    where (tca .lt. 0.0)
+        tca = 0.0
+    endwhere
+    where (cca .lt. 0.0)
+        cca = 0.0
+    endwhere
+    where (mr_lsliq .lt. 0.0)
+        mr_lsliq = 0.0
+    endwhere
+    where (mr_lsice .lt. 0.0)
+        mr_lsice = 0.0
+    endwhere
+    where (mr_ccliq .lt. 0.0)
+        mr_ccliq = 0.0
+    endwhere
+    where (mr_ccice .lt. 0.0)
+        mr_ccice = 0.0
+    endwhere
+    where (fl_lsrain .lt. 0.0)
+        fl_lsrain = 0.0
+    endwhere
+    where (fl_lssnow .lt. 0.0)
+        fl_lssnow = 0.0
+    endwhere
+    where (fl_lsgrpl .lt. 0.0)
+        fl_lsgrpl = 0.0
+    endwhere
+    where (fl_ccrain .lt. 0.0)
+        fl_ccrain = 0.0
+    endwhere
+    where (fl_ccsnow .lt. 0.0)
+        fl_ccsnow = 0.0
+    endwhere
+    where (Reff .lt. 0.0)
+        Reff = 0.0
+    endwhere
+    where (mr_ozone .lt. 0.0)
+        mr_ozone = 0.0
+    endwhere
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Break COSP up into pieces and loop over each COSP 'chunk'.
@@ -924,8 +971,8 @@ contains
     !-----------------------------------------------------------------------
     ! output variables to physics
     !-----------------------------------------------------------------------
-    longitude                          = lon
-    latitude                           = lat
+    !longitude                          = lon
+    !latitude                           = lat
     !tau7                               = tau_binCenters
     !tau7_bnds                          = tau_binEdges
     !pres7                              = pres_binCenters
@@ -943,40 +990,40 @@ contains
     !parasolGrid_refl                   = cospOUT%parasolGrid_refl
     !dbze94                             = cospOUT%cloudsat_Ze_tot
     !cfadDbze94                         = cospOUT%cloudsat_cfad_ze
-    !!!cltisccp                           = cospOUT%isccp_totalcldarea
-    !!!meantbisccp                        = cospOUT%isccp_meantb
-    !!!meantbclrisccp                     = cospOUT%isccp_meantbclr
-    !!!pctisccp                           = cospOUT%isccp_meanptop
-    !!!tauisccp                           = cospOUT%isccp_meantaucld
-    !!!albisccp                           = cospOUT%isccp_meanalbedocld
+    cltisccp                           = cospOUT%isccp_totalcldarea
+    meantbisccp                        = cospOUT%isccp_meantb
+    meantbclrisccp                     = cospOUT%isccp_meantbclr
+    pctisccp                           = cospOUT%isccp_meanptop
+    tauisccp                           = cospOUT%isccp_meantaucld
+    albisccp                           = cospOUT%isccp_meanalbedocld
     !boxtauisccp                        = cospOUT%isccp_boxtau
     !boxptopisccp                       = cospOUT%isccp_boxptop
     !clisccp                            = cospOUT%isccp_fq
     !clMISR                             = cospOUT%misr_fq
-    !!!misr_meanztop                      = cospOUT%misr_meanztop
-    !!!misr_cldarea                       = cospOUT%misr_cldarea
-    !!!cltmodis                           = cospOUT%modis_Cloud_Fraction_Total_Mean
-    !!!clwmodis                           = cospOUT%modis_Cloud_Fraction_Water_Mean
-    !!!climodis                           = cospOUT%modis_Cloud_Fraction_Ice_Mean
-    !!!clhmodis                           = cospOUT%modis_Cloud_Fraction_High_Mean
-    !!!clmmodis                           = cospOUT%modis_Cloud_Fraction_Mid_Mean
-    !!!cllmodis                           = cospOUT%modis_Cloud_Fraction_Low_Mean
-    !!!tautmodis                          = cospOUT%modis_Optical_Thickness_Total_Mean
-    !!!tauwmodis                          = cospOUT%modis_Optical_Thickness_Water_Mean
-    !!!tauimodis                          = cospOUT%modis_Optical_Thickness_Ice_Mean
-    !!!tautlogmodis                       = cospOUT%modis_Optical_Thickness_Total_LogMean
-    !!!tauwlogmodis                       = cospOUT%modis_Optical_Thickness_Water_LogMean
-    !!!tauilogmodis                       = cospOUT%modis_Optical_Thickness_Ice_LogMean
-    !!!reffclwmodis                       = cospOUT%modis_Cloud_Particle_Size_Water_Mean
-    !!!reffclimodis                       = cospOUT%modis_Cloud_Particle_Size_Ice_Mean
-    !!!pctmodis                           = cospOUT%modis_Cloud_Top_Pressure_Total_Mean
-    !!!lwpmodis                           = cospOUT%modis_Liquid_Water_Path_Mean
-    !!!iwpmodis                           = cospOUT%modis_Ice_Water_Path_Mean
+    misr_meanztop                      = cospOUT%misr_meanztop
+    misr_cldarea                       = cospOUT%misr_cldarea
+    cltmodis                           = cospOUT%modis_Cloud_Fraction_Total_Mean
+    clwmodis                           = cospOUT%modis_Cloud_Fraction_Water_Mean
+    climodis                           = cospOUT%modis_Cloud_Fraction_Ice_Mean
+    clhmodis                           = cospOUT%modis_Cloud_Fraction_High_Mean
+    clmmodis                           = cospOUT%modis_Cloud_Fraction_Mid_Mean
+    cllmodis                           = cospOUT%modis_Cloud_Fraction_Low_Mean
+    tautmodis                          = cospOUT%modis_Optical_Thickness_Total_Mean
+    tauwmodis                          = cospOUT%modis_Optical_Thickness_Water_Mean
+    tauimodis                          = cospOUT%modis_Optical_Thickness_Ice_Mean
+    tautlogmodis                       = cospOUT%modis_Optical_Thickness_Total_LogMean
+    tauwlogmodis                       = cospOUT%modis_Optical_Thickness_Water_LogMean
+    tauilogmodis                       = cospOUT%modis_Optical_Thickness_Ice_LogMean
+    reffclwmodis                       = cospOUT%modis_Cloud_Particle_Size_Water_Mean
+    reffclimodis                       = cospOUT%modis_Cloud_Particle_Size_Ice_Mean
+    pctmodis                           = cospOUT%modis_Cloud_Top_Pressure_Total_Mean
+    lwpmodis                           = cospOUT%modis_Liquid_Water_Path_Mean
+    iwpmodis                           = cospOUT%modis_Ice_Water_Path_Mean
     !clmodis                            = cospOUT%modis_Optical_Thickness_vs_Cloud_Top_Pressure
     !modis_Optical_Thickness_vs_ReffICE = cospOUT%modis_Optical_Thickness_vs_ReffICE
     !modis_Optical_Thickness_vs_ReffLIQ = cospOUT%modis_Optical_Thickness_vs_ReffLIQ
     !clcalipso2                         = cospOUT%lidar_only_freq_cloud
-    !!!cltlidarradar                      = cospOUT%radar_lidar_tcc
+    cltlidarradar                      = cospOUT%radar_lidar_tcc
     !clcalipsoice                       = cospOUT%calipso_lidarcldphase(:,:,1)
     !clcalipsoliq                       = cospOUT%calipso_lidarcldphase(:,:,2)
     !clcalipsoun                        = cospOUT%calipso_lidarcldphase(:,:,3)
@@ -1002,7 +1049,7 @@ contains
     !clcalipsotmpun                     = cospOUT%calipso_lidarcldtmp(:,:,4)
     !SR_BINS_list                       = calipso_binCenters
     !bnds                               = (/(ij,ij=1,2)/)
-    loc                                = (/(ij,ij=1,Npoints)/)
+    !loc                                = (/(ij,ij=1,Npoints)/)
     !lev                                = zlev(1,Nlevels:1:-1)
     !levStat                            = vgrid_z_local
     !cosp_scol                          = (/(ij,ij=1,Ncolumns)/)
@@ -1010,22 +1057,22 @@ contains
     !cloudsat_DBZE_BINS_list            = cloudsat_binCenters
     !REICE_MODIS                        = reffICE_binCenters
     !RELIQ_MODIS                        = reffLIQ_binCenters
-    !!!clopaquecalipso                    = cospOUT%calipso_cldtype(:,1)
-    !!!clthincalipso                      = cospOUT%calipso_cldtype(:,2)
-    !!!clzopaquecalipso                   = cospOUT%calipso_cldtype(:,3)
+    clopaquecalipso                    = cospOUT%calipso_cldtype(:,1)
+    clthincalipso                      = cospOUT%calipso_cldtype(:,2)
+    clzopaquecalipso                   = cospOUT%calipso_cldtype(:,3)
     !clcalipsoopaque                    = cospOUT%calipso_lidarcldtype(:,:,1)
     !clcalipsothin                      = cospOUT%calipso_lidarcldtype(:,:,2)
     !clcalipsozopaque                   = cospOUT%calipso_lidarcldtype(:,:,3)
     !clcalipsoopacity                   = cospOUT%calipso_lidarcldtype(:,:,4)
-    !!!clopaquetemp                       = cospOUT%calipso_cldtypetemp(:,1)
-    !!!clthintemp                         = cospOUT%calipso_cldtypetemp(:,2)
-    !!!clzopaquetemp                      = cospOUT%calipso_cldtypetemp(:,3)
-    !!!clopaquemeanz                      = cospOUT%calipso_cldtypemeanz(:,1)
-    !!!clthinmeanz                        = cospOUT%calipso_cldtypemeanz(:,2)
-    !!!clthinemis                         = cospOUT%calipso_cldthinemis
-    !!!clopaquemeanzse                    = cospOUT%calipso_cldtypemeanzse(:,1)
-    !!!clthinmeanzse                      = cospOUT%calipso_cldtypemeanzse(:,2)
-    !!!clzopaquecalipsose                 = cospOUT%calipso_cldtypemeanzse(:,3)
+    clopaquetemp                       = cospOUT%calipso_cldtypetemp(:,1)
+    clthintemp                         = cospOUT%calipso_cldtypetemp(:,2)
+    clzopaquetemp                      = cospOUT%calipso_cldtypetemp(:,3)
+    clopaquemeanz                      = cospOUT%calipso_cldtypemeanz(:,1)
+    clthinmeanz                        = cospOUT%calipso_cldtypemeanz(:,2)
+    clthinemis                         = cospOUT%calipso_cldthinemis
+    clopaquemeanzse                    = cospOUT%calipso_cldtypemeanzse(:,1)
+    clthinmeanzse                      = cospOUT%calipso_cldtypemeanzse(:,2)
+    clzopaquecalipsose                 = cospOUT%calipso_cldtypemeanzse(:,3)
     cllgrLidar532                      = cospOUT%grLidar532_cldlayer(:,1)
     clmgrLidar532                      = cospOUT%grLidar532_cldlayer(:,2)
     clhgrLidar532                      = cospOUT%grLidar532_cldlayer(:,3)
@@ -1036,32 +1083,32 @@ contains
     !atb532gr                           = cospOUT%grLidar532_beta_tot
     !SR_BINS_GR                         = grLidar532_binCenters
     !SR_EDGES_GR                        = reshape([cospOUT%grLidar532_srbval(1:SR_BINS),cospOUT%grLidar532_srbval(2:SR_BINS+1)],(/2,SR_BINS/))
-    !!!cllatlid                           = cospOUT%atlid_cldlayer(:,1)
-    !!!clmatlid                           = cospOUT%atlid_cldlayer(:,2)
-    !!!clhatlid                           = cospOUT%atlid_cldlayer(:,3)
-    !!!cltatlid                           = cospOUT%atlid_cldlayer(:,4)
+    cllatlid                           = cospOUT%atlid_cldlayer(:,1)
+    clmatlid                           = cospOUT%atlid_cldlayer(:,2)
+    clhatlid                           = cospOUT%atlid_cldlayer(:,3)
+    cltatlid                           = cospOUT%atlid_cldlayer(:,4)
     !clatlid                            = cospOUT%atlid_lidarcld
     !lidarBetaMol355                    = cospOUT%atlid_beta_mol
     !cfadLidarsr355                     = cospOUT%atlid_cfad_sr
     !atb355                             = cospOUT%atlid_beta_tot
     !SR_BINS_ATLID                      = atlid_binCenters
     !SR_EDGES_ATLID                     = reshape([cospOUT%atlid_srbval(1:SR_BINS),cospOUT%atlid_srbval(2:SR_BINS+1)],(/2,SR_BINS/))
-    !!!ptcloudsatflag0                    = cospOUT%cloudsat_precip_cover(:,1)
-    !!!ptcloudsatflag1                    = cospOUT%cloudsat_precip_cover(:,2)
-    !!!ptcloudsatflag2                    = cospOUT%cloudsat_precip_cover(:,3)
-    !!!ptcloudsatflag3                    = cospOUT%cloudsat_precip_cover(:,4)
-    !!!ptcloudsatflag4                    = cospOUT%cloudsat_precip_cover(:,5)
-    !!!ptcloudsatflag5                    = cospOUT%cloudsat_precip_cover(:,6)
-    !!!ptcloudsatflag6                    = cospOUT%cloudsat_precip_cover(:,7)
-    !!!ptcloudsatflag7                    = cospOUT%cloudsat_precip_cover(:,8)
-    !!!ptcloudsatflag8                    = cospOUT%cloudsat_precip_cover(:,9)
-    !!!ptcloudsatflag9                    = cospOUT%cloudsat_precip_cover(:,10)
-    !!!cloudsatpia                        = cospOUT%cloudsat_pia
-    !!!cloudsat_tcc                       = cospOUT%cloudsat_tcc
-    !!!cloudsat_tcc2                      = cospOUT%cloudsat_tcc2
-    !!!npdfcld                            = cospOUT%wr_occfreq_ntotal(:,1)
-    !!!npdfdrz                            = cospOUT%wr_occfreq_ntotal(:,2)
-    !!!npdfrain                           = cospOUT%wr_occfreq_ntotal(:,3)
+    ptcloudsatflag0                    = cospOUT%cloudsat_precip_cover(:,1)
+    ptcloudsatflag1                    = cospOUT%cloudsat_precip_cover(:,2)
+    ptcloudsatflag2                    = cospOUT%cloudsat_precip_cover(:,3)
+    ptcloudsatflag3                    = cospOUT%cloudsat_precip_cover(:,4)
+    ptcloudsatflag4                    = cospOUT%cloudsat_precip_cover(:,5)
+    ptcloudsatflag5                    = cospOUT%cloudsat_precip_cover(:,6)
+    ptcloudsatflag6                    = cospOUT%cloudsat_precip_cover(:,7)
+    ptcloudsatflag7                    = cospOUT%cloudsat_precip_cover(:,8)
+    ptcloudsatflag8                    = cospOUT%cloudsat_precip_cover(:,9)
+    ptcloudsatflag9                    = cospOUT%cloudsat_precip_cover(:,10)
+    cloudsatpia                        = cospOUT%cloudsat_pia
+    cloudsat_tcc                       = cospOUT%cloudsat_tcc
+    cloudsat_tcc2                      = cospOUT%cloudsat_tcc2
+    npdfcld                            = cospOUT%wr_occfreq_ntotal(:,1)
+    npdfdrz                            = cospOUT%wr_occfreq_ntotal(:,2)
+    npdfrain                           = cospOUT%wr_occfreq_ntotal(:,3)
     !ncfodd1                            = cospOUT%cfodd_ntotal(:,:,:,1)
     !ncfodd2                            = cospOUT%cfodd_ntotal(:,:,:,2)
     !ncfodd3                            = cospOUT%cfodd_ntotal(:,:,:,3)

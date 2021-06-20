@@ -1069,7 +1069,8 @@ contains
                 checkcldlayerphase = checkcldlayerphase+cldlayerphase(i,iz,ic)
              enddo
              checkcldlayerphase2 = cldlayer(i,iz)-checkcldlayerphase
-             if((checkcldlayerphase2 .gt. 0.01) .or. (checkcldlayerphase2 .lt. -0.01) ) print *, checkcldlayerphase,cldlayer(i,iz)
+             ! comment out to reduce printout, Linjiong Zhou
+             !if((checkcldlayerphase2 .gt. 0.01) .or. (checkcldlayerphase2 .lt. -0.01) ) print *, checkcldlayerphase,cldlayer(i,iz)
           endif
        enddo
     enddo

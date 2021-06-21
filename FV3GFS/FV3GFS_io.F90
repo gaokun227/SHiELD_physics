@@ -4460,7 +4460,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'cllcalipsoun'
-    Diag(idx)%desc = 'ALIPSO Undefined-Phase Low Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
+    Diag(idx)%desc = 'CALIPSO Undefined-Phase Low Level Cloud Fraction / cloud_area_fraction_in_atmosphere_layer'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'cosp'
     allocate (Diag(idx)%data(nblks))

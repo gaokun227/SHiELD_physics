@@ -812,7 +812,7 @@ contains
     mr_ozone           = o3mr
     u_wind             = ugrs
     v_wind             = vgrs
-    sunlit             = 1.0
+    sunlit             = nint(coszen)
     emsfc_lw           = 1.0
     surfelev           = oro
 

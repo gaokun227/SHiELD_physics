@@ -812,7 +812,7 @@ contains
     mr_ozone           = o3mr
     u_wind             = ugrs
     v_wind             = vgrs
-    sunlit             = where(coszen .gt. 0.0, 1.0, 0.0)
+    sunlit             = ceiling(coszen)
     emsfc_lw           = 1.0
     surfelev           = oro
 

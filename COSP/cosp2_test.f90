@@ -798,11 +798,11 @@ contains
     fl_ccrain          = 0.0
     fl_ccsnow          = 0.0
     Reff               = 0.0
-    Reff(:,:,I_LSCLIQ) = r_eff(:,:,1)
-    Reff(:,:,I_LSCICE) = r_eff(:,:,2)
-    Reff(:,:,I_LSRAIN) = r_eff(:,:,3)
-    Reff(:,:,I_LSSNOW) = r_eff(:,:,4)
-    Reff(:,:,I_LSGRPL) = r_eff(:,:,5)
+    Reff(:,:,I_LSCLIQ) = r_eff(:,:,1) * 1.e-6
+    Reff(:,:,I_LSCICE) = r_eff(:,:,2) * 1.e-6
+    Reff(:,:,I_LSRAIN) = r_eff(:,:,3) * 1.e-6
+    Reff(:,:,I_LSSNOW) = r_eff(:,:,4) * 1.e-6
+    Reff(:,:,I_LSGRPL) = r_eff(:,:,5) * 1.e-6
     dtau_s             = ctau(:,:,1)
     dtau_c             = 0.0
     dem_s              = ctau(:,:,2)

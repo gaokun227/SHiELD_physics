@@ -1053,8 +1053,10 @@
           taucld = f_zero
         endif
 
-        ! 11micron emissivity for COSP, Linjiong Zhou
-        tau110(iplon,:) = 1.0 - exp(- taucld(6,:))
+        if ( ltau110 ) then
+          ! 11micron emissivity for COSP, Linjiong Zhou
+          tau110(iplon,:) = 1.0 - exp(- taucld(6,:))
+        endif
 
 !     if (lprnt) then
 !      print *,' after cldprop'

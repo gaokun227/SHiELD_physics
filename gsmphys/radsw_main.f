@@ -1158,8 +1158,10 @@
           enddo
         endif   ! end if_zcf1_block
 
-        ! 0.67micron optical depth for COSP, Linjiong Zhou
-        tau067(j1,:) = taucw(:,9)
+        if ( ltau067 ) then
+          ! 0.67micron optical depth for COSP, Linjiong Zhou
+          tau067(j1,:) = taucw(:,9)
+        endif
 
 !> -# Call setcoef() to compute various coefficients needed in
 !!    radiative transfer calculations.

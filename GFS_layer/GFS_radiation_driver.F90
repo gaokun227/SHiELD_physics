@@ -1889,12 +1889,6 @@
           enddo
         endif
 
-        if (.not. Model%uni_cld .and. Model%lgocart) then
-          do k = 1, LM
-            k1 = k + kd
-            Coupling%cldcovi(:,k) = clouds(:,k1,1)
-          enddo
-        endif
       endif                                ! end_if_lssav
 !
       return

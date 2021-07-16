@@ -38,6 +38,8 @@ use time_manager_mod, only: time_type, set_time, get_time,  &
                             operator(+), operator (<), operator (>), &
                             operator (/=), operator (/), operator (*)
 
+use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
+
 use          fms_mod, only: file_exist, check_nml_error,                &
                             error_mesg, FATAL, WARNING,                 &
                             mpp_pe, mpp_root_pe, fms_init, fms_end,     &
@@ -98,13 +100,17 @@ character(len=128), parameter :: tag = &
       integer :: dt_atmos = 0
       integer :: memuse_interval = 72
       integer :: atmos_nthreads = 1
+      logical :: use_hyper_thread = .false.
 
       namelist /main_nml/ current_time, dt_atmos,  &
-                          days, hours, minutes, seconds, memuse_interval, atmos_nthreads
+                          days, hours, minutes, seconds, &
+                          memuse_interval, atmos_nthreads, &
+                          use_hyper_thread
 
 !#######################################################################
 
  call fms_init ( )
+ call fms_affinity_init
  call sat_vapor_pres_init
  call atmos_model_init 
 
@@ -205,7 +211,7 @@ contains
     endif
 
  16 format ('  current time used = day',i5,' hour',i3,2(':',i2.2)) 
-
+    
 !  print number of tracers to logfile
    if (mpp_pe() == mpp_root_pe()) then
         write (logunit, '(a,i3)') 'Number of tracers =', ntrace
@@ -289,12 +295,16 @@ contains
 !-----------------------------------------------------------------------
 !------ initialize atmospheric model ------
 
-!$      call omp_set_num_threads(atmos_nthreads)
+    !--- setting affinity
+!$    call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+!$    call omp_set_num_threads(atmos_nthreads)
       if (mpp_pe() .eq. mpp_root_pe()) then
         unit=stdout()
         write(unit,*) ' starting ',atmos_nthreads,' OpenMP threads per MPI-task'
         call flush(unit)
       endif
+
+#ifdef HAVE_SCHED_GETAFFINITY
       base_cpu = get_cpu_affinity()
 !$OMP PARALLEL
 !$      call set_cpu_affinity(base_cpu + omp_get_thread_num())
@@ -303,7 +313,8 @@ contains
 !$      call flush(6) 
 #endif
 !$OMP END PARALLEL
-
+#endif
+      
       call atmosphere_init (Time_init, Time, Time_step_atmos)
       call atmosphere_domain(atmos_domain)
 

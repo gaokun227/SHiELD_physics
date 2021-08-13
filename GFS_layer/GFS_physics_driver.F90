@@ -714,7 +714,7 @@ module module_physics_driver
       frain = dtf / dtp
 
       do i= 1, im
-        if (Model%use_ec_sst .and. Statein%ci(i) > -1. .and. Statein%ci(i) < 2.) then !Avoid bad values
+        if (Model%use_ext_sst .and. Statein%ci(i) > -1. .and. Statein%ci(i) < 2.) then !Avoid bad values
            if (Statein%ci(i) >= 0.15 .and. nint(Sfcprop%slmsk(i)) == 0) then !create sea ice
               Sfcprop%fice(i) = Statein%ci(i)
               Sfcprop%slmsk(i) = 2
@@ -1904,7 +1904,7 @@ module module_physics_driver
          Diag%tclim_iano   (:) = Diag%tclim_iano(:) + Sfcprop%ts_clim_iano(:)*dtf
          Diag%MLD          (:) = Diag%MLD(:) + Sfcprop%mld(:)*dtf
 !
-        if (Model%use_ec_sst .and. .not. Model%do_ocean) then
+        if (Model%use_ext_sst .and. .not. Model%do_ocean) then
            do i = 1, im 
               if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
            enddo

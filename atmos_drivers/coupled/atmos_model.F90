@@ -91,7 +91,8 @@ use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_IPD_checksum,                       &
                               gfdl_diag_register, gfdl_diag_output, &
-                              FV3GFS_restart_write_coarse, FV3GFS_diag_register_coarse
+                              FV3GFS_restart_write_coarse, FV3GFS_diag_register_coarse, &
+                              sfc_data_override
 use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, register_coarse_diag_manager_controlled_diagnostics
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
 use module_ocean,       only: ocean_init
@@ -139,7 +140,7 @@ public atmos_model_restart
 end type atmos_data_type
 !</PUBLICTYPE >
 
-integer :: fv3Clock, getClock, updClock, setupClock, radClock, physClock
+integer :: fv3Clock, getClock, overrideClock, updClock, setupClock, radClock, physClock
 
 !-----------------------------------------------------------------------
 integer :: blocksize       = 1
@@ -210,6 +211,11 @@ subroutine update_atmos_radiation_physics (Atmos)
     call mpp_clock_begin(getClock)
     call atmos_phys_driver_statein (IPD_data, Atm_block)
     call mpp_clock_end(getClock)
+
+!--- get varied surface data
+    call mpp_clock_begin(overrideClock)
+    call sfc_data_override (Atmos%Time, IPD_data, Atm_block, IPD_Control)
+    call mpp_clock_end(overrideClock)
 
 !--- if dycore only run, set up the dummy physics output state as the input state
     if (dycore_only) then
@@ -505,6 +511,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 #endif
 
    setupClock = mpp_clock_id( 'GFS Step Setup        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   overrideClock = mpp_clock_id( 'GFS Override          ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    radClock   = mpp_clock_id( 'GFS Radiation         ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    physClock  = mpp_clock_id( 'GFS Physics           ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    getClock   = mpp_clock_id( 'Dynamics get state    ', flags=clock_flag_default, grain=CLOCK_COMPONENT )

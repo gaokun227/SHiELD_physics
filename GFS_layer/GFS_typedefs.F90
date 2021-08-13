@@ -810,7 +810,7 @@ module GFS_typedefs
     logical              :: debug         
     logical              :: pre_rad         !< flag for testing purpose
     logical              :: do_ocean        !< flag for slab ocean model 
-    logical              :: use_ec_sst      !< flag for using EC SST forcing (or any external SST dataset, passed from the dynamics or nudging)
+    logical              :: use_ext_sst     !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
@@ -2117,7 +2117,7 @@ module GFS_typedefs
     logical              :: lprnt          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_ocean       = .false.         !< flag for slab ocean model 
-    logical              :: use_ec_sst     = .false.         !< flag for using EC SST forcing (or any external SST dataset, passed from the dynamics or nudging)
+    logical              :: use_ext_sst    = .false.         !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
 !--- aerosol scavenging factors
     character(len=20) :: fscav_aero(20) = 'default'
@@ -2181,7 +2181,7 @@ module GFS_typedefs
                           !--- stochastic physics
                                sppt, shum, skeb, vcamp, vc,                                 &
                           !--- debug options
-                               debug, pre_rad, do_ocean, use_ec_sst, lprnt,                 &
+                               debug, pre_rad, do_ocean, use_ext_sst, lprnt,                &
                           !--- aerosol scavenging factors ('name:value' string array)
                                fscav_aero
 
@@ -2584,7 +2584,7 @@ module GFS_typedefs
     Model%debug            = debug
     Model%pre_rad          = pre_rad
     Model%do_ocean         = do_ocean
-    Model%use_ec_sst       = use_ec_sst
+    Model%use_ext_sst      = use_ext_sst
     Model%lprnt            = lprnt
 
     !--- set initial values for time varying properties
@@ -3190,7 +3190,7 @@ module GFS_typedefs
       print *, ' debug             : ', Model%debug 
       print *, ' pre_rad           : ', Model%pre_rad
       print *, ' do_ocean          : ', Model%do_ocean
-      print *, ' use_ec_sst        : ', Model%use_ec_sst
+      print *, ' use_ext_sst       : ', Model%use_ext_sst
       print *, ' '
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt

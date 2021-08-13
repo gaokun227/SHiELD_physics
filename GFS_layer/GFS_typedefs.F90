@@ -620,8 +620,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkgdx           !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
-    real(kind=kind_phys) :: zolcru          !< [in] zolcru used in satmedmfdifq.f 
-    real(kind=kind_phys) :: cs0             !< [in] cs0 used in satmedmfdifq.f 
+    real(kind=kind_phys) :: zolcru          !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f 
+    real(kind=kind_phys) :: cs0             !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac          !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr         !< updraft fraction in boundary layer mass flux scheme
@@ -1961,8 +1961,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx           = 300.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f 
-    real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] default zolcru  
-    real(kind=kind_phys) :: cs0            = 0.2                      !< [in] default cs0  
+    real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f   
+    real(kind=kind_phys) :: cs0            = 0.2                      !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f  
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme

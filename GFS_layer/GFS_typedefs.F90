@@ -88,7 +88,7 @@ module GFS_typedefs
     character(len=32), pointer :: tracer_names(:) !< tracers names to dereference tracer id
                                                   !< based on name location in array
     character(len=65) :: fn_nml                   !< namelist filename
-    character(len=256), pointer :: input_nml_file(:) !< character string containing full namelist
+    character(len=:), pointer, dimension(:) :: input_nml_file => null() !< character string containing full namelist
                                                    !< for use with internal file reads
   end type GFS_init_type
 
@@ -451,7 +451,7 @@ module GFS_typedefs
     integer              :: master          !< MPI rank of master atmosphere processor
     integer              :: nlunit          !< unit for namelist
     character(len=64)    :: fn_nml          !< namelist filename for surface data cycling
-    character(len=256), pointer :: input_nml_file(:) !< character string containing full namelist
+    character(len=:), pointer, dimension(:) :: input_nml_file => null() !< character string containing full namelist
                                                    !< for use with internal file reads
     real(kind=kind_phys) :: fhzero          !< seconds between clearing of diagnostic buckets
     logical              :: ldiag3d         !< flag for 3d diagnostic fields
@@ -1924,7 +1924,7 @@ module GFS_typedefs
     integer,                intent(in) :: idat(8)
     integer,                intent(in) :: jdat(8)
     character(len=32),      intent(in) :: tracer_names(:)
-    character(len=*),       intent(in), pointer :: input_nml_file(:)
+    character(len=:),       intent(in),  dimension(:), pointer :: input_nml_file
     !--- local variables
     integer :: n, i, j
     integer :: ios
@@ -2326,6 +2326,7 @@ module GFS_typedefs
 
     !--- read in the namelist
 #ifdef INTERNAL_FILE_NML
+    allocate(Model%input_nml_file, mold=input_nml_file)
     Model%input_nml_file => input_nml_file
     read(Model%input_nml_file, nml=gfs_physics_nml)
 #else

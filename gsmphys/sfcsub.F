@@ -41,8 +41,9 @@
      &,                   vegfcs,vetfcs,sotfcs,alffcs
      &,                   cvfcs,cvbfcs,cvtfcs,me,nlunit
      &,                   sz_nml,input_nml_file
-     &,                   ialb,isot,ivegsrc,tile_num_ch,i_index,j_index)
-!
+     &,                   ialb,isot,ivegsrc,tile_num_ch,i_index,j_index
+     &,                   sst_perturbation)
+!     
       use machine , only : kind_io8,kind_io4
       use sfccyc_module
       implicit none
@@ -477,7 +478,8 @@
      &,    sihfcs(len), sicfcs(len), sitfcs(len)
      &,    vmnfcs(len), vmxfcs(len), slpfcs(len), absfcs(len)
      &,    swdfcs(len), slcfcs(len,lsoil)
-!
+     &,    sst_perturbation
+!     
 ! ratio of sigma level 1 wind and 10m wind (diagnozed by model and not touched
 ! in this program).
 !
@@ -1068,7 +1070,8 @@
      &           kpdvmn,kpdvmx,kpdslp,kpdabs,kpdmld,kpdqflux,
      &           deltsfc, lanom
      &,          imsk, jmsk, slmskh, rla, rlo, gausm, blnmsk, bltmsk,me
-     &,          lprnt,iprnt,fnalbc2,ialb,tile_num_ch,i_index,j_index)
+     &,          lprnt,iprnt,fnalbc2,ialb,tile_num_ch,i_index,j_index
+     &,          sst_perturbation)
 !     if(lprnt) print *,'tsfclm=',tsfclm(iprnt),' tsfcl2=',tsfcl2(iprnt)
 !
 !  scale surface roughness and albedo to model required units
@@ -6823,7 +6826,7 @@ cjfe
      &                 deltsfc, lanom
      &,                imsk, jmsk, slmskh, outlat, outlon
      &,                gaus, blno, blto, me,lprnt,iprnt, fnalbc2, ialb
-     &,                tile_num_ch, i_index, j_index)
+     &,                tile_num_ch, i_index, j_index, sst_perturbation)
 !
       use machine , only : kind_io8,kind_io4
       use sfccyc_module, only : mdata, print_debug
@@ -6860,6 +6863,7 @@ cjfe
       real (kind=kind_io8) outlat(len), outlon(len)
 !
       real (kind=kind_io8) slmask(len), tsfcl0(len)
+      real (kind=kind_io8) sst_perturbation
       real (kind=kind_io8), allocatable :: slmask_noice(:)
 !
       logical lanom, gaus, first
@@ -7041,7 +7045,8 @@ cjfe
      &                 tsf(1,nn),len,iret
      &,                imsk, jmsk, slmskh, gaus,blno, blto
      &,                outlat, outlon, me)
-          enddo
+            tsf(:,nn) = tsf(:,nn) + sst_perturbation
+         enddo
 !
 !  tsf at the begining of forecast i.e. fh=0
 !
@@ -7372,6 +7377,7 @@ cjfe
      &                      alb(1,k,nn),len,iret
      &,                     imsk, jmsk, slmskh, gaus,blno, blto
      &,                     outlat, outlon, me)
+              tsf(:,nn) = tsf(:,nn) + sst_perturbation  
               enddo
             else
               do k = 1, 4
@@ -7617,6 +7623,7 @@ cjfe
      &               tsf(1,k1),len,iret
      &,              imsk, jmsk, slmskh, gaus,blno, blto
      &,              outlat, outlon, me)
+          tsf(:,k1) = tsf(:,k1) + sst_perturbation
         endif
         mon2s = mon1s + 1
 !       if (mon2s .eq. 1) mon2s = 13
@@ -7700,7 +7707,8 @@ cjfe
      &               tsf(1,nn),len,iret
      &,              imsk, jmsk, slmskh, gaus,blno, blto
      &,              outlat, outlon, me)
-!
+          tsf(:,nn) = tsf(:,nn) + sst_perturbation
+!     
 !  soil wetness
 !
           if(fnwetc(1:8).ne.'        ') then

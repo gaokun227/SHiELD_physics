@@ -869,7 +869,7 @@ module GFS_typedefs
     integer              :: imn             !< initial forecast month
     real(kind=kind_phys) :: julian          !< julian day using midnight of January 1 of forecast year as initial epoch
     integer              :: yearlen         !< length of the current forecast year in days
-    real(kind=kind_phys) :: sst_perturbation !< perturbation to add to the sea surface temperature
+    real(kind=kind_phys) :: sst_perturbation !< perturbation to add to the reference sea surface temperature
 
 !--- IAU
     integer              :: iau_offset
@@ -2382,7 +2382,7 @@ module GFS_typedefs
 !--- aerosol scavenging factors
     character(len=20) :: fscav_aero(20) = 'default'
 
-    real(kind=kind_phys) :: sst_perturbation = 0.0     !< perturbation to add to sea surface temperature
+    real(kind=kind_phys) :: sst_perturbation = 0.0     !< perturbation to add to the reference sea surface temperature
 
     !--- END NAMELIST VARIABLES
 

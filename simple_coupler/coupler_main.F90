@@ -455,9 +455,10 @@ if (intrm_rst .and. restart_start_secs == 0 .and. &
       call mpp_global_field(Atm%Domain, Atm%lon_bnd, glon_bnd, position=CORNER)
       call mpp_global_field(Atm%Domain, Atm%lat_bnd, glat_bnd, position=CORNER)
 
-      call data_override_init ( ) ! Atm_domain_in  = Atm%domain, &
-                                  ! Ice_domain_in  = Ice%domain, &
-                                  ! Land_domain_in = Land%domain )
+      call data_override_init (Atm_domain_in  = Atm%domain)
+                             ! Atm_domain_in  = Atm%domain, &
+                             ! Ice_domain_in  = Ice%domain, &
+                             ! Land_domain_in = Land%domain )
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --

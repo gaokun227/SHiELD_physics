@@ -272,6 +272,11 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: smcwtdxy(:)  => null()  !<
     real (kind=kind_phys), pointer :: deeprechxy(:)=> null()  !<
     real (kind=kind_phys), pointer :: rechxy  (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albdvis (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albdnir (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albivis (:)  => null()  !<
+    real (kind=kind_phys), pointer :: albinir (:)  => null()  !<
+    real (kind=kind_phys), pointer :: emiss   (:)  => null()  !<
 
     real (kind=kind_phys), pointer :: snicexy   (:,:) => null()  !<
     real (kind=kind_phys), pointer :: snliqxy   (:,:) => null()  !<
@@ -846,6 +851,7 @@ module GFS_typedefs
     integer              :: iau_offset
     real(kind=kind_phys) :: iau_delthrs     ! iau time interval (to scale increments) in hours
     character(len=240)   :: iau_inc_files(7)! list of increment files
+    character(len=32)    :: iau_forcing_var(20)  ! list of tracers with IAU forcing
     real(kind=kind_phys) :: iaufhrs(7)      ! forecast hours associated with increment files
     logical :: iau_filter_increments, iau_drymassfixer
 
@@ -1498,7 +1504,12 @@ module GFS_typedefs
     allocate (Sfcprop%taussxy  (IM))
     allocate (Sfcprop%smcwtdxy (IM))
     allocate (Sfcprop%deeprechxy (IM))
-    allocate (Sfcprop%rechxy    (IM))
+    allocate (Sfcprop%rechxy     (IM))
+    allocate (Sfcprop%albdvis    (IM))
+    allocate (Sfcprop%albdnir    (IM))
+    allocate (Sfcprop%albivis    (IM))
+    allocate (Sfcprop%albinir    (IM))
+    allocate (Sfcprop%emiss      (IM))
     allocate (Sfcprop%snicexy    (IM,-2:0))
     allocate (Sfcprop%snliqxy    (IM,-2:0))
     allocate (Sfcprop%tsnoxy     (IM,-2:0))
@@ -1534,6 +1545,11 @@ module GFS_typedefs
     Sfcprop%smcwtdxy   = clear_val
     Sfcprop%deeprechxy = clear_val
     Sfcprop%rechxy     = clear_val
+    Sfcprop%albdvis    = clear_val
+    Sfcprop%albdnir    = clear_val
+    Sfcprop%albivis    = clear_val
+    Sfcprop%albinir    = clear_val
+    Sfcprop%emiss      = clear_val
 
     Sfcprop%snicexy    = clear_val
     Sfcprop%snliqxy    = clear_val
@@ -2149,6 +2165,7 @@ module GFS_typedefs
     !--- IAU options
     real(kind=kind_phys)  :: iau_delthrs      = 0           !< iau time interval (to scale increments)
     character(len=240)    :: iau_inc_files(7) = ''          !< list of increment files
+    character(len=32)     :: iau_forcing_var(20) = ''       !< list of tracers with IAU forcing
     real(kind=kind_phys)  :: iaufhrs(7)       = -1          !< forecast hours associated with increment files
     logical  :: iau_filter_increments         = .false.     !< filter IAU increments
     logical  :: iau_drymassfixer              = .false.     !< IAU dry mass fixer
@@ -2222,7 +2239,7 @@ module GFS_typedefs
                           !--- stochastic physics
                                do_sppt, do_shum, do_skeb, do_sfcperts,                      &
                           !--- IAU
-                               iau_delthrs,iaufhrs,iau_inc_files,                           &
+                               iau_delthrs,iaufhrs,iau_inc_files,iau_forcing_var,           &
                                iau_filter_increments,iau_drymassfixer,                      &
                           !--- debug options
                                debug, pre_rad, do_ocean, use_ec_sst, lprnt,                 &
@@ -2550,6 +2567,7 @@ module GFS_typedefs
     !--- iau parameters
     Model%iaufhrs         = iaufhrs
     Model%iau_inc_files   = iau_inc_files
+    Model%iau_forcing_var = iau_forcing_var
     Model%iau_delthrs     = iau_delthrs
     Model%iau_filter_increments = iau_filter_increments
     Model%iau_drymassfixer = iau_drymassfixer

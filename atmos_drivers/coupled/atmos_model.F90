@@ -97,7 +97,7 @@ use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_restart_write_coarse, FV3GFS_diag_register_coarse
 use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, register_coarse_diag_manager_controlled_diagnostics
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
-use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize
+use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize,replay_initialize
 use module_ocean,       only: ocean_init
 !-----------------------------------------------------------------------
 
@@ -172,7 +172,7 @@ type(IPD_restart_type)              :: IPD_Restart
 !--------------
 ! IAU container
 !--------------
-type(iau_external_data_type)        :: IAU_Data ! number of blocks
+type(iau_external_data_type)        :: IAU_Data
 
 !-----------------
 !  Block container
@@ -336,7 +336,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
   integer, intent(in) :: iau_offset 
 !--- local variables ---
   integer :: unit, ntdiag, ntfamily, i, j, k
-  integer :: mlon, mlat, nlon, nlat, nlev, sec, dt, sec_prev, isec
+  integer :: mlon, mlat, nlon, nlat, nlev, sec, dt, sec_prev
   integer :: ierr, io, logunit
   integer :: idx, tile_num
   integer :: isc, iec, jsc, jec
@@ -376,7 +376,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
 
 !---------- initialize atmospheric dynamics -------
    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
-                         Atmos%grid, Atmos%area)
+                         Atmos%grid, Atmos%area, IAU_Data)
 
    IF ( file_exist('input.nml')) THEN
 #ifdef INTERNAL_FILE_NML
@@ -412,7 +412,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
    call atmosphere_control_data (isc, iec, jsc, jec, nlev, p_hydro, hydro, tile_num)
    call define_blocks_packed ('atmos_model', Atm_block, isc, iec, jsc, jec, nlev, &
                               blocksize, block_message)
-   
+
    allocate(IPD_Data(Atm_block%nblks))
 
 #ifdef OPENMP
@@ -490,7 +490,11 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
    Atm(mygrid)%flagstruct%do_skeb = IPD_Control%do_skeb
 
 !  initialize the IAU module
-   call iau_initialize (IPD_Control,IAU_data,Init_parm)
+   if ( Atm(mygrid)%flagstruct%replay == 1 ) then
+      call replay_initialize (IPD_Control, IAU_data)
+   else
+      call iau_initialize (IPD_Control,IAU_data,Init_parm)
+   endif
 
    IPD_Control%kdt_prev = kdt_prev
 
@@ -514,7 +518,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
 !rab   call atmosphere_tracer_postinit (IPD_Data, Atm_block)
 
    call atmosphere_nggps_diag (Time, init=.true.)
-   call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag,&
+   call gfdl_diag_register (Time, IPD_Data(:)%Sfcprop, IPD_Data(:)%IntDiag, IPD_Data%Cldprop, &
         Atm_block, Atmos%axes, IPD_Control%nfxr, IPD_Control%ldiag3d, &
         IPD_Control%nkld, IPD_Control%levs)
    call register_diag_manager_controlled_diagnostics(Time, IPD_Data(:)%IntDiag, Atm_block%nblks, Atmos%axes)
@@ -530,20 +534,15 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
         call FV3GFS_IPD_checksum(IPD_Control, IPD_Data, Atm_block)
       endif
 
-
    !--- set the initial diagnostic timestamp
    diag_time = Time
    if (Atmos%iau_offset > zero) then
      call get_time (Atmos%Time - Atmos%Time_init, sec)
-     if (mpp_pe() == mpp_root_pe()) write(6,*) 'Time-Time_init sec ', sec, Atmos%iau_offset*3600
      if (sec < Atmos%iau_offset*3600) then
        diag_time = Atmos%Time_init
        diag_time_fhzero = Atmos%Time
      endif
    endif
-
-   call get_time (Atmos%Time - diag_time, isec)
-   if (mpp_pe() == mpp_root_pe()) write(6,*) 'diag_time rt Time_init', isec
 
    !---- print version number to logfile ----
 
@@ -642,9 +641,13 @@ subroutine update_atmos_model_state (Atmos)
     
     call get_time (Atmos%Time - diag_time, isec)
     call get_time (Atmos%Time - Atmos%Time_init, seconds)
-!LZ if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
-!LZ if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (IPD_Control%kdt == 1) ) then
+
     if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. (IPD_Control%kdt == 1 .and. first_time_step) ) then
+      if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
+      if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
+      call atmosphere_nggps_diag(Atmos%Time)
+    endif
+    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. first_time_step) then
       time_int = real(isec)
       if(Atmos%iau_offset > zero) then
         if( time_int - Atmos%iau_offset*3600. > zero ) then
@@ -661,8 +664,6 @@ subroutine update_atmos_model_state (Atmos)
           time_intfull = time_intfull - Atmos%iau_offset*3600.
         endif
       endif
-      if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
-      call atmosphere_nggps_diag(Atmos%Time)
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, fprint, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int, time_intfull, &
                             IPD_Control%fhswr, IPD_Control%fhlwr, &

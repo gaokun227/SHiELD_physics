@@ -89,7 +89,10 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    type (time_type) :: Time_atmos, Time_init, Time_end,  &
                        Time_step_atmos, Time_step_ocean, &
                        Time_restart, Time_step_restart,  &
-                       Time_start_restart
+                       Time_start_restart, Time_restart_aux, &
+                       Time_step_restart_aux, Time_start_restart_aux, &
+                       Time_duration_restart_aux, Time_restart_end_aux
+                      
    integer :: num_cpld_calls, num_atmos_calls, nc, na, ret
 
 ! ----- coupled model initial date -----
@@ -114,6 +117,12 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    integer :: restart_secs = 0
    integer :: restart_start_days = 0
    integer :: restart_start_secs = 0
+   integer :: restart_days_aux = 0
+   integer :: restart_secs_aux = 0
+   integer :: restart_start_days_aux = 0
+   integer :: restart_start_secs_aux = 0
+   integer :: restart_duration_days_aux = 0
+   integer :: restart_duration_secs_aux = 0
    integer :: atmos_nthreads = 1
    logical :: memuse_verbose = .false.
    logical :: use_hyper_thread = .false.
@@ -122,7 +131,10 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
                           months, days, hours, minutes, seconds, iau_offset,  &
                           dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, &
                           use_hyper_thread, restart_secs, restart_days, &
-                          restart_start_secs, restart_start_days
+                          restart_start_secs, restart_start_days, &
+                          restart_secs_aux, restart_days_aux, &
+                          restart_start_secs_aux, restart_start_days_aux, &
+                          restart_duration_secs_aux, restart_duration_days_aux
 
 ! ----- local variables -----
    character(len=32) :: timestamp
@@ -167,11 +179,21 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
           call atmos_model_restart(Atm, timestamp)
           call coupler_res(timestamp)
         endif
-        if (Time_atmos == Time_restart) then
-          timestamp = date_to_string (Time_restart)
+        if (Time_atmos == Time_restart .or. Time_atmos == Time_restart_aux) then
+          if (Time_atmos == Time_restart) then
+            timestamp = date_to_string (Time_restart)
+          else
+            timestamp = date_to_string (Time_restart_aux) 
+          endif
           call atmos_model_restart(Atm, timestamp)
           call coupler_res(timestamp)
-          Time_restart = Time_restart + Time_step_restart
+          if (Time_atmos == Time_restart) &
+              Time_restart = Time_restart + Time_step_restart
+          if ((restart_secs_aux > 0 .or. restart_days_aux > 0) .and. &
+              Time_atmos == Time_restart_aux .and. &
+              Time_restart_aux < Time_restart_end_aux) then
+            Time_restart_aux = Time_restart_aux + Time_step_restart_aux
+          endif
         endif
       endif
     endif
@@ -389,7 +411,12 @@ if (restart_start_secs > 0 .or. restart_start_days > 0) then
    Time_restart = Time_atmos + Time_start_restart
 else
    Time_restart = Time_atmos + Time_step_restart
-end if 
+end if
+Time_step_restart_aux = set_time (restart_secs_aux, restart_days_aux)
+Time_duration_restart_aux = set_time (restart_duration_secs_aux, restart_duration_days_aux)
+Time_start_restart_aux = set_time (restart_start_secs_aux, restart_start_days_aux)
+Time_restart_aux = Time_atmos + Time_start_restart_aux
+Time_restart_end_aux = Time_restart_aux + Time_duration_restart_aux 
 intrm_rst = .false.
 intrm_rst_1step = .false.
 if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.

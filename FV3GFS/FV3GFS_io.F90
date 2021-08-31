@@ -4693,6 +4693,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     Diag(idx)%desc = 'restoring flux'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%time_avg = .TRUE.
     Diag(idx)%coarse_graining_method = AREA_WEIGHTED
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks

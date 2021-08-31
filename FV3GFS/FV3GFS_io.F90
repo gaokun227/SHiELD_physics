@@ -25,6 +25,7 @@ module FV3GFS_io_mod
   use time_manager_mod,   only: time_type
   use diag_manager_mod,   only: register_diag_field, send_data
   use fv_mp_mod,          only: is_master, mp_reduce_sum, mp_reduce_min, mp_reduce_max
+  use data_override_mod,  only: data_override
 !
 !--- GFS physics modules
   use machine,            only: kind_phys
@@ -70,6 +71,7 @@ module FV3GFS_io_mod
   public  FV3GFS_diag_register_coarse, register_diag_manager_controlled_diagnostics
   public  register_coarse_diag_manager_controlled_diagnostics
   public  send_diag_manager_controlled_diagnostic_data
+  public  sfc_data_override
   
   !--- GFDL filenames
   character(len=32)  :: fn_oro = 'oro_data.nc'
@@ -1451,6 +1453,60 @@ module FV3GFS_io_mod
 
 
   end subroutine sfc_prop_restart_read
+
+  subroutine sfc_data_override(Time, IPD_data, Atm_block, Model)
+
+    implicit none
+    !--- interface variable definitions
+    type(time_type),           intent(in)    :: Time
+    type(IPD_data_type),       intent(inout) :: IPD_Data(:)
+    type (block_control_type), intent(in)    :: Atm_block
+    type(IPD_control_type),    intent(in)    :: Model
+    !--- local variables
+    integer :: i, j, ix, nb
+    integer :: isc, iec, jsc, jec
+
+    logical :: used
+    real, allocatable :: sst(:,:), ci(:,:)
+
+    isc = Atm_block%isc
+    iec = Atm_block%iec
+    jsc = Atm_block%jsc
+    jec = Atm_block%jec
+
+    if (Model%use_ext_sst) then
+
+        ! Here is a sample data_table that will enable reading in
+        ! external SSTs and sea-ice from an external file.
+        !
+        !"ATM", "sst", "sst", "INPUT/ec_sst.nc", "bilinear", 1.0
+        !"ATM", "ci", "ci", "INPUT/ec_sst.nc", "bilinear", 1.0
+ 
+ 	   allocate(sst(isc:iec,jsc:jec))
+ 	   allocate(ci(isc:iec,jsc:jec))
+        call data_override('ATM', 'sst', sst, Time, override=used)
+        if (.not. used) then
+           call mpp_error(FATAL, " SST dataset not specified in data_table.")
+        endif
+        call data_override('ATM', 'ci', ci, Time, override=used)
+        if (.not. used) then
+           call mpp_error(NOTE, " Sea ice fraction dataset not specified in data_table. No override will occur.")
+           ci(:,:) = -999.
+        endif
+        do nb = 1, Atm_block%nblks
+           do ix = 1, Atm_block%blksz(nb)
+              i = Atm_block%index(nb)%ii(ix) - isc + 1
+              j = Atm_block%index(nb)%jj(ix) - jsc + 1
+              IPD_Data(nb)%Statein%sst(ix) = sst(i,j)
+              IPD_Data(nb)%Statein%ci(ix) = ci(i,j)
+           enddo
+        enddo
+ 	   deallocate(sst)
+ 	   deallocate(ci)
+
+    endif
+
+  end subroutine sfc_data_override
 
   subroutine sfc_prop_override(Sfcprop, Grid, Atm_block, Model, fv_domain)
 
@@ -4695,6 +4751,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%time_avg = .TRUE.
     Diag(idx)%coarse_graining_method = AREA_WEIGHTED
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%qflux_restore(:)

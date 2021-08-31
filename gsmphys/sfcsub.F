@@ -7519,7 +7519,6 @@ cjfe
 
         endif
 !
-!
 !  qflux for slab ocean model
 !
         if(fnqfluxc(1:8).ne.'        ') then
@@ -7532,7 +7531,7 @@ cjfe
      &                           mixed layer depth read in.'
 
         endif
-
+!
 !  surface roughness
 !
       if(fnzorc(1:3) == 'sib') then
@@ -7786,6 +7785,32 @@ cjfe
      &,                 outlat, outlon, me)
             write(6,*) 'climatological snow cover read in.'
           endif
+!
+!  ocean mixed layer depth (MLD)
+!
+        if(fnmldc(1:8).ne.'        ') then
+          kpd7=-1
+          call fixrdc(lugb,fnmldc,kpdmld,kpd7,mon,slmask,
+     &                mld(1,nn),len,iret
+     &,               imsk, jmsk, slmskh, gaus,blno, blto
+     &,               outlat, outlon, me)
+          if (me .eq. 0) write(6,*) 'climatological ocean 
+     &                           mixed layer depth read in.'
+
+        endif
+!
+!  qflux for slab ocean model
+!
+        if(fnqfluxc(1:8).ne.'        ') then
+          kpd7=-1
+          call fixrdc(lugb,fnqfluxc,kpdqflux,kpd7,mon,slmask,
+     &                qflux(1,nn),len,iret
+     &,               imsk, jmsk, slmskh, gaus,blno, blto
+     &,               outlat, outlon, me)
+          if (me .eq. 0) write(6,*) 'climatological ocean 
+     &                           mixed layer depth read in.'
+
+        endif
 !
 !  surface roughness
 !

@@ -23,6 +23,7 @@ module module_physics_driver
   use wv_saturation,         only: estblf
   
   use module_sfc_drv,        only: sfc_drv
+  use cosp2_test,            only: cosp2_driver
   
   implicit none
 
@@ -499,7 +500,11 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
           ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en,            &
+          prefluxr, prefluxi, prefluxs, prefluxg,                       &
           sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps
+
+      real(kind=kind_phys), allocatable ::                              &
+           pfr(:,:), pfs(:,:), pfg(:,:)
 
       !--- GFDL modification for FV3 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs+1) ::&
@@ -3365,6 +3370,10 @@ module module_physics_driver
         pt_dt    (:,1,:) = 0.0
         udt      (:,1,:) = 0.0
         vdt      (:,1,:) = 0.0
+        prefluxr (:,1,:) = 0.0
+        prefluxi (:,1,:) = 0.0
+        prefluxs (:,1,:) = 0.0
+        prefluxg (:,1,:) = 0.0
         do k = 1, levs
           qv1  (:,1,k) = Stateout%gq0(:,levs-k+1,1         )
           ql1  (:,1,k) = Stateout%gq0(:,levs-k+1,Model%ntcw)
@@ -3432,6 +3441,10 @@ module module_physics_driver
         sub0      = 0.0
         qnl1      = 0.0
         qni1      = 0.0
+        prefluxr  = 0.0
+        prefluxi  = 0.0
+        prefluxs  = 0.0
+        prefluxg  = 0.0
         do k = 1, levs
           w    (:,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
      &                   /Statein%prsl(:,levs-k+1)/con_g
@@ -3446,7 +3459,9 @@ module module_physics_driver
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, rain0, snow0, ice0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                                .false., te(:,levs:1:-1), cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
+                                .false., te(:,levs:1:-1), prefluxr(:,levs:1:-1), &
+                                prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
+                                cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         rain0(:)    = rain0(:)    * tem
@@ -3799,7 +3814,120 @@ module module_physics_driver
             dq3dt_initial, Diag%dq3dt, Statein%qgrs(:,:,1:nwat), Stateout%gq0(:,:,1:nwat), &
             final_dynamics_delp, im, levs, nwat, dtp)
       endif
+
+!-----------------------------------------------------------------------
+! The CFMIP Observation Simulator Package (COSP)
+! Added by Linjiong Zhou
+! May 2021
+!-----------------------------------------------------------------------
+
+      if (Model%do_cosp) then
+
+        allocate (pfr(ix,levs))
+        allocate (pfs(ix,levs))
+        allocate (pfg(ix,levs))
+
+        if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
+            pfr = Statein%prefluxr
+            pfs = Statein%prefluxs
+            pfg = Statein%prefluxg
+        else
+            pfr = prefluxr
+            pfs = prefluxs
+            pfg = prefluxg
+        endif
+
+        call cosp2_driver (im, levs, Stateout%gt0, Stateout%gq0(:,:,1), Stateout%gu0, &
+            Stateout%gv0, Statein%prsl, Statein%prsi, Statein%phil, Statein%phii, Sfcprop%tsfc, &
+            Stateout%gq0(:,:,Model%ntoz), 1-abs(Sfcprop%slmsk-1), Sfcprop%oro, &
+            Stateout%gq0(:,:,Model%ntclamt), Stateout%gq0(:,:,Model%ntcw), &
+            Stateout%gq0(:,:,Model%ntiw), pfr, pfs, pfg, model%ncld, diag%reff, &
+            Radtend%coszen, diag%ctau, &
+            Diag%cosp%cltisccp, &
+            Diag%cosp%meantbisccp, &
+            Diag%cosp%meantbclrisccp, &
+            Diag%cosp%pctisccp, &
+            Diag%cosp%tauisccp, &
+            Diag%cosp%albisccp, &
+            Diag%cosp%misr_meanztop, &
+            Diag%cosp%misr_cldarea, &
+            Diag%cosp%cltmodis, &
+            Diag%cosp%clwmodis, &
+            Diag%cosp%climodis, &
+            Diag%cosp%clhmodis, &
+            Diag%cosp%clmmodis, &
+            Diag%cosp%cllmodis, &
+            Diag%cosp%tautmodis, &
+            Diag%cosp%tauwmodis, &
+            Diag%cosp%tauimodis, &
+            Diag%cosp%tautlogmodis, &
+            Diag%cosp%tauwlogmodis, &
+            Diag%cosp%tauilogmodis, &
+            Diag%cosp%reffclwmodis, &
+            Diag%cosp%reffclimodis, &
+            Diag%cosp%pctmodis, &
+            Diag%cosp%lwpmodis, &
+            Diag%cosp%iwpmodis, &
+            Diag%cosp%cltlidarradar, &
+            Diag%cosp%cllcalipsoice, &
+            Diag%cosp%clmcalipsoice, &
+            Diag%cosp%clhcalipsoice, &
+            Diag%cosp%cltcalipsoice, &
+            Diag%cosp%cllcalipsoliq, &
+            Diag%cosp%clmcalipsoliq, &
+            Diag%cosp%clhcalipsoliq, &
+            Diag%cosp%cltcalipsoliq, &
+            Diag%cosp%cllcalipsoun, &
+            Diag%cosp%clmcalipsoun, &
+            Diag%cosp%clhcalipsoun, &
+            Diag%cosp%cltcalipsoun, &
+            Diag%cosp%cllcalipso, &
+            Diag%cosp%clmcalipso, &
+            Diag%cosp%clhcalipso, &
+            Diag%cosp%cltcalipso, &
+            Diag%cosp%clopaquecalipso, &
+            Diag%cosp%clthincalipso, &
+            Diag%cosp%clzopaquecalipso, &
+            Diag%cosp%clopaquetemp, &
+            Diag%cosp%clthintemp, &
+            Diag%cosp%clzopaquetemp, &
+            Diag%cosp%clopaquemeanz, &
+            Diag%cosp%clthinmeanz, &
+            Diag%cosp%clthinemis, &
+            Diag%cosp%clopaquemeanzse, &
+            Diag%cosp%clthinmeanzse, &
+            Diag%cosp%clzopaquecalipsose, &
+            Diag%cosp%cllgrLidar532, &
+            Diag%cosp%clmgrLidar532, &
+            Diag%cosp%clhgrLidar532, &
+            Diag%cosp%cltgrLidar532, &
+            Diag%cosp%cllatlid, &
+            Diag%cosp%clmatlid, &
+            Diag%cosp%clhatlid, &
+            Diag%cosp%cltatlid, &
+            Diag%cosp%ptcloudsatflag0, &
+            Diag%cosp%ptcloudsatflag1, &
+            Diag%cosp%ptcloudsatflag2, &
+            Diag%cosp%ptcloudsatflag3, &
+            Diag%cosp%ptcloudsatflag4, &
+            Diag%cosp%ptcloudsatflag5, &
+            Diag%cosp%ptcloudsatflag6, &
+            Diag%cosp%ptcloudsatflag7, &
+            Diag%cosp%ptcloudsatflag8, &
+            Diag%cosp%ptcloudsatflag9, &
+            Diag%cosp%cloudsatpia, &
+            Diag%cosp%cloudsat_tcc, &
+            Diag%cosp%cloudsat_tcc2, &
+            Diag%cosp%npdfcld, &
+            Diag%cosp%npdfdrz, &
+            Diag%cosp%npdfrain)
       
+        deallocate (pfr)
+        deallocate (pfs)
+        deallocate (pfg)
+
+      endif
+
       return
 !...................................
       end subroutine GFS_physics_driver

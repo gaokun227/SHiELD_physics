@@ -87,7 +87,7 @@ use IPD_typedefs,       only: IPD_init_type, IPD_control_type, &
 use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
                               IPD_radiation_step,             &
                               IPD_physics_step1,              &
-                              IPD_physics_step2
+                              IPD_physics_step2, IPD_physics_end
 use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               FV3GFS_IPD_checksum,                       &
                               gfdl_diag_register, gfdl_diag_output, &
@@ -627,6 +627,8 @@ subroutine atmos_model_end (Atmos)
   type (atmos_data_type), intent(inout) :: Atmos
 !---local variables
   integer :: idx
+
+    call IPD_physics_end (IPD_Control)
 
 !-----------------------------------------------------------------------
 !---- termination routine for atmospheric model ----

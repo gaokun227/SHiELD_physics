@@ -227,7 +227,7 @@
       parameter(h1=0.33333333,hcrinv=250.)
       parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
 !     parameter(ce0=0.4,cs0=0.5)
-      parameter(ce0=0.4)!,cs0=0.2)
+      parameter(ce0=0.4)
       parameter(rchck=1.5,ndt=20)
 !
 !************************************************************************

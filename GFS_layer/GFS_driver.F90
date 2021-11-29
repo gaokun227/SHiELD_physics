@@ -148,8 +148,10 @@ module GFS_driver
                      Init_parm%gnx, Init_parm%gny,                 &
                      Init_parm%dt_dycore, Init_parm%dt_phys,       &
                      Init_parm%bdat, Init_parm%cdat,               &
+                     Init_parm%iau_offset,                         &
                      Init_parm%tracer_names,                       &
-                     Init_parm%input_nml_file, Init_parm%tile_num  )
+                     Init_parm%input_nml_file, Init_parm%tile_num, &
+                     Init_parm%blksz)
 
 
     call read_o3data  (Model%ntoz, Model%me, Model%master)
@@ -284,7 +286,8 @@ module GFS_driver
     type(GFS_radtend_type),   intent(inout) :: Radtend(:)
     type(GFS_diag_type),      intent(inout) :: Diag(:)
     !--- local variables
-    integer :: nb, nblks
+    integer :: nb, nblks, k, kdt_iau
+    logical :: iauwindow_center
     real(kind=kind_phys) :: rinc(5)
     real(kind=kind_phys) :: sec, sec_zero, fjd
     integer              :: iyear, imon, iday, ihr, imin, jd0, jd1
@@ -379,7 +382,7 @@ module GFS_driver
 
     !--- repopulate specific time-varying sfc properties for AMIP/forecast runs
     if (Model%nscyc >  0) then
-      if (mod(Model%kdt,Model%nscyc) == 1) THEN
+      if (mod(Model%kdt,Model%nscyc) == 1 .or. Model%kdt-Model%kdt_prev == 1) THEN
         call gcycle (nblks, Model, Grid(:), Sfcprop(:), Cldprop(:))
       endif
     endif
@@ -395,6 +398,42 @@ module GFS_driver
       do nb = 1,nblks
         call Diag(nb)%rad_zero  (Model)
     !!!!  THIS IS THE POINT AT WHICH DIAG%ZHOUR NEEDS TO BE UPDATED
+      enddo
+    endif
+    if (Model%iau_offset > 0) then
+      kdt_iau = nint(Model%iau_offset*con_hr/Model%dtp)
+      if (Model%kdt == kdt_iau+1) then
+        iauwindow_center = .true.
+        do nb = 1,nblks
+          call Diag(nb)%rad_zero  (Model)
+          call Diag(nb)%phys_zero (Model,iauwindow_center=iauwindow_center)
+        enddo
+        if(Model%me == Model%master) print *,'in gfs_driver, at iau_center, zero out rad/phys accumulated diag fields, kdt=',Model%kdt,'kdt_iau=',kdt_iau,'iau_offset=',Model%iau_offset
+      endif
+    endif
+
+! kludge for output
+    if (Model%do_skeb) then 
+      do nb = 1,nblks
+        do k=1,Model%levs
+          Diag(nb)%skebu_wts(:,k) = Coupling(nb)%skebu_wts(:,Model%levs-k+1)
+          Diag(nb)%skebv_wts(:,k) = Coupling(nb)%skebv_wts(:,Model%levs-k+1)
+          Diag(nb)%diss_est(:,k) = Statein(nb)%diss_est(:,Model%levs-k+1)
+        enddo
+      enddo
+    endif
+    !if (Model%do_sppt) then
+    !  do nb = 1,nblks
+    !    do k=1,Model%levs
+    !      Diag(nb)%sppt_wts(:,k) = Coupling(nb)%sppt_wts(:,Model%levs-k+1)
+    !    enddo
+    !  enddo
+    !endif
+    if (Model%do_shum) then 
+      do nb = 1,nblks
+        do k=1,Model%levs
+          Diag(nb)%shum_wts(:,k)=Coupling(nb)%shum_wts(:,Model%levs-k+1)
+        enddo
       enddo
     endif
 
@@ -429,37 +468,75 @@ module GFS_driver
     type(GFS_diag_type),      intent(inout) :: Diag
     !--- local variables
     integer :: k, i
-    real(kind=kind_phys) :: upert, vpert, tpert, qpert, qnew
+    real(kind=kind_phys) :: upert, vpert, tpert, qpert, qnew, sppt_vwt
 
      if (Model%do_sppt) then
        do k = 1,size(Statein%tgrs,2)
          do i = 1,size(Statein%tgrs,1)
-      
+           sppt_vwt=1.0
+           if (Diag%zmtnblck(i).EQ.0.0) then
+              sppt_vwt=1.0
+           else
+              if (k.GT.Diag%zmtnblck(i)+2) then
+                 sppt_vwt=1.0
+              endif
+              if (k.LE.Diag%zmtnblck(i)) then
+                 sppt_vwt=0.0
+              endif
+              if (k.EQ.Diag%zmtnblck(i)+1) then
+                 sppt_vwt=0.333333
+              endif
+              if (k.EQ.Diag%zmtnblck(i)+2) then
+                 sppt_vwt=0.666667
+              endif
+           endif
+           if (Model%use_zmtnblck)then
+              Coupling%sppt_wts(i,k)=(Coupling%sppt_wts(i,k)-1)*sppt_vwt+1.0
+           endif
+           Diag%sppt_wts(i,Model%levs-k+1)=Coupling%sppt_wts(i,k)
            upert = (Stateout%gu0(i,k)   - Statein%ugrs(i,k))   * Coupling%sppt_wts(i,k)
            vpert = (Stateout%gv0(i,k)   - Statein%vgrs(i,k))   * Coupling%sppt_wts(i,k)
-           tpert = (Stateout%gt0(i,k)   - Statein%tgrs(i,k))   * Coupling%sppt_wts(i,k) - Tbd%dtdtr(i,k)
+           tpert = (Stateout%gt0(i,k)   - Statein%tgrs(i,k) - Tbd%dtdtr(i,k)) * Coupling%sppt_wts(i,k)
            qpert = (Stateout%gq0(i,k,1) - Statein%qgrs(i,k,1)) * Coupling%sppt_wts(i,k)
- 
+
            Stateout%gu0(i,k)  = Statein%ugrs(i,k)+upert
            Stateout%gv0(i,k)  = Statein%vgrs(i,k)+vpert
- 
+
            !negative humidity check
            qnew = Statein%qgrs(i,k,1)+qpert
-           if (qnew .GE. 1.0e-10) then
+           if (qnew >= 1.0e-10) then
               Stateout%gq0(i,k,1) = qnew
               Stateout%gt0(i,k)   = Statein%tgrs(i,k) + tpert + Tbd%dtdtr(i,k)
            endif
          enddo
        enddo
- 
-       Diag%totprcp(:)      = Diag%totprcp(:)      + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dtotprcp(:)
-       Diag%cnvprcp(:)      = Diag%cnvprcp(:)      + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dcnvprcp(:)
-       Coupling%rain_cpl(:) = Coupling%rain_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%drain_cpl(:)
-       Coupling%snow_cpl(:) = Coupling%snow_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dsnow_cpl(:)
+
+        ! instantaneous precip rate going into land model at the next time step
+        Sfcprop%tprcp(:) = Coupling%sppt_wts(:,15)*Sfcprop%tprcp(:)
+        Diag%totprcp(:)      = Diag%totprcp(:)      + (Coupling%sppt_wts(:,15) - 1 )*Diag%rain(:)
+        ! acccumulated total and convective preciptiation
+        Diag%cnvprcp(:)      = Diag%cnvprcp(:)      + (Coupling%sppt_wts(:,15) - 1 )*Diag%rainc(:)
+        ! bucket precipitation adjustment due to sppt
+        Diag%totprcpb(:)      = Diag%totprcpb(:)      + (Coupling%sppt_wts(:,15) - 1 )*Diag%rain(:)
+        Diag%cnvprcpb(:)      = Diag%cnvprcpb(:)      + (Coupling%sppt_wts(:,15) - 1 )*Diag%rainc(:)
+
+
+        if (Model%cplflx) then
+           Coupling%rain_cpl(:) = Coupling%rain_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%drain_cpl(:)
+           Coupling%snow_cpl(:) = Coupling%snow_cpl(:) + (Coupling%sppt_wts(:,15) - 1.0)*Tbd%dsnow_cpl(:)
+        endif
+
      endif
 
      if (Model%do_shum) then
        Stateout%gq0(:,:,1) = Stateout%gq0(:,:,1)*(1.0 + Coupling%shum_wts(:,:))
+     endif
+
+     if (Model%do_skeb) then
+       do k = 1,size(Statein%tgrs,2)
+           Stateout%gu0(:,k) = Stateout%gu0(:,k)+Coupling%skebu_wts(:,k)*(Statein%diss_est(:,k))
+           Stateout%gv0(:,k) = Stateout%gv0(:,k)+Coupling%skebv_wts(:,k)*(Statein%diss_est(:,k))
+       enddo
      endif
 
   end subroutine GFS_stochastic_driver

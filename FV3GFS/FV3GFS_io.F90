@@ -3331,7 +3331,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'TCDC_aveclm'
+    Diag(idx)%name = 'TCDCclm'
     Diag(idx)%desc = 'atmos column total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3345,7 +3345,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'TCDC_avebndcl'
+    Diag(idx)%name = 'TCDCbndcl'
     Diag(idx)%desc = 'boundary layer cloud layer total cloud cover'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3397,7 +3397,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'TCDC_avehcl'
+    Diag(idx)%name = 'TCDChcl'
     Diag(idx)%desc = 'high cloud level total cloud cover [%]'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3456,7 +3456,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'TCDC_avemcl'
+    Diag(idx)%name = 'TCDCmcl'
     Diag(idx)%desc = 'mid cloud level total cloud cover'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3515,7 +3515,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'TCDC_avelcl'
+    Diag(idx)%name = 'TCDClcl'
     Diag(idx)%desc = 'low cloud level total cloud cover'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'

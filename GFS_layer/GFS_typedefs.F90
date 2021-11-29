@@ -1102,7 +1102,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: skebv_wts(:,:) => null()   !< 10 meter v wind speed
     real (kind=kind_phys), pointer :: sppt_wts(:,:)  => null()   !<
     real (kind=kind_phys), pointer :: shum_wts(:,:)  => null()   !<
-    real (kind=kind_phys), pointer :: zmtnblck(:)    => null()   !<mountain
+    real (kind=kind_phys), pointer :: zmtnblck(:)    => null()   !<mountain blocking level of dividing streamline
 
 !
     real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
@@ -2153,7 +2153,9 @@ module GFS_typedefs
      
     !--- stochastic physics control parameters
     logical :: do_sppt      = .false.
-    logical :: use_zmtnblck = .false.
+    logical :: use_zmtnblck = .false.  ! if true, do not apply perturbations below the
+                                       ! dividing streamline diagnosed by 
+                                       ! the gravity wave drag, mountain blocking scheme
     logical :: do_shum      = .false.
     logical :: do_skeb      = .false.
     integer :: skeb_npass = 11

@@ -4116,17 +4116,17 @@ end subroutine register_diag_manager_controlled_diagnostics
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%v10mmax(:)
     enddo
 
-!    idx = idx + 1
-!    Diag(idx)%axes = 2
-!    Diag(idx)%name = 'wind10mmax'
-!    Diag(idx)%desc = 'maximum wind speed'
-!    Diag(idx)%unit = 'm/s'
-!    Diag(idx)%mod_name = 'gfs_phys'
-!    Diag(idx)%intpl_method = 'bilinear'
-!    allocate (Diag(idx)%data(nblks))
-!    do nb = 1,nblks
-!      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%wind10mmax(:)
-!    enddo
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'wind10mmax'
+    Diag(idx)%desc = 'maximum wind speed'
+    Diag(idx)%unit = 'm/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%intpl_method = 'bilinear'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%wind10mmax(:)
+    enddo
 
 !    idx = idx + 1
 !    Diag(idx)%axes = 2

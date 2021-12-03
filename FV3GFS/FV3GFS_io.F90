@@ -3046,7 +3046,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'ALBDO_ave'
+    Diag(idx)%name = 'ALBDOsfc'
     Diag(idx)%desc = 'surface albedo'
     Diag(idx)%unit = '%'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3060,7 +3060,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'USWRF'
+    Diag(idx)%name = 'USWRFsfc'
     Diag(idx)%desc = 'averaged surface upward shortwave flux'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3075,7 +3075,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'DSWRF'
+    Diag(idx)%name = 'DSWRFsfc'
     Diag(idx)%desc = 'averaged surface downward shortwave flux'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3729,7 +3729,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'snohf'
+    Diag(idx)%name = 'snohf_ave'
     Diag(idx)%desc = 'Snow Phase Change Heat Flux - GFS lsm'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
@@ -3917,7 +3917,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'DLWRF'
-    Diag(idx)%desc = 'surface downward longwave flux'
+    Diag(idx)%desc = 'time accumulated downward lw flux at surface- GFS physics'
     Diag(idx)%unit = 'w/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
@@ -4071,7 +4071,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'spfhmin2m'
-    Diag(idx)%desc = 'minimum specific humidity'
+    Diag(idx)%desc = 'minimum specific humidity at 2m height'
     Diag(idx)%unit = 'kg/kg'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%intpl_method = 'bilinear'
@@ -4083,7 +4083,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'spfhmax2m'
-    Diag(idx)%desc = 'maximum specific humidity'
+    Diag(idx)%desc = 'maximum specific humidity at 2m height'
     Diag(idx)%unit = 'kg/kg'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%intpl_method = 'bilinear'
@@ -5458,6 +5458,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%coarse_graining_method = AREA_WEIGHTED
+    Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%qflux_restore(:)

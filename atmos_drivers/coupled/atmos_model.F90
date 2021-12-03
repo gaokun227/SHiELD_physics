@@ -493,7 +493,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
       call run_stochastic_physics_sfc(IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Coupling)
    end if
 
-   Atm(mygrid)%flagstruct%do_skeb = IPD_Control%do_skeb
+   Atm(mygrid)%flagstruct%do_diss_est = IPD_Control%do_skeb
 
 !  initialize the IAU module
    if ( Atm(mygrid)%flagstruct%replay == 1 ) then

@@ -3827,7 +3827,7 @@ module GFS_typedefs
     type(GFS_control_type), intent(in) :: Model
     logical,optional, intent(in)       :: iauwindow_center
 
-    logical set_totprcp
+    logical :: set_totprcp = .true.
 
     !--- In/Out
     Diag%srunoff = zero

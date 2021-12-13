@@ -448,7 +448,6 @@ module module_physics_driver
            !--- experimental for shoc sub-stepping 
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
-           crain, csnow
            crain, csnow,                                                &
            diag_rain, diag_rain1
 

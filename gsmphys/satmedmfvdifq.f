@@ -184,8 +184,8 @@
      &                     ttend,   utend,  vtend,  qtend,
      &                     zfac,    zfmin,  vk,     spdk2,
      &                     tkmin,   tkminx, xkzinv, xkgdx,
-     &                     zlup,    zldn,   bsum,
-     &                     tem,     tem1,   tem2,
+     &                     zlup,    zldn,   bsum,   cs0,
+     &                     tem,     tem1,   tem2,   tem3,
      &                     ptem,    ptem0,  ptem1,  ptem2
 !
       real(kind=kind_phys) ck0, ck1, ch0, ch1, ce0, rchck

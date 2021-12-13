@@ -97,13 +97,17 @@
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
           if (Model%do_ocean) then
-           if (Model%kdt == 1) then
+           if (Model%kdt == 1 .or. Model%kdt-Model%kdt_prev == 1) then
             TSFFCS  (len)        = Sfcprop(nb)%tsfc   (ix)
            else
             TSFFCS  (len)        = Sfcprop(nb)%ts_clim_iano   (ix)
            endif
           else
-           TSFFCS  (len)         = Sfcprop(nb)%tsfc   (ix)
+           if ( Model%nstf_name(1) > 0 ) then
+             TSFFCS(len)         = Sfcprop(nb)%tref   (ix)
+           else
+             TSFFCS(len)         = Sfcprop(nb)%tsfc   (ix)
+           endif
           endif
           SNOFCS  (len)          = Sfcprop(nb)%weasd  (ix)
           ZORFCS  (len)          = Sfcprop(nb)%zorl   (ix)
@@ -201,7 +205,11 @@
            Sfcprop(nb)%mldclim (ix) = MLDCLIM  (len)
            Sfcprop(nb)%qfluxadj (ix)= QFLUXADJ  (len)
           else
-           Sfcprop(nb)%tsfc    (ix) = TSFFCS  (len) 
+            if ( Model%nstf_name(1) > 0 ) then
+              Sfcprop(nb)%tref(ix) = TSFFCS  (len)
+            else
+              Sfcprop(nb)%tsfc(ix) = TSFFCS  (len) 
+            endif
           endif
 !
           Sfcprop(nb)%weasd  (ix) = SNOFCS  (len)
@@ -242,7 +250,7 @@
 ! check
 !     call mymaxmin(slifcs,len,len,1,'slifcs')
 !
-!     if (Model%me .eq. 0) print*,'executed gcycle during hour=',fhour
+      if (Model%me .eq. 0) print*,'executed gcycle during hour=',Model%fhour
       
       RETURN
       END

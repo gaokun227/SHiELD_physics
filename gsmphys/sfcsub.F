@@ -2011,7 +2011,7 @@
 !     if(lprnt) print *,'tsfclm=',tsfclm(iprnt),' tsfcl2=',tsfcl2(iprnt)
 !    *,' tsffcs=',tsffcs(iprnt),' slianl=',slianl(iprnt)
 
-      if (fh > 0.0) then
+      if (fh-deltsfc > -0.001 ) then
         do i=1,len
           if(slianl(i) == 0.0) then
             tsffcs(i) = tsffcs(i) + (tsfclm(i) - tsfcl2(i))
@@ -2720,7 +2720,7 @@
         call abort
       endif
       if (me .eq. 0 .and. print_debug)
-     $     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
+     &     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
      &     ' opened. unit=',lugb
       lugi    = 0
       lskip   = -1
@@ -3047,7 +3047,7 @@
       endif
 !
       if (me == 0 .and. print_debug) print *,' num_threads =',
-     $     num_threads,' me=',me
+     &     num_threads,' me=',me
 !
 !     if(me .eq. 0) then
 !     print *,'rlon=',rlon,' me=',me
@@ -6997,7 +6997,7 @@ cjfe
           jd=jda(3)
           jh=jda(5)
           if (me .eq. 0 .and. print_debug)
-     $         write(6,*) ' forecast jy,jm,jd,jh',
+     &         write(6,*) ' forecast jy,jm,jd,jh',
      &                   jy,jm,jd,jh
           jdow = 0
           jdoy = 0
@@ -7007,7 +7007,7 @@ cjfe
           if(rjday.lt.dayhf(1)) rjday=rjday+365.
 !
           if (me .eq. 0 .and. print_debug)
-     $         write(6,*) 'forecast jy,jm,jd,jh=',jy,jm,jd,jh
+     &         write(6,*) 'forecast jy,jm,jd,jh=',jy,jm,jd,jh
 !
 !         for monthly mean climatology
 !
@@ -7028,7 +7028,7 @@ cjfe
           wei2m = (rjday-dayhf(mon1))/(dayhf(mon2)-dayhf(mon1))
           if(mon2.eq.13) mon2=1
           if (me .eq. 0 .and. print_debug)
-     $         print *,'rjday,mon1,mon2,wei1m,wei2m=',
+     &         print *,'rjday,mon1,mon2,wei1m,wei2m=',
      &                   rjday,mon1,mon2,wei1m,wei2m
 !
 !       read monthly mean climatology of tsf
@@ -7107,7 +7107,7 @@ cjfe
       wei2m=(rjday-dayhf(mon1))/(dayhf(mon2)-dayhf(mon1))
       if(mon2.eq.13) mon2=1
       if (me .eq. 0 .and. print_debug)
-     $     print *,'rjday,mon1,mon2,wei1m,wei2m=',
+     &     print *,'rjday,mon1,mon2,wei1m,wei2m=',
      &               rjday,mon1,mon2,wei1m,wei2m
 !
 !     for seasonal mean climatology
@@ -8235,7 +8235,7 @@ cjfe
       iret   = 0
 !
       if (me .eq. 0 .and. print_debug) write(6,*)
-     $     ' in fixrdc for mon=',mon
+     &     ' in fixrdc for mon=',mon
      &,' fngrib=',trim(fngrib)
 !
       close(lugb)
@@ -8246,7 +8246,7 @@ cjfe
         call abort
       endif
       if (me .eq. 0 .and. print_debug)
-     $     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
+     &     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
      &             ' opened. unit=',lugb
 !
       lugi = 0
@@ -8294,7 +8294,7 @@ cjfe
         deallocate(data4)
       endif
       if (me .eq. 0 .and. print_debug)
-     $     write(6,*) ' input grib file dates=',
+     &     write(6,*) ' input grib file dates=',
      &              (kpds(i),i=8,11)
       if(jret.eq.0) then
         if(ndata.eq.0) then
@@ -8474,7 +8474,7 @@ cjfe
         call abort
       endif
       if (me .eq. 0 .and. print_debug)
-     $     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
+     &     write(6,'(A6, A, A, I4)') ' file ',trim(fngrib),
      &             ' opened. unit=',lugb
 !
       lugi = 0

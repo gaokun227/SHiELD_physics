@@ -208,10 +208,12 @@
             if (do_z0_hwrf15) then 
             ! option 1: HWRF15, originally developed by URI/GFDL 
                 call cal_z0_hwrf15(ws10m, z0)
+                call cal_zt_hwrf15(ws10m, zt)
 
             elseif (do_z0_hwrf17) then 
             ! option 2: HWRF17
                 call cal_z0_hwrf17(ws10m, z0)
+                call cal_zt_hwrf17(ws10m, zt)
 
             elseif (do_z0_hwrf17_hwonly) then 
             ! option 3: HWRF17 under high wind only

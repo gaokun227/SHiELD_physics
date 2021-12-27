@@ -2613,8 +2613,6 @@ module module_physics_driver
 !
       if (Model%lssav) then
         Diag%cldwrk (:) = Diag%cldwrk (:) + cld1d(:) * dtf
-        Diag%cnvprcp(:) = Diag%cnvprcp(:) + Diag%rainc(:)
-        Diag%cnvprcpb(:) = Diag%cnvprcpb(:) + Diag%rainc(:)
 
         if (Model%ldiag3d) then
           Diag%dt3dt(:,:,4) = Diag%dt3dt(:,:,4) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain
@@ -2846,10 +2844,6 @@ module module_physics_driver
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
-            if (Model%lssav) then
-              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
-              Diag%cnvprcpb(:) = Diag%cnvprcpb(:) + raincs(:)
-            endif
 ! in shalcnv,  'cnvw' and 'cnvc' are not set to zero:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
@@ -2876,10 +2870,6 @@ module module_physics_driver
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
-            if (Model%lssav) then
-              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
-              Diag%cnvprcpb(:) = Diag%cnvprcpb(:) + raincs(:)
-            endif
 ! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               num2 = Model%num_p3d + 2
@@ -2913,10 +2903,6 @@ module module_physics_driver
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
-            if (Model%lssav) then
-              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
-              Diag%cnvprcpb(:) = Diag%cnvprcpb(:) + raincs(:)
-            endif
 ! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               num2 = Model%num_p3d + 2
@@ -3120,10 +3106,8 @@ module module_physics_driver
 !         print *,' gq0a=',gq0(ipr,:,1)
 !       endif
         Diag%rainc(:) = Diag%rainc(:) + frain * rain1(:)
-        if(Model%lssav) then
-          Diag%cnvprcp(:) = Diag%cnvprcp(:) + rain1(:) * frain
-          Diag%cnvprcpb(:) = Diag%cnvprcpb(:) + rain1(:) * frain
 
+        if(Model%lssav) then
 ! update dqdt_v to include moisture tendency due to surface processes
 ! dqdt_v : instaneous moisture tendency (kg/kg/sec)
 !          if (lgocart) then
@@ -3602,11 +3586,17 @@ module module_physics_driver
       endif
 
       if (Model%lssav) then
+        Diag%cnvprcp(:)  = Diag%cnvprcp(:)  + Diag%rainc(:)
         Diag%totprcp(:) = Diag%totprcp(:) + Diag%rain(:)
-        Diag%totprcpb(:) = Diag%totprcpb(:) + Diag%rain(:)
         Diag%totice (:) = Diag%totice (:) + Diag%ice(:)
         Diag%totsnw (:) = Diag%totsnw (:) + Diag%snow(:)
         Diag%totgrp (:) = Diag%totgrp (:) + Diag%graupel(:)
+
+        Diag%cnvprcpb(:)  = Diag%cnvprcpb(:)  + Diag%rainc(:)
+        Diag%totprcpb(:) = Diag%totprcpb(:) + Diag%rain(:)
+        Diag%toticeb (:) = Diag%toticeb (:) + Diag%ice(:)
+        Diag%totsnwb (:) = Diag%totsnwb (:) + Diag%snow(:)
+        Diag%totgrpb (:) = Diag%totgrpb (:) + Diag%graupel(:)
 
         if (Model%ldiag3d) then
           Diag%dt3dt(:,:,6) = Diag%dt3dt(:,:,6) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain

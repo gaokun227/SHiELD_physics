@@ -1057,6 +1057,9 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: totice (:)    => null()   !< accumulated ice precipitation (kg/m2)
     real (kind=kind_phys), pointer :: totsnw (:)    => null()   !< accumulated snow precipitation (kg/m2)
     real (kind=kind_phys), pointer :: totgrp (:)    => null()   !< accumulated graupel precipitation (kg/m2)
+    real (kind=kind_phys), pointer :: toticeb(:)    => null()   !< accumulated ice precipitation in bucket (kg/m2)
+    real (kind=kind_phys), pointer :: totsnwb(:)    => null()   !< accumulated snow precipitation in bucket (kg/m2)
+    real (kind=kind_phys), pointer :: totgrpb(:)    => null()   !< accumulated graupel precipitation in bucket (kg/m2)
 
     ! Output - only in physics
     real (kind=kind_phys), pointer :: u10m   (:)    => null()   !< 10 meater u/v wind speed
@@ -3527,6 +3530,9 @@ module GFS_typedefs
     allocate (Diag%totice  (IM))
     allocate (Diag%totsnw  (IM))
     allocate (Diag%totgrp  (IM))
+    allocate (Diag%toticeb (IM))
+    allocate (Diag%totsnwb (IM))
+    allocate (Diag%totgrpb (IM))
     allocate (Diag%u10m    (IM))
     allocate (Diag%v10m    (IM))
     allocate (Diag%dpt2m   (IM))
@@ -3587,7 +3593,7 @@ module GFS_typedefs
     allocate (Diag%ps_dt(IM))
 
     call Diag%rad_zero  (Model)
-    call Diag%phys_zero (Model)
+    call Diag%phys_zero (Model, linit=.true.)
 
   end subroutine diag_create
 
@@ -3615,10 +3621,10 @@ module GFS_typedefs
 !------------------------
 ! GFS_diag%phys_zero
 !------------------------
-  subroutine diag_phys_zero (Diag, Model, iauwindow_center)
+  subroutine diag_phys_zero (Diag, Model, linit, iauwindow_center)
     class(GFS_diag_type)               :: Diag
     type(GFS_control_type), intent(in) :: Model
-    logical,optional, intent(in)       :: iauwindow_center
+    logical,optional, intent(in)       :: linit, iauwindow_center
 
     logical set_totprcp
 
@@ -3637,7 +3643,6 @@ module GFS_typedefs
     Diag%dvsfc   = zero
     Diag%dtsfc   = zero
     Diag%dqsfc   = zero
-    Diag%totprcp = zero
     Diag%gflux   = zero
     Diag%dlwsfc  = zero
     Diag%netflxsfc     = zero 
@@ -3652,7 +3657,6 @@ module GFS_typedefs
     Diag%dugwd   = zero
     Diag%dvgwd   = zero
     Diag%psmean  = zero
-    Diag%cnvprcp = zero
     Diag%spfhmin = huge
     Diag%spfhmax = zero
     Diag%u10mmax  = zero
@@ -3663,9 +3667,6 @@ module GFS_typedefs
     Diag%ice     = zero
     Diag%snow    = zero
     Diag%graupel = zero
-    Diag%totice  = zero
-    Diag%totsnw  = zero
-    Diag%totgrp  = zero
 
     !--- Out
     Diag%u10m    = zero
@@ -3705,6 +3706,9 @@ module GFS_typedefs
     Diag%zmtnblck   = zero
     Diag%totprcpb   = zero
     Diag%cnvprcpb   = zero
+    Diag%toticeb    = zero
+    Diag%totsnwb    = zero
+    Diag%totgrpb    = zero
 
     if (Model%do_ca) then
       Diag%ca_out   = zero
@@ -3730,8 +3734,11 @@ module GFS_typedefs
 
     Diag%ps_dt = zero
 
+    set_totprcp      = .false.
+    if (present(linit) ) set_totprcp = linit
     if (present(iauwindow_center) ) set_totprcp = iauwindow_center
     if (set_totprcp) then
+      if (Model%me == 0) print *,'set_totprcp T kdt=', Model%kdt
       Diag%totprcp = zero
       Diag%cnvprcp = zero
       Diag%totice  = zero

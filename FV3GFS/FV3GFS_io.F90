@@ -4269,12 +4269,13 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'totice'
+    Diag(idx)%name = 'totice_ave'
     Diag(idx)%desc = 'surface ice precipitation rate'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg_kind = 'full'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totice(:)
@@ -4282,12 +4283,26 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'totsnw'
+    Diag(idx)%name = 'toticeb_ave'
+    Diag(idx)%desc = 'bucket surface ice precipitation rate'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th
+    Diag(idx)%time_avg = .TRUE.
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%toticeb(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totsnw_ave'
     Diag(idx)%desc = 'surface snow precipitation rate'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg_kind = 'full'
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totsnw(:)
@@ -4295,15 +4310,42 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     idx = idx + 1
     Diag(idx)%axes = 2
-    Diag(idx)%name = 'totgrp'
-    Diag(idx)%desc = 'surface graupel precipitation rate [kg/m**2/s]'
+    Diag(idx)%name = 'totsnwb_ave'
+    Diag(idx)%desc = 'bucket surface snow precipitation rate'
     Diag(idx)%unit = 'kg/m**2/s'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_th
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totsnwb(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totgrp_ave'
+    Diag(idx)%desc = 'surface graupel precipitation rate'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th
+    Diag(idx)%time_avg = .TRUE.
+    Diag(idx)%time_avg_kind = 'full'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totgrp(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'totgrpb_ave'
+    Diag(idx)%desc = 'bucket surface graupel precipitation rate'
+    Diag(idx)%unit = 'kg/m**2/s'
+    Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%cnvfac = cn_th
+    Diag(idx)%time_avg = .TRUE.
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%totgrpb(:)
     enddo
 
 !--- physics instantaneous diagnostics ---

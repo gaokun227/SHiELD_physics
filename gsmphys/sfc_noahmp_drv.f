@@ -1179,7 +1179,7 @@
       real                    :: a, delta, fnet,rad,rho,emissi,elcp1,lvs
 
       real, parameter :: elcp = 2.4888e+3, lsubc = 2.501000e+6,cp = 1004.6
-      real, parameter :: lsubs = 2.83e+6, rd = 287.05, cph2o = 4.1855e+3
+      real, parameter :: lsubs = 2.83e+6, rd = 287.05, cph2o = 4.218e+3
       real, parameter :: cpice = 2.106e+3, lsubf   = 3.335e5  
       real, parameter :: sigma = 5.6704e-8
 

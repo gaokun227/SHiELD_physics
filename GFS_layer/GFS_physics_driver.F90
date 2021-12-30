@@ -15,7 +15,7 @@ module module_physics_driver
                                    GFS_control_type, GFS_grid_type,     &
                                    GFS_tbd_type,     GFS_cldprop_type,  &
                                    GFS_radtend_type, GFS_diag_type
-  use gfdl_cld_mp_mod,       only: gfdl_cld_mp_driver
+  use gfdl_cld_mp_mod,       only: gfdl_cld_mp_driver, c_liq, c_ice
   use funcphys,              only: ftdp
   use module_ocean,          only: update_ocean
   use myj_pbl_mod,           only: myj_pbl
@@ -4026,8 +4026,6 @@ module module_physics_driver
 
         real(kind=kind_phys) :: cv_air = con_cp - con_rd  ! From fv_mapz.F90
         real(kind=kind_phys) :: cv_vap = 3.0 * con_rv  ! From fv_mapz.F90
-        real(kind=kind_phys) :: c_liq = 4.1855e+3  ! Hard-coded in fv_mapz.F90
-        real(kind=kind_phys) :: c_ice = 1972.0  ! Hard-coded in fv_mapz.F90
 
         ! fv_mapz.moist_cv defines branches for using other moist tracer configurations.
         ! For simplicity we choose not to replicate that behavior here, since we have
@@ -4072,8 +4070,6 @@ module module_physics_driver
 
     real(kind=kind_phys) :: cp_air = con_cp  ! From fv_mapz.F90
     real(kind=kind_phys) :: cp_vap = con_cvap  ! From fv_mapz.F90
-    real(kind=kind_phys) :: c_liq = 4.1855e+3  ! Hard-coded in fv_mapz.F90
-    real(kind=kind_phys) :: c_ice = 1972.0  ! Hard-coded in fv_mapz.F90
 
     ! fv_mapz.moist_cp defines branches for using other moist tracer configurations.
     ! For simplicity we choose not to replicate that behavior here, since we have

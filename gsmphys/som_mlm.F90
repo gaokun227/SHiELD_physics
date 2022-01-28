@@ -229,11 +229,7 @@
 !
 !===> ...  begin here
 !
-      if (kdt_prev > 0) then
-        fday = (kdt - kdt_prev) * dtp / 86400.
-      else
-        fday = kdt * dtp / 86400.
-      endif
+      fday = kdt * dtp / 86400.
 !
       qsfc = 0.
       if (use_tvar_restore_sst) then
@@ -269,7 +265,7 @@
       bufzs = max(-maxlat - 0.0001, start_lat - width_buffer)  
       bufzn = min( maxlat + 0.0001, end_lat + width_buffer)     
 !      
-      if (kdt == 1 .or. kdt-kdt_prev == 1) then
+      if (kdt == 1) then
        do i=1, im
         ts_som(i)=tsfc(i)
        enddo

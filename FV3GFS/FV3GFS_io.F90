@@ -1524,8 +1524,8 @@ module FV3GFS_io_mod
         endif
         do nb = 1, Atm_block%nblks
            do ix = 1, Atm_block%blksz(nb)
-              i = Atm_block%index(nb)%ii(ix) - isc + 1
-              j = Atm_block%index(nb)%jj(ix) - jsc + 1
+              i = Atm_block%index(nb)%ii(ix)
+              j = Atm_block%index(nb)%jj(ix)
               IPD_Data(nb)%Statein%sst(ix) = sst(i,j)
               IPD_Data(nb)%Statein%ci(ix) = ci(i,j)
            enddo

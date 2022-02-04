@@ -92,7 +92,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
                        Time_start_restart, Time_restart_aux, &
                        Time_step_restart_aux, Time_start_restart_aux, &
                        Time_duration_restart_aux, Time_restart_end_aux
-                      
+
    integer :: num_cpld_calls, num_atmos_calls, nc, na, ret
 
 ! ----- coupled model initial date -----
@@ -183,7 +183,7 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
           if (Time_atmos == Time_restart) then
             timestamp = date_to_string (Time_restart)
           else
-            timestamp = date_to_string (Time_restart_aux) 
+            timestamp = date_to_string (Time_restart_aux)
           endif
           call atmos_model_restart(Atm, timestamp)
           call coupler_res(timestamp)
@@ -204,9 +204,6 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
 !-----------------------------------------------------------------------
 
-#ifdef AVEC_TIMERS
- call avec_timers_output
-#endif
  call mpp_set_current_pelist()
  call mpp_clock_end(mainClock)
  call mpp_clock_begin(termClock)
@@ -416,11 +413,11 @@ Time_step_restart_aux = set_time (restart_secs_aux, restart_days_aux)
 Time_duration_restart_aux = set_time (restart_duration_secs_aux, restart_duration_days_aux)
 Time_start_restart_aux = set_time (restart_start_secs_aux, restart_start_days_aux)
 Time_restart_aux = Time_atmos + Time_start_restart_aux
-Time_restart_end_aux = Time_restart_aux + Time_duration_restart_aux 
+Time_restart_end_aux = Time_restart_aux + Time_duration_restart_aux
 intrm_rst = .false.
 intrm_rst_1step = .false.
 if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
-if (intrm_rst .and. restart_start_secs == 0 .and. & 
+if (intrm_rst .and. restart_start_secs == 0 .and. &
     restart_start_days == 0) intrm_rst_1step = .true.
 
 !-----------------------------------------------------------------------

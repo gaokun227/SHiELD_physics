@@ -5,8 +5,8 @@
                   ux,vx,tx,qx,p2di,p2d,pi2d,                                   &
                   phi2di,psfcpa,                                               &
                   htrsw,htrlw,xmu,                                             &
-                  z0rl,ust,hpbl,hgamt,hfxpbl,psim,psih,                        & 
-                  islmsk,heat,evap,wspd,br,                                    & 
+                  z0rl,ust,hpbl,hgamt,hfxpbl,psim,psih,                        &
+                  islmsk,heat,evap,wspd,br,                                    &
                   dusfc,dvsfc,dtsfc,dqsfc,                                     &
                   dt,kpbl1d,u10,v10,                                           &
                   kinver,xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,                   &
@@ -111,49 +111,49 @@
    real(kind=kind_phys),intent(in   ) :: dt
    real(kind=kind_phys),intent(in   ) :: xkzm_m_in,xkzm_h_in,xkzm_s,xkzminv,ent_fac,pfac_q
    real(kind=kind_phys),intent(in   ) :: brcr_ub,rlam,afac,bfac,hpbl_cr
-   real(kind=kind_phys),intent(in   ) :: tnl_fac, qnl_fac, unl_fac ! controls non-local mixing 
+   real(kind=kind_phys),intent(in   ) :: tnl_fac, qnl_fac, unl_fac ! controls non-local mixing
 
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & 
-                        intent(in   ) ::                            ux, & !! Statein%ugrs (ix,km)   
-                                                                    vx, & !!                        
-                                                                    tx, & !!                        
-                                                                 htrsw, & !! Radtend%htrsw (ix,km)  
-                                                                 htrlw    !!                        
+   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , &
+                        intent(in   ) ::                            ux, & !! Statein%ugrs (ix,km)
+                                                                    vx, & !!
+                                                                    tx, & !!
+                                                                 htrsw, & !! Radtend%htrsw (ix,km)
+                                                                 htrlw    !!
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km *ndiff )           , & 
+   real(kind=kind_phys),dimension(   1:ix ,   1:km *ndiff )           , &
                         intent(in   ) ::                            qx    !! qgrs
 !
-   real(kind=kind_phys),dimension(   1:im ,   1:km  )                 , & 
+   real(kind=kind_phys),dimension(   1:im ,   1:km  )                 , &
                         intent(inout) ::                          vtnp, & !! dvdt (im,km)
                                                                   utnp, & !!
                                                                   ttnp
    real(kind=kind_phys),dimension(   1:im ,   1:km *ndiff )           , &
                         intent(inout) ::                          qtnp
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km +1 )               , & 
+   real(kind=kind_phys),dimension(   1:ix ,   1:km +1 )               , &
                         intent(in   ) ::                          p2di, & !! Statein%prsi
                                                                 phi2di    !! Statein%phii
 !
-   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , & 
+   real(kind=kind_phys),dimension(   1:ix ,   1:km  )                 , &
                         intent(in   ) ::                           p2d, & !! Statein%prsl
                                                                   pi2d    !! Statein%prslk
 !
-   real(kind=kind_phys),dimension(   1:im  )                          , & 
+   real(kind=kind_phys),dimension(   1:im  )                          , &
                         intent(in   ) ::                           ust, & !! Sfcprop%uustar
                                                                   z0rl, & !! Sfcprop%zorl
                                                                    xmu    !! zenith angle adjustment
    real(kind=kind_phys),dimension(   1:im  )                          , &
                         intent(in   ) ::                          heat, & !! heat flux
                                                                   evap    !! moisture flux
-   real(kind=kind_phys),dimension(   1:im  )                          , & 
+   real(kind=kind_phys),dimension(   1:im  )                          , &
                         intent(in   ) ::                            br, & !! rb
                                                                   psim, & !! Sfcprop%ffmm
                                                                   psih, & !! Sfcprop%ffhh
                                                                   wspd, & !! wind
                                                                 psfcpa    !! pgr
 !
-   real(kind=kind_phys),dimension(   1:im  )                          , & 
+   real(kind=kind_phys),dimension(   1:im  )                          , &
                         intent(inout) ::                          hpbl, & !! Diag%hpbl
                                                            dusfc,dvsfc, & !! dusfc1, dvsfc1
                                                            dtsfc,dqsfc    !! dtsfc1, dqsfc1
@@ -182,7 +182,7 @@
                                                                  xkzom, &
                                                                  xkzoh, &
                                                                     za
-   real(kind=kind_phys),dimension(   1:im ,   1:km  ) ::      rthraten 
+   real(kind=kind_phys),dimension(   1:im ,   1:km  ) ::      rthraten
 !
    real(kind=kind_phys),dimension(   1:im  ) ::                         &
                                                                   rhox, &
@@ -685,7 +685,7 @@
    do i = its,ite
      if(.not.stable(i))then
        if((xland(i)-1.5).ge.0)then ! ocean
-         brcr(i) = brcr_sbro(i) 
+         brcr(i) = brcr_sbro(i)
        else
          brcr(i) = brcr_sb
        endif
@@ -724,7 +724,7 @@
 !     estimate the entrainment parameters
 !
    do i = its,ite
-     cloudflg(i)=.false. 
+     cloudflg(i)=.false.
      if(pblflg(i)) then
        k = kpbl(i) - 1
        wm3       = wstar3(i) + 5. * ust3(i)
@@ -736,7 +736,7 @@
        we(i) = max(bfxpbl(i)/dthvx(i),-sqrt(wm2(i)))
        if((qxci(i,k,1)+qxci(i,k,2)).gt.0.01e-3.and.ysu_topdown_pblmix.eq.1)then
            if ( kpbl(i) .ge. 2) then
-                cloudflg(i)=.true. 
+                cloudflg(i)=.true.
                 templ=thlix(i,k)*(p2di(i,k+1)/100000)**rovcp
                 !rvls is ws at full level
                 rvls=100.*6.112*EXP(17.67*(templ-273.16)/(templ-29.65))*(ep2/p2di(i,k+1))
@@ -782,7 +782,7 @@
                 !wstar3_2
                 bfx0 = max(radsum/rhox2(i,k)/cp,0.)
                 wstar3_2(i) =  (g/thvx(i,k)*bfx0*hpbl(i))
-                !recompute hgamt 
+                !recompute hgamt
                 wscale(i) = (ust3(i)+phifac*karman*(wstar3(i)+wstar3_2(i))*0.5)**h1
                 wscale(i) = min(wscale(i),ust(i)*aphi16)
                 wscale(i) = max(wscale(i),ust(i)/aphi5)
@@ -856,7 +856,7 @@
            wscalek(i,k) = max(wscalek(i,k),0.001)
          endif
          prnum0 = (phih(i)/phim(i)+prfac)
-         prnum0 = max(min(prnum0,prmax),prmin) 
+         prnum0 = max(min(prnum0,prmax),prmin)
            xkzm(i,k) = wscalek(i,k) *karman*    zq(i,k+1)      *    zfac(i,k)**pfac+ &   !!! MUCH MORE COMPLICATED
                        wscalek2(i,k)*karman*(hpbl(i)-zq(i,k+1))*(1-zfac(i,k))**pfac      !!! THAN EDMF
          !Do not include xkzm at kpbl-1 since it changes entrainment
@@ -972,7 +972,7 @@
        dtodsd = dt2/del(i,k)
        dtodsu = dt2/del(i,k+1)
 ! SJL       dsig   = p2d(i,k)-p2d(i,k+1) ! ?!?
-       dsig   = p2m(i,k) - p2m(i,k+1) 
+       dsig   = p2m(i,k) - p2m(i,k+1)
        rdz    = 1./dza(i,k+1)
        tem1   = dsig*rdz
 
@@ -986,7 +986,7 @@
        elseif(pblflg(i).and.k.lt.kpbl(i).and.hpbl(i).lt.hpbl_cr) then
          dsdzt = tnl_fac*tem1*(-hgamt(i)*xkzh(i,k)/hpbl(i))!-hfxpbl(i)*zfacent(i,k))
          !flux_cg(i,k) = -hgamt(i)*xkzh(i,k)/hpbl(i)
-         !flux_en(i,k) = 0. 
+         !flux_en(i,k) = 0.
          f1(i,k)   = f1(i,k)+dtodsd*dsdzt
          f1(i,k+1) = thx(i,k+1)-300.-dtodsu*dsdzt
        elseif(pblflg(i).and.k.ge.kpbl(i).and.entfac(i,k).lt.4.6.and.hpbl(i).ge.hpbl_cr) then
@@ -1023,7 +1023,7 @@
    do k = kte,kts,-1
      do i = its,ite
        ttend = (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
-       ttnp(i,k) = ttnp(i,k)+ttend 
+       ttnp(i,k) = ttnp(i,k)+ttend
        dtsfc(i) = dtsfc(i)+ttend*cont*del(i,k)/pi2d(i,k)
      enddo
    enddo
@@ -1031,27 +1031,27 @@
    k=kts
    do i=its,ite
    if (tx(i,k) +ttnp(i,k) > 325.) then
-      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
-      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
-      write(*,'(A, 2F, I, 2L)') '  ',  hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
-      write(*,'(A, 3F)') '  ',  xkzh(i,1:3)
-      write(*,'(A, 3F)') '  ',  tx(i,1:3)+ttnp(i,1:3)
-      write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
-      write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
-      write(*,'(A, 4F)') '  ',  wscale(i), wstar3(i)**h1, wstar3_2(i)**h1, hfx(i)/cp
+      write(*,'(A, 2I5, 2x, G0)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
+      write(*,'(A, 3G0)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
+      write(*,'(A, 2G0, I0, 2L)') '  ',  hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
+      write(*,'(A, 3G0)') '  ',  xkzh(i,1:3)
+      write(*,'(A, 3G0)') '  ',  tx(i,1:3)+ttnp(i,1:3)
+      write(*,'(A, 2G0)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
+      write(*,'(A, 4G0)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
+      write(*,'(A, 4G0)') '  ',  wscale(i), wstar3(i)**h1, wstar3_2(i)**h1, hfx(i)/cp
    endif
    enddo
 
    do k=kts+1,kte-1
    do i=its,ite
    if (tx(i,k) +ttnp(i,k) > 325.) then
-      write(*,'(A, 2I5, 2x, F)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
-      write(*,'(A, 3F)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
-      write(*,'(A, 3F, I, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
-      write(*,'(A, 3F)') '  ',  xkzh(i,k-1:k+1)
-      write(*,'(A, 3F)') '  ',  tx(i,k-1:k+1)+ttnp(i,k-1:k+1)
-      write(*,'(A, 2F)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
-      write(*,'(A, 4F)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
+      write(*,'(A, 2I5, 2x, G0)') ' YSUPBL: Extreme temperature found T = ', i,k, tx(i,k)+ttnp(i,k)
+      write(*,'(A, 3G0)') '  ',  thx(i,k), pi2d(i,k), (f1(i,k)-thx(i,k)+300.)*rdt*pi2d(i,k)
+      write(*,'(A, 3G0, I0, 2L)') '  ',  entfac(i,k), hgamt(i), hpbl(i), kpbl(i), pblflg(i), sfcflg(i)
+      write(*,'(A, 3G0)') '  ',  xkzh(i,k-1:k+1)
+      write(*,'(A, 3G0)') '  ',  tx(i,k-1:k+1)+ttnp(i,k-1:k+1)
+      write(*,'(A, 2G0)') '  ',  p2d(i,k)-p2d(i,k+1), p2m(i,k)-p2m(i,k+1)
+      write(*,'(A, 4G0)') '  ',  hfxpbl(i), we(i), max(thx(i,k+1)-thx(i,k),tmin), hfxpbl(i)*zfacent(i,k)
    endif
    enddo
    enddo
@@ -1086,7 +1086,7 @@
    do i = its,ite
      ad(i,1) = 1.
      f3(i,1,1) = qx(i,1)+qfx(i)*g/del(i,1)*dt2
-     !a2(i,1) = q1(i,1,1) + beta(i) * evap(i) 
+     !a2(i,1) = q1(i,1,1) + beta(i) * evap(i)
    enddo
 !
    if(ndiff.ge.2) then

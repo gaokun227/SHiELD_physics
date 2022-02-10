@@ -9,7 +9,7 @@
 !-----------------------------------------------------------------------
 !
 ! Switched to using FMS/GFS constants where possible, hard-coded others --- lmh 25oct17
-!!$      USE MODULE_CONSTANTS,ONLY : A2,A3,A4,CP,ELIV,ELWV,ELIWV &  
+!!$      USE MODULE_CONSTANTS,ONLY : A2,A3,A4,CP,ELIV,ELWV,ELIWV &
 !!$                                 ,EP_1,EPSQ  &
 !!$                                 ,G,P608,PI,PQ0,R_D,R_V,RHOWATER        &
 !!$                                 ,STBOLT,CAPPA
@@ -18,8 +18,8 @@
         use physcons, only: CP => con_cp, &
              G=>con_g, R_D=>con_rd, &
              R_V=>con_rv, elwv=>con_hvap, eliv=>con_hfus,       &
-             PI=>con_pi 
-        
+             PI=>con_pi
+
 !-----------------------------------------------------------------------
 !
       IMPLICIT NONE
@@ -37,7 +37,7 @@
 !-----------------------------------------------------------------------
 
       integer, PARAMETER:: kfpt=kind_phys
-      integer, PARAMETER:: kint=8
+      integer, PARAMETER:: kint=4
       integer, PARAMETER:: klog=4
 
       real(kind=kfpt), PARAMETER:: &
@@ -51,7 +51,7 @@
            ,pq0=379.90516 &             ! water vapor pressure for tetens formula
            ,rhowater=1000. &            ! density of water (kg/m3)
            ,cappa=R_D/CP
-           
+
 !
       REAL(KIND=KFPT),PARAMETER:: &
        ELEVFC=0.6
@@ -165,7 +165,7 @@ REAL(KIND=KFPT),PRIVATE,SAVE:: &
 
 REAL(KIND=KFPT),DIMENSION(1:ITBL),PRIVATE,SAVE:: &
  STHE &                      ! RANGE FOR EQUIVALENT POTENTIAL TEMPERATURE
-,THE0                        ! BASE FOR EQUIVALENT POTENTIAL TEMPERATURE           
+,THE0                        ! BASE FOR EQUIVALENT POTENTIAL TEMPERATURE
 
 REAL(KIND=KFPT),DIMENSION(1:JTBL),PRIVATE,SAVE:: &
  QS0 &                       ! BASE FOR SATURATION SPECIFIC HUMIDITY
@@ -224,7 +224,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
       INTEGER(KIND=KINT),INTENT(IN):: &
        NPHS
 !
-      INTEGER(KIND=KINT),DIMENSION(IMS:IME,JMS:JME),INTENT(OUT):: &
+      INTEGER(KIND=8),DIMENSION(IMS:IME,JMS:JME),INTENT(OUT):: &
        KPBL
 !
       REAL(KIND=KFPT),INTENT(IN):: &
@@ -606,14 +606,14 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
             QK(K)=Q(I,J,K)
             CWMK(K)=CWM(I,J,K)
             ZHK(K)=ZINT(I,J,K)
-            RHOK(K)=PMID(I,J,K)/(R_D*T(I,J,K)*(1.+EP_1*QK(K)-CWMK(K))) ! lmh 25oct17:  p608 -> EP_1 
+            RHOK(K)=PMID(I,J,K)/(R_D*T(I,J,K)*(1.+EP_1*QK(K)-CWMK(K))) ! lmh 25oct17:  p608 -> EP_1
           ENDDO
 !
 !***  COUNTING DOWNWARD FROM THE TOP, THE EXCHANGE COEFFICIENTS AKH
 !***  ARE DEFINED ON THE BOTTOMS OF THE LAYERS 1 TO LM-1.  THESE COEFFICIENTS
 !***  ARE ALSO MULTIPLIED BY THE DENSITY AT THE BOTTOM INTERFACE LEVEL.
 
-!***  REMOVED references to viscous sublayer to be more compatible with GFS 
+!***  REMOVED references to viscous sublayer to be more compatible with GFS
 ! **  surface driver, and instead lower BC are surface values for TH and Q, and
 ! **  directional USTAR for U and V. Also removed distinction between land and sea,
 ! **  which the GFS surface layer handles. Currently Qsfc has the effect of surface
@@ -654,7 +654,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !!$            RXNSFC=(1.E5/PSFC)**CAPPA
 !!$
 !!$            QSFC(I,J)=PQ0SEA/PSFC                                      &
-!!$     &         *EXP(A2*(THSK(I,J)-A3*RXNSFC)/(THSK(I,J)-A4*RXNSFC)) 
+!!$     &         *EXP(A2*(THSK(I,J)-A3*RXNSFC)/(THSK(I,J)-A4*RXNSFC))
 !!$          ENDIF
 !
           QZ0 (I,J)=QSFC(I,J)
@@ -807,18 +807,18 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !   compute tke dissipation rate
 !
           if(dspheat) then
-!        
+!
           do k = 1,lm-1 ! equals to "k = levs,2,-1" in fv3 solver's k index
             ti      = 2./(thk(k)+thk(k+1))
             diss(k) = exch_m(i,j,k)*gm(k)-g*ti*exch_h(i,j,k)*gh(k)
           enddo
 !
-!         add dissipative heating at the first model layer 
+!         add dissipative heating at the first model layer
 !
           sflux = hflx(i,j)/rhok(lm)/cp + elflx(i,j)/rhok(lm)*ep_1*thk(lm) ! Kms-1
           tem   = g/thk(lm)*sflux
           tem1  = tem + ustar(i,j)**2.*spd1(i,j)/(0.5*dz(i,j,lm))
-          tem2  = 0.5 * (tem1+diss(lm-1))    
+          tem2  = 0.5 * (tem1+diss(lm-1))
           tem2  = max(tem2, 0.)
           ttend = tem2 / cp
           rthblten(i,j,lm) = rthblten(i,j,lm) + 0.5*ttend
@@ -826,7 +826,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
 !         add dissipative heating above the first model layer
 !
           do k = 2,lm-1 ! equals to "k = levs-1,2,-1" in fv3 solver's k index
-            tem = 0.5 * (diss(k-1)+diss(k)) 
+            tem = 0.5 * (diss(k-1)+diss(k))
             tem  = max(tem, 0.)
             ttend = tem / cp
             rthblten(i,j,k) = rthblten(i,j,k) + 0.5*ttend
@@ -948,7 +948,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL,1:ITBL),PRIVATE,SAVE:: &
               if( &
                  (q2(k).gt.epsq2(k)) .and. &
                   (q2(k)*cubry.gt.(dz*wcon*rsqdt)**2) &
-                ) then 
+                ) then
 !
                  DTHV=(THE(K)-THE(K+1))+DTHV
 !
@@ -2018,7 +2018,7 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL):: &
 !-----------------------------------------------------------------------
                         ENDSUBROUTINE TABLETT
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-      SUBROUTINE SPLINE(JTBL,NOLD,XOLD,YOLD,Y2,NNEW,XNEW,YNEW,P,Q)           
+      SUBROUTINE SPLINE(JTBL,NOLD,XOLD,YOLD,Y2,NNEW,XNEW,YNEW,P,Q)
 !     ******************************************************************
 !     *                                                                *
 !     *  THIS IS A ONE-DIMENSIONAL CUBIC SPLINE FITTING ROUTINE        *
@@ -2045,80 +2045,80 @@ REAL(KIND=KFPT),DIMENSION(1:JTBL):: &
 !     ******************************************************************
       IMPLICIT REAL(A-H,O-Z),INTEGER(I-N)
 !-----------------------------------------------------------------------
-      DIMENSION &                      
-       XOLD(JTBL),YOLD(JTBL),Y2(JTBL),P(JTBL),Q(JTBL) &                        
-      ,XNEW(JTBL),YNEW(JTBL)                                              
+      DIMENSION &
+       XOLD(JTBL),YOLD(JTBL),Y2(JTBL),P(JTBL),Q(JTBL) &
+      ,XNEW(JTBL),YNEW(JTBL)
 !-----------------------------------------------------------------------
-      NOLDM1=NOLD-1                                                     
-!                                                                       
-      DXL=XOLD(2)-XOLD(1)                                               
-      DXR=XOLD(3)-XOLD(2)                                               
-      DYDXL=(YOLD(2)-YOLD(1))/DXL                                       
-      DYDXR=(YOLD(3)-YOLD(2))/DXR                                       
-      RTDXC=.5/(DXL+DXR)                                                
-!                                                                       
-      P(1)= RTDXC*(6.*(DYDXR-DYDXL)-DXL*Y2(1))                          
-      Q(1)=-RTDXC*DXR                                                   
-!                                                                       
-      IF(NOLD.EQ.3) GO TO 700                                           
+      NOLDM1=NOLD-1
+!
+      DXL=XOLD(2)-XOLD(1)
+      DXR=XOLD(3)-XOLD(2)
+      DYDXL=(YOLD(2)-YOLD(1))/DXL
+      DYDXR=(YOLD(3)-YOLD(2))/DXR
+      RTDXC=.5/(DXL+DXR)
+!
+      P(1)= RTDXC*(6.*(DYDXR-DYDXL)-DXL*Y2(1))
+      Q(1)=-RTDXC*DXR
+!
+      IF(NOLD.EQ.3) GO TO 700
 !-----------------------------------------------------------------------
-      K=3                                                               
-!                                                                       
- 100  DXL=DXR                                                           
-      DYDXL=DYDXR                                                       
-      DXR=XOLD(K+1)-XOLD(K)                                             
-      DYDXR=(YOLD(K+1)-YOLD(K))/DXR                                     
-      DXC=DXL+DXR                                                       
-      DEN=1./(DXL*Q(K-2)+DXC+DXC)                                       
-!                                                                       
-      P(K-1)= DEN*(6.*(DYDXR-DYDXL)-DXL*P(K-2))                         
-      Q(K-1)=-DEN*DXR                                                   
-!                                                                       
-      K=K+1                                                             
-      IF(K.LT.NOLD) GO TO 100                                           
+      K=3
+!
+ 100  DXL=DXR
+      DYDXL=DYDXR
+      DXR=XOLD(K+1)-XOLD(K)
+      DYDXR=(YOLD(K+1)-YOLD(K))/DXR
+      DXC=DXL+DXR
+      DEN=1./(DXL*Q(K-2)+DXC+DXC)
+!
+      P(K-1)= DEN*(6.*(DYDXR-DYDXL)-DXL*P(K-2))
+      Q(K-1)=-DEN*DXR
+!
+      K=K+1
+      IF(K.LT.NOLD) GO TO 100
 !-----------------------------------------------------------------------
- 700  K=NOLDM1                                                          
-!                                                                       
- 200  Y2(K)=P(K-1)+Q(K-1)*Y2(K+1)                                       
-!                                                                       
-      K=K-1                                                             
-      IF(K.GT.1) GO TO 200                                              
+ 700  K=NOLDM1
+!
+ 200  Y2(K)=P(K-1)+Q(K-1)*Y2(K+1)
+!
+      K=K-1
+      IF(K.GT.1) GO TO 200
 !-----------------------------------------------------------------------
-      K1=1                                                              
-!                                                                       
- 300  XK=XNEW(K1)                                                       
-!                                                                       
-      DO 400 K2=2,NOLD                                                  
-      IF(XOLD(K2).LE.XK) GO TO 400                                      
-      KOLD=K2-1                                                         
-      GO TO 450                                                         
- 400  CONTINUE                                                          
-      YNEW(K1)=YOLD(NOLD)                                               
-      GO TO 600                                                         
-!                                                                       
- 450  IF(K1.EQ.1)   GO TO 500                                           
-      IF(K.EQ.KOLD) GO TO 550                                           
-!                                                                       
- 500  K=KOLD                                                            
-!                                                                       
-      Y2K=Y2(K)                                                         
-      Y2KP1=Y2(K+1)                                                     
-      DX=XOLD(K+1)-XOLD(K)                                              
-      RDX=1./DX                                                         
-!                                                                       
-      AK=.1666667*RDX*(Y2KP1-Y2K)                                       
-      BK=.5*Y2K                                                         
-      CK=RDX*(YOLD(K+1)-YOLD(K))-.1666667*DX*(Y2KP1+Y2K+Y2K)            
-!                                                                       
- 550  X=XK-XOLD(K)                                                      
-      XSQ=X*X                                                           
-!                                                                       
-      YNEW(K1)=AK*XSQ*X+BK*XSQ+CK*X+YOLD(K)                             
-!                                                                       
- 600  K1=K1+1                                                           
-      IF(K1.LE.NNEW) GO TO 300                                          
+      K1=1
+!
+ 300  XK=XNEW(K1)
+!
+      DO 400 K2=2,NOLD
+      IF(XOLD(K2).LE.XK) GO TO 400
+      KOLD=K2-1
+      GO TO 450
+ 400  CONTINUE
+      YNEW(K1)=YOLD(NOLD)
+      GO TO 600
+!
+ 450  IF(K1.EQ.1)   GO TO 500
+      IF(K.EQ.KOLD) GO TO 550
+!
+ 500  K=KOLD
+!
+      Y2K=Y2(K)
+      Y2KP1=Y2(K+1)
+      DX=XOLD(K+1)-XOLD(K)
+      RDX=1./DX
+!
+      AK=.1666667*RDX*(Y2KP1-Y2K)
+      BK=.5*Y2K
+      CK=RDX*(YOLD(K+1)-YOLD(K))-.1666667*DX*(Y2KP1+Y2K+Y2K)
+!
+ 550  X=XK-XOLD(K)
+      XSQ=X*X
+!
+      YNEW(K1)=AK*XSQ*X+BK*XSQ+CK*X+YOLD(K)
+!
+ 600  K1=K1+1
+      IF(K1.LE.NNEW) GO TO 300
 !-----------------------------------------------------------------------
-                        ENDSUBROUTINE SPLINE 
+                        ENDSUBROUTINE SPLINE
 !-----------------------------------------------------------------------
 !
                       END MODULE MYJ_PBL_MOD

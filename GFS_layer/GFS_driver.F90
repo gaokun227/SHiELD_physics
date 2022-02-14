@@ -390,7 +390,7 @@ module GFS_driver
 
     !--- repopulate specific time-varying sfc properties for AMIP/forecast runs
     if (Model%nscyc >  0) then
-      if (mod(Model%kdt,Model%nscyc) == 1 .or. Model%kdt-Model%kdt_prev == 1) THEN
+      if (mod(Model%kdt,Model%nscyc) == 1) THEN
         call gcycle (nblks, Model, Grid(:), Sfcprop(:), Cldprop(:))
       endif
     endif

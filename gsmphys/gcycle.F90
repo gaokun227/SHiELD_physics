@@ -97,7 +97,7 @@
           OROG_UF (len)          = Sfcprop(nb)%oro_uf (ix)
           SLIFCS  (len)          = Sfcprop(nb)%slmsk  (ix)
           if (Model%do_ocean) then
-           if (Model%kdt == 1 .or. Model%kdt-Model%kdt_prev == 1) then
+           if (Model%kdt == 1) then
             TSFFCS  (len)        = Sfcprop(nb)%tsfc   (ix)
            else
             TSFFCS  (len)        = Sfcprop(nb)%ts_clim_iano   (ix)

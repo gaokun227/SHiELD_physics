@@ -29,7 +29,7 @@ module GFS_driver
 !--------------------------------------------------------------------------------
 !   This container is the minimum set of data required from the dycore/atmosphere
 !   component to allow proper initialization of the GFS physics
-!  
+!
 !   Type is defined in GFS_typedefs.F90
 !--------------------------------------------------------------------------------
 ! type GFS_init_type
@@ -71,7 +71,7 @@ module GFS_driver
 !                                                  !< for use with internal file reads
 ! end type GFS_init_type
 !--------------------------------------------------------------------------------
-    
+
 !------------------
 ! Module parameters
 !------------------
@@ -106,7 +106,7 @@ module GFS_driver
 ! GFS initialze
 !--------------
   subroutine GFS_initialize (Model, Statein, Stateout, Sfcprop,    &
-                             Coupling, Grid, Tbd, Cldprop, Radtend, & 
+                             Coupling, Grid, Tbd, Cldprop, Radtend, &
                              Diag, Init_parm)
 
     use module_microphysics, only: gsmconst
@@ -174,7 +174,7 @@ module GFS_driver
 
     !--- populate the grid components
     call GFS_grid_populate (Grid, Init_parm%xlon, Init_parm%xlat, Init_parm%area)
-     
+
     !--- read in and initialize ozone and water
     if (Model%ntoz > 0) then
       do nb = 1, nblks
@@ -195,7 +195,7 @@ module GFS_driver
 
     call gsmconst (Model%dtp, Model%me, .TRUE.)
 
-    !--- define sigma level for radiation initialization 
+    !--- define sigma level for radiation initialization
     !--- The formula converting hybrid sigma pressure coefficients to sigma coefficients follows Eckermann (2009, MWR)
     !--- ps is replaced with p0. The value of p0 uses that in http://www.emc.ncep.noaa.gov/officenotes/newernotes/on461.pdf
     !--- ak/bk have been flipped from their original FV3 orientation and are defined sfc -> toa
@@ -219,10 +219,9 @@ module GFS_driver
 
     !--- initialize GFDL Cloud microphysics
     if (.not. Model%do_inline_mp .and. Model%ncld == 5) then
-      call gfdl_cld_mp_init (Model%me, Model%master, Model%nlunit, Model%input_nml_file, &
-                                      Init_parm%logunit, Model%fn_nml)
+      call gfdl_cld_mp_init (Model%input_nml_file, Init_parm%logunit)
 #ifndef fvGFS_2017
-      call cld_eff_rad_init (Model%nlunit, Model%input_nml_file, Init_parm%logunit, Model%fn_nml)
+      call cld_eff_rad_init (Model%input_nml_file, Init_parm%logunit)
 #endif
     endif
 
@@ -239,7 +238,7 @@ module GFS_driver
           call myj_jsfc_init(USTAR=Sfcprop(nb)%uustar, RESTART=.false. &
                ,IDS=1,IDE=size(Grid(nb)%xlon,1),JDS=1,JDE=1,KDS=1,KDE=Model%levs    &
                ,IMS=1,IME=size(Grid(nb)%xlon,1),JMS=1,JME=1,KMS=1,KME=Model%levs    &
-               ,ITS=1,ITE=size(Grid(nb)%xlon,1),JTS=1,JTE=1,KTS=1,LM =Model%levs )                  
+               ,ITS=1,ITE=size(Grid(nb)%xlon,1),JTS=1,JTE=1,KTS=1,LM =Model%levs )
        enddo
     endif
 
@@ -283,7 +282,7 @@ module GFS_driver
 !      5) interpolates coefficients for prognostic ozone calculation
 !      6) performs surface data cycling via the GFS gcycle routine
 !-------------------------------------------------------------------------
-  subroutine GFS_time_vary_step (Model, Statein, Stateout, Sfcprop, Coupling, & 
+  subroutine GFS_time_vary_step (Model, Statein, Stateout, Sfcprop, Coupling, &
                                  Grid, Tbd, Cldprop, Radtend, Diag)
 
     implicit none
@@ -306,7 +305,7 @@ module GFS_driver
     real(kind=kind_phys) :: sec, sec_zero, fjd
     integer              :: iyear, imon, iday, ihr, imin, jd0, jd1
     integer              :: iw3jdn
-    
+
     nblks = size(blksz)
     !--- Model%jdat is being updated directly inside of FV3GFS_cap.F90
     !--- update calendars and triggers
@@ -396,7 +395,7 @@ module GFS_driver
 
     !--- repopulate specific time-varying sfc properties for AMIP/forecast runs
     if (Model%nscyc >  0) then
-      if (mod(Model%kdt,Model%nscyc) == 1) THEN
+      if (mod(Model%kdt,Model%nscyc) == 1 .or. (Model%iau_offset > 0 .and. Model%kdt-Model%kdt_prev == 1)) THEN
         call gcycle (nblks, Model, Grid(:), Sfcprop(:), Cldprop(:))
       endif
     endif
@@ -427,7 +426,7 @@ module GFS_driver
     endif
 
 ! kludge for output
-    if (Model%do_skeb) then 
+    if (Model%do_skeb) then
       do nb = 1,nblks
         do k=1,Model%levs
           Diag(nb)%skebu_wts(:,k) = Coupling(nb)%skebu_wts(:,Model%levs-k+1)
@@ -443,7 +442,7 @@ module GFS_driver
     !    enddo
     !  enddo
     !endif
-    if (Model%do_shum) then 
+    if (Model%do_shum) then
       do nb = 1,nblks
         do k=1,Model%levs
           Diag(nb)%shum_wts(:,k)=Coupling(nb)%shum_wts(:,Model%levs-k+1)
@@ -673,7 +672,7 @@ module GFS_driver
 
     nblks = size(blksz,1)
 
-    !--- switch for saving convective clouds - cnvc90.f 
+    !--- switch for saving convective clouds - cnvc90.f
     !--- aka Ken Campana/Yu-Tai Hou legacy
     if ((mod(Model%kdt,Model%nsswr) == 0) .and. (Model%lsswr)) then
       !--- initialize,accumulate,convert

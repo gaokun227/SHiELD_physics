@@ -2,14 +2,14 @@ module FV3GFS_io_mod
 
 !-----------------------------------------------------------------------
 !    gfs_physics_driver_mod defines the GFS physics routines used by
-!    the GFDL FMS system to obtain tendencies and boundary fluxes due 
-!    to the physical parameterizations and processes that drive 
+!    the GFDL FMS system to obtain tendencies and boundary fluxes due
+!    to the physical parameterizations and processes that drive
 !    atmospheric time tendencies for use by other components, namely
 !    the atmospheric dynamical core.
 !
 !    NOTE: This module currently supports only the operational GFS
 !          parameterizations as of September 2015.  Further development
-!          is needed to support the full suite of physical 
+!          is needed to support the full suite of physical
 !          parameterizations present in the GFS physics package.
 !-----------------------------------------------------------------------
 !
@@ -60,11 +60,11 @@ module FV3GFS_io_mod
   use coarse_graining_mod, only: MODEL_LEVEL, PRESSURE_LEVEL
   use coarse_graining_mod, only: vertical_remapping_requirements, get_coarse_array_bounds
   use coarse_graining_mod, only: vertically_remap_field, mask_area_weights
-!  
+!
 !-----------------------------------------------------------------------
   implicit none
   private
- 
+
   !--- public interfaces ---
   public  FV3GFS_restart_read, FV3GFS_restart_write, FV3GFS_restart_write_coarse
   public  FV3GFS_IPD_checksum
@@ -73,7 +73,7 @@ module FV3GFS_io_mod
   public  register_coarse_diag_manager_controlled_diagnostics
   public  send_diag_manager_controlled_diagnostic_data
   public  sfc_data_override
-  
+
   !--- GFDL filenames
   character(len=32)  :: fn_oro = 'oro_data.nc'
   character(len=32)  :: fn_srf = 'sfc_data.nc'
@@ -83,7 +83,7 @@ module FV3GFS_io_mod
   type(restart_file_type) :: Oro_restart
   type(restart_file_type) :: Sfc_restart
   type(restart_file_type) :: Phy_restart
- 
+
   !--- GFDL FMS restart containers
   character(len=32),    allocatable,         dimension(:)       :: oro_name2, sfc_name2, sfc_name3
   real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: oro_var2, sfc_var2, phy_var2
@@ -97,7 +97,7 @@ module FV3GFS_io_mod
   type(restart_file_type) :: sfc_restart_coarse
 
   integer :: isco, ieco, jsco, jeco, levo
-  
+
 !-RAB
   type data_subtype
     real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
@@ -119,7 +119,7 @@ module FV3GFS_io_mod
     character(len=64)    :: intpl_method
     real(kind=kind_phys) :: cnvfac
     type(data_subtype), dimension(:), allocatable :: data
-    
+
     ! Add an attribute that specifies the coarse-graining method for the
     ! variable.  By default we will set this as unspecified and raise an error
     ! if a user asks to coarse-grain a variable that does not have a supported
@@ -142,7 +142,7 @@ module FV3GFS_io_mod
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
 
- 
+
 !--- miscellaneous other variables
   logical :: module_is_initialized = .FALSE.
 
@@ -150,7 +150,7 @@ module FV3GFS_io_mod
   character(len=64) :: MASKED_AREA_WEIGHTED = 'masked_area_weighted'
   character(len=64) :: MASS_WEIGHTED = 'mass_weighted'
   character(len=64) :: MODE = 'mode'
-  
+
   CONTAINS
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -168,11 +168,11 @@ module FV3GFS_io_mod
     type(block_control_type), intent(in)    :: Atm_block
     type(IPD_control_type),   intent(inout) :: Model
     type(domain2d),           intent(in)    :: fv_domain
- 
-    !--- read in surface data from chgres 
+
+    !--- read in surface data from chgres
     call sfc_prop_restart_read (IPD_Data%Sfcprop, Atm_block, Model, fv_domain)
- 
-    !--- read in 
+
+    !--- read in
     if (Model%sfc_override) call sfc_prop_override  (IPD_Data%Sfcprop, IPD_Data%Grid, Atm_block, Model, fv_domain)
 
     !--- read in physics restart data
@@ -190,10 +190,10 @@ module FV3GFS_io_mod
     type(IPD_control_type),      intent(in)    :: Model
     type(domain2d),              intent(in)    :: fv_domain
     character(len=32), optional, intent(in)    :: timestamp
- 
-    !--- write surface data from chgres 
+
+    !--- write surface data from chgres
     call sfc_prop_restart_write (IPD_Data%Sfcprop, Atm_block, Model, fv_domain, timestamp)
- 
+
     !--- write physics restart data
     call phys_restart_write (IPD_Restart, Atm_block, Model, fv_domain, timestamp)
 
@@ -240,7 +240,7 @@ module FV3GFS_io_mod
    ntr = size(IPD_Data(1)%Statein%qgrs,3)
 
    if(Model%lsm == Model%lsm_noahmp) then
-     nsfcprop2d = 154  
+     nsfcprop2d = 154
    else
      nsfcprop2d = 100
    endif
@@ -253,8 +253,8 @@ module FV3GFS_io_mod
 
    do j=jsc,jec
      do i=isc,iec
-       nb = Atm_block%blkno(i,j) 
-       ix = Atm_block%ixp(i,j) 
+       nb = Atm_block%blkno(i,j)
+       ix = Atm_block%ixp(i,j)
        !--- statein pressure
        temp2d(i,j, 1) = IPD_Data(nb)%Statein%pgr(ix)
        temp2d(i,j, 2) = IPD_Data(nb)%Sfcprop%slmsk(ix)
@@ -345,7 +345,7 @@ module FV3GFS_io_mod
        temp2d(i,j,83) = IPD_Data(nb)%Radtend%sfcflw(ix)%dnfxc
        temp2d(i,j,84) = IPD_Data(nb)%Radtend%sfcflw(ix)%dnfx0
 
-        idx_opt = 85 
+        idx_opt = 85
        if (Model%lsm == Model%lsm_noahmp) then
         temp2d(i,j,idx_opt) = IPD_Data(nb)%Sfcprop%snowxy(ix)
         temp2d(i,j,idx_opt+1) = IPD_Data(nb)%Sfcprop%tvxy(ix)
@@ -478,19 +478,19 @@ module FV3GFS_io_mod
 !
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 ! sfc_prop_restart_read
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 !    creates and populates a data type which is then used to "register"
 !    restart variables with the GFDL FMS restart subsystem.
 !    calls a GFDL FMS routine to restore the data from a restart file.
 !    calculates sncovr if it is not present in the restart file.
 !
 !    calls:  register_restart_field, restart_state, free_restart
-!   
+!
 !    opens:  oro_data.tile?.nc, sfc_data.tile?.nc
-!   
-!----------------------------------------------------------------------      
+!
+!----------------------------------------------------------------------
   subroutine sfc_prop_restart_read (Sfcprop, Atm_block, Model, fv_domain)
     !--- interface variable definitions
     type(GFS_sfcprop_type),    intent(inout) :: Sfcprop(:)
@@ -519,7 +519,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys) :: masslai, masssai,snd
     real(kind=kind_phys) :: ddz,expon,aa,bb,smc,func,dfunc,dx
     real(kind=kind_phys) :: bexp, smcmax, smcwlt,dwsat,dksat,psisat
-        
+
     real(kind=kind_phys), dimension(-2:0) :: dzsno
     real(kind=kind_phys), dimension(-2:4) :: dzsnso
 
@@ -527,7 +527,7 @@ module FV3GFS_io_mod
     data dzs   /0.1,0.3,0.6,1.0/
     data zsoil /-0.1,-0.4,-1.0,-2.0/
 
-    
+
     if (Model%cplflx) then ! needs more variables
       nvar_s2m = 34
     else
@@ -552,7 +552,7 @@ module FV3GFS_io_mod
     npz = Atm_block%npz
     nx = (iec - isc + 1)
     ny = (jec - jsc + 1)
- 
+
     !--- OROGRAPHY FILE
     if (.not. allocated(oro_name2)) then
     !--- allocate the various containers needed for orography data
@@ -593,8 +593,8 @@ module FV3GFS_io_mod
     endif
 
     fname = 'INPUT/'//trim(fn_oro)
-    if (file_exist(fname)) then 
-       
+    if (file_exist(fname)) then
+
        !--- read the orography restart/data
        call mpp_error(NOTE,'reading topographic/orographic information from INPUT/oro_data.tile*.nc')
        call restore_state(Oro_restart)
@@ -633,18 +633,18 @@ module FV3GFS_io_mod
        enddo
 
        if (nint(oro_var2(1,1,18)) == -9999._kind_phys) then ! lakefrac doesn't exist in the restart, need to create it
-         if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - will computing lakefrac') 
+         if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - will computing lakefrac')
          Model%frac_grid = .false.
        else
          Model%frac_grid = .true.
        endif
-       
+
        if (Model%me == Model%master ) write(0,*)' resetting Model%frac_grid=',Model%frac_grid
-       
+
        !--- deallocate containers and free restart container
        deallocate(oro_name2, oro_var2)
-       call free_restart_type(Oro_restart)     
-       
+       call free_restart_type(Oro_restart)
+
 
     else ! cold_start (no way yet to create orography on-the-fly)
 
@@ -667,8 +667,8 @@ module FV3GFS_io_mod
        enddo
 
     endif
- 
- 
+
+
     !--- SURFACE FILE
     if (.not. allocated(sfc_name2)) then
       !--- allocate the various containers needed for restarts
@@ -688,7 +688,7 @@ module FV3GFS_io_mod
         sfc_var3eq = -9999._kind_phys
         sfc_var3zn = -9999._kind_phys
       end if
- 
+
       !--- names of the 2D variables to save
       sfc_name2(1)  = 'slmsk'
       sfc_name2(2)  = 'tsea'    !tsfc
@@ -728,7 +728,7 @@ module FV3GFS_io_mod
         sfc_name2(34) = 'zorll'   !zorl on land portion of a cell
       end if
 
-      !--- NSSTM inputs only needed when (nstf_name(1) > 0) .and. (nstf_name(2)) == 0) 
+      !--- NSSTM inputs only needed when (nstf_name(1) > 0) .and. (nstf_name(2)) == 0)
       sfc_name2(nvar_s2m+1)  = 'tref'
       sfc_name2(nvar_s2m+2)  = 'z_c'
       sfc_name2(nvar_s2m+3)  = 'c_0'
@@ -792,7 +792,7 @@ module FV3GFS_io_mod
         sfc_name2(nvar_s2m+57) = 'emiss'
 
       endif
- 
+
       !--- register the 2D fields
       do num = 1,nvar_s2m
         var2_p => sfc_var2(:,:,num)
@@ -802,8 +802,8 @@ module FV3GFS_io_mod
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name2(num), var2_p, domain=fv_domain)
         endif
       enddo
-      
-      
+
+
       if (Model%nstf_name(1) > 0) then
         mand = .false.
         if (Model%nstf_name(2) == 0) mand = .true.
@@ -822,8 +822,8 @@ module FV3GFS_io_mod
       endif ! noahmp
 
       nullify(var2_p)
-    
-    
+
+
       !--- names of the 3D variables to save
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
@@ -848,27 +848,27 @@ module FV3GFS_io_mod
           var3_p1 => sfc_var3sn(:,:,:,num)
           id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(num), var3_p1, domain=fv_domain,mandatory=mand)
         enddo
-      
+
         var3_p2 => sfc_var3eq(:,:,:,7)
         id_restart = register_restart_field(Sfc_restart, fn_srf, sfc_name3(7), var3_p2, domain=fv_domain,mandatory=mand)
-      
+
         var3_p3 => sfc_var3zn(:,:,:,8)
         id_restart = register_restart_fIeld(Sfc_restart, fn_srf, sfc_name3(8), var3_p3, domain=fv_domain,mandatory=mand)
-      
+
         nullify(var3_p1)
         nullify(var3_p2)
         nullify(var3_p3)
-      
+
       endif   !mp
 
       nullify(var3_p)
-      
+
     endif  ! if not allocated
 
 !--- Noah MP define arbitrary value (number layers of snow) to indicate
 !coldstart(sfcfile doesn't include noah mp fields) or not
-    
- 
+
+
     !--- read the surface restart/data
     fname = 'INPUT/'//trim(fn_srf)
     if (.not. file_exist(fname)) then ! cold start
@@ -916,9 +916,9 @@ module FV3GFS_io_mod
              !--- q2m
              Sfcprop(nb)%q2m(ix)    = 0.0 ! initially dry atmosphere?
              !--- vtype
-             Sfcprop(nb)%vtype(ix)  = 0.0 
+             Sfcprop(nb)%vtype(ix)  = 0.0
              !--- stype
-             Sfcprop(nb)%stype(ix)  = 0.0 
+             Sfcprop(nb)%stype(ix)  = 0.0
              !--- uustar
              Sfcprop(nb)%uustar(ix) = 0.5
              !--- ffmm
@@ -964,9 +964,9 @@ module FV3GFS_io_mod
                 !--- stc
                 Sfcprop(nb)%stc(ix,:) = Sfcprop(nb)%tsfc(ix)
                 !--- smc
-                Sfcprop(nb)%smc(ix,:) = 1.0 
+                Sfcprop(nb)%smc(ix,:) = 1.0
                 !--- slc
-                Sfcprop(nb)%slc(ix,:) = 1.0 
+                Sfcprop(nb)%slc(ix,:) = 1.0
           enddo
        enddo
     else
@@ -974,8 +974,8 @@ module FV3GFS_io_mod
     !--- read surface properties form sfc_data.tile*.nc
 
       call mpp_error(NOTE,'reading surface properties data from INPUT/sfc_data.tile*.nc')
-      call restore_state(Sfc_restart)       
- 
+      call restore_state(Sfc_restart)
+
       !--- place the data into the block GFS containers
       do nb = 1, Atm_block%nblks
          do ix = 1, Atm_block%blksz(nb)
@@ -1099,26 +1099,26 @@ module FV3GFS_io_mod
              Sfcprop(nb)%smc(ix,lsoil) = sfc_var3(i,j,lsoil,2)   !--- smc
              Sfcprop(nb)%slc(ix,lsoil) = sfc_var3(i,j,lsoil,3)   !--- slc
            enddo
-           
+
            if (Model%lsm == Model%lsm_noahmp) then
              do lsoil = -2, 0
                Sfcprop(nb)%snicexy(ix,lsoil) = sfc_var3sn(i,j,lsoil,4)
                Sfcprop(nb)%snliqxy(ix,lsoil) = sfc_var3sn(i,j,lsoil,5)
                Sfcprop(nb)%tsnoxy(ix,lsoil)  = sfc_var3sn(i,j,lsoil,6)
-             enddo 
-           
+             enddo
+
              do lsoil = 1, 4
                Sfcprop(nb)%smoiseq(ix,lsoil)  = sfc_var3eq(i,j,lsoil,7)
-             enddo 
-           
+             enddo
+
              do lsoil = -2, 4
                Sfcprop(nb)%zsnsoxy(ix,lsoil)  = sfc_var3zn(i,j,lsoil,8)
-             enddo 
+             enddo
            endif
 
         enddo   !ix
-      enddo    !nb    
-      
+      enddo    !nb
+
       call mpp_error(NOTE, 'gfs_driver:: - after put to container ')
 ! so far: At cold start everything is 9999.0, warm start snowxy has values
 !         but the 3D of snow fields are not available because not allocated yet.
@@ -1130,10 +1130,10 @@ module FV3GFS_io_mod
 !         different fro grid to grid, we have to init point by point/grid.
 !         It has to be done after the weasd is available
 !         sfc_var2(1,1,32) is the first; we need this to allocate snow related fields
-        
+
       !--- if sncovr does not exist in the restart, need to create it
       if (nint(sfc_var2(1,1,32)) == -9999) then
-        if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr') 
+        if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver::surface_props_input - computing sncovr')
         !--- compute sncovr from existing variables
         !--- code taken directly from read_fix.f
         do nb = 1, Atm_block%nblks
@@ -1152,7 +1152,7 @@ module FV3GFS_io_mod
            enddo
         enddo
       endif
-      
+
       if(Model%frac_grid) then ! 3-way composite
         do nb = 1, Atm_block%nblks
           do ix = 1, Atm_block%blksz(nb)
@@ -1194,7 +1194,7 @@ module FV3GFS_io_mod
       enddo
 
 
-      if (Model%lsm == Model%lsm_noahmp) then 
+      if (Model%lsm == Model%lsm_noahmp) then
         if (sfc_var2(1,1,nvar_s2m+19) < -9990. ) then
         !--- initialize NOAH MP properties
           if (Model%me == Model%master ) call mpp_error(NOTE, 'gfs_driver:: - Cold start Noah MP ')
@@ -1258,7 +1258,7 @@ module FV3GFS_io_mod
                 if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tvxy(ix)  = 273.15
                 if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tgxy(ix)  = 273.15
                 if (Sfcprop(nb)%snowd(ix) > 0.01 .and. Sfcprop(nb)%tsfcl(ix) > 273.15 ) Sfcprop(nb)%tahxy(ix) = 273.15
-     
+
                 Sfcprop(nb)%canicexy(ix) = 0.0
                 Sfcprop(nb)%canliqxy(ix) = Sfcprop(nb)%canopy(ix)
 
@@ -1302,15 +1302,15 @@ module FV3GFS_io_mod
                   Sfcprop(nb)%stmassxy(ix) = 0.0
                   Sfcprop(nb)%rtmassxy(ix) = 0.0
 
-                  Sfcprop(nb)%woodxy   (ix) = 0.0       
-                  Sfcprop(nb)%stblcpxy (ix) = 0.0      
-                  Sfcprop(nb)%fastcpxy (ix) = 0.0     
+                  Sfcprop(nb)%woodxy   (ix) = 0.0
+                  Sfcprop(nb)%stblcpxy (ix) = 0.0
+                  Sfcprop(nb)%fastcpxy (ix) = 0.0
 
                 else
 
     !           print *, 'vegtyp', vegtyp
     !           print *, 'imn', imn
-    !           print *, 'xlaixy', Sfcprop(nb)%xlaixy(ix) 
+    !           print *, 'xlaixy', Sfcprop(nb)%xlaixy(ix)
 
                   Sfcprop(nb)%xlaixy(ix)   = max(laim_table(vegtyp, imn),0.05)
     !           Sfcprop(nb)%xsaixy(ix)   = max(saim_table(vegtyp, imn),0.05)
@@ -1321,11 +1321,11 @@ module FV3GFS_io_mod
                   masssai                  = 1000.0 / 3.0
                   Sfcprop(nb)%stmassxy(ix) = Sfcprop(nb)%xsaixy(ix)* masssai
 
-                  Sfcprop(nb)%rtmassxy(ix) = 500.0      
+                  Sfcprop(nb)%rtmassxy(ix) = 500.0
 
-                  Sfcprop(nb)%woodxy  (ix) = 500.0       
-                  Sfcprop(nb)%stblcpxy(ix) = 1000.0      
-                  Sfcprop(nb)%fastcpxy(ix) = 1000.0     
+                  Sfcprop(nb)%woodxy  (ix) = 500.0
+                  Sfcprop(nb)%stblcpxy(ix) = 1000.0
+                  Sfcprop(nb)%fastcpxy(ix) = 1000.0
 
                 endif  ! non urban ...
 
@@ -1369,26 +1369,26 @@ module FV3GFS_io_mod
                   dzsno(-2)                = 0.05
                   dzsno(-1)                = 0.5*(snd-0.05)
                   dzsno(0)                 = 0.5*(snd-0.05)
-                elseif (snd > 0.45) then 
+                elseif (snd > 0.45) then
                   Sfcprop(nb)%snowxy(ix)   = -3.0
                   dzsno(-2)                = 0.05
                   dzsno(-1)                = 0.20
                   dzsno(0)                 = snd - 0.05 - 0.20
                 else
-                  call mpp_error(FATAL, 'problem with the logic assigning snow layers.') 
+                  call mpp_error(FATAL, 'problem with the logic assigning snow layers.')
                 endif
 
     !Now we have the snowxy field
     !snice + snliq + tsno allocation and compute them from what we have
-                
+
     !
                 Sfcprop(nb)%tsnoxy(ix,-2:0)  = 0.0
                 Sfcprop(nb)%snicexy(ix,-2:0) = 0.0
                 Sfcprop(nb)%snliqxy(ix,-2:0) = 0.0
                 Sfcprop(nb)%zsnsoxy(ix,-2:4) = 0.0
-             
+
                 isnow = nint(Sfcprop(nb)%snowxy(ix))+1    ! snowxy <=0.0, dzsno >= 0.0
-             
+
                 do ns = isnow , 0
                   Sfcprop(nb)%tsnoxy(ix,ns)  = Sfcprop(nb)%tgxy(ix)
                   Sfcprop(nb)%snliqxy(ix,ns) = 0.0
@@ -1411,7 +1411,7 @@ module FV3GFS_io_mod
                 do ns = isnow+1,4
                   Sfcprop(nb)%zsnsoxy(ix,ns) = Sfcprop(nb)%zsnsoxy(ix,ns-1) + dzsnso(ns)
                 enddo
-     
+
     !
     !smoiseq
     !Init water table related quantities here
@@ -1435,9 +1435,9 @@ module FV3GFS_io_mod
                   smcmax = 0.45
                   smcwlt = 0.40
                 endif
-                 
+
                 if ((bexp > 0.0) .and. (smcmax > 0.0) .and. (-psisat > 0.0 )) then
-                  do ns = 1, Model%lsoil          
+                  do ns = 1, Model%lsoil
                     if ( ns == 1 )then
                       ddz = -zsoil(ns+1) * 0.5
                     elseif ( ns < Model%lsoil ) then
@@ -1451,9 +1451,9 @@ module FV3GFS_io_mod
                     expon = bexp + 1.
                     aa    = dwsat / ddz
                     bb    = dksat / smcmax ** expon
-                 
+
                     smc = 0.5 * smcmax
-                 
+
                     do iter = 1, 100
                       func  = (smc - smcmax) * aa +  bb * smc ** expon
                       dfunc = aa + bb * expon * smc ** bexp
@@ -1463,20 +1463,20 @@ module FV3GFS_io_mod
                     enddo                               ! iteration
                     Sfcprop(nb)%smoiseq(ix,ns) = min(max(smc,1.e-4),smcmax*0.99)
                   enddo                                 ! ddz soil layer
-                else                                    ! bexp <= 0.0 
+                else                                    ! bexp <= 0.0
                   Sfcprop(nb)%smoiseq(ix,1:4) = smcmax
                 endif                                   ! end the bexp condition
     !
                   Sfcprop(nb)%smcwtdxy(ix)   = smcmax
                   Sfcprop(nb)%deeprechxy(ix) = 0.0
                   Sfcprop(nb)%rechxy(ix)     = 0.0
-     
+
               endif !end if slmsk>0.01 (land only)
 
             enddo ! ix
           enddo  ! nb
-        endif    
-      endif !if Noah MP cold start ends    
+        endif
+      endif !if Noah MP cold start ends
 
     endif
 
@@ -1510,7 +1510,7 @@ module FV3GFS_io_mod
         !
         !"ATM", "sst", "sst", "INPUT/ec_sst.nc", "bilinear", 1.0
         !"ATM", "ci", "ci", "INPUT/ec_sst.nc", "bilinear", 1.0
- 
+
  	   allocate(sst(isc:iec,jsc:jec))
  	   allocate(ci(isc:iec,jsc:jec))
         call data_override('ATM', 'sst', sst, Time, override=used)
@@ -1560,12 +1560,17 @@ module FV3GFS_io_mod
     ! sample Amazon settings; values for OKC in comments
     integer :: vegtype = 2 ! 12
     integer :: soiltype = 9 ! 8
-    real(kind=kind_phys) :: vegfrac = 0.8 ! 0.25 -- 0.75 
+    real(kind=kind_phys) :: vegfrac = 0.8 ! 0.25 -- 0.75
     real(kind=kind_phys) :: zorl = 265 ! 15
     !uniform soil temperature and moisture for now
     real(kind=kind_phys) :: stc = 300. ! 310.
     real(kind=kind_phys) :: smc = 0.4 ! wet season vs. 0.08 dry ! 0.2 okc highly variable and patchy
-    
+
+    namelist /sfc_prop_override_nml/ &
+         ideal_sst, sst_max, sst_profile, & !Aquaplanet SST options
+         ideal_land, vegtype, soiltype, & ! idealized soil/veg options
+         vegfrac, zorl, stc, smc
+
     isc = Atm_block%isc
     iec = Atm_block%iec
     jsc = Atm_block%jsc
@@ -1573,12 +1578,7 @@ module FV3GFS_io_mod
     npz = Atm_block%npz
     nx = (iec - isc + 1)
     ny = (jec - jsc + 1)
-    
-    namelist /sfc_prop_override_nml/ &
-         ideal_sst, sst_max, sst_profile, & !Aquaplanet SST options
-         ideal_land, vegtype, soiltype, & ! idealized soil/veg options
-         vegfrac, zorl, stc, smc
-    
+
 #ifdef INTERNAL_FILE_NML
     read(Model%input_nml_file, nml=sfc_prop_override_nml, iostat=ios)
 #else
@@ -1608,7 +1608,7 @@ module FV3GFS_io_mod
              Sfcprop(nb)%slmsk(ix)  = 0.0
              !--- tsfc (tsea in sfc file)
              select case (sst_profile)
-                case (0) 
+                case (0)
                    Sfcprop(nb)%tsfc(ix)   = sst_max
                 case (1) ! symmetric
                    Sfcprop(nb)%tsfc(ix)   = sst_min + (sst_max - sst_min)*Grid(nb)%coslat(ix)
@@ -1632,7 +1632,7 @@ module FV3GFS_io_mod
                 Sfcprop(nb)%fice(ix)   = 0.0
              endif
              !--- tisfc
-             Sfcprop(nb)%tisfc(ix)  = Sfcprop(nb)%tsfc(ix)             
+             Sfcprop(nb)%tisfc(ix)  = Sfcprop(nb)%tsfc(ix)
              !--- t2m ! slt. unstable
              Sfcprop(nb)%t2m(ix)    = Sfcprop(nb)%t2m(ix) * 0.98
              !--- q2m ! use RH = 98% and assume ps = 1000 mb
@@ -1699,7 +1699,7 @@ module FV3GFS_io_mod
                 !--- slc = smc
                 Sfcprop(nb)%slc(ix,lsoil) = smc
              enddo
-             
+
           enddo
        enddo
 
@@ -1709,16 +1709,16 @@ module FV3GFS_io_mod
   end subroutine sfc_prop_override
 
 
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 ! sfc_prop_restart_write
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 !    routine to write out GFS surface restarts via the GFDL FMS restart
 !    subsystem.
-!    takes an optional argument to append timestamps for intermediate 
+!    takes an optional argument to append timestamps for intermediate
 !    restarts.
 !
 !    calls:  register_restart_field, save_restart
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
   subroutine sfc_prop_restart_write (Sfcprop, Atm_block, Model, fv_domain, timestamp)
     !--- interface variable definitions
     type(GFS_sfcprop_type),      intent(in) :: Sfcprop(:)
@@ -1885,7 +1885,7 @@ module FV3GFS_io_mod
         sfc_name2(nvar2m+56) = 'albinir'
         sfc_name2(nvar2m+57) = 'emiss'
       endif
- 
+
       !--- register the 2D fields
       do num = 1,nvar2m
         var2_p => sfc_var2(:,:,num)
@@ -1911,7 +1911,7 @@ module FV3GFS_io_mod
         enddo
       endif
       nullify(var2_p)
- 
+
       !--- names of the 3D variables to save
       sfc_name3(1) = 'stc'
       sfc_name3(2) = 'smc'
@@ -1923,7 +1923,7 @@ module FV3GFS_io_mod
         sfc_name3(7) = 'smoiseq'
         sfc_name3(8) = 'zsnsoxy'
       endif
- 
+
       !--- register the 3D fields
       do num = 1,nvar3
         var3_p => sfc_var3(:,:,:,num)
@@ -1949,8 +1949,8 @@ module FV3GFS_io_mod
         nullify(var3_p3)
       endif ! lsm = lsm_noahmp
     endif
-   
-   
+
+
     do nb = 1, Atm_block%nblks
       do ix = 1, Atm_block%blksz(nb)
         !--- 2D variables
@@ -2013,7 +2013,7 @@ module FV3GFS_io_mod
           sfc_var2(i,j,nvar2m+17) = Sfcprop(nb)%dt_cool(ix)!--- nsstm dt_cool
           sfc_var2(i,j,nvar2m+18) = Sfcprop(nb)%qrain(ix)  !--- nsstm qrain
         endif
- 
+
 ! Noah MP
         if (Model%lsm == Model%lsm_noahmp) then
           sfc_var2(i,j,nvar2m+19) = Sfcprop(nb)%snowxy(ix)
@@ -2103,7 +2103,7 @@ module FV3GFS_io_mod
 
     integer :: is_coarse, ie_coarse, js_coarse, je_coarse, nx_coarse, ny_coarse
     real(kind=kind_phys), allocatable, dimension(:,:,:) :: sfc_var2_fine
-    real(kind=kind_phys), allocatable, dimension(:,:,:,:) :: sfc_var3_fine 
+    real(kind=kind_phys), allocatable, dimension(:,:,:,:) :: sfc_var3_fine
     character(len=32) :: fn_srf_coarse = 'sfc_data_coarse.nc'
     real(kind=kind_phys), allocatable, dimension(:,:) :: area, &
       dominant_sfc_type, dominant_vtype, dominant_stype, &
@@ -2170,7 +2170,7 @@ module FV3GFS_io_mod
     allocate(sfc_var3_fine(isc:iec,jsc:jec,Model%lsoil,nvar3))
     sfc_var2_fine = -9999._kind_phys
     sfc_var3_fine = -9999._kind_phys
-    
+
     if (.not. allocated(sfc_name2)) then
       !--- allocate the various containers needed for restarts
       allocate(sfc_name2(nvar2m))
@@ -2340,7 +2340,7 @@ module FV3GFS_io_mod
     call block_max(sfc_var2_fine(isc:iec,jsc:jec,29), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,29))
 
     ! Take the masked block mode over the dominant surface type for slope
-    call block_mode(sfc_var2_fine(isc:iec,jsc:jec,30), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,30))  
+    call block_mode(sfc_var2_fine(isc:iec,jsc:jec,30), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,30))
 
     ! Take the block maximum for the snoalb
     call block_max(sfc_var2_fine(isc:iec,jsc:jec,31), sfc_type_mask, sfc_var2_coarse(is_coarse:ie_coarse,js_coarse:je_coarse,31))
@@ -2449,20 +2449,20 @@ module FV3GFS_io_mod
     enddo
     nullify(var3_p_coarse)
  end subroutine register_coarse_sfc_prop_restart_fields
-  
-!----------------------------------------------------------------------      
+
+!----------------------------------------------------------------------
 ! phys_restart_read
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 !    creates and populates a data type which is then used to "register"
 !    restart variables with the GFDL FMS restart subsystem.
 !    calls a GFDL FMS routine to restore the data from a restart file.
 !    calculates sncovr if it is not present in the restart file.
 !
 !    calls:  register_restart_field, restart_state, free_restart
-!   
+!
 !    opens:  phys_data.tile?.nc
-!   
-!----------------------------------------------------------------------      
+!
+!----------------------------------------------------------------------
   subroutine phys_restart_read (IPD_Restart, Atm_block, Model, fv_domain)
     !--- interface variable definitions
     type(IPD_restart_type),      intent(in) :: IPD_Restart
@@ -2488,14 +2488,14 @@ module FV3GFS_io_mod
     ny = (jec - jsc + 1)
     nvar2d = IPD_Restart%num2d
     nvar3d = IPD_Restart%num3d
- 
+
     !--- register the restart fields
     if (.not. allocated(phy_var2)) then
       allocate (phy_var2(nx,ny,nvar2d))
       allocate (phy_var3(nx,ny,npz,nvar3d))
       phy_var2 = 0.0_kind_phys
       phy_var3 = 0.0_kind_phys
-      
+
       do num = 1,nvar2d
         var2_p => phy_var2(:,:,num)
         id_restart = register_restart_field (Phy_restart, fn_phy, trim(IPD_Restart%name2d(num)), &
@@ -2519,12 +2519,12 @@ module FV3GFS_io_mod
       call mpp_error(NOTE,'No physics restarts - cold starting physical parameterizations')
       return
     endif
- 
+
     !--- place the data into the block GFS containers
     !--- phy_var* variables
     do num = 1,nvar2d
       do nb = 1,Atm_block%nblks
-        do ix = 1, Atm_block%blksz(nb)            
+        do ix = 1, Atm_block%blksz(nb)
           i = Atm_block%index(nb)%ii(ix) - isc + 1
           j = Atm_block%index(nb)%jj(ix) - jsc + 1
           IPD_Restart%data(nb,num)%var2p(ix) = phy_var2(i,j,num)
@@ -2534,7 +2534,7 @@ module FV3GFS_io_mod
     do num = 1,nvar3d
       do nb = 1,Atm_block%nblks
         do k=1,npz
-          do ix = 1, Atm_block%blksz(nb)            
+          do ix = 1, Atm_block%blksz(nb)
             i = Atm_block%index(nb)%ii(ix) - isc + 1
             j = Atm_block%index(nb)%jj(ix) - jsc + 1
             IPD_Restart%data(nb,num)%var3p(ix,k) = phy_var3(i,j,k,num)
@@ -2546,16 +2546,16 @@ module FV3GFS_io_mod
   end subroutine phys_restart_read
 
 
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 ! phys_restart_write
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
 !    routine to write out GFS surface restarts via the GFDL FMS restart
 !    subsystem.
-!    takes an optional argument to append timestamps for intermediate 
+!    takes an optional argument to append timestamps for intermediate
 !    restarts.
 !
 !    calls:  register_restart_field, save_restart
-!----------------------------------------------------------------------      
+!----------------------------------------------------------------------
   subroutine phys_restart_write (IPD_Restart, Atm_block, Model, fv_domain, timestamp)
     !--- interface variable definitions
     type(IPD_restart_type),      intent(in) :: IPD_Restart
@@ -2582,13 +2582,13 @@ module FV3GFS_io_mod
     nvar2d = IPD_Restart%num2d
     nvar3d = IPD_Restart%num3d
 
-    !--- register the restart fields 
+    !--- register the restart fields
     if (.not. allocated(phy_var2)) then
       allocate (phy_var2(nx,ny,nvar2d))
       allocate (phy_var3(nx,ny,npz,nvar3d))
       phy_var2 = 0.0_kind_phys
       phy_var3 = 0.0_kind_phys
-      
+
       do num = 1,nvar2d
         var2_p => phy_var2(:,:,num)
         id_restart = register_restart_field (Phy_restart, fn_phy, trim(IPD_Restart%name2d(num)), &
@@ -2606,7 +2606,7 @@ module FV3GFS_io_mod
     !--- 2D variables
     do num = 1,nvar2d
       do nb = 1,Atm_block%nblks
-        do ix = 1, Atm_block%blksz(nb)            
+        do ix = 1, Atm_block%blksz(nb)
           i = Atm_block%index(nb)%ii(ix) - isc + 1
           j = Atm_block%index(nb)%jj(ix) - jsc + 1
           phy_var2(i,j,num) = IPD_Restart%data(nb,num)%var2p(ix)
@@ -2617,7 +2617,7 @@ module FV3GFS_io_mod
     do num = 1,nvar3d
       do nb = 1,Atm_block%nblks
         do k=1,npz
-          do ix = 1, Atm_block%blksz(nb)            
+          do ix = 1, Atm_block%blksz(nb)
             i = Atm_block%index(nb)%ii(ix) - isc + 1
             j = Atm_block%index(nb)%jj(ix) - jsc + 1
             phy_var3(i,j,k,num) = IPD_Restart%data(nb,num)%var3p(ix,k)
@@ -2638,7 +2638,7 @@ subroutine register_diag_manager_controlled_diagnostics(Time, IntDiag, nblks, ax
 
   integer :: nb
   integer :: index = 1
-  
+
   Diag_diag_manager_controlled(index)%axes = 3
   Diag_diag_manager_controlled(index)%name = 'tendency_of_air_temperature_due_to_longwave_heating'
   Diag_diag_manager_controlled(index)%desc = 'temperature tendency due to longwave radiation'
@@ -2983,10 +2983,10 @@ subroutine register_diag_manager_controlled_diagnostics(Time, IntDiag, nblks, ax
          trim(Diag_diag_manager_controlled(index)%unit), missing_value=real(missing_value))
  enddo
 end subroutine register_diag_manager_controlled_diagnostics
-  
-!-------------------------------------------------------------------------      
+
+!-------------------------------------------------------------------------
 !--- gfdl_diag_register ---
-!-------------------------------------------------------------------------      
+!-------------------------------------------------------------------------
 !    creates and populates a data type which is then used to "register"
 !    GFS physics diagnostic variables with the GFDL FMS diagnostic manager.
 !    includes short & long names, units, conversion factors, etc.
@@ -2995,11 +2995,11 @@ end subroutine register_diag_manager_controlled_diagnostics
 !    the diag_table to determine what variables are to be output.
 !
 !    calls:  register_diag_field
-!-------------------------------------------------------------------------      
+!-------------------------------------------------------------------------
 !    Current sizes
 !    13+NFXR - radiation
 !    76+pl_coeff - physics
-!-------------------------------------------------------------------------      
+!-------------------------------------------------------------------------
   subroutine gfdl_diag_register(Time, Sfcprop, Gfs_diag, Cldprop, &
                                 Atm_block, axes, NFXR, ldiag3d, nkld, levs)
     use physcons,  only: con_g
@@ -3032,7 +3032,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     jsco   = Atm_block%jsc
     jeco   = Atm_block%jec
     levo   = levs
-    
+
     Diag(:)%id = -99
     Diag(:)%axes = -99
     Diag(:)%cnvfac = cn_one
@@ -3589,7 +3589,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
 !--- averaged diagnostics ---
     do num = 1,nkld
-      write (xtra,'(I2.2)') num 
+      write (xtra,'(I2.2)') num
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'cloud_'//trim(xtra)
@@ -3606,7 +3606,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 !--- the next two appear to be appear to be coupling fields in gloopr
 !--- each has four elements
 !rab    do num = 1,4
-!rab      write (xtra,'(I1)') num 
+!rab      write (xtra,'(I1)') num
 !rab      idx = idx + 1
 !rab      Diag(idx)%axes = 2
 !rab      Diag(idx)%name = 'dswcmp_'//trim(xtra)
@@ -3619,7 +3619,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 !rab    enddo
 !rab
 !rab    do num = 1,4
-!rab      write (xtra,'(I1)') num 
+!rab      write (xtra,'(I1)') num
 !rab      idx = idx + 1
 !rab      Diag(idx)%axes = 2
 !rab      Diag(idx)%name = 'uswcmp_'//trim(xtra)
@@ -5603,11 +5603,11 @@ end subroutine register_diag_manager_controlled_diagnostics
 !      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%tdomip(:)
 !    enddo
 !
-!--- three-dimensional variables that need to be handled special when writing 
+!--- three-dimensional variables that need to be handled special when writing
     if (ldiag3d) then
 
     do num = 1,6
-      write (xtra,'(I1)') num 
+      write (xtra,'(I1)') num
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'dt3dt_'//trim(xtra)
@@ -5623,7 +5623,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     enddo
 
     do num = 1,5+oz_coeff
-      write (xtra,'(I1)') num 
+      write (xtra,'(I1)') num
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'dq3dt_'//trim(xtra)
@@ -5639,7 +5639,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     enddo
 
     do num = 1,4
-      write (xtra,'(I1)') num 
+      write (xtra,'(I1)') num
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'du3dt_'//trim(xtra)
@@ -5654,7 +5654,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     enddo
 
     do num = 1,4
-      write (xtra,'(I1)') num 
+      write (xtra,'(I1)') num
       idx = idx + 1
       Diag(idx)%axes = 3
       Diag(idx)%name = 'dv3dt_'//trim(xtra)
@@ -6241,7 +6241,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     enddo
 
     do num = 1,4
-      write (xtra,'(I1)') num 
+      write (xtra,'(I1)') num
       idx = idx + 1
       Diag(idx)%axes = 2
       Diag(idx)%name = 'slc_'//trim(xtra)
@@ -6301,7 +6301,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILT1'
-    Diag(idx)%desc = 'soil temperature 0-10cm [K]' 
+    Diag(idx)%desc = 'soil temperature 0-10cm [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     allocate (Diag(idx)%data(nblks))
@@ -6312,7 +6312,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILT2'
-    Diag(idx)%desc = 'soil temperature 10-40cm [K]' 
+    Diag(idx)%desc = 'soil temperature 10-40cm [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     allocate (Diag(idx)%data(nblks))
@@ -6323,7 +6323,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILT3'
-    Diag(idx)%desc = 'soil temperature 40-100cm [K]' 
+    Diag(idx)%desc = 'soil temperature 40-100cm [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     allocate (Diag(idx)%data(nblks))
@@ -6334,7 +6334,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'SOILT4'
-    Diag(idx)%desc = 'soil temperature 100-200cm [K]' 
+    Diag(idx)%desc = 'soil temperature 100-200cm [K]'
     Diag(idx)%unit = 'K'
     Diag(idx)%mod_name = 'gfs_sfc'
     allocate (Diag(idx)%data(nblks))
@@ -6405,7 +6405,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     tot_diag_idx = idx
 
     if (idx > DIAG_SIZE) then
-      call mpp_error(FATAL, 'gfs_driver::gfs_diag_register - need to increase DIAG_SIZE') 
+      call mpp_error(FATAL, 'gfs_driver::gfs_diag_register - need to increase DIAG_SIZE')
     endif
 
     do idx = 1,tot_diag_idx
@@ -6425,7 +6425,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
     ! We leave the data attribute empty for these, because we will coarsen it
     ! directly from the data attribute in the full resolution version of each
-    ! diagnostic. 
+    ! diagnostic.
     coarse_diagnostic%axes = diagnostic%axes
     coarse_diagnostic%time_avg = diagnostic%time_avg
     coarse_diagnostic%mod_name = diagnostic%mod_name
@@ -6441,14 +6441,14 @@ end subroutine register_diag_manager_controlled_diagnostics
     integer, intent(in) :: coarse_axes(4)
 
     integer :: index
- 
+
     do index = 1, DIAG_SIZE
        if (Diag(index)%name .eq. '') exit  ! No need to populate non-existent coarse diagnostics
        call populate_coarse_diag_type(Diag(index), Diag_coarse(index))
        Diag_coarse(index)%id = register_diag_field( &
             trim(Diag_coarse(index)%mod_name), trim(Diag_coarse(index)%name),  &
             coarse_axes(1:Diag_coarse(index)%axes), Time, trim(Diag_coarse(index)%desc), &
-            trim(Diag_coarse(index)%unit), missing_value=real(missing_value))       
+            trim(Diag_coarse(index)%unit), missing_value=real(missing_value))
     enddo
   end subroutine fv3gfs_diag_register_coarse
 
@@ -6457,14 +6457,14 @@ end subroutine register_diag_manager_controlled_diagnostics
     integer, intent(in) :: coarse_axes(4)
 
     integer :: index
- 
+
     do index = 1, DIAG_SIZE
        if (Diag(index)%name .eq. '') exit  ! No need to populate non-existent coarse diagnostics
        call populate_coarse_diag_type(Diag_diag_manager_controlled(index), Diag_diag_manager_controlled_coarse(index))
        Diag_diag_manager_controlled_coarse(index)%id = register_diag_field( &
             trim(Diag_diag_manager_controlled_coarse(index)%mod_name), trim(Diag_diag_manager_controlled_coarse(index)%name),  &
             coarse_axes(1:Diag_diag_manager_controlled_coarse(index)%axes), Time, trim(Diag_diag_manager_controlled_coarse(index)%desc), &
-            trim(Diag_diag_manager_controlled_coarse(index)%unit), missing_value=real(missing_value))       
+            trim(Diag_diag_manager_controlled_coarse(index)%unit), missing_value=real(missing_value))
     enddo
   end subroutine register_coarse_diag_manager_controlled_diagnostics
 
@@ -6565,18 +6565,18 @@ end subroutine register_diag_manager_controlled_diagnostics
       endif
     enddo
   end subroutine send_diag_manager_controlled_diagnostic_data
-  
-!-------------------------------------------------------------------------      
+
+!-------------------------------------------------------------------------
 
 
-!-------------------------------------------------------------------------      
+!-------------------------------------------------------------------------
 !--- gfs_diag_output ---
-!-------------------------------------------------------------------------      
-!    routine to transfer the diagnostic data to the GFDL FMS diagnostic 
+!-------------------------------------------------------------------------
+!    routine to transfer the diagnostic data to the GFDL FMS diagnostic
 !    manager for eventual output to the history files.
 !
 !    calls:  send_data
-!-------------------------------------------------------------------------      
+!-------------------------------------------------------------------------
 !rab  subroutine gfdl_diag_output(Time, Gfs_diag, Statein, Stateout, Atm_block, &
 !rab                             nx, ny, levs, ntcw, ntoz, dt, time_int)
   subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
@@ -6618,7 +6618,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
     real(kind=kind_phys), allocatable :: mass(:,:,:), phalf(:,:,:), phalf_coarse_on_fine(:,:,:)
     real(kind=kind_phys), allocatable :: masked_area(:,:,:)
-    
+
      nblks = Atm_block%nblks
      rdt = 1.0d0/dt
      rtime_int = 1.0d0/time_int
@@ -6643,10 +6643,10 @@ end subroutine register_diag_manager_controlled_diagnostics
            lon(i,j)  = IPD_Data(nb)%Grid%xlon(ix)
            one(i,j)  = 1.
            landmask(i,j) = IPD_Data(nb)%Sfcprop%slmsk(ix)
-           seamask(i,j)  = 1. - landmask(i,j) 
+           seamask(i,j)  = 1. - landmask(i,j)
         enddo
      enddo
-     
+
      if (write_coarse_diagnostics) then
         call determine_required_coarse_graining_weights(diag_coarse, coarsening_strategy, require_area, require_masked_area, require_mass, require_vertical_remapping)
         if (.not. require_vertical_remapping) then
@@ -6662,7 +6662,7 @@ end subroutine register_diag_manager_controlled_diagnostics
           call mask_area_weights(area, phalf, phalf_coarse_on_fine, masked_area)
        endif
     endif
-  
+
      do idx = 1,tot_diag_idx
        if ((Diag(idx)%id > 0) .or. (diag_coarse(idx)%id > 0)) then
          lcnvfac = Diag(idx)%cnvfac
@@ -6827,16 +6827,16 @@ end subroutine register_diag_manager_controlled_diagnostics
                   call mpp_error(FATAL, 'Invalid coarse-graining strategy provided.')
                endif
             endif
-            
+
 !!$               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dt3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-!!$               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+!!$               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
 #ifdef JUNK
            !--- dq3dt variables
            do num = 1,5+Mdl_parms%pl_coeff
              write(xtra,'(i1)') num
              if (trim(Diag(idx)%name) == 'dq3dt_'//trim(xtra)) then
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dq3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
              endif
            enddo
            !--- du3dt and dv3dt variables
@@ -6844,58 +6844,58 @@ end subroutine register_diag_manager_controlled_diagnostics
              write(xtra,'(i1)') num
              if (trim(Diag(idx)%name) == 'du3dt_'//trim(xtra)) then
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%du3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
              endif
              if (trim(Diag(idx)%name) == 'dv3dt_'//trim(xtra)) then
                var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dv3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
              endif
            enddo
            if (trim(Diag(idx)%name) == 'dqdt_v') then
              var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dqdt_v(1:ngptc,levs:1:-1), (/nx,ny,levs/))
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
            endif
            !--- temperature tendency
            if (trim(Diag(idx)%name) == 'dtemp_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%tgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gt0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
            endif
            !--- horizontal wind component tendency
            if (trim(Diag(idx)%name) == 'du_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%ugrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gu0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
            endif
            !--- meridional wind component tendency
            if (trim(Diag(idx)%name) == 'dv_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%vgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gv0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
            endif
            !--- specific humidity tendency
            if (trim(Diag(idx)%name) == 'dsphum_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
            endif
            !--- cloud water mixing ration tendency
            if (trim(Diag(idx)%name) == 'dclwmr_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
            endif
            !--- ozone mixing ration tendency
            if (trim(Diag(idx)%name) == 'do3mr_dt') then
              var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))
              var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))  &
                                         - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1) 
+             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
           endif
 #endif
        endif
@@ -6904,7 +6904,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
 
   end subroutine gfdl_diag_output
-!-------------------------------------------------------------------------      
+!-------------------------------------------------------------------------
  subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac, operation_in) !Prints averages/sums, or maxes/mins
   use physcons,    pi=>con_pi
   character(len=*), intent(in)::  qname
@@ -7122,7 +7122,7 @@ end subroutine register_diag_manager_controlled_diagnostics
 
    integer :: i, ii, j, jj, k, block_number, column, isc, jsc
    real(kind=kind_phys) :: area_value
-   
+
    do k = 1, nz
       do j = 1, ny
          jj = j + jsco - 1
@@ -7254,7 +7254,7 @@ end subroutine register_diag_manager_controlled_diagnostics
     endif
     used = send_data(id, coarse, Time)
 end subroutine store_data3D_coarse_pressure_level
- 
+
 end module FV3GFS_io_mod
 
 

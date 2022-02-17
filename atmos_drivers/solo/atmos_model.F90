@@ -112,7 +112,7 @@ character(len=128), parameter :: tag = &
  call fms_init ( )
  call fms_affinity_init
  call sat_vapor_pres_init
- call atmos_model_init 
+ call atmos_model_init
 
 !   ------ atmosphere integration loop -------
 
@@ -210,8 +210,8 @@ contains
       write (logunit,16) date(3:6)
     endif
 
- 16 format ('  current time used = day',i5,' hour',i3,2(':',i2.2)) 
-    
+ 16 format ('  current time used = day',i5,' hour',i3,2(':',i2.2))
+
 !  print number of tracers to logfile
    if (mpp_pe() == mpp_root_pe()) then
         write (logunit, '(a,i3)') 'Number of tracers =', ntrace
@@ -274,7 +274,7 @@ contains
 
 !-----------------------------------------------------------------------
 !--- compute the time steps ---
-!    determine number of iterations through the time integration loop 
+!    determine number of iterations through the time integration loop
 !    must be evenly divisible
 
       Time_step_atmos = set_time (dt_atmos,0)
@@ -291,7 +291,7 @@ contains
    if ( num_atmos_calls * Time_step_atmos /= Run_length )  &
         call error_mesg ('program atmos_model',  &
            'run length must be multiple of atmosphere time step', FATAL)
-   
+
 !-----------------------------------------------------------------------
 !------ initialize atmospheric model ------
 
@@ -304,17 +304,6 @@ contains
         call flush(unit)
       endif
 
-#ifdef HAVE_SCHED_GETAFFINITY
-      base_cpu = get_cpu_affinity()
-!$OMP PARALLEL
-!$      call set_cpu_affinity(base_cpu + omp_get_thread_num())
-#ifdef DEBUG
-!$      write(6,*) 'PE: ',mpp_pe(),'  thread_num', omp_get_thread_num(),'  affinity:',get_cpu_affinity()
-!$      call flush(6) 
-#endif
-!$OMP END PARALLEL
-#endif
-      
       call atmosphere_init (Time_init, Time, Time_step_atmos)
       call atmosphere_domain(atmos_domain)
 

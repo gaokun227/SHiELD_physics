@@ -748,6 +748,16 @@ module FV3GFS_io_mod
         deallocate(buffer)
       endif   ! if (lsm_noahmp)
 
+      allocate(dim_names_2d(3))
+      allocate(dim_names_3d(4))
+      dim_names_2d(1) = "xaxis_1"
+      dim_names_2d(2) = "yaxis_1"
+      dim_names_2d(3) = "Time"
+      dim_names_3d(1) = "xaxis_1"
+      dim_names_3d(2) = "yaxis_1"
+      dim_names_3d(3) = "zaxis_1"     ! to be reset as needed when variables are registered
+      dim_names_3d(4) = "Time"
+
     else  ! error case
 
       call mpp_error(FATAL,"FV3GFS_io::register_sfc_prop_restart_vars action not found")
@@ -2505,7 +2515,7 @@ module FV3GFS_io_mod
     integer :: nvar2d, nvar3d
     integer, allocatable, dimension(:) :: buffer
     character(len=64) :: fname
-    character(len=8), allocatable, dimension(:) :: dim_names_2d, dim_names_3d
+    character(len=8) :: dim_names_2d(3), dim_names_3d(4)
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
 

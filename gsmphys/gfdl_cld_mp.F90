@@ -2291,7 +2291,7 @@ subroutine terminal_fall (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
             print *, "gfdl_mp: qflag error!"
     end select
 
-    if (use_implicit_fall .eq. use_explicit_fall) then
+    if (use_implicit_fall .eqv. use_explicit_fall) then
         write (6, *) 'gfdl_mp: use_implicit_fall and use_explicit_fall cannot be the same.'
         stop
     endif

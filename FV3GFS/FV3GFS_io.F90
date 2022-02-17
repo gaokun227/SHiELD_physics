@@ -504,7 +504,7 @@ module FV3GFS_io_mod
     integer :: nvar_s2mp, nvar_s2o
     integer :: nvar_s3,  nvar_s3mp
     logical :: opt
-    character(len=8), allocatable, dimension(:) :: dim_names_2d, dim_names_3d
+    character(len=8) :: dim_names_2d(3), dim_names_3d(4)
     integer, allocatable, dimension(:) :: buffer
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
@@ -672,8 +672,6 @@ module FV3GFS_io_mod
         call register_axis(Sfc_restart, "zaxis_2", dimension_length=3)
         call register_axis(Sfc_restart, "zaxis_3", dimension_length=7)
         call register_axis(Sfc_restart, "Time", unlimited)
-        allocate(dim_names_2d(3))
-        allocate(dim_names_3d(4))
         dim_names_2d(1) = "xaxis_1"
         dim_names_2d(2) = "yaxis_1"
         dim_names_2d(3) = "Time"
@@ -685,8 +683,6 @@ module FV3GFS_io_mod
         call register_axis(Sfc_restart, 'lon', 'X')
         call register_axis(Sfc_restart, 'lat', 'Y')
         call register_axis(Sfc_restart, 'lsoil', dimension_length=Model%lsoil)
-        allocate(dim_names_2d(2))
-        allocate(dim_names_3d(3))
         dim_names_2d(1) = "lat"
         dim_names_2d(2) = "lon"
         dim_names_3d(1) = "lat"
@@ -748,8 +744,6 @@ module FV3GFS_io_mod
         deallocate(buffer)
       endif   ! if (lsm_noahmp)
 
-      allocate(dim_names_2d(3))
-      allocate(dim_names_3d(4))
       dim_names_2d(1) = "xaxis_1"
       dim_names_2d(2) = "yaxis_1"
       dim_names_2d(3) = "Time"
@@ -823,9 +817,6 @@ module FV3GFS_io_mod
       nullify(var3_p)
     endif   !mp
 
-    if (allocated(dim_names_2d)) deallocate(dim_names_2d)
-    if (allocated(dim_names_2d)) deallocate(dim_names_3d)
-
    end subroutine register_sfc_prop_restart_vars
 
 !----------------------------------------------------------------------
@@ -855,7 +846,7 @@ module FV3GFS_io_mod
     integer :: nvar_o2, nvar_s2m
     integer :: isnow
     logical :: opt
-    character(len=8), allocatable, dimension(:) :: dim_names_2d
+    character(len=8) :: dim_names_2d(3)
     real(kind=kind_phys), pointer, dimension(:,:) :: var2_p => NULL()
 
     character(len=64) :: fname
@@ -892,7 +883,6 @@ module FV3GFS_io_mod
     if (open_file(Oro_restart, fname, "read", fv_domain, is_restart=.true., dont_add_res_to_filename=.true.)) then
       call register_axis(Oro_restart, "lat", "y")
       call register_axis(Oro_restart, "lon", "x")
-      allocate(dim_names_2d(2))
       dim_names_2d(1) = "lat"
       dim_names_2d(2) = "lon"
 
@@ -932,7 +922,6 @@ module FV3GFS_io_mod
           nullify(var2_p)
         enddo
       endif
-      deallocate(dim_names_2d)
 
       !--- read the orography restart/data
       call mpp_error(NOTE,'reading topographic/orographic information from INPUT/oro_data.tile*.nc')
@@ -2314,7 +2303,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
     integer, allocatable, dimension(:) :: buffer
-    character(len=8), allocatable, dimension(:) :: dim_names_2d, dim_names_3d
+    character(len=8) :: dim_names_2d(3), dim_names_3d(4)
 
     !--- register the axes for restarts
     call register_axis(Sfc_restart, 'xaxis_1', 'X')
@@ -2347,11 +2336,9 @@ module FV3GFS_io_mod
     call write_data(Sfc_restart, 'Time', 1)
 
     !--- Assign dimensions to array for use in register_restart_field
-    allocate(dim_names_2d(3))
     dim_names_2d(1) = "xaxis_1"
     dim_names_2d(2) = "yaxis_1"
     dim_names_2d(3) = "Time"
-    allocate(dim_names_3d(4))
     dim_names_3d(1) = "xaxis_1"
     dim_names_3d(2) = "yaxis_1"
     dim_names_3d(3) = "zaxis_1"
@@ -2368,9 +2355,6 @@ module FV3GFS_io_mod
       call register_restart_field(Sfc_restart_coarse, sfc_name3(num), var3_p, dim_names_3d)
       nullify(var3_p)
     enddo
-
-    deallocate(dim_names_2d)
-    deallocate(dim_names_3d)
 
  end subroutine register_coarse_sfc_prop_restart_fields
 
@@ -2398,7 +2382,7 @@ module FV3GFS_io_mod
     integer :: isc, iec, jsc, jec, npz, nx, ny
     integer :: nvar2d, nvar3d
     character(len=64) :: fname
-    character(len=8), allocatable, dimension(:) :: dim_names_2d, dim_names_3d
+    character(len=8) :: dim_names_2d(3), dim_names_3d(4)
     real(kind=kind_phys), pointer, dimension(:,:)   :: var2_p => NULL()
     real(kind=kind_phys), pointer, dimension(:,:,:) :: var3_p => NULL()
 
@@ -2414,8 +2398,6 @@ module FV3GFS_io_mod
     nvar3d = IPD_Restart%num3d
 
     !--- Assign dimensions to array for use in register_restart_field
-    allocate(dim_names_2d(3))
-    allocate(dim_names_3d(4))
     dim_names_2d(1) = "xaxis_1"
     dim_names_2d(2) = "yaxis_1"
     dim_names_2d(3) = "Time"
@@ -2445,22 +2427,20 @@ module FV3GFS_io_mod
           var2_p => phy_var2(:,:,num)
           call register_restart_field (Phy_restart, trim(IPD_Restart%name2d(num)), &
                                        var2_p, dim_names_2d, is_optional=.true.)
+          nullify(var2_p)
         enddo
         do num = 1,nvar3d
           var3_p => phy_var3(:,:,:,num)
           call register_restart_field (Phy_restart, trim(IPD_restart%name3d(num)), &
                                        var3_p, dim_names_3d, is_optional=.true.)
+          nullify(var3_p)
         enddo
-        nullify(var2_p)
-        nullify(var3_p)
       endif
 
       !--- read the surface restart/data
       call mpp_error(NOTE,'reading physics restart data from INPUT/phy_data.tile*.nc')
       call read_restart(Phy_restart)
       call close_file(Phy_restart)
-      deallocate(dim_names_2d)
-      deallocate(dim_names_3d)
     else
       call mpp_error(NOTE,'No physics restarts - cold starting physical parameterizations')
       return
@@ -2488,6 +2468,9 @@ module FV3GFS_io_mod
         enddo
       enddo
     enddo
+
+    if (allocated(phy_var2)) deallocate(phy_var2)
+    if (allocated(phy_var3)) deallocate(phy_var3)
 
   end subroutine phys_restart_read
 
@@ -2577,11 +2560,25 @@ module FV3GFS_io_mod
       call register_variable_attribute(Phy_restart, 'Time', 'cartesian_axis', 'T', str_len=1)
       call write_data(Phy_restart, "Time", 1)
 
+      !--- register the restart fields
       if (.not. allocated(phy_var2)) then
         allocate (phy_var2(nx,ny,nvar2d))
         allocate (phy_var3(nx,ny,npz,nvar3d))
         phy_var2 = 0.0_kind_phys
         phy_var3 = 0.0_kind_phys
+
+        do num = 1,nvar2d
+          var2_p => phy_var2(:,:,num)
+          call register_restart_field (Phy_restart, trim(IPD_Restart%name2d(num)), &
+                                       var2_p, dim_names_2d)
+          nullify(var2_p)
+        enddo
+        do num = 1,nvar3d
+          var3_p => phy_var3(:,:,:,num)
+          call register_restart_field (Phy_restart, trim(IPD_restart%name3d(num)), &
+                                       var3_p, dim_names_3d)
+          nullify(var3_p)
+        enddo
       endif
 
       !--- 2D variables
@@ -2609,6 +2606,9 @@ module FV3GFS_io_mod
 
       call write_restart(Phy_restart)
       call close_file(Phy_restart)
+
+      if (allocated(phy_var2)) deallocate (phy_var2)
+      if (allocated(phy_var3)) deallocate (phy_var3)
     endif
 
   end subroutine phys_restart_write

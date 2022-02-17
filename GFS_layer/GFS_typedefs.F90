@@ -90,7 +90,7 @@ module GFS_typedefs
                                                   !< based on name location in array
     character(len=65) :: fn_nml                   !< namelist filename
     character(len=:), pointer, dimension(:) :: input_nml_file => null() !< character string containing full namelist
-                                                   !< for use with internal file reads
+                                                                        !< for use with internal file reads
   end type GFS_init_type
 
 
@@ -457,7 +457,7 @@ module GFS_typedefs
     integer              :: nlunit          !< unit for namelist
     character(len=64)    :: fn_nml          !< namelist filename for surface data cycling
     character(len=:), pointer, dimension(:) :: input_nml_file => null() !< character string containing full namelist
-                                                   !< for use with internal file reads
+                                                                        !< for use with internal file reads
     real(kind=kind_phys) :: fhzero          !< seconds between clearing of diagnostic buckets
     logical              :: ldiag3d         !< flag for 3d diagnostic fields
     logical              :: lssav           !< logical flag for storing diagnostics

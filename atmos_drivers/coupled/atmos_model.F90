@@ -133,6 +133,7 @@ public atmos_model_restart
                                                          ! to calculate gradient on cubic sphere grid.
      integer                       :: layout(2)          ! computer task laytout
      logical                       :: regional           ! true if domain is regional
+     logical                       :: bounded_domain     ! true if domain is bounded
      real(kind=8), pointer, dimension(:) :: ak
      real(kind=8), pointer, dimension(:) :: bk
      real(kind=8), pointer, dimension(:,:,:) :: layer_hgt
@@ -406,7 +407,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
    call alloc_atmos_data_type (nlon, nlat, Atmos)
-   call atmosphere_domain (Atmos%domain, Atmos%layout, Atmos%regional)
+   call atmosphere_domain (Atmos%domain, Atmos%layout, Atmos%regional, Atmos%bounded_domain)
    call atmosphere_diag_axes (Atmos%axes)
    call atmosphere_etalvls (Atmos%ak, Atmos%bk, flip=.true.)
    call atmosphere_grid_bdry (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)

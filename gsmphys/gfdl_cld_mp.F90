@@ -485,7 +485,7 @@ module gfdl_cld_mp_mod
         tau_l2r, qi_lim, ql_gen, do_hail, inflag, c_psacw, c_psaci, c_pracs, &
         c_psacr, c_pgacr, c_pgacs, c_pgacw, c_pgaci, z_slope_liq, z_slope_ice, &
         prog_ccn, c_pracw, c_praci, rad_snow, rad_graupel, rad_rain, cld_min, &
-        sed_fac, do_sedi_uv, do_sedi_w, do_sedi_heat, icloud_f, &
+        sedflag, sed_fac, do_sedi_uv, do_sedi_w, do_sedi_heat, icloud_f, &
         irain_f, xr_a, xr_b, xr_c, ntimes, tau_revp, tice_mlt, do_cond_timescale, &
         mp_time, consv_checker, te_err, use_rhc_cevap, use_rhc_revap, tau_wbf, &
         do_warm_rain_mp, rh_thres, f_dq_p, f_dq_m, do_cld_adj, rhc_cevap, &

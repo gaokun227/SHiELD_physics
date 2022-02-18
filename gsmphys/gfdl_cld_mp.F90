@@ -251,6 +251,12 @@ module gfdl_cld_mp_mod
     ! 1: Mark Stoelinga (2005)
     ! 2: Smith et al. (1975), Tong and Xue (2005)
     ! 3: Marshall-Palmer formula (https://en.wikipedia.org/wiki/DBZ_(meteorology))
+
+    integer :: sedflag = 1 ! sedimentation scheme
+    ! 1: implicit scheme
+    ! 2: explicit scheme
+    ! 3: lagrangian scheme
+    ! 4: combined implicit and lagrangian scheme
     
     logical :: do_sedi_uv = .true. ! transport of horizontal momentum in sedimentation
     logical :: do_sedi_w = .true. ! transport of vertical momentum in sedimentation
@@ -262,11 +268,6 @@ module gfdl_cld_mp_mod
     logical :: rad_graupel = .true. ! include graupel in cloud fraction calculation
     logical :: rad_rain = .true. ! include rain in cloud fraction calculation
     logical :: do_cld_adj = .false. ! do cloud fraction adjustment
-    
-    logical :: use_ppm = .false. ! use ppm fall scheme
-    
-    logical :: use_implicit_fall = .true. ! use implicit fall scheme
-    logical :: use_explicit_fall = .false. ! use explicit fall scheme
     
     logical :: z_slope_liq = .true. ! use linear mono slope for autocconversions
     logical :: z_slope_ice = .true. ! use linear mono slope for autocconversions
@@ -409,6 +410,8 @@ module gfdl_cld_mp_mod
     real :: gs_fac = 0.2 ! graupel sublimation temperature factor
 
     real :: rh_fac = 10.0 ! cloud water condensation / evaporation relative humidity factor
+
+    real :: sed_fac = 1.0 ! coefficient for sedimentation fall, scale from 1.0 (implicit) to 0.0 (lagrangian)
     
     real :: vw_fac = 1.0
     real :: vi_fac = 1.0 ! IFS: if const_vi: 1 / 3
@@ -482,7 +485,7 @@ module gfdl_cld_mp_mod
         tau_l2r, qi_lim, ql_gen, do_hail, inflag, c_psacw, c_psaci, c_pracs, &
         c_psacr, c_pgacr, c_pgacs, c_pgacw, c_pgaci, z_slope_liq, z_slope_ice, &
         prog_ccn, c_pracw, c_praci, rad_snow, rad_graupel, rad_rain, cld_min, &
-        use_ppm, do_sedi_uv, do_sedi_w, do_sedi_heat, icloud_f, &
+        sed_fac, do_sedi_uv, do_sedi_w, do_sedi_heat, icloud_f, &
         irain_f, xr_a, xr_b, xr_c, ntimes, tau_revp, tice_mlt, do_cond_timescale, &
         mp_time, consv_checker, te_err, use_rhc_cevap, use_rhc_revap, tau_wbf, &
         do_warm_rain_mp, rh_thres, f_dq_p, f_dq_m, do_cld_adj, rhc_cevap, &
@@ -494,8 +497,7 @@ module gfdl_cld_mp_mod
         n0r_exp, n0s_exp, n0g_exp, n0h_exp, muw, mui, mur, mus, mug, muh, &
         alinw, alini, alinr, alins, aling, alinh, blinw, blini, blinr, blins, bling, blinh, &
         do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac, &
-        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, use_implicit_fall, &
-        use_explicit_fall
+        snow_grauple_combine, do_psd_water_num, do_psd_ice_num
     
 contains
 
@@ -2291,20 +2293,15 @@ subroutine terminal_fall (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
             print *, "gfdl_mp: qflag error!"
     end select
 
-    if (use_implicit_fall .eqv. use_explicit_fall) then
-        write (6, *) 'gfdl_mp: use_implicit_fall and use_explicit_fall cannot be the same.'
-        stop
-    endif
-    
-    if (use_ppm) then
-        call lagrangian_fall_ppm (ks, ke, zs, ze, zt, dp, q, x1, m1)
-    else
-        if (use_implicit_fall) then
-            call implicit_fall (dts, ks, ke, ze, vt, dp, q, x1, m1)
-        elseif (use_explicit_fall) then
-            call explicit_fall (dts, ks, ke, ze, vt, dp, q, x1, m1)
-        endif
-    endif
+    if (sedflag .eq. 1) &
+        call implicit_fall (dts, ks, ke, ze, vt, dp, q, x1, m1)
+    if (sedflag .eq. 2) &
+        call explicit_fall (dts, ks, ke, ze, vt, dp, q, x1, m1)
+    if (sedflag .eq. 3) &
+        call lagrangian_fall (ks, ke, zs, ze, zt, dp, q, x1, m1)
+    if (sedflag .eq. 4) &
+        call implicit_lagrangian_fall (dts, ks, ke, zs, ze, zt, vt, dp, q, &
+            x1, m1, sed_fac)
     
     select case (qflag)
         case ("ql")
@@ -4474,7 +4471,7 @@ end subroutine cloud_fraction
 ! this subroutine is the same as map1_q2 in fv_mapz_mod.
 ! =======================================================================
 
-subroutine lagrangian_fall_ppm (ks, ke, zs, ze, zt, dp, q, precip, m1)
+subroutine lagrangian_fall (ks, ke, zs, ze, zt, dp, q, precip, m1)
     
     implicit none
     
@@ -4578,7 +4575,7 @@ subroutine lagrangian_fall_ppm (ks, ke, zs, ze, zt, dp, q, precip, m1)
         q (k) = qm (k) / dp (k)
     enddo
     
-end subroutine lagrangian_fall_ppm
+end subroutine lagrangian_fall
 
 ! =======================================================================
 ! vertical profile reconstruction
@@ -4944,6 +4941,57 @@ subroutine explicit_fall (dts, ks, ke, ze, vt, dp, q, precip, m1)
     
 end subroutine explicit_fall
 
+! =======================================================================
+! combine time-implicit monotonic scheme with the piecewise parabolic lagrangian scheme
+! =======================================================================
+
+subroutine implicit_lagrangian_fall (dts, ks, ke, zs, ze, zt, vt, dp, q, &
+        precip, flux, sed_fac)
+    
+    implicit none
+    
+    ! -----------------------------------------------------------------------
+    ! input / output arguments
+    ! -----------------------------------------------------------------------
+    
+    integer, intent (in) :: ks, ke
+    
+    real, intent (in) :: zs, dts, sed_fac
+    
+    real, intent (in), dimension (ks:ke + 1) :: ze, zt
+    
+    real, intent (in), dimension (ks:ke) :: vt, dp
+    
+    real, intent (inout), dimension (ks:ke) :: q
+    
+    real, intent (inout) :: precip
+    
+    real, intent (out), dimension (ks:ke) :: flux
+
+    ! -----------------------------------------------------------------------
+    ! local variables
+    ! -----------------------------------------------------------------------
+    
+    real :: pre0, pre1
+    
+    real, dimension (ks:ke) :: q0, q1, m0, m1
+
+    q0 = q
+    pre0 = precip
+    
+    call implicit_fall (dts, ks, ke, ze, vt, dp, q0, pre0, m0)
+
+    q1 = q
+    pre1 = precip
+
+    call lagrangian_fall (ks, ke, zs, ze, zt, dp, q1, pre1, m1)
+
+    q = q0 * sed_fac + q1 * (1.0 - sed_fac)
+    flux = m0 * sed_fac + m1 * (1.0 - sed_fac)
+    precip = pre0 * sed_fac + pre1 * (1.0 - sed_fac)
+    
+end subroutine implicit_lagrangian_fall
+    
 ! =======================================================================
 ! vertical subgrid variability used for cloud ice and cloud water autoconversion
 ! edges: qe == qbar + / - dm

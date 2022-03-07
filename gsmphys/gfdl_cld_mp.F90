@@ -4072,9 +4072,6 @@ subroutine pidep_pisub (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, d
             tmp = dq / (1. + tcpk (k) * dqdt)
             
             if (qi (k) .gt. qcmin) then
-                 if (do_psd_ice_num) then
-                     cin (k) = coeai / coebi * exp (mui / (mui + 3) * log (den (k) * qi (k))) / den (k)
-                 endif
                 if (.not. prog_ccn) then
                     if (inflag .eq. 1) &
                         cin (k) = 5.38e7 * exp (0.75 * log (qi (k) * den (k)))
@@ -4086,6 +4083,9 @@ subroutine pidep_pisub (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, d
                         cin (k) = 5.e-3 * exp (0.304 * (tice - tz (k))) * 1000.0
                     if (inflag .eq. 5) &
                         cin (k) = 1.e-5 * exp (0.5 * (tice - tz (k))) * 1000.0
+                endif
+                if (do_psd_ice_num) then
+                    cin (k) = coeai / coebi * exp (mui / (mui + 3) * log (den (k) * qi (k))) / den (k)
                 endif
                 pidep = dts * dq * 4.0 * 11.9 * exp (0.5 * log (qi (k) * den (k) * cin (k))) / &
                      (qsi * den (k) * (tcpk (k) * cvm (k)) ** 2 / (tcond * rvgas * tz (k) ** 2) + &

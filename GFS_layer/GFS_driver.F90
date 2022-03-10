@@ -326,8 +326,13 @@ module GFS_driver
     Model%lsswr  = (mod(Model%kdt, Model%nsswr) == 1)
     Model%lslwr  = (mod(Model%kdt, Model%nslwr) == 1)
 
-    !--- set the solar hour based on a combination of phour and time initial hour
-    Model%solhr  = mod(Model%phour+Model%idate(1),con_24)
+    if (Model%fixed_solhr) then
+      !--- set the solar hour based on time initial hour
+      Model%solhr  = mod(0.0+Model%idate(1),con_24)
+    else
+      !--- set the solar hour based on a combination of phour and time initial hour
+      Model%solhr  = mod(Model%phour+Model%idate(1),con_24)
+    endif
 
     if (Model%lsm == Model%lsm_noahmp) then
 !

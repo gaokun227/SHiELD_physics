@@ -824,7 +824,7 @@
 !!\param coszdg     (IM), average of cosz over entire sw call interval
 !-----------------------------------
       subroutine coszmn                                                 &
-     &     ( xlon,sinlat,coslat,solhr, IM, me,                          &     !  ---  inputs
+     &     ( xlon,sinlat,coslat,solhr, IM, me, daily_mean,              &     !  ---  inputs
      &       coszen, coszdg                                             &     !  ---  outputs
      &     )
 
@@ -840,6 +840,7 @@
 !    solhr         - time after 00z in hours                            !
 !    IM            - num of grids in horizontal dimension               !
 !    me            - print message control flag                         !
+!    daily_mean    - replace cosz with daily mean value                 !
 !                                                                       !
 !  outputs:                                                             !
 !    coszen(IM)    - average of cosz for daytime only in sw call interval
@@ -866,11 +867,14 @@
       real (kind=kind_phys), intent(in) :: sinlat(:), coslat(:),        &
      &       xlon(:), solhr
 
+      logical, intent(in) :: daily_mean
+
 !  ---  outputs:
       real (kind=kind_phys), intent(out) :: coszen(:), coszdg(:)
 
 !  ---  locals:
-      real (kind=kind_phys) :: coszn, cns, ss, cc, solang, rstp
+      real (kind=kind_phys) :: coszn, cns, ss, cc, solang, rstp, h,     &
+     &       coszenm(IM)
 
       integer :: istsun(IM), i, it, j, lat
 
@@ -891,6 +895,13 @@
           ss  = sinlat(i) * sindec
           cc  = coslat(i) * cosdec
 
+          if (it .eq. 1) then
+            ! compute daily mean cosine solar zenith angle
+            ! Zhou et al. (2015) GRL
+            h = acos(min(max(-ss/cc,-1.),1.))
+            coszenm(i) = ss*h/con_pi+cc*(sin(h)-sin(-h))/(2*con_pi)
+          endif
+
           coszn = ss + cc * cos(cns + xlon(i))
           coszen(i) = coszen(i) + max(0.0, coszn)
           if (coszn > czlimt) istsun(i) = istsun(i) + 1
@@ -904,6 +915,14 @@
         if (istsun(i) > 0) coszen(i) = coszen(i) / istsun(i)
       enddo
 !
+!  --- ...  replace cosz with daily mean value
+      if (daily_mean) then
+        do i = 1, IM
+          coszdg(i) = coszenm(i)
+          coszen(i) = coszenm(i)
+        enddo
+      endif
+
       return
 !...................................
       end subroutine coszmn

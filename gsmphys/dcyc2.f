@@ -124,7 +124,7 @@
      &       sfcdsw,sfcnsw,sfcdlw,swh,swhc,hlw,hlwc,                    &
      &       sfcnirbmu,sfcnirdfu,sfcvisbmu,sfcvisdfu,                   &
      &       sfcnirbmd,sfcnirdfd,sfcvisbmd,sfcvisdfd,                   &
-     &       ix, im, levs,                                              &
+     &       ix, im, levs, daily_mean,                                  &
 !  ---  input/output:
      &       dtdt,dtdtc,                                                &
 !  ---  outputs:
@@ -155,6 +155,8 @@
 
       real(kind=kind_phys), dimension(ix,levs), intent(in) :: swh,  hlw
      &,                                                       swhc, hlwc&
+
+      logical, intent(in) :: daily_mean
 
 !  ---  input/output:
       real(kind=kind_phys), dimension(im,levs), intent(inout) :: dtdt   &
@@ -199,6 +201,12 @@
         cc     = coslat(i) * cdec
         ch     = cc * cos( xlon(i)+cns )
         xcosz(i) = ch + ss        ! cosine of solar zenith angle at current time
+
+!  --- ...  replace cosz with daily mean value
+
+        if (daily_mean) then
+          xcosz(i) = coszen(i)
+        endif
 
 !  --- ...  normalize by average value over radiation period for daytime.
 

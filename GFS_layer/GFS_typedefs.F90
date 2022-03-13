@@ -544,6 +544,7 @@ module GFS_typedefs
     logical              :: swhtr           !< flag to output sw heating rate (Radtend%swhc)
     logical              :: fixed_date      !< flag to fix astronomy (not solar angle) to initial date
     logical              :: fixed_solhr     !< flag to fix solar angle to initial time
+    logical              :: daily_mean      !< flag to replace cosz with daily mean value
 
     !--- microphysical switch
     integer              :: ncld            !< cnoice of cloud scheme
@@ -2034,6 +2035,7 @@ module GFS_typedefs
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
     logical              :: fixed_date     = .false.         !< flag to fix astronomy (not solar angle) to initial date
     logical              :: fixed_solhr    = .false.         !< flag to fix solar angle to initial time
+    logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
@@ -2315,7 +2317,7 @@ module GFS_typedefs
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
-                               fixed_date, fixed_solhr,                                     &
+                               fixed_date, fixed_solhr, daily_mean,                         &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
@@ -2485,6 +2487,7 @@ module GFS_typedefs
     Model%swhtr            = swhtr
     Model%fixed_date       = fixed_date
     Model%fixed_solhr      = fixed_solhr
+    Model%daily_mean       = daily_mean
 
     !--- microphysical switch
     Model%ncld             = ncld
@@ -3152,6 +3155,7 @@ module GFS_typedefs
       print *, ' swhtr             : ', Model%swhtr
       print *, ' fixed_date        : ', Model%fixed_date
       print *, ' fixed_solhr       : ', Model%fixed_solhr
+      print *, ' daily_mean        : ', Model%daily_mean
       print *, ' '
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld

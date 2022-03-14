@@ -843,6 +843,7 @@ module module_physics_driver
              Coupling%nirbmui, Coupling%nirdfui, Coupling%visbmui,          &
              Coupling%visdfui, Coupling%nirbmdi, Coupling%nirdfdi,          &
              Coupling%visbmdi, Coupling%visdfdi, ix, im, levs,              &
+             Model%daily_mean,                                              &
 !  ---  input/output:
              dtdt, dtdtc,                                                   &
 !  ---  outputs:

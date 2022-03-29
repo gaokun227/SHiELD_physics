@@ -1353,7 +1353,7 @@
       if( Model%lsswr ) then
         call coszmn (Grid%xlon,Grid%sinlat,         &     !  ---  inputs
                    Grid%coslat,Model%solhr, IM, me, & 
-                   Model%fix_cosz_dec, Model%fix_cosz_shr, &
+                   Model%daily_mean,                &
                    Radtend%coszen, Radtend%coszdg)        !  ---  outputs
       endif
 
@@ -1893,12 +1893,6 @@
           enddo
         endif
 
-        if (.not. Model%uni_cld .and. Model%lgocart) then
-          do k = 1, LM
-            k1 = k + kd
-            Coupling%cldcovi(:,k) = clouds(:,k1,1)
-          enddo
-        endif
       endif                                ! end_if_lssav
 !
       return

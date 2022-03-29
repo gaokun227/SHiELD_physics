@@ -2699,22 +2699,13 @@
       real (kind=kind_io8) gdata(idim*jdim)
       logical gaus
       real (kind=kind_io8) blno,blto
-      real (kind=kind_io8), allocatable :: data8(:)
+      real (kind=kind_io8) data8(idim*jdim)
       real (kind=kind_io4), allocatable :: data4(:)
 !
-      logical*1, allocatable :: lbms(:)
+      logical*1 lbms(mdata)
 !
       integer kpds(200),kgds(200)
       integer jpds(200),jgds(200), kpds0(200)
-
-      allocate(data8(1:idim*jdim))
-      allocate(lbms(1:mdata))
-      kpds = 0
-      kgds = 0
-      jpds = 0
-      jgds = 0
-      kpds0 = 0
-
 !
 !     if(me .eq. 0 .and. print_debug) then
 !     write(6,*) ' '
@@ -2766,10 +2757,10 @@
         call getgb(lugb,lugi,kdata,lskip,jpds,jgds,ndata,lskip,
      &             kpds,kgds,lbms,data8,jret)
       else if (w3kindreal == 4) then
-        allocate(data4(1:idim*jdim))
+        allocate(data4(idim*jdim))
         call getgb(lugb,lugi,kdata,lskip,jpds,jgds,ndata,lskip,
      &             kpds,kgds,lbms,data4,jret)
-        data8 = real(data4, kind=kind_io8)
+        data8 = data4
         deallocate(data4)
       else
         write(0,*)' Invalid w3kindreal --- aborting'
@@ -2799,8 +2790,6 @@
         call abort
       endif
 !
-      deallocate(data8)
-      deallocate(lbms)				  
       return
       end
       subroutine getarea(kgds,dlat,dlon,rslat,rnlat,wlon,elon,ijordr
@@ -8225,20 +8214,17 @@ cjfe
 !
       real (kind=kind_io8) gdata(len), slmask(len)
       real (kind=kind_io8), allocatable :: data(:,:), rslmsk(:,:)
-      real (kind=kind_io8), allocatable :: data8(:)
-      real (kind=kind_io4), allocatable :: data4(:)
+      real (kind=kind_io8) data8(mdata)
+      real (kind=kind_io4), allocatable ::  data4(:)
       real (kind=kind_io8), allocatable :: rlngrb(:), rltgrb(:)
 !
       logical lmask, yr2kc, gaus, ijordr
-      logical*1, allocatable :: lbms(:)
+      logical*1 lbms(mdata)
 !
       integer, intent(in) :: kpds7
       integer kpds(1000),kgds(1000)
       integer jpds(1000),jgds(1000), kpds0(1000)
       real (kind=kind_io8) outlat(len), outlon(len)
-
-      allocate(data8(1:mdata))
-      allocate(lbms(mdata))
 !
 !     integer imax_sv, jmax_sv, wlon_sv, rnlat_sv, kpds1_sv
 !     date imax_sv/0/, jmax_sv/0/, wlon_sv/999.0/, rnlat_sv/999.0/
@@ -8301,10 +8287,10 @@ cjfe
         call getgb(lugb,lugi,mdata,lskip,jpds,jgds,ndata,lskip,
      &             kpds,kgds,lbms,data8,jret)
       else if (w3kindreal==4) then
-        allocate(data4(1:mdata))
+        allocate(data4(mdata))
         call getgb(lugb,lugi,mdata,lskip,jpds,jgds,ndata,lskip,
      &             kpds,kgds,lbms,data4,jret)
-        data8 = real(data4, kind=kind_io8)
+        data8 = data4
         deallocate(data4)
       endif
       if (me .eq. 0 .and. print_debug)
@@ -8375,8 +8361,6 @@ cjfe
         deallocate (data, stat=iret)
         deallocate (rslmsk, stat=iret)
       call baclose(lugb,iret)
-        deallocate(data8)
-        deallocate(lbms)
 !
       return
       end
@@ -8411,7 +8395,7 @@ cjfe
 !
       real (kind=kind_io8) gdata(len), slmask(len)
       real (kind=kind_io8), allocatable :: data(:,:),rslmsk(:,:)
-      real (kind=kind_io8), allocatable :: data8(:)
+      real (kind=kind_io8) data8(mdata)
       real (kind=kind_io4), allocatable :: data4(:)
       real (kind=kind_io8), allocatable :: rlngrb(:), rltgrb(:)
 !
@@ -8421,7 +8405,6 @@ cjfe
       integer kpds(1000),kgds(1000)
       integer jpds(1000),jgds(1000), kpds0(1000)
       real (kind=kind_io8) outlat(len), outlon(len)
-
 !
 ! dayhf : julian day of the middle of each month
 !
@@ -8438,7 +8421,6 @@ cjfe
       real(4) fha4(5)
       integer ida(8),jda(8)
 !
-      allocate(data8(1:mdata))							  
       iret   = 0
       monend = 9999
 !
@@ -8549,10 +8531,10 @@ cjfe
         call getgb(lugb,lugi,mdata,lskip,jpds,jgds,ndata,lskip,
      &             kpds,kgds,lbms,data8,jret)
       elseif (w3kindreal == 4) then
-        allocate (data4(1:mdata))
+        allocate (data4(mdata))
         call getgb(lugb,lugi,mdata,lskip,jpds,jgds,ndata,lskip,
      &             kpds,kgds,lbms,data4,jret)
-        data8 = real(data4, kind=kind_io8)
+        data8 = data4
         deallocate(data4)
       endif
       if (me .eq. 0 .and. print_debug) write(6,*) 
@@ -8687,9 +8669,7 @@ cjfe
       deallocate (data, stat=iret)
       deallocate (rslmsk, stat=iret)
       call baclose(lugb,iret2)
-      
-      deallocate(data8)
-	  
+!     write(6,*) ' '
       return
 !
   100 continue
@@ -8700,7 +8680,6 @@ cjfe
 !
       call baclose(lugb,iret2)
 !
-      deallocate(data8)
       return
       end subroutine fixrda
       subroutine snodpth2(glacir,snwmax,snoanl, len, me)

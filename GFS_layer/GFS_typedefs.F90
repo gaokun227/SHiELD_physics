@@ -438,7 +438,6 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: upd_mfi (:,:)   => null()  !< instantaneous convective updraft mass flux
     real (kind=kind_phys), pointer :: dwn_mfi (:,:)   => null()  !< instantaneous convective downdraft mass flux
     real (kind=kind_phys), pointer :: det_mfi (:,:)   => null()  !< instantaneous convective detrainment mass flux
-    real (kind=kind_phys), pointer :: cldcovi (:,:)   => null()  !< instantaneous 3D cloud fraction
 
     contains
       procedure :: create  => coupling_create  !<   allocate array data
@@ -1909,14 +1908,12 @@ module GFS_typedefs
       allocate (Coupling%upd_mfi (IM,Model%levs))
       allocate (Coupling%dwn_mfi (IM,Model%levs))
       allocate (Coupling%det_mfi (IM,Model%levs))
-      allocate (Coupling%cldcovi (IM,Model%levs))
 
       Coupling%dqdti    = clear_val
       Coupling%cnvqci   = clear_val
       Coupling%upd_mfi  = clear_val
       Coupling%dwn_mfi  = clear_val
       Coupling%det_mfi  = clear_val
-      Coupling%cldcovi  = clear_val
     endif
 
   end subroutine coupling_create

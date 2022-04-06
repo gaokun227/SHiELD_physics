@@ -502,6 +502,9 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
           ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en,            &
+          pcw, edw, oew, rrw, tvw, pci, edi, oei, rri, tvi,             &
+          pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs,             &
+          pcg, edg, oeg, rrg, tvg,                                      &
           prefluxw, prefluxr, prefluxi, prefluxs, prefluxg,             &
           sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps
 
@@ -3476,7 +3479,13 @@ module module_physics_driver
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, water0, rain0, ice0, snow0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                                .false., te(:,levs:1:-1), prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
+                                .false., te(:,levs:1:-1), &
+                                pcw(:,levs:1:-1), edw(:,levs:1:-1), oew(:,levs:1:-1), rrw(:,levs:1:-1), tvw(:,levs:1:-1), &
+                                pci(:,levs:1:-1), edi(:,levs:1:-1), oei(:,levs:1:-1), rri(:,levs:1:-1), tvi(:,levs:1:-1), &
+                                pcr(:,levs:1:-1), edr(:,levs:1:-1), oer(:,levs:1:-1), rrr(:,levs:1:-1), tvr(:,levs:1:-1), &
+                                pcs(:,levs:1:-1), eds(:,levs:1:-1), oes(:,levs:1:-1), rrs(:,levs:1:-1), tvs(:,levs:1:-1), &
+                                pcg(:,levs:1:-1), edg(:,levs:1:-1), oeg(:,levs:1:-1), rrg(:,levs:1:-1), tvg(:,levs:1:-1), &
+                                prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
                                 prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
                                 cond0, dep0, reevap0, sub0, .true., Model%do_inline_mp)
 

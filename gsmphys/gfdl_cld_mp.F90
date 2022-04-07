@@ -1393,28 +1393,66 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
         ! optical extinction (oe), radar reflectivity factor (rr), and
         ! mass-weighted terminal velocity (tv)
         ! =======================================================================
+
+        pcw (i, :) = 0.0
+        edw (i, :) = 0.0
+        oew (i, :) = 0.0
+        rrw (i, :) = 0.0
+        tvw (i, :) = 0.0
+        pci (i, :) = 0.0
+        edi (i, :) = 0.0
+        oei (i, :) = 0.0
+        rri (i, :) = 0.0
+        tvi (i, :) = 0.0
+        pcr (i, :) = 0.0
+        edr (i, :) = 0.0
+        oer (i, :) = 0.0
+        rrr (i, :) = 0.0
+        tvr (i, :) = 0.0
+        pcs (i, :) = 0.0
+        eds (i, :) = 0.0
+        oes (i, :) = 0.0
+        rrs (i, :) = 0.0
+        tvs (i, :) = 0.0
+        pcg (i, :) = 0.0
+        edg (i, :) = 0.0
+        oeg (i, :) = 0.0
+        rrg (i, :) = 0.0
+        tvg (i, :) = 0.0
         
         do k = ks, ke
-            call cal_pc_ed_oe_rr_tv (qlz (k), den (k), blinw, muw, pcaw, pcbw, pcw (i, k), &
-                edaw, edbw, edw (i, k), oeaw, oebw, oew (i, k), rraw, rrbw, rrw (i, k), &
-                tvaw, tvbw, tvw (i, k))
-            call cal_pc_ed_oe_rr_tv (qiz (k), den (k), blini, mui, pcai, pcbi, pci (i, k), &
-                edai, edbi, edi (i, k), oeai, oebi, oei (i, k), rrai, rrbi, rri (i, k), &
-                tvai, tvbi, tvi (i, k))
-            call cal_pc_ed_oe_rr_tv (qrz (k), den (k), blinr, mur, pcar, pcbr, pcr (i, k), &
-                edar, edbr, edr (i, k), oear, oebr, oer (i, k), rrar, rrbr, rrr (i, k), &
-                tvar, tvbr, tvr (i, k))
-            call cal_pc_ed_oe_rr_tv (qsz (k), den (k), blins, mus, pcas, pcbs, pcs (i, k), &
-                edas, edbs, eds (i, k), oeas, oebs, oes (i, k), rras, rrbs, rrs (i, k), &
-                tvas, tvbs, tvs (i, k))
+            if (qlz (k) .gt. qcmin) then
+                call cal_pc_ed_oe_rr_tv (qlz (k), den (k), blinw, muw, pcaw, pcbw, pcw (i, k), &
+                    edaw, edbw, edw (i, k), oeaw, oebw, oew (i, k), rraw, rrbw, rrw (i, k), &
+                    tvaw, tvbw, tvw (i, k))
+            endif
+            if (qiz (k) .gt. qcmin) then
+                call cal_pc_ed_oe_rr_tv (qiz (k), den (k), blini, mui, pcai, pcbi, pci (i, k), &
+                    edai, edbi, edi (i, k), oeai, oebi, oei (i, k), rrai, rrbi, rri (i, k), &
+                    tvai, tvbi, tvi (i, k))
+            endif
+            if (qrz (k) .gt. qcmin) then
+                call cal_pc_ed_oe_rr_tv (qrz (k), den (k), blinr, mur, pcar, pcbr, pcr (i, k), &
+                    edar, edbr, edr (i, k), oear, oebr, oer (i, k), rrar, rrbr, rrr (i, k), &
+                    tvar, tvbr, tvr (i, k))
+            endif
+            if (qsz (k) .gt. qcmin) then
+                call cal_pc_ed_oe_rr_tv (qsz (k), den (k), blins, mus, pcas, pcbs, pcs (i, k), &
+                    edas, edbs, eds (i, k), oeas, oebs, oes (i, k), rras, rrbs, rrs (i, k), &
+                    tvas, tvbs, tvs (i, k))
+            endif
             if (do_hail) then
-                call cal_pc_ed_oe_rr_tv (qgz (k), den (k), blinh, muh, pcah, pcbh, pcg (i, k), &
-                    edah, edbh, edg (i, k), oeah, oebh, oeg (i, k), rrah, rrbh, rrg (i, k), &
-                    tvah, tvbh, tvg (i, k))
+                if (qgz (k) .gt. qcmin) then
+                    call cal_pc_ed_oe_rr_tv (qgz (k), den (k), blinh, muh, pcah, pcbh, pcg (i, k), &
+                        edah, edbh, edg (i, k), oeah, oebh, oeg (i, k), rrah, rrbh, rrg (i, k), &
+                        tvah, tvbh, tvg (i, k))
+                endif
             else
-                call cal_pc_ed_oe_rr_tv (qgz (k), den (k), bling, mug, pcag, pcbg, pcg (i, k), &
-                    edag, edbg, edg (i, k), oeag, oebg, oeg (i, k), rrag, rrbg, rrg (i, k), &
-                    tvag, tvbg, tvg (i, k))
+                if (qgz (k) .gt. qcmin) then
+                    call cal_pc_ed_oe_rr_tv (qgz (k), den (k), bling, mug, pcag, pcbg, pcg (i, k), &
+                        edag, edbg, edg (i, k), oeag, oebg, oeg (i, k), rrag, rrbg, rrg (i, k), &
+                        tvag, tvbg, tvg (i, k))
+                endif
             endif
         enddo
 
@@ -6288,8 +6326,12 @@ subroutine rad_ref (is, ie, js, je, isd, ied, jsd, jed, q, pt, delp, peln, &
                 
                 if (rainwat .gt. 0) then
                     qden = den (k) * qmr (k)
-                    call cal_pc_ed_oe_rr_tv (qmr (k), den (k), blinr, mur, &
-                        rra = rrar, rrb = rrbr, rr = fac_r)
+                    if (qmr (k) .gt. qcmin) then
+                        call cal_pc_ed_oe_rr_tv (qmr (k), den (k), blinr, mur, &
+                            rra = rrar, rrb = rrbr, rr = fac_r)
+                    else
+                        fac_r = 0.0
+                    endif
                     if (radr_flag .eq. 1 .or. radr_flag .eq. 2) then
                         z_e = z_e + fac_r * 1.e18
                     endif
@@ -6300,8 +6342,12 @@ subroutine rad_ref (is, ie, js, je, isd, ied, jsd, jed, q, pt, delp, peln, &
                 
                 if (snowwat .gt. 0) then
                     qden = den (k) * qms (k)
-                    call cal_pc_ed_oe_rr_tv (qms (k), den (k), blins, mus, &
-                        rra = rras, rrb = rrbs, rr = fac_s)
+                    if (qms (k) .gt. qcmin) then
+                        call cal_pc_ed_oe_rr_tv (qms (k), den (k), blins, mus, &
+                            rra = rras, rrb = rrbs, rr = fac_s)
+                    else
+                        fac_s = 0.0
+                    endif
                     if (rads_flag .eq. 1) then
                         if (pt (i, j, k) .lt. tice) then
                             z_e = z_e + fac_s * 1.e18 * alpha * (rhos / rhor) ** 2
@@ -6324,8 +6370,12 @@ subroutine rad_ref (is, ie, js, je, isd, ied, jsd, jed, q, pt, delp, peln, &
                 if (graupel .gt. 0) then
                     qden = den (k) * qmg (k)
                     if (do_hail .and. .not. do_inline_mp) then
-                        call cal_pc_ed_oe_rr_tv (qmg (k), den (k), blinh, muh, &
-                            rra = rrah, rrb = rrbh, rr = fac_g)
+                        if (qmg (k) .gt. qcmin) then
+                            call cal_pc_ed_oe_rr_tv (qmg (k), den (k), blinh, muh, &
+                                rra = rrah, rrb = rrbh, rr = fac_g)
+                        else
+                            fac_g = 0.0
+                        endif
                         if (radg_flag .eq. 1) then
                             if (pt (i, j, k) .lt. tice) then
                                 z_e = z_e + fac_g * 1.e18 * alpha * (rhoh / rhor) ** 2
@@ -6337,8 +6387,12 @@ subroutine rad_ref (is, ie, js, je, isd, ied, jsd, jed, q, pt, delp, peln, &
                             z_e = z_e + fac_g * 1.e18
                         endif
                     else
-                        call cal_pc_ed_oe_rr_tv (qmg (k), den (k), bling, mug, &
-                            rra = rrag, rrb = rrbg, rr = fac_g)
+                        if (qmg (k) .gt. qcmin) then
+                            call cal_pc_ed_oe_rr_tv (qmg (k), den (k), bling, mug, &
+                                rra = rrag, rrb = rrbg, rr = fac_g)
+                        else
+                            fac_g = 0.0
+                        endif
                         if (radg_flag .eq. 1) then
                             if (pt (i, j, k) .lt. tice) then
                                 z_e = z_e + fac_g * 1.e18 * alpha * (rhog / rhor) ** 2

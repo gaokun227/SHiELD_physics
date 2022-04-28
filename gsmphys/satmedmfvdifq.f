@@ -54,7 +54,7 @@
      &     prsi,del,prsl,prslk,phii,phil,delt,
      &     dspheat,dusfc,dvsfc,dtsfc,dqsfc,hpbl,
      &     kinver,xkzm_mo,xkzm_ho,xkzm_ml,xkzm_hl,xkzm_mi,xkzm_hi,
-     &     xkzm_s,xkzinv,rlmx,zolcru,cs0,
+     &     xkzm_s,xkzinv,rlmx,elmx,zolcru,cs0,ck0,ck1,ce0,
      &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,dkt_out,
      &     flux_up, flux_dn)
 !
@@ -225,13 +225,14 @@
       parameter(dw2min=1.e-4,dkmax=1000.)!,xkgdx=5000.)
       parameter(qlcr=3.5e-5,zstblmax=2500.) !,xkzinv=0.1)
       parameter(h1=0.33333333,hcrinv=250.)
-      parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
-!     parameter(ce0=0.4,cs0=0.5)
-      parameter(ce0=0.4)
+!      parameter(ck0=0.4,ck1=0.15,ch0=0.4,ch1=0.15)
+!      parameter(ce0=0.4)
       parameter(rchck=1.5,ndt=20)
 !
 !************************************************************************
-      elmx = rlmx
+!      elmx = rlmx
+      ch0 = ck0
+      ch1 = ck1
       dt2  = delt
       rdt = 1. / dt2
       dkt_out = 0.
@@ -971,6 +972,7 @@
             zk = tem / ptem
           endif 
           elm(i,k) = zk*rlam(i,k)/(rlam(i,k)+zk)
+!          elm(i,k) = min(zk, rlam(i,k))
 !
           dz = zi(i,k+1) - zi(i,k)
           tem = max(gdx(i),dz)

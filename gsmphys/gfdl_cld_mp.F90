@@ -39,16 +39,19 @@ module gfdl_cld_mp_mod
     ! -----------------------------------------------------------------------
     
     interface wqs
+        procedure wes_t
         procedure wqs_trho
         procedure wqs_ptqv
     end interface wqs
     
     interface mqs
+        procedure mes_t
         procedure mqs_trho
         procedure mqs_ptqv
     end interface mqs
     
     interface iqs
+        procedure ies_t
         procedure iqs_trho
         procedure iqs_ptqv
     end interface iqs
@@ -7047,6 +7050,44 @@ subroutine qs_table4 (n)
 end subroutine qs_table4
 
 ! =======================================================================
+! compute the saturated water pressure, core function
+! =======================================================================
+
+function es_core (length, tk, table, des)
+    
+    implicit none
+    
+    real :: es_core
+    
+    ! -----------------------------------------------------------------------
+    ! input / output arguments
+    ! -----------------------------------------------------------------------
+
+    integer, intent (in) :: length
+    
+    real, intent (in) :: tk
+    
+    real, intent (in), dimension (length) :: table, des
+    
+    ! -----------------------------------------------------------------------
+    ! local variables
+    ! -----------------------------------------------------------------------
+    
+    integer :: it
+    
+    real :: ap1, tmin
+    
+    if (.not. tables_are_initialized) call qs_init
+    
+    tmin = tice - 160.
+    ap1 = 10. * dim (tk, tmin) + 1.
+    ap1 = min (2621., ap1)
+    it = ap1
+    es_core = table (it) + (ap1 - it) * des (it)
+    
+end function es_core
+
+! =======================================================================
 ! compute the saturated specific humidity, core function
 ! =======================================================================
 
@@ -7074,20 +7115,81 @@ function qs_core (length, tk, den, dqdt, table, des)
     
     integer :: it
     
-    real :: es, ap1, tmin
-    
-    if (.not. tables_are_initialized) call qs_init
+    real :: ap1, tmin
     
     tmin = tice - 160.
     ap1 = 10. * dim (tk, tmin) + 1.
     ap1 = min (2621., ap1)
-    it = ap1
-    es = table (it) + (ap1 - it) * des (it)
-    qs_core = es / (rvgas * tk * den)
+    qs_core = es_core (length, tk, table, des) / (rvgas * tk * den)
     it = ap1 - 0.5
     dqdt = 10. * (des (it) + (ap1 - it) * (des (it + 1) - des (it))) / (rvgas * tk * den)
     
 end function qs_core
+
+! =======================================================================
+! compute the saturated water pressure based on table 0, water only
+! useful for idealized experiments
+! it can also be used in warm rain microphyscis only
+! =======================================================================
+
+function wes_t (tk)
+    
+    implicit none
+    
+    real :: wes_t
+    
+    ! -----------------------------------------------------------------------
+    ! input / output arguments
+    ! -----------------------------------------------------------------------
+    
+    real, intent (in) :: tk
+    
+    wes_t = es_core (length, tk, table0, des0)
+    
+end function wes_t
+
+! =======================================================================
+! compute the saturated water pressure based on table 1, water and ice
+! the most realistic saturation water vapor pressure for the full temperature range
+! =======================================================================
+
+function mes_t (tk)
+    
+    implicit none
+    
+    real :: mes_t
+    
+    ! -----------------------------------------------------------------------
+    ! input / output arguments
+    ! -----------------------------------------------------------------------
+    
+    real, intent (in) :: tk
+    
+    mes_t = es_core (length, tk, table1, des1)
+    
+end function mes_t
+
+! =======================================================================
+! compute the saturated water pressure based on table 2, water and ice
+! it is not designed for mixed-phase cloud microphysics
+! used for ice microphysics (< 0 deg C) or warm rain microphysics (> 0 deg C)
+! =======================================================================
+
+function ies_t (tk)
+    
+    implicit none
+    
+    real :: ies_t
+    
+    ! -----------------------------------------------------------------------
+    ! input / output arguments
+    ! -----------------------------------------------------------------------
+    
+    real, intent (in) :: tk
+    
+    ies_t = es_core (length, tk, table2, des2)
+    
+end function ies_t
 
 ! =======================================================================
 ! compute the saturated specific humidity based on table 0, water only

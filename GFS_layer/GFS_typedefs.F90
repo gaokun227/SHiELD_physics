@@ -127,6 +127,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: exch_h (:,:)   => null()  !< 3D heat exchange coefficient
 
     !--- precipitation
+    real (kind=kind_phys), pointer :: prec (:)     => null()  !< convective precipitation
     real (kind=kind_phys), pointer :: prew (:)     => null()  !< water
     real (kind=kind_phys), pointer :: prer (:)     => null()  !< rain
     real (kind=kind_phys), pointer :: prei (:)     => null()  !< ice
@@ -553,6 +554,9 @@ module GFS_typedefs
 
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
+
+    !--- SA-SAS parameters
+    logical              :: do_inline_sas   !< flag for SA-SAS
 
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp         !< flag for COSP
@@ -1318,12 +1322,14 @@ module GFS_typedefs
     endif
 
 
+    allocate (Statein%prec(IM))
     allocate (Statein%prew(IM))
     allocate (Statein%prer(IM))
     allocate (Statein%prei(IM))
     allocate (Statein%pres(IM))
     allocate (Statein%preg(IM))
 
+    Statein%prec = clear_val
     Statein%prew = clear_val
     Statein%prer = clear_val
     Statein%prei = clear_val
@@ -2044,6 +2050,9 @@ module GFS_typedefs
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
 
+    !--- SA-SAS parameters
+    logical              :: do_inline_sas = .false.          !< flag for SA-SAS
+
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp = .false.                !< flag for COSP
 
@@ -2323,8 +2332,9 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, daily_mean,                         &
                           !--- microphysical parameterizations
-                               ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
-                               do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
+                               ncld, do_inline_mp, do_inline_sas, zhao_mic, psautco,        &
+                               prautco, evpco, do_cosp, wminco, fprcp, mg_dcs, mg_qcvar,    &
+                               mg_ts_auto_ice,                                              &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !    Noah MP options
@@ -2497,6 +2507,8 @@ module GFS_typedefs
     Model%ncld             = ncld
     !--- GFDL microphysical parameters
     Model%do_inline_mp     = do_inline_mp
+    !--- SA-SAS parameters
+    Model%do_inline_sas    = do_inline_sas
     !--- The CFMIP Observation Simulator Package (COSP)
     Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
@@ -3026,6 +3038,11 @@ module GFS_typedefs
       if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics'
     endif
 
+    if (Model%do_inline_sas) then
+      Model%do_deep = .false.
+      Model%shal_cnv = .false.
+    endif
+
     Model%uni_cld = .false.
     if ((Model%shoc_cld) .or. (Model%ncld == 2)) then
       Model%uni_cld = .true.
@@ -3165,6 +3182,8 @@ module GFS_typedefs
       print *, ' ncld              : ', Model%ncld
       print *, ' GFDL microphysical parameters'
       print *, ' do_inline_mp      : ', Model%do_inline_mp
+      print *, ' SA-SAS parameters'
+      print *, ' do_inline_sas     : ', Model%do_inline_sas
       print *, ' The CFMIP Observation Simulator Package (COSP)'
       print *, ' do_cosp           : ', Model%do_cosp
       print *, ' Z-C microphysical parameters'

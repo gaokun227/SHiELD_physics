@@ -2451,6 +2451,7 @@ module module_physics_driver
           cnvc  = 0.
         endif
 
+        if (Model%do_inline_sas) rain1 = Statein%prec(:)
 
         if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
           do k=1,levs

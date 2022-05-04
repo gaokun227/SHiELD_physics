@@ -2869,6 +2869,11 @@ module GFS_typedefs
                                             ' ntke=',Model%ntke
     endif
 
+    if (Model%do_inline_sas) then
+      Model%do_deep = .false.
+      Model%shal_cnv = .false.
+    endif
+
     !--- set number of cloud types
     if (Model%cscnv) then
       Model%nctp = nint(Model%cs_parm(5))
@@ -2943,6 +2948,7 @@ module GFS_typedefs
                  print *,' scale & aerosol-aware mass-flux deep conv scheme'
               endif
            else
+              Model%imfdeepcnv = -1
               print*, ' Deep convection scheme disabled'
            endif
         endif
@@ -3036,11 +3042,6 @@ module GFS_typedefs
       Model%shcnvcw = .false.
       Model%cnvcld  = .false.
       if (Model%me == Model%master) print *,' Using GFDL Cloud Microphysics'
-    endif
-
-    if (Model%do_inline_sas) then
-      Model%do_deep = .false.
-      Model%shal_cnv = .false.
     endif
 
     Model%uni_cld = .false.

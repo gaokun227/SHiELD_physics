@@ -558,6 +558,9 @@ module GFS_typedefs
     !--- SA-SAS parameters
     logical              :: do_inline_sas   !< flag for SA-SAS
 
+    !--- SA-TKE-EDMF parameters
+    logical              :: do_inline_edmf  !< flag for SA-TKE-EDMF
+
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp         !< flag for COSP
 
@@ -2053,6 +2056,9 @@ module GFS_typedefs
     !--- SA-SAS parameters
     logical              :: do_inline_sas = .false.          !< flag for SA-SAS
 
+    !--- SA-TKE-EDMF parameters
+    logical              :: do_inline_edmf = .false.         !< flag for SA-TKE-EDMF
+
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp = .false.                !< flag for COSP
 
@@ -2332,9 +2338,9 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, daily_mean,                         &
                           !--- microphysical parameterizations
-                               ncld, do_inline_mp, do_inline_sas, zhao_mic, psautco,        &
-                               prautco, evpco, do_cosp, wminco, fprcp, mg_dcs, mg_qcvar,    &
-                               mg_ts_auto_ice,                                              &
+                               ncld, do_inline_mp, do_inline_sas, do_inline_edmf, zhao_mic, &
+                               psautco, prautco, evpco, do_cosp, wminco, fprcp, mg_dcs,     &
+                               mg_qcvar, mg_ts_auto_ice,                                    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !    Noah MP options
@@ -2509,6 +2515,8 @@ module GFS_typedefs
     Model%do_inline_mp     = do_inline_mp
     !--- SA-SAS parameters
     Model%do_inline_sas    = do_inline_sas
+    !--- SA-TKE-EDMF parameters
+    Model%do_inline_edmf   = do_inline_edmf
     !--- The CFMIP Observation Simulator Package (COSP)
     Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
@@ -2869,9 +2877,15 @@ module GFS_typedefs
                                             ' ntke=',Model%ntke
     endif
 
+    !--- turn off convection when the inline SA-SAS is activated
     if (Model%do_inline_sas) then
       Model%do_deep = .false.
       Model%shal_cnv = .false.
+    endif
+
+    !--- turn off PBL when the inline SA-TKE-EDMF is activated
+    if (Model%do_inline_edmf) then
+      Model%no_pbl = .true.
     endif
 
     !--- set number of cloud types
@@ -3185,6 +3199,8 @@ module GFS_typedefs
       print *, ' do_inline_mp      : ', Model%do_inline_mp
       print *, ' SA-SAS parameters'
       print *, ' do_inline_sas     : ', Model%do_inline_sas
+      print *, ' SA-EDMF parameters'
+      print *, ' do_inline_edmf    : ', Model%do_inline_edmf
       print *, ' The CFMIP Observation Simulator Package (COSP)'
       print *, ' do_cosp           : ', Model%do_cosp
       print *, ' Z-C microphysical parameters'

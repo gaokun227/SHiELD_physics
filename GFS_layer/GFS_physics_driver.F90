@@ -2441,6 +2441,14 @@ module module_physics_driver
 !           if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
           endif
 
+        elseif (Model%do_inline_sas) then
+          cld1d = 0.
+          rain1 = Statein%prec(:)
+          ud_mf = 0.
+          dd_mf = 0.
+          dt_mf = 0.
+          cnvw  = 0.
+          cnvc  = 0.
         else ! no deep convection
           cld1d = 0.
           rain1 = 0.
@@ -2450,8 +2458,6 @@ module module_physics_driver
           cnvw  = 0.
           cnvc  = 0.
         endif
-
-        if (Model%do_inline_sas) rain1 = Statein%prec(:)
 
         if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
           do k=1,levs

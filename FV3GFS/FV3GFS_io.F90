@@ -5111,7 +5111,7 @@ end subroutine register_diag_manager_controlled_diagnostics
             endif
 
            !!!! Accumulated diagnostics --- lmh 19 sep 17
-           if (fprint .or. prt_stats) then
+           if (fprint .and. prt_stats) then
            select case (trim(Diag(idx)%name))
            case('totprcp')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)

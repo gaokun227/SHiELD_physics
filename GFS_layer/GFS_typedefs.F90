@@ -561,6 +561,9 @@ module GFS_typedefs
     !--- SA-TKE-EDMF parameters
     logical              :: do_inline_edmf  !< flag for SA-TKE-EDMF
 
+    !--- GWD parameters
+    logical              :: do_inline_gwd   !< flag for GWD
+
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp         !< flag for COSP
 
@@ -2059,6 +2062,9 @@ module GFS_typedefs
     !--- SA-TKE-EDMF parameters
     logical              :: do_inline_edmf = .false.         !< flag for SA-TKE-EDMF
 
+    !--- GWD parameters
+    logical              :: do_inline_gwd = .false.          !< flag for GWD
+
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp = .false.                !< flag for COSP
 
@@ -2338,9 +2344,9 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, daily_mean,                         &
                           !--- microphysical parameterizations
-                               ncld, do_inline_mp, do_inline_sas, do_inline_edmf, zhao_mic, &
-                               psautco, prautco, evpco, do_cosp, wminco, fprcp, mg_dcs,     &
-                               mg_qcvar, mg_ts_auto_ice,                                    &
+                               ncld, do_inline_mp, do_inline_sas, do_inline_edmf,           &
+                               do_inline_gwd, zhao_mic, psautco, prautco, evpco, do_cosp,   &
+                               wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !    Noah MP options
@@ -2517,6 +2523,8 @@ module GFS_typedefs
     Model%do_inline_sas    = do_inline_sas
     !--- SA-TKE-EDMF parameters
     Model%do_inline_edmf   = do_inline_edmf
+    !--- GWD parameters
+    Model%do_inline_gwd    = do_inline_gwd
     !--- The CFMIP Observation Simulator Package (COSP)
     Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
@@ -2888,6 +2896,12 @@ module GFS_typedefs
       Model%no_pbl = .true.
     endif
 
+    !--- turn off gravity wave drag when the inline GWD is activated
+    if (Model%do_inline_gwd) then
+      Model%orogwd = .false.
+      Model%cnvgwd = .false.
+    endif
+
     !--- set number of cloud types
     if (Model%cscnv) then
       Model%nctp = nint(Model%cs_parm(5))
@@ -3201,6 +3215,8 @@ module GFS_typedefs
       print *, ' do_inline_sas     : ', Model%do_inline_sas
       print *, ' SA-EDMF parameters'
       print *, ' do_inline_edmf    : ', Model%do_inline_edmf
+      print *, ' GWD parameters'
+      print *, ' do_inline_gwd     : ', Model%do_inline_gwd
       print *, ' The CFMIP Observation Simulator Package (COSP)'
       print *, ' do_cosp           : ', Model%do_cosp
       print *, ' Z-C microphysical parameters'

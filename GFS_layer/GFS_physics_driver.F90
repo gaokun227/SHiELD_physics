@@ -1583,6 +1583,9 @@ module module_physics_driver
             dusfc1(i) = dusfc1(i) + Statein%ugrs(i,1) * tem1 * conw * del(i,1)
             dvdt(i,1) = dvdt(i,1) + Statein%vgrs(i,1) * tem1
             dvsfc1(i) = dvsfc1(i) + Statein%vgrs(i,1) * tem1 * conw * del(i,1)
+            Stateout%radh(i,:) = Radtend%htrsw(i,:)*xmu(i)+Radtend%htrlw(i,:)
+            stateout%hflx(i) = hflx(i)
+            stateout%evap(i) = evap(i)
          enddo
 
       else

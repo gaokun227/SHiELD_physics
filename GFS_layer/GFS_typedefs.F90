@@ -164,6 +164,10 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  !< updated temperature
     real (kind=kind_phys), pointer :: gq0 (:,:,:) => null()  !< updated tracers
 
+    real (kind=kind_phys), pointer :: radh (:,:) => null()  !< radiation heating
+    real (kind=kind_phys), pointer :: hflx (:) => null()  !< surface sensible heat flux
+    real (kind=kind_phys), pointer :: evap (:) => null()  !< surface evaporation from latent heat flux
+
     contains
       procedure :: create  => stateout_create  !<   allocate array data
   end type GFS_stateout_type
@@ -1394,10 +1398,18 @@ module GFS_typedefs
     allocate (Stateout%gt0 (IM,Model%levs))
     allocate (Stateout%gq0 (IM,Model%levs,Model%ntrac))
 
+    allocate (Stateout%radh (IM,Model%levs))
+    allocate (Stateout%hflx (IM))
+    allocate (Stateout%evap (IM))
+
     Stateout%gu0 = clear_val
     Stateout%gv0 = clear_val
     Stateout%gt0 = clear_val
     Stateout%gq0 = clear_val
+
+    Stateout%radh = clear_val
+    Stateout%hflx = clear_val
+    Stateout%evap = clear_val
 
  end subroutine stateout_create
 

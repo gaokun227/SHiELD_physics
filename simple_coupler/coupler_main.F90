@@ -1,23 +1,22 @@
 !***********************************************************************
-!*                   GNU General Public License                        *
-!* This file is a part of fvGFS.                                       *
-!*                                                                     *
-!* fvGFS is free software; you can redistribute it and/or modify it    *
-!* and are expected to follow the terms of the GNU General Public      *
-!* License as published by the Free Software Foundation; either        *
-!* version 2 of the License, or (at your option) any later version.    *
-!*                                                                     *
-!* fvGFS is distributed in the hope that it will be useful, but        *
-!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
-!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
-!* General Public License for more details.                            *
-!*                                                                     *
-!* For the full text of the GNU General Public License,                *
-!* write to: Free Software Foundation, Inc.,                           *
-!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
-!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-
 program coupler_main
 
 !-----------------------------------------------------------------------
@@ -42,24 +41,16 @@ use  atmos_model_mod,  only: atmos_model_init, atmos_model_end,  &
                              atmos_data_type, atmos_model_restart
 
 use constants_mod,     only: constants_init
-#ifdef INTERNAL_FILE_NML
-use mpp_mod,            only: input_nml_file
-#else
-use fms_mod,            only: open_namelist_file
-#endif
+use mpp_mod,           only: input_nml_file
+use fms_affinity_mod,  only: fms_affinity_init, fms_affinity_set
 
-use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
-
-use       fms_mod,     only: file_exist, check_nml_error,               &
-                             error_mesg, fms_init, fms_end, close_file, &
+use       fms_mod,     only: check_nml_error,                 &
+                             error_mesg, fms_init, fms_end,   &
                              write_version_number, uppercase
-
+use fms2_io_mod,       only: ascii_read, file_exists
 use mpp_mod,           only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
                              mpp_set_current_pelist, stdlog, mpp_error, NOTE, FATAL, WARNING
 use mpp_mod,           only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sync
-
-use mpp_io_mod,        only: mpp_open, mpp_close, &
-                             MPP_NATIVE, MPP_RDONLY, MPP_DELETE
 
 use mpp_domains_mod,   only: mpp_get_global_domain, mpp_global_field, CORNER
 use memutils_mod,      only: print_memuse_stats
@@ -88,7 +79,11 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
    type (time_type) :: Time_atmos, Time_init, Time_end,  &
                        Time_step_atmos, Time_step_ocean, &
-                       Time_restart, Time_step_restart
+                       Time_restart, Time_step_restart,  &
+                       Time_start_restart, Time_restart_aux, &
+                       Time_step_restart_aux, Time_start_restart_aux, &
+                       Time_duration_restart_aux, Time_restart_end_aux
+
    integer :: num_cpld_calls, num_atmos_calls, nc, na, ret
 
 ! ----- coupled model initial date -----
@@ -106,22 +101,35 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
    character(len=17) :: calendar = '                 '
    logical :: force_date_from_namelist = .false.  ! override restart values for date
    integer :: months=0, days=0, hours=0, minutes=0, seconds=0
+   integer :: iau_offset = 0
    integer :: dt_atmos = 0
    integer :: dt_ocean = 0
    integer :: restart_days = 0
    integer :: restart_secs = 0
+   integer :: restart_start_days = 0
+   integer :: restart_start_secs = 0
+   integer :: restart_days_aux = 0
+   integer :: restart_secs_aux = 0
+   integer :: restart_start_days_aux = 0
+   integer :: restart_start_secs_aux = 0
+   integer :: restart_duration_days_aux = 0
+   integer :: restart_duration_secs_aux = 0
    integer :: atmos_nthreads = 1
    logical :: memuse_verbose = .false.
    logical :: use_hyper_thread = .false.
 
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
-                          months, days, hours, minutes, seconds,  &
+                          months, days, hours, minutes, seconds, iau_offset,  &
                           dt_atmos, dt_ocean, atmos_nthreads, memuse_verbose, &
-                          use_hyper_thread, restart_secs, restart_days
+                          use_hyper_thread, restart_secs, restart_days, &
+                          restart_start_secs, restart_start_days, &
+                          restart_secs_aux, restart_days_aux, &
+                          restart_start_secs_aux, restart_start_days_aux, &
+                          restart_duration_secs_aux, restart_duration_days_aux
 
 ! ----- local variables -----
    character(len=32) :: timestamp
-   logical :: intrm_rst
+   logical :: intrm_rst, intrm_rst_1step
 
 !#######################################################################
 
@@ -156,11 +164,28 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
 !--- intermediate restart
     if (intrm_rst) then
-      if ((nc /= num_cpld_calls) .and. (Time_atmos == Time_restart)) then
-        timestamp = date_to_string (Time_restart)
-        call atmos_model_restart(Atm, timestamp)
-        call coupler_res(timestamp)
-        Time_restart = Time_restart + Time_step_restart
+      if (nc /= num_cpld_calls) then
+        if (intrm_rst_1step .and. nc == 1) then
+          timestamp = date_to_string (Time_atmos)
+          call atmos_model_restart(Atm, timestamp)
+          call coupler_res(timestamp)
+        endif
+        if (Time_atmos == Time_restart .or. Time_atmos == Time_restart_aux) then
+          if (Time_atmos == Time_restart) then
+            timestamp = date_to_string (Time_restart)
+          else
+            timestamp = date_to_string (Time_restart_aux)
+          endif
+          call atmos_model_restart(Atm, timestamp)
+          call coupler_res(timestamp)
+          if (Time_atmos == Time_restart) &
+              Time_restart = Time_restart + Time_step_restart
+          if ((restart_secs_aux > 0 .or. restart_days_aux > 0) .and. &
+              Time_atmos == Time_restart_aux .and. &
+              Time_restart_aux < Time_restart_end_aux) then
+            Time_restart_aux = Time_restart_aux + Time_step_restart_aux
+          endif
+        endif
       endif
     endif
 
@@ -170,9 +195,6 @@ character(len=128) :: tag = '$Name: ulm_201505 $'
 
 !-----------------------------------------------------------------------
 
-#ifdef AVEC_TIMERS
- call avec_timers_output
-#endif
  call mpp_set_current_pelist()
  call mpp_clock_end(mainClock)
  call mpp_clock_begin(termClock)
@@ -196,7 +218,7 @@ contains
 !-----------------------------------------------------------------------
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
-    integer :: total_days, total_seconds, unit, ierr, io
+    integer :: total_days, total_seconds, ierr, io
     integer :: n, gnlon, gnlat
     integer :: date(6), flags
     type (time_type) :: Run_length
@@ -205,6 +227,9 @@ contains
 
     logical, allocatable, dimension(:,:) :: mask
     real,    allocatable, dimension(:,:) :: glon_bnd, glat_bnd
+    character(len=:), dimension(:), allocatable :: restart_file !< Restart file saved as a string
+    integer :: time_stamp_unit !< Unit of the time_stamp file
+    integer :: ascii_unit  !< Unit of a dummy ascii file
 
 !-----------------------------------------------------------------------
 !----- initialization timing identifiers ----
@@ -212,24 +237,8 @@ contains
 !----- read namelist -------
 !----- for backwards compatibilty read from file coupler.nml -----
 
-#ifdef INTERNAL_FILE_NML
       read(input_nml_file, nml=coupler_nml, iostat=io)
       ierr = check_nml_error(io, 'coupler_nml')
-#else
-   if (file_exist('input.nml')) then
-      unit = open_namelist_file ()
-   else
-      call error_mesg ('program coupler',  &
-                       'namelist file input.nml does not exist', FATAL)
-   endif
-
-   ierr=1
-   do while (ierr /= 0)
-       read  (unit, nml=coupler_nml, iostat=io, end=10)
-       ierr = check_nml_error (io, 'coupler_nml')
-   enddo
-10 call close_file (unit)
-#endif
 
 !----- write namelist to logfile -----
    call write_version_number (version, tag)
@@ -241,18 +250,12 @@ contains
 
 !----- read restart file -----
 
-   if (file_exist('INPUT/coupler.res')) then
-       call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
-       read (unit,*,err=999) calendar_type
-       read (unit,*) date_init
-       read (unit,*) date
-       goto 998 !back to fortran-4
-     ! read old-style coupler.res
-   999 call mpp_close (unit)
-       call mpp_open (unit, 'INPUT/coupler.res', action=MPP_RDONLY, form=MPP_NATIVE)
-       read (unit) calendar_type
-       read (unit) date
-   998 call mpp_close(unit)
+   if (file_exists('INPUT/coupler.res')) then
+       call ascii_read('INPUT/coupler.res', restart_file)
+       read(restart_file(1), *) calendar_type
+       read(restart_file(2), *) date_init
+       read(restart_file(3), *) date
+       deallocate(restart_file)
    else
        force_date_from_namelist = .true.
    endif
@@ -350,17 +353,17 @@ contains
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
 
-      call mpp_open( unit, 'time_stamp.out', nohdrs=.TRUE. )
+      if ( mpp_pe().EQ.mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
       month = month_name(date(2))
-      if ( mpp_pe() == mpp_root_pe() ) write (unit,20) date, month(1:3)
+      if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
       call get_date (Time_end, date(1), date(2), date(3),  &
                                date(4), date(5), date(6))
       month = month_name(date(2))
-      if ( mpp_pe() == mpp_root_pe() ) write (unit,20) date, month(1:3)
+      if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-      call mpp_close (unit)
+      if ( mpp_pe().EQ.mpp_root_pe() ) close(time_stamp_unit)
 
   20  format (6i4,2x,a3)
 
@@ -372,9 +375,22 @@ Time_step_ocean = set_time (dt_ocean,0)
 num_cpld_calls  = Run_length / Time_step_ocean
 num_atmos_calls = Time_step_ocean / Time_step_atmos
 Time_step_restart = set_time (restart_secs, restart_days)
-Time_restart = Time_atmos + Time_step_restart
+if (restart_start_secs > 0 .or. restart_start_days > 0) then
+   Time_start_restart = set_time (restart_start_secs, restart_start_days)
+   Time_restart = Time_atmos + Time_start_restart
+else
+   Time_restart = Time_atmos + Time_step_restart
+end if
+Time_step_restart_aux = set_time (restart_secs_aux, restart_days_aux)
+Time_duration_restart_aux = set_time (restart_duration_secs_aux, restart_duration_days_aux)
+Time_start_restart_aux = set_time (restart_start_secs_aux, restart_start_days_aux)
+Time_restart_aux = Time_atmos + Time_start_restart_aux
+Time_restart_end_aux = Time_restart_aux + Time_duration_restart_aux
 intrm_rst = .false.
+intrm_rst_1step = .false.
 if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
+if (intrm_rst .and. restart_start_secs == 0 .and. &
+    restart_start_days == 0) intrm_rst_1step = .true.
 
 !-----------------------------------------------------------------------
 !------------------- some error checks ---------------------------------
@@ -398,7 +414,8 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
 
 !------ initialize component models ------
 
-      call  atmos_model_init (Atm,  Time_init, Time_atmos, Time_step_atmos)
+      call  atmos_model_init (Atm,  Time_init, Time_atmos, Time_step_atmos, &
+                              iau_offset)
 
       call print_memuse_stats('after atmos model init')
 
@@ -407,18 +424,17 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
       call mpp_global_field(Atm%Domain, Atm%lon_bnd, glon_bnd, position=CORNER)
       call mpp_global_field(Atm%Domain, Atm%lat_bnd, glat_bnd, position=CORNER)
 
-!!$      call data_override_init (Atm_domain_in  = Atm%domain)
-!!$                             ! Atm_domain_in  = Atm%domain, &
-!!$                             ! Ice_domain_in  = Ice%domain, &
-!!$                             ! Land_domain_in = Land%domain )
-
+       if (.NOT.Atm%bounded_domain) call data_override_init (Atm_domain_in  = Atm%domain)
+                             ! Atm_domain_in  = Atm%domain, &
+                             ! Ice_domain_in  = Ice%domain, &
+                             ! Land_domain_in = Land%domain )
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
 
-      if (mpp_pe() == 0 ) then
-         call mpp_open( unit, 'RESTART/file' )
-         call mpp_close(unit, MPP_DELETE)
+      if (mpp_pe() == 0 ) then !one pe should do this check only in case of a nest
+         open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
+         close(ascii_unit,status="delete")
       endif
 
 !-----------------------------------------------------------------------
@@ -429,7 +445,8 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
    subroutine coupler_res(timestamp)
     character(len=32), intent(in) :: timestamp
 
-    integer :: unit, date(6)
+    integer :: date(6)
+    integer :: restart_unit !< Unit for the coupler restart file
 
 !----- compute current date ------
 
@@ -437,17 +454,17 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
                                  date(4), date(5), date(6))
 
 !----- write restart file ------
-
+    call mpp_set_current_pelist()
     if (mpp_pe() == mpp_root_pe())then
-        call mpp_open( unit, 'RESTART/'//trim(timestamp)//'.coupler.res', nohdrs=.TRUE. )
-        write( unit, '(i6,8x,a)' )calendar_type, &
+        open(newunit = restart_unit, file='RESTART/'//trim(timestamp)//'.coupler.res', status='replace', form='formatted')
+        write(restart_unit, '(i6,8x,a)' )calendar_type, &
              '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-        write( unit, '(6i6,8x,a)' )date_init, &
+        write(restart_unit, '(6i6,8x,a)' )date_init, &
              'Model start time:   year, month, day, hour, minute, second'
-        write( unit, '(6i6,8x,a)' )date, &
+        write(restart_unit, '(6i6,8x,a)' )date, &
              'Current model time: year, month, day, hour, minute, second'
-        call mpp_close(unit)
+        close(restart_unit)
     endif
    end subroutine coupler_res
 
@@ -455,7 +472,8 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
 
    subroutine coupler_end
 
-   integer :: unit, date(6)
+   integer :: date(6)
+   integer :: restart_unit !< Unit for the coupler restart file
 !-----------------------------------------------------------------------
 
       call atmos_model_end (Atm)
@@ -471,18 +489,18 @@ if (restart_days > 0 .or. restart_secs > 0) intrm_rst = .true.
               'final time does not match expected ending time', WARNING)
 
 !----- write restart file ------
-
-    call mpp_open( unit, 'RESTART/coupler.res', nohdrs=.TRUE. )
+    call mpp_set_current_pelist()
     if (mpp_pe() == mpp_root_pe())then
-        write( unit, '(i6,8x,a)' )calendar_type, &
+        open(newunit = restart_unit, file='RESTART/coupler.res', status='replace', form='formatted')
+        write(restart_unit, '(i6,8x,a)' )calendar_type, &
              '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-        write( unit, '(6i6,8x,a)' )date_init, &
+        write(restart_unit, '(6i6,8x,a)' )date_init, &
              'Model start time:   year, month, day, hour, minute, second'
-        write( unit, '(6i6,8x,a)' )date, &
+        write(restart_unit, '(6i6,8x,a)' )date, &
              'Current model time: year, month, day, hour, minute, second'
+        close(restart_unit)
     endif
-    call mpp_close(unit)
 
 !----- final output of diagnostic fields ----
 

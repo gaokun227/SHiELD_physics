@@ -30,11 +30,12 @@ module module_physics_driver
   !--- CONSTANT PARAMETERS
   real(kind=kind_phys), parameter :: hocp    = con_hvap/con_cp
   real(kind=kind_phys), parameter :: qmin    = 1.0e-10
+  real(kind=kind_phys), parameter :: rainmin = 1.0d-13
   real(kind=kind_phys), parameter :: p850    = 85000.0
   real(kind=kind_phys), parameter :: epsq    = 1.e-20
   real(kind=kind_phys), parameter :: hsub    = con_hvap+con_hfus
   real(kind=kind_phys), parameter :: czmin   = 0.0001      ! cos(89.994)
-  real(kind=kind_phys), parameter :: onebg   = 1.0/con_g
+  real(kind=kind_phys), parameter :: zero    = 0.0d0, onebg   = 1.0/con_g
   real(kind=kind_phys), parameter :: albdf   = 0.06 
   real(kind=kind_phys), parameter :: con_p001= 0.001d0
   real(kind=kind_phys), parameter :: con_day = 86400.d0
@@ -447,7 +448,7 @@ module module_physics_driver
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
            crain, csnow,                                                &
-           z0fun
+           z0fun, diag_rain, diag_rain1
 
       real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
            fscav, fswtr
@@ -662,11 +663,11 @@ module module_physics_driver
 !
 !  ---  set initial quantities for stochastic physics deltas
       if (Model%do_sppt) then
-        Tbd%dtdtr     = 0.0
-        Tbd%dtotprcp  (:) = Diag%rain    (:)
-        Tbd%dcnvprcp  (:) = Diag%rainc   (:)
-        Tbd%drain_cpl (:) = Coupling%rain_cpl (:)
-        Tbd%dsnow_cpl (:) = Coupling%snow_cpl (:)
+        Tbd%dtdtr = 0.0
+        do i=1,im
+          Tbd%drain_cpl(i) = Coupling%rain_cpl (i)
+          Tbd%dsnow_cpl(i) = Coupling%snow_cpl (i)
+        enddo
       endif
 
       if (Model%do_shoc) then
@@ -842,6 +843,7 @@ module module_physics_driver
              Coupling%nirbmui, Coupling%nirdfui, Coupling%visbmui,          &
              Coupling%visdfui, Coupling%nirbmdi, Coupling%nirdfdi,          &
              Coupling%visbmdi, Coupling%visdfdi, ix, im, levs,              &
+             Model%daily_mean,                                              &
 !  ---  input/output:
              dtdt, dtdtc,                                                   &
 !  ---  outputs:
@@ -1906,7 +1908,7 @@ module module_physics_driver
                            Sfcprop%tprcp, Statein%tgrs(:,1), qflux_restore, Sfcprop%qfluxadj,                     &
                            Sfcprop%mldclim, Sfcprop%tsclim,Sfcprop%ts_clim_iano, Statein%sst, Sfcprop%ts_som,     &
                            Sfcprop%tsfc, Sfcprop%tml, Sfcprop%tml0, Sfcprop%mld, Sfcprop%mld0,                    &
-                           Sfcprop%huml, Sfcprop%hvml, Sfcprop%tmoml, Sfcprop%tmoml0)
+                           Sfcprop%huml, Sfcprop%hvml, Sfcprop%tmoml, Sfcprop%tmoml0, Model%iau_offset)
         endif
          Diag%netflxsfc    (:) = Diag%netflxsfc(:) + netflxsfc(:)*dtf
          Diag%qflux_restore(:) = Diag%qflux_restore(:) + qflux_restore(:)*dtf
@@ -2033,7 +2035,7 @@ module module_physics_driver
                  sigma, gamma, elvmax, dusfcg, dvsfcg,      &
                  con_g, con_cp, con_rd, con_rv, Model%lonr, &
                  Model%nmtvr, Model%cdmbgwd, me, lprnt,ipr, &
-                 Model%gwd_p_crit )
+                 Model%gwd_p_crit, Diag%zmtnblck)
       endif
 
 !     if (lprnt)  print *,' dudtg=',dudt(ipr,:)
@@ -2612,7 +2614,6 @@ module module_physics_driver
 !
       if (Model%lssav) then
         Diag%cldwrk (:) = Diag%cldwrk (:) + cld1d(:) * dtf
-        Diag%cnvprcp(:) = Diag%cnvprcp(:) + Diag%rainc(:)
 
         if (Model%ldiag3d) then
           Diag%dt3dt(:,:,4) = Diag%dt3dt(:,:,4) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain
@@ -2844,9 +2845,6 @@ module module_physics_driver
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
-            if (Model%lssav) then
-              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
-            endif
 ! in shalcnv,  'cnvw' and 'cnvc' are not set to zero:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
@@ -2873,9 +2871,6 @@ module module_physics_driver
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
-            if (Model%lssav) then
-              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
-            endif
 ! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               num2 = Model%num_p3d + 2
@@ -2909,9 +2904,6 @@ module module_physics_driver
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
-            if (Model%lssav) then
-              Diag%cnvprcp(:) = Diag%cnvprcp(:) + raincs(:)
-            endif
 ! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
             if ((Model%shcnvcw) .and. (Model%num_p3d == 4) .and. (Model%npdf3d == 3)) then
               num2 = Model%num_p3d + 2
@@ -3115,9 +3107,8 @@ module module_physics_driver
 !         print *,' gq0a=',gq0(ipr,:,1)
 !       endif
         Diag%rainc(:) = Diag%rainc(:) + frain * rain1(:)
-        if(Model%lssav) then
-          Diag%cnvprcp(:) = Diag%cnvprcp(:) + rain1(:) * frain
 
+        if(Model%lssav) then
 ! update dqdt_v to include moisture tendency due to surface processes
 ! dqdt_v : instaneous moisture tendency (kg/kg/sec)
 !          if (lgocart) then
@@ -3343,11 +3334,18 @@ module module_physics_driver
         Diag%snow(:)    = Statein%pres(:)
         Diag%graupel(:) = Statein%preg(:)
         do i = 1, im
-          if (rain1(i) .gt. 0.0) then
-            Diag%sr(i)  = (Statein%pres(i) + Statein%prei(i) + Statein%preg(i)) &
-                         /(Statein%prer(i) + Statein%pres(i) + Statein%prei(i) + Statein%preg(i))
+          ! use rainmin following GFS
+          diag_rain = Statein%prer(i)
+          if(Statein%prer(i) < rainmin) diag_rain = zero
+          if(Statein%prei(i) < rainmin) Diag%ice(i) = zero
+          if(Statein%pres(i) < rainmin) Diag%snow(i) = zero
+          if(Statein%preg(i) < rainmin) Diag%graupel(i) = zero
+          diag_rain1 = diag_rain + Diag%ice(i) + Diag%snow(i) + Diag%graupel(i)
+          if (diag_rain1 > rainmin) then
+            Diag%sr(i)  = (Diag%ice(i) + Diag%snow(i) + Diag%graupel(i)) &
+                        / diag_rain1
           else
-            Diag%sr(i) = 0.0
+            Diag%sr(i) = zero
           endif
         enddo
 
@@ -3403,17 +3401,24 @@ module module_physics_driver
                                          1, im, 1, 1, 1, levs, 1, levs,     &
                                          seconds)
 
-        rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1))  &
-                     * dtp * con_p001 / con_day
-        Diag%ice(:)     = ice0    (:,1) * dtp * con_p001 / con_day
-        Diag%snow(:)    = snow0   (:,1) * dtp * con_p001 / con_day
-        Diag%graupel(:) = graupel0(:,1) * dtp * con_p001 / con_day
+        tem = dtp * con_p001 / con_day
+        rain1(:)   = (rain0(:,1)+snow0(:,1)+ice0(:,1)+graupel0(:,1)) * tem
+        Diag%ice(:)     = ice0    (:,1) * tem
+        Diag%snow(:)    = snow0   (:,1) * tem
+        Diag%graupel(:) = graupel0(:,1) * tem
         do i = 1, im
-          if (rain1(i) .gt. 0.0) then
-            Diag%sr(i)  =              (snow0(i,1) + ice0(i,1) + graupel0(i,1)) &
-                         /(rain0(i,1) + snow0(i,1) + ice0(i,1) + graupel0(i,1))
+          ! use rainmin threshold following GFS
+          diag_rain = rain0(i,1) * tem
+          if(diag_rain < rainmin) diag_rain = zero
+          if(Diag%snow(i) < rainmin) Diag%snow(i) = zero
+          if(Diag%ice(i) < rainmin) Diag%ice(i) = zero
+          if(Diag%graupel(i) < rainmin) Diag%graupel(i) = zero
+          diag_rain1 = diag_rain + Diag%snow(i) + Diag%ice(i) + Diag%graupel(i)
+          if (diag_rain1 > rainmin) then
+            Diag%sr(i)  =  (Diag%snow(i) + Diag%ice(i) + Diag%graupel(i)) &
+                        / diag_rain1
           else
-            Diag%sr(i) = 0.0
+            Diag%sr(i) = zero
           endif
         enddo
         do k = 1, levs
@@ -3468,11 +3473,18 @@ module module_physics_driver
         Diag%snow(:)    = snow0   (:)
         Diag%graupel(:) = graupel0(:)
         do i = 1, im
-          if (rain1(i) .gt. 0.0) then
-            Diag%sr(i)  =              (snow0(i) + ice0(i) + graupel0(i)) &
-                         /(rain0(i) + snow0(i) + ice0(i) + graupel0(i))
+          ! use rainmin threshold following GFS
+          diag_rain = rain0(i)
+          if(rain0(i) < rainmin) diag_rain = zero
+          if(snow0(i) < rainmin) Diag%snow(i) = zero
+          if(ice0(i) < rainmin) Diag%ice(i) = zero
+          if(graupel0(i) < rainmin) Diag%graupel(i) = zero
+          diag_rain1 = diag_rain + Diag%snow(i) + Diag%ice(i) + Diag%graupel(i)
+          if (diag_rain1 > rainmin) then
+            Diag%sr(i)  =  (Diag%snow(i) + Diag%ice(i) + Diag%graupel(i)) &
+                        / diag_rain1
           else
-            Diag%sr(i) = 0.0
+            Diag%sr(i) = zero
           endif
         enddo
 
@@ -3562,20 +3574,30 @@ module module_physics_driver
 !       end do
 !       HCHUANG: use new precipitation type to decide snow flag for LSM snow accumulation
 
-        do i=1,im
-          if(doms(i) > 0.0 .or. domip(i) > 0.0) then
-            Sfcprop%srflag(i) = 1.
-          else
-            Sfcprop%srflag(i) = 0.
-          end if
-        enddo
+        ! the following is not for GFDL Cloud microphysics
+        if( Model%ncld /= 5) then
+          do i=1,im
+            if(doms(i) > 0.0 .or. domip(i) > 0.0) then
+              Sfcprop%srflag(i) = 1.
+            else
+              Sfcprop%srflag(i) = 0.
+            end if
+          enddo
+        endif
       endif
 
       if (Model%lssav) then
+        Diag%cnvprcp(:)  = Diag%cnvprcp(:)  + Diag%rainc(:)
         Diag%totprcp(:) = Diag%totprcp(:) + Diag%rain(:)
         Diag%totice (:) = Diag%totice (:) + Diag%ice(:)
         Diag%totsnw (:) = Diag%totsnw (:) + Diag%snow(:)
         Diag%totgrp (:) = Diag%totgrp (:) + Diag%graupel(:)
+
+        Diag%cnvprcpb(:)  = Diag%cnvprcpb(:)  + Diag%rainc(:)
+        Diag%totprcpb(:) = Diag%totprcpb(:) + Diag%rain(:)
+        Diag%toticeb (:) = Diag%toticeb (:) + Diag%ice(:)
+        Diag%totsnwb (:) = Diag%totsnwb (:) + Diag%snow(:)
+        Diag%totgrpb (:) = Diag%totgrpb (:) + Diag%graupel(:)
 
         if (Model%ldiag3d) then
           Diag%dt3dt(:,:,6) = Diag%dt3dt(:,:,6) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain
@@ -3638,7 +3660,7 @@ module module_physics_driver
 
 !  --- ...  coupling insertion
 
-      if (Model%cplflx .or. Model%do_sppt) then
+      if (Model%cplflx) then
         do i = 1, im
           if (t850(i) > 273.16) then
              Coupling%rain_cpl(i) = Coupling%rain_cpl(i) + Diag%rain(i)
@@ -3683,7 +3705,7 @@ module module_physics_driver
 !  --- ...  total runoff is composed of drainage into water table and
 !           runoff at the surface and is accumulated in unit of meters
       if (Model%lssav) then
-        tem = dtf * 0.001
+        tem = dtf
         Diag%runoff(:)  = Diag%runoff(:)  + (drain(:)+runof(:)) * tem
         Diag%srunoff(:) = Diag%srunoff(:) + runof(:) * tem
       endif
@@ -3742,11 +3764,7 @@ module module_physics_driver
 
       if (Model%do_sppt) then
         !--- radiation heating rate
-        Tbd%dtdtr(:,:) = Tbd%dtdtr(:,:) + dtdtc(:,:)*dtf
-        !--- change in total precip
-        Tbd%dtotprcp  (:) = Diag%rain  (:) - Tbd%dtotprcp(:)
-        !--- change in convective precip
-        Tbd%dcnvprcp  (:) = Diag%rainc (:) - Tbd%dcnvprcp(:)
+        Tbd%dtdtr(1:im,:) = Tbd%dtdtr(1:im,:) + dtdtc(1:im,:)*dtf
         do i = 1, im
           if (t850(i) > 273.16) then
              !--- change in change in rain precip

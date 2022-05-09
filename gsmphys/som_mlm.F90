@@ -179,8 +179,8 @@
       subroutine update_ocean                                                      &
        (im, dtp, Grid, islmsk, kdt, kdt_prev, netflxsfc, taux, tauy, rain, tair,   &
         qflux_restore, qflux_adj, mldclim, tsclim, ts_clim_iano, ts_obs, ts_som,   &
-        tsfc, tml, tml0, mld, mld0, huml, hvml, tmoml, tmoml0)
-
+        tsfc, tml, tml0, mld, mld0, huml, hvml, tmoml, tmoml0, iau_offset)  
+    
 !  ===================================================================  !
 !                                                                       !
 !  this program computes the updated SST based on a simple SOM/MLM model    !
@@ -191,7 +191,7 @@
       implicit none
 
 !  ---  inputs
-      integer, intent(in)                              :: im, kdt, kdt_prev
+      integer, intent(in)                              :: im, kdt, kdt_prev, iau_offset
       real,    intent(in)                              :: dtp  ! model time step
       type (GFS_grid_type), intent(in)                 :: Grid
       integer, dimension(:), intent(in)                :: islmsk
@@ -236,7 +236,11 @@
 !
 !===> ...  begin here
 !
-      fday = kdt * dtp / 86400.
+      if (iau_offset > 0 .and. kdt_prev > 0) then
+        fday = (kdt - kdt_prev) * dtp / 86400.
+      else
+        fday = kdt * dtp / 86400.
+      endif
 !
       qsfc = 0.
       if (use_tvar_restore_sst) then
@@ -269,10 +273,10 @@
 
 !    two buffer zones:
 !    (bufzs - start_lat)  and (end_lat - bufzn)
-      bufzs = max(-maxlat - 0.0001, start_lat - width_buffer)
-      bufzn = min( maxlat + 0.0001, end_lat + width_buffer)
-!
-      if (kdt == 1) then
+      bufzs = max(-maxlat - 0.0001, start_lat - width_buffer)  
+      bufzn = min( maxlat + 0.0001, end_lat + width_buffer)     
+!      
+      if (kdt == 1 .or. (iau_offset > 0 .and. kdt-kdt_prev == 1)) then
        do i=1, im
         ts_som(i)=tsfc(i)
        enddo

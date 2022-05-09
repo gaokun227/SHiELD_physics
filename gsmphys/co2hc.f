@@ -9,13 +9,13 @@
 !     qnir1.f
 !     co2c.f
 ! Apr 06 2012   Henry Juang, initial implement for NEMS
-! Oct 12 2012   Jun Wang     change reading files by 1 pe reading and 
+! Oct 12 2012   Jun Wang     change reading files by 1 pe reading and
 !                            broardcasting to all pes
 !
 ! Contains modules and subroutines
 !     1) To create a global mean vertical CO2 profile either according
-!       to Fomichev et al. (1998) model or (loosely) according to 
-!       CRISTA-1/2 satellite data of Grossmann (2005) and Kostsov 
+!       to Fomichev et al. (1998) model or (loosely) according to
+!       CRISTA-1/2 satellite data of Grossmann (2005) and Kostsov
 !       (2005), both personal communications.
 !     2) To calculate IR CO2 cooling in 15-mu band by an updated version
 !       of Fomichev et al. (1998) code
@@ -41,7 +41,7 @@
 !      coeff_lte.360
 !      coeff_lte.540
 !      coeff_lte.720
-!     
+!
 !***********************************************************************
 
       module co2pro_mod
@@ -152,9 +152,9 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Fixed parameters
 !
-! -Transition log-pressure level from recurrence relation to 
+! -Transition log-pressure level from recurrence relation to
 !       cooling-to-space (should be greater or equal to 16.5, Victor
-!       recommends 16.5) 
+!       recommends 16.5)
 ! -Corresponding array index for full parameterization grid
 !
       real,parameter:: xinter=16.5
@@ -172,7 +172,7 @@
 !hmhj real,dimension(43,57),save:: vamat,vbmat
       real,dimension(43,57)::      vamat,vbmat
 !
-! -Escape functions for recurrence formula on Victor grid needed for 
+! -Escape functions for recurrence formula on Victor grid needed for
 !       x > 12.5 (index=1-itm50)
 !
 !hmhj real,save:: alvic(itm50)
@@ -482,7 +482,7 @@
 
       subroutine co2pro_pre(xmodel,lmodel,mumod)
 
-! Routine to prepare CO2 global mean profile optionally based on 
+! Routine to prepare CO2 global mean profile optionally based on
 !     Fomichev et al. (1998) or CRISTA data.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Jan 2006: Rashid Akmaev
@@ -494,7 +494,7 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Input parameters
 ! xmodel(lmodel) - model grid (going up from LB)
-! mumod(lmodel) - model molecular mass (g/mol) on the grid 
+! mumod(lmodel) - model molecular mass (g/mol) on the grid
 !
       integer,intent(in):: lmodel
       real,intent(in):: xmodel(lmodel),mumod(lmodel)
@@ -593,7 +593,7 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Input parameters
 ! xmodel(lmodel) - model grid (going up from LB)
-! mumod(lmodel) - model molecular mass (g/mol) on the grid 
+! mumod(lmodel) - model molecular mass (g/mol) on the grid
 !
       integer,intent(in):: lmodel
       real,intent(in):: xmodel(lmodel),mumod(lmodel)
@@ -725,7 +725,7 @@
       subroutine co2cc(im,jm,xtemp,temp,ltemp,xhr,hrate,lhr,mu,ro1,     &
      &     ro2,rn2)
 
-! Routine to calculate CO2 cooling in 3-d on model vertical grid using 
+! Routine to calculate CO2 cooling in 3-d on model vertical grid using
 ! Victor's new parameterization (Fomichev et al., 1998) updated in 1999.
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -744,8 +744,8 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Subroutine arguments
 ! INPUT
-! -array dimensions: first array index, "longitude" index, 
-!       vertical T-grid, vertical heating-rate grid (generally 
+! -array dimensions: first array index, "longitude" index,
+!       vertical T-grid, vertical heating-rate grid (generally
 !       lhr < ltemp)
 !
       integer,intent(in):: im,jm,ltemp,lhr
@@ -793,23 +793,23 @@
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Victor's data (with his original comments):
-! ak = h*c/k*V - to determine the Planck function, k - Boltzmann's 
+! ak = h*c/k*V - to determine the Planck function, k - Boltzmann's
 !     constant
       real,parameter:: ak=960.217
 !
-! a10   - Einstine's (***Victor's classic spelling!!!***) coefficient 
+! a10   - Einstine's (***Victor's classic spelling!!!***) coefficient
 !     for the fundamental band for the main isotope (1/s)
       real,parameter:: eina10=1.5988
 !
 ! const - constant using to determine the heating rate:
 !         const = Na*h*c*V*Gv'/Gv*Avv*1.03, where
-!         Na - Avogadro number, h- Planck's constant, c- light speed, 
-!         V - frequency of the fundamental vibrational transition in 
-!     the main isotope, Gv'/Gv = 2 - ratio of the statistical weights 
-!     for the fundamental transition, Av'v - Einstine coefficient for 
-!     the fundamental band of the main isotope, 1.03 - correction to 
-!     account for others than funndamental bands in the reccurence 
-!     formula 
+!         Na - Avogadro number, h- Planck's constant, c- light speed,
+!         V - frequency of the fundamental vibrational transition in
+!     the main isotope, Gv'/Gv = 2 - ratio of the statistical weights
+!     for the fundamental transition, Av'v - Einstine coefficient for
+!     the fundamental band of the main isotope, 1.03 - correction to
+!     account for others than funndamental bands in the reccurence
+!     formula
 !
 !      data const/2.63187e11/
 !
@@ -821,25 +821,25 @@
 !     removed the 1.03 factor (see the paragraph above):
 ! const - constant using to determine the heating rate:
 !         const = Na*h*c*V*Gv'/Gv*Avv, where
-!         Na - Avogadro number, h- Planck's constant, c- light speed, 
-!         V - frequency of the fundamental vibrational transition in 
-!         the main isotope, Gv'/Gv = 2 - ratio of the statistical 
-!         weights for the fundamental transition, Av'v - Einstine 
+!         Na - Avogadro number, h- Planck's constant, c- light speed,
+!         V - frequency of the fundamental vibrational transition in
+!         the main isotope, Gv'/Gv = 2 - ratio of the statistical
+!         weights for the fundamental transition, Av'v - Einstine
 !         coefficient for the fundamental band of the main isotope.
 !      data const/2.55521e11/, constb/8.82325e9/
 !
       real,parameter:: conmy=2.55521e7
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! Calculate composition on Victor grid above x=12.5 (index 50) for 
+! Calculate composition on Victor grid above x=12.5 (index 50) for
 !       recurrent formula
 !
-      call splin2(xhr,mu,xvic0(51),vicmu,lhr,itm50,im,jm)
-      call splin2(xhr,rn2,xvic0(51),vicn2,lhr,itm50,im,jm)
-      call splin2(xhr,ro2,xvic0(51),vico2,lhr,itm50,im,jm)
+      call splin2(xhr,mu,xvic0(51:),vicmu,lhr,itm50,im,jm)
+      call splin2(xhr,rn2,xvic0(51:),vicn2,lhr,itm50,im,jm)
+      call splin2(xhr,ro2,xvic0(51:),vico2,lhr,itm50,im,jm)
 !
 ! Feb 28, 2008
-! idea change: the following portion of the code commented out and 
+! idea change: the following portion of the code commented out and
 !     replaced by RAA
 !c For O interpolation find first model layer with [O]>.0
 !c
@@ -864,15 +864,15 @@
 !      call splin2(xhr(iwork),ro1(1:im,iwork:),xvic0(51),vico1,         &
 !     &     lhr-iwork+1,itm50,im,jm)
 !
-      call splin2(xhr,ro1,xvic0(51),vico1,lhr,itm50,im,jm)
+      call splin2(xhr,ro1,xvic0(51:),vico1,lhr,itm50,im,jm)
 !
 ! idea add: make sure O is non-negative
 !
           vico1(:,:)=max(vico1(:,:),0.)
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! Calculate heating rate for LTR/recurrence part. Convert Tin to 
-! parameterization grid at x=0-xinter and calculate "source function" 
+! Calculate heating rate for LTR/recurrence part. Convert Tin to
+! parameterization grid at x=0-xinter and calculate "source function"
 ! using spline for T interpolation
 !
       call splin2(xtemp,temp,xvic0,vict,ltemp,ivict,im,jm)
@@ -899,7 +899,7 @@
          enddo
       enddo
 !
-! Calculate lambda for the recurrence-formula part (x=12.5-xinter, 
+! Calculate lambda for the recurrence-formula part (x=12.5-xinter,
 !     i=1-itm50, full index 51-ivict)
 !
       do i=1,itm50
@@ -911,7 +911,7 @@
             zn2=5.5e-17*sqrt(vict(j,i+50))+6.7e-10*exp(-83.8*work1)
             zo2=1.e-15*exp((564.*work1-230.9)*work1+23.37)
 !
-! Total collisional deactivation rate (factor in second line converts 
+! Total collisional deactivation rate (factor in second line converts
 !     pressure to total number density)
 !
             ztotal=pvic(i+50)*(vico1(j,i)*zco2o+vicn2(j,i)*zn2+         &
@@ -952,7 +952,7 @@
       call splin2(xvic0(9:),vich,xhr,hrate,iwork,lraint-1,im,jm)
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! Calculate heating on model grid above xinter.  First find lower 
+! Calculate heating on model grid above xinter.  First find lower
 !     boundary condition at xinter.
 !
       do j=1,jm
@@ -973,7 +973,7 @@
             zn2=5.5e-17*sqrt(temp(j,l+iwork))+6.7e-10*exp(-83.8*work1)
             zo2=1.e-15*exp((564.*work1-230.9)*work1+23.37)
 !
-! Total collisional deactivation rate (factor in last line converts 
+! Total collisional deactivation rate (factor in last line converts
 ! pressure to total number density).  Pressure is recalculated here
 ! from input log-pressure (xhr).
 !
@@ -994,11 +994,11 @@
       subroutine co2cin(xmod,pmod,mu,gr,lmod,me,mpi_ior,mpi_comm)
 
 ! Routine to prepare matrices and other parameters for implementation
-! of full CO2 cooling scheme by Fomichev et al. (1998) modified later 
+! of full CO2 cooling scheme by Fomichev et al. (1998) modified later
 ! (Victor Fomichev, personal communication, 1999) to account for updated
 ! non-LTE calculations by Ogibalov. This version made to accomodate CO2
 ! profiles different from the one suggested by Fomichev et al. (1998).
-! Since CO2 profiles are assumed to be global means, the 
+! Since CO2 profiles are assumed to be global means, the
 ! parameterization parameters are considered global means as well and
 ! may be precalculated once. If variable CO2 profiles are available,
 ! some of these calculations should be done "on line".
@@ -1026,7 +1026,7 @@
 ! NIR heating calculations):
 !       pressure (Pa)
 !       global mean VMR of N2,O2, and O
-!       global mean molecular weight (g/mol) 
+!       global mean molecular weight (g/mol)
 !       gravity (m/sec**2)
 !
       integer,intent(in)::lmod
@@ -1065,12 +1065,12 @@
       real a150(43,57),b150(43,57), a360(43,57),b360(43,57),            &
      &     a540(43,57),b540(43,57), a720(43,57),b720(43,57)
 !
-! CO2 column amount and corresponding escape functions (eventually, 
+! CO2 column amount and corresponding escape functions (eventually,
 ! their log)
 !
       real uco2ro(51), alo(51)
 !
-! CO2 column amount at X(67) grid, calculated for basic CO2 profile of 
+! CO2 column amount at X(67) grid, calculated for basic CO2 profile of
 ! 360ppm:
 ! (note, this profile exibits CO2 vmr=const up to x=12.25 and decreases
 ! with height above this level)
@@ -1147,9 +1147,9 @@
      &                        3.629121E-01,1.910115E-01,7.053397E-02/
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-! T must be known from x=0 to x=xinter(face) (16.5-20). 
+! T must be known from x=0 to x=xinter(face) (16.5-20).
 ! Calculate Victor's pressure (kept in co2pro_mod) from surface x=0 to
-! xinter 
+! xinter
       do l=1,ivict
          pvic(l)=1e5*exp(-xvic0(l))
       enddo
@@ -1170,7 +1170,7 @@
 !
       if(xmod(lmod).lt.xinter) then
          write(6,*) '***Stop in co2cin: model UB below Xinterface***'
-         write(6,*) ' lmod= ',lmod 
+         write(6,*) ' lmod= ',lmod
          write(6,*) ' xmod(lmod)= ',xmod(lmod)
          write(6,*) ' xinter= ',xinter
          stop
@@ -1190,7 +1190,7 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Calculate auxiliary arrays of global mean molecular weight and
 ! gravity on full Victor grid for CO2 column amount calculation.
-! Find first level of Victor grid above lowest model layer and 
+! Find first level of Victor grid above lowest model layer and
 !       interpolate
       i=1
       do l=1,ivict
@@ -1216,7 +1216,7 @@
 ! CO2 heating rates in the near IR.
 !
 ! CO2 column amount above model upper layer (coefficient .1 transfers
-! it to cm**-2 if g and p are in SI units and CO2 molecular weight 
+! it to cm**-2 if g and p are in SI units and CO2 molecular weight
 ! is in g/mol)
 !
       wcolmy(lmod)=.1*ana*co2my(lmod)*pmod(lmod)/(gr(lmod)*46.)
@@ -1323,7 +1323,7 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! This is again from parcof with modifications: Linear interpolation
 ! is replaced by spline interpolation.
-! Interplolate coefficients for the matrix paramerization on Victor 
+! Interplolate coefficients for the matrix paramerization on Victor
 ! fixed grid:
 ! to calculate vamat(i,j) and vbmat(i,j) stored in co2c_mod,
 ! a spline interpolation of basic coefficients over the CO2 amount
@@ -1373,11 +1373,11 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Calculate parameters for recurrent formula.
 ! This part adopted from parcof with some modifications: Spline
-! interpolation instead of linear and escape functions set to 1 at 
+! interpolation instead of linear and escape functions set to 1 at
 ! very small CO2 amounts.
 ! Calculate coeeficients for the reccurence formula:
 ! between x=12.5 and 13.75 these coefficients (al) are calculated using
-! correction to escape function. Starting up from x=14.00 
+! correction to escape function. Starting up from x=14.00
 ! parameterization coeficients are equal escape function.
       do i=1,itm50
          alvic(i)=0.
@@ -1633,7 +1633,7 @@
 
 ! A simple routine to interpolate km arrays y1[x1(n1)], specified on
 ! the same grid x1(n1), to km arrays y2[x2(n2)] on the same grid x2(n2)
-! using cubic spline, where km<=jm and jm is the first dimension of 
+! using cubic spline, where km<=jm and jm is the first dimension of
 ! arrays y1 and y2.
 ! Both grids x1 and x2 are assumed to be ordered in THE SAME, ascending
 ! or descending, order.
@@ -1694,7 +1694,7 @@
          a(j,n1)=0.
          f(j,n1)=0.
       enddo
-! 
+!
 ! Calculate e and f coefficients
 !
       do k=nvs,2,-1
@@ -1704,7 +1704,7 @@
             f(j,k)=g*(3.*(dy(j,k)-dy(j,k-1))-h(k)*f(j,k+1))
          enddo
       enddo
-! 
+!
 ! Calculate a coefficients
 !
       do k=2,nvs

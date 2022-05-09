@@ -1545,7 +1545,26 @@ module module_physics_driver
       dtsfc1(:) = 0.
       dqsfc1(:) = 0.
 
-      if (Model%do_shoc) then
+      if (Model%do_inline_edmf) then
+
+         do i=1,im
+            Diag%hpbl(i) = Statein%hpbl(i)
+            kpbl(i) = Statein%kpbl(i)
+            Stateout%radh(i,:) = Radtend%htrsw(i,:)*xmu(i)+Radtend%htrlw(i,:)
+            stateout%hflx(i) = hflx(i)
+            stateout%evap(i) = evap(i)
+            stateout%tsfc(i) = Sfcprop%tsfc(i)
+            stateout%vfrac(i) = Sfcprop%vfrac(i)
+            stateout%vtype(i) = Sfcprop%vtype(i)
+            stateout%ffmm(i) = Sfcprop%ffmm(i)
+            stateout%ffhh(i) = Sfcprop%ffhh(i)
+            stateout%snowd(i) = Sfcprop%snowd(i)
+            stateout%zorl(i) = Sfcprop%zorl(i)
+            stateout%uustar(i) = Sfcprop%uustar(i)
+            stateout%shdmax(i) = Sfcprop%shdmax(i)
+         enddo
+
+      elseif (Model%do_shoc) then
         call moninshoc(ix, im, levs, ntrac, Model%ntcw, dvdt, dudt, dtdt, dqdt,  &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,   &
                        Tbd%phy_f3d(1,1,Model%ntot3d-1), prnum, Model%ntke,       &
@@ -1583,9 +1602,6 @@ module module_physics_driver
             dusfc1(i) = dusfc1(i) + Statein%ugrs(i,1) * tem1 * conw * del(i,1)
             dvdt(i,1) = dvdt(i,1) + Statein%vgrs(i,1) * tem1
             dvsfc1(i) = dvsfc1(i) + Statein%vgrs(i,1) * tem1 * conw * del(i,1)
-            Stateout%radh(i,:) = Radtend%htrsw(i,:)*xmu(i)+Radtend%htrlw(i,:)
-            stateout%hflx(i) = hflx(i)
-            stateout%evap(i) = evap(i)
          enddo
 
       else

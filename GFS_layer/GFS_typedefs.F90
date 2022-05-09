@@ -141,6 +141,10 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: prefluxs (:,:)     => null()  !< snow
     real (kind=kind_phys), pointer :: prefluxg (:,:)     => null()  !< graupel
 
+    !-- variables from inline PBL scheme
+    real (kind=kind_phys), pointer :: hpbl (:)     => null()  !< pbl height (m)
+    integer, pointer               :: kpbl (:)     => null()  !< index of pbl
+
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
     real (kind=kind_phys), pointer :: ci (:)      => null()   !< sea ice fraction
@@ -167,6 +171,15 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: radh (:,:) => null()  !< radiation heating
     real (kind=kind_phys), pointer :: hflx (:) => null()  !< surface sensible heat flux
     real (kind=kind_phys), pointer :: evap (:) => null()  !< surface evaporation from latent heat flux
+    real (kind=kind_phys), pointer :: tsfc (:) => null()  !< surface temperature in k
+    real (kind=kind_phys), pointer :: vfrac (:) => null()  !< vegetation fraction
+    real (kind=kind_phys), pointer :: vtype (:) => null()  !< vegetation type
+    real (kind=kind_phys), pointer :: ffmm (:) => null()  !< fm parameter from PBL scheme
+    real (kind=kind_phys), pointer :: ffhh (:) => null()  !< fh parameter from PBL scheme
+    real (kind=kind_phys), pointer :: snowd (:) => null()  !< snow depth water equivalent in mm ; same as snwdph
+    real (kind=kind_phys), pointer :: zorl (:) => null()  !< composite surface roughness in cm
+    real (kind=kind_phys), pointer :: uustar (:) => null()  !< boundary layer parameter
+    real (kind=kind_phys), pointer :: shdmax (:) => null()  !< max fractnl cover of green veg (not used)
 
     contains
       procedure :: create  => stateout_create  !<   allocate array data
@@ -1358,6 +1371,12 @@ module GFS_typedefs
     Statein%prefluxs = clear_val
     Statein%prefluxg = clear_val
 
+    allocate (Statein%hpbl(IM))
+    allocate (Statein%kpbl(IM))
+
+    Statein%hpbl = clear_val
+    Statein%kpbl = 1
+
     allocate (Statein%sst(IM))
     allocate (Statein%ci(IM))
 
@@ -1401,6 +1420,15 @@ module GFS_typedefs
     allocate (Stateout%radh (IM,Model%levs))
     allocate (Stateout%hflx (IM))
     allocate (Stateout%evap (IM))
+    allocate (Stateout%tsfc (IM))
+    allocate (Stateout%vfrac (IM))
+    allocate (Stateout%vtype (IM))
+    allocate (Stateout%ffmm (IM))
+    allocate (Stateout%ffhh (IM))
+    allocate (Stateout%snowd (IM))
+    allocate (Stateout%zorl (IM))
+    allocate (Stateout%uustar (IM))
+    allocate (Stateout%shdmax (IM))
 
     Stateout%gu0 = clear_val
     Stateout%gv0 = clear_val
@@ -1410,6 +1438,15 @@ module GFS_typedefs
     Stateout%radh = clear_val
     Stateout%hflx = clear_val
     Stateout%evap = clear_val
+    Stateout%tsfc = clear_val
+    Stateout%vfrac = clear_val
+    Stateout%vtype = clear_val
+    Stateout%ffmm = clear_val
+    Stateout%ffhh = clear_val
+    Stateout%snowd = clear_val
+    Stateout%zorl = clear_val
+    Stateout%uustar = clear_val
+    Stateout%shdmax = clear_val
 
  end subroutine stateout_create
 

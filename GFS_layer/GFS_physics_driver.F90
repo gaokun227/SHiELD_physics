@@ -1550,6 +1550,10 @@ module module_physics_driver
          do i=1,im
             Diag%hpbl(i) = Statein%hpbl(i)
             kpbl(i) = Statein%kpbl(i)
+            dtsfc1(i) = Statein%dtsfc(i)
+            dqsfc1(i) = Statein%dqsfc(i)
+            dusfc1(i) = Statein%dusfc(i)
+            dvsfc1(i) = Statein%dvsfc(i)
             Stateout%radh(i,:) = Radtend%htrsw(i,:)*xmu(i)+Radtend%htrlw(i,:)
             stateout%hflx(i) = hflx(i)
             stateout%evap(i) = evap(i)

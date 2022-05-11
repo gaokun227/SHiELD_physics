@@ -144,6 +144,10 @@ module GFS_typedefs
     !-- variables from inline PBL scheme
     real (kind=kind_phys), pointer :: hpbl (:)     => null()  !< pbl height (m)
     integer, pointer               :: kpbl (:)     => null()  !< index of pbl
+    real (kind=kind_phys), pointer :: dtsfc (:)     => null()  !< sensible heat flux (w/m2)
+    real (kind=kind_phys), pointer :: dqsfc (:)     => null()  !< latent heat flux (w/m2)
+    real (kind=kind_phys), pointer :: dusfc (:)     => null()  !< u component of surface stress
+    real (kind=kind_phys), pointer :: dvsfc (:)     => null()  !< v component of surface stress
 
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
@@ -1373,9 +1377,17 @@ module GFS_typedefs
 
     allocate (Statein%hpbl(IM))
     allocate (Statein%kpbl(IM))
+    allocate (Statein%dtsfc(IM))
+    allocate (Statein%dqsfc(IM))
+    allocate (Statein%dusfc(IM))
+    allocate (Statein%dvsfc(IM))
 
     Statein%hpbl = clear_val
     Statein%kpbl = 1
+    Statein%dtsfc = clear_val
+    Statein%dqsfc = clear_val
+    Statein%dusfc = clear_val
+    Statein%dvsfc = clear_val
 
     allocate (Statein%sst(IM))
     allocate (Statein%ci(IM))

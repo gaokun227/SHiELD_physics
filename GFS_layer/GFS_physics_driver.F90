@@ -1547,6 +1547,7 @@ module module_physics_driver
 
       if (Model%do_inline_edmf) then
 
+         stateout%sfc_cpl = .true.
          do i=1,im
             Diag%hpbl(i) = Statein%hpbl(i)
             kpbl(i) = Statein%kpbl(i)
@@ -1566,6 +1567,11 @@ module module_physics_driver
             stateout%zorl(i) = Sfcprop%zorl(i)
             stateout%uustar(i) = Sfcprop%uustar(i)
             stateout%shdmax(i) = Sfcprop%shdmax(i)
+            stateout%u10m(i) = Diag%u10m(i)
+            stateout%v10m(i) = Diag%v10m(i)
+            stateout%rb(i) = rb(i)
+            stateout%stress(i) = stress(i)
+            stateout%wind(i) = wind(i)
          enddo
 
       elseif (Model%do_shoc) then
@@ -2389,7 +2395,17 @@ module module_physics_driver
 !
       if (.not. Model%ras .and. .not. Model%cscnv) then
 
-        if (Model%do_deep) then
+        if (Model%do_inline_sas) then
+
+          cld1d = 0.
+          rain1 = Statein%prec(:)
+          ud_mf = 0.
+          dd_mf = 0.
+          dt_mf = 0.
+          cnvw  = 0.
+          cnvc  = 0.
+
+        elseif (Model%do_deep) then
 
           if (Model%do_ca) then
             do k=1,levs
@@ -2464,14 +2480,6 @@ module module_physics_driver
 !           if (lprnt) print *,' rain1=',rain1(ipr),' rann=',rann(ipr,1)
           endif
 
-        elseif (Model%do_inline_sas) then
-          cld1d = 0.
-          rain1 = Statein%prec(:)
-          ud_mf = 0.
-          dd_mf = 0.
-          dt_mf = 0.
-          cnvw  = 0.
-          cnvc  = 0.
         else ! no deep convection
           cld1d = 0.
           rain1 = 0.

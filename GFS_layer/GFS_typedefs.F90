@@ -172,6 +172,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: gt0 (:,:)   => null()  !< updated temperature
     real (kind=kind_phys), pointer :: gq0 (:,:,:) => null()  !< updated tracers
 
+    logical, pointer :: sfc_cpl => null()  !< whether the surface is coupled
     real (kind=kind_phys), pointer :: radh (:,:) => null()  !< radiation heating
     real (kind=kind_phys), pointer :: hflx (:) => null()  !< surface sensible heat flux
     real (kind=kind_phys), pointer :: evap (:) => null()  !< surface evaporation from latent heat flux
@@ -184,6 +185,11 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: zorl (:) => null()  !< composite surface roughness in cm
     real (kind=kind_phys), pointer :: uustar (:) => null()  !< boundary layer parameter
     real (kind=kind_phys), pointer :: shdmax (:) => null()  !< max fractnl cover of green veg (not used)
+    real (kind=kind_phys), pointer :: u10m (:) => null()  !< 10 meater u/v wind speed 
+    real (kind=kind_phys), pointer :: v10m (:) => null()  !< 10 meater u/v wind speed
+    real (kind=kind_phys), pointer :: rb (:) => null()  !< 
+    real (kind=kind_phys), pointer :: stress (:) => null()  !< 
+    real (kind=kind_phys), pointer :: wind (:) => null()  !< 
 
     contains
       procedure :: create  => stateout_create  !<   allocate array data
@@ -1441,6 +1447,14 @@ module GFS_typedefs
     allocate (Stateout%zorl (IM))
     allocate (Stateout%uustar (IM))
     allocate (Stateout%shdmax (IM))
+    allocate (Stateout%u10m (IM))
+    allocate (Stateout%v10m (IM))
+    allocate (Stateout%rb (IM))
+    allocate (Stateout%stress (IM))
+    allocate (Stateout%wind (IM))
+
+    allocate(Stateout%sfc_cpl)
+    Stateout%sfc_cpl = .false.
 
     Stateout%gu0 = clear_val
     Stateout%gv0 = clear_val
@@ -1459,6 +1473,11 @@ module GFS_typedefs
     Stateout%zorl = clear_val
     Stateout%uustar = clear_val
     Stateout%shdmax = clear_val
+    Stateout%u10m = clear_val
+    Stateout%v10m = clear_val
+    Stateout%rb = clear_val
+    Stateout%stress = clear_val
+    Stateout%wind = clear_val
 
  end subroutine stateout_create
 

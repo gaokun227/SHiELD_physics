@@ -616,8 +616,8 @@ module GFS_typedefs
     logical              :: satmedmf        !< flag for scale-aware TKE-based moist edmf
                                             !< vertical turbulent mixing scheme
     logical              :: no_pbl          !< disable PBL (for LES)
-    logical              :: cap_k0_land     !< flag for applying limter on background diff in inversion layer over land in tke-edmf pbl 
-    logical              :: do_dk_hb19      !< flag for using hb19 background diff formula in tke-edmf pbl 
+    logical              :: cap_k0_land     !< flag for applying limter on background diff in inversion layer over land in satmedmfdiff.f
+    logical              :: do_dk_hb19      !< flag for using hb19 background diff formula in satmedmfdiff.f
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
@@ -633,14 +633,10 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_fac        !< [in] background vertical diffusion factor
     real(kind=kind_phys) :: xkzminv         !< diffusivity in inversion layers
     real(kind=kind_phys) :: xkgdx           !< [in] background vertical diffusion threshold
-    real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in tke-edmf pbl 
-    real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in tke-edmf pbl 
-    real(kind=kind_phys) :: elmx            !< [in] upper-limter on dissipation mixing length in tke-edmf pbl 
-    real(kind=kind_phys) :: zolcru          !< [in] zolcru used in tke-edmf pbl 
-    real(kind=kind_phys) :: cs0             !< [in] cs0 used in tke-edmf pbl 
-    real(kind=kind_phys) :: ck0             !< [in] ck0 used in tke-edmf pbl 
-    real(kind=kind_phys) :: ck1             !< [in] ck1 used in tke-edmf pbl 
-    real(kind=kind_phys) :: ce0             !< [in] ce0 used in tke-edmf pbl
+    real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: zolcru          !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f
+    real(kind=kind_phys) :: cs0             !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac          !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr         !< updraft fraction in boundary layer mass flux scheme
@@ -2024,14 +2020,10 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkzm_fac       = 1.0                      !< [in] background vertical diffusion factor
     real(kind=kind_phys) :: xkzminv        = 0.15                     !< diffusivity in inversion layers
     real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
-    real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in tke-edmf pbl
-    real(kind=kind_phys) :: rlmx           = 300.                     !< [in] upper-limter on asymtotic mixing length in tke-edmf pbl 
-    real(kind=kind_phys) :: elmx           = 300.                     !< [in] upper-limter on dissipation mixing length in tke-edmf pbl 
-    real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] default zolcru  
-    real(kind=kind_phys) :: cs0            = 0.2                      !< [in] default cs0 
-    real(kind=kind_phys) :: ck0            = 0.4                      !< [in] default ck0 
-    real(kind=kind_phys) :: ck1            = 0.15                     !< [in] default ck1 
-    real(kind=kind_phys) :: ce0            = 0.4                      !< [in] default ce0
+    real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: rlmx           = 300.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f
+    real(kind=kind_phys) :: cs0            = 0.2                      !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme
@@ -2227,7 +2219,7 @@ module GFS_typedefs
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx,                   &
-                               rlmn, rlmx, elmx, zolcru, cs0, ck0, ck1, ce0,                &
+                               rlmn, rlmx, zolcru, cs0,                                     &
                                xkzm_m, xkzm_h, xkzm_ml, xkzm_hl, xkzm_mi, xkzm_hi,          &
                                xkzm_s, xkzminv, moninq_fac, dspfac,                         &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
@@ -2473,12 +2465,8 @@ module GFS_typedefs
     Model%xkgdx            = xkgdx
     Model%rlmn             = rlmn
     Model%rlmx             = rlmx
-    Model%elmx             = elmx
-    Model%zolcru           = zolcru 
+    Model%zolcru           = zolcru
     Model%cs0              = cs0
-    Model%ck0              = ck0
-    Model%ck1              = ck1
-    Model%ce0              = ce0
     Model%moninq_fac       = moninq_fac
     Model%dspfac           = dspfac
     Model%bl_upfr          = bl_upfr
@@ -3145,12 +3133,8 @@ module GFS_typedefs
       print *, ' xkgdx             : ', Model%xkgdx
       print *, ' rlmn              : ', Model%rlmn
       print *, ' rlmx              : ', Model%rlmx
-      print *, ' elmx              : ', Model%elmx
       print *, ' zolcru            : ', Model%zolcru
       print *, ' cs0               : ', Model%cs0
-      print *, ' ck0               : ', Model%ck0
-      print *, ' ck1               : ', Model%ck1
-      print *, ' ce0               : ', Model%ce0
       print *, ' moninq_fac        : ', Model%moninq_fac
       print *, ' dspfac            : ', Model%dspfac
       print *, ' bl_upfr           : ', Model%bl_upfr

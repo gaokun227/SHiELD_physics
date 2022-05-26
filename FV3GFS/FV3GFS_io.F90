@@ -5486,6 +5486,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'restoring flux'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%time_avg = .TRUE.
     Diag(idx)%coarse_graining_method = AREA_WEIGHTED
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
@@ -5888,7 +5889,7 @@ module FV3GFS_io_mod
             endif
 
            !!!! Accumulated diagnostics --- lmh 19 sep 17
-           if (fprint .or. prt_stats) then
+           if (fprint .and. prt_stats) then
            select case (trim(Diag(idx)%name))
            case('totprcp_ave')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)

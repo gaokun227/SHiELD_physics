@@ -257,6 +257,11 @@ module gfdl_cld_mp_mod
     ! 3: lagrangian scheme
     ! 4: combined implicit and lagrangian scheme
     
+    integer :: vdiffflag = 1 ! wind difference scheme in accretion
+    ! 1: Wisner et al. (1972)
+    ! 2: Mizuno (1990)
+    ! 3: Murakami (1990)
+    
     logical :: do_sedi_uv = .true. ! transport of horizontal momentum in sedimentation
     logical :: do_sedi_w = .true. ! transport of vertical momentum in sedimentation
     logical :: do_sedi_heat = .true. ! transport of heat in sedimentation
@@ -503,7 +508,7 @@ module gfdl_cld_mp_mod
         n0r_exp, n0s_exp, n0g_exp, n0h_exp, muw, mui, mur, mus, mug, muh, &
         alinw, alini, alinr, alins, aling, alinh, blinw, blini, blinr, blins, bling, blinh, &
         do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac, &
-        snow_grauple_combine, do_psd_water_num, do_psd_ice_num
+        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag
     
 contains
 
@@ -5268,12 +5273,16 @@ function acr3d (v1, v2, q1, q2, c, acco, acc1, acc2, den)
     
     integer :: i
     
-    real :: t1, t2, tmp
+    real :: t1, t2, tmp, vdiff
     
     t1 = exp (1. / (acc1 + 3) * log (6 * q1 * den))
     t2 = exp (1. / (acc2 + 3) * log (6 * q2 * den))
+
+	if (vdiffflag .eq. 1) vdiff = abs (v1 - v2)
+	if (vdiffflag .eq. 2) vdiff = sqrt ((1.20 * v1 - 0.95 * v2) ** 2. + 0.08 * v1 * v2)
+	if (vdiffflag .eq. 3) vdiff = sqrt ((1.00 * v1 - 1.00 * v2) ** 2. + 0.04 * v1 * v2)
     
-    acr3d = c * abs (v1 - v2) / den
+    acr3d = c * vdiff / den
     
     tmp = 0
     do i = 1, 3

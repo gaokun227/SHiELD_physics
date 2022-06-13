@@ -2579,15 +2579,15 @@
 #else
 #ifdef GFS_CLOUD_OVERLAP
       call cld_eff_rad (1, IX, 1, NLAY, slmsk, plyr*100,                &
-     &                  abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,       &
-     &                  tlyr, qw, qi, qr, qs, qg, qa, cwp, cip, crp,    &
+     &                  abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100, tlyr, &
+     &                  qlyr, qw, qi, qr, qs, qg, qa, cwp, cip, crp,    &
      &                  csp, cgp, rew, rei, rer, res, reg, cldtot,      &
      &                  cldtot, snowd, cnvw=cnvw)
       cldcnv = cnvc
 #else
       call cld_eff_rad (1, IX, 1, NLAY, slmsk, plyr*100,                &
-     &                  abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100,       &
-     &                  tlyr, qw, qi, qr, qs, qg, qa, cwp, cip, crp,    &
+     &                  abs(plvl(:,1:NLAY)-plvl(:,2:NLAY+1))*100, tlyr, &
+     &                  qlyr, qw, qi, qr, qs, qg, qa, cwp, cip, crp,    &
      &                  csp, cgp, rew, rei, rer, res, reg, cldtot,      &
      &                  cldtot, snowd, cnvw=cnvw, cnvc=cnvc)
       cldcnv = 0.0

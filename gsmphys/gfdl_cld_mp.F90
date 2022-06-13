@@ -113,6 +113,8 @@ module gfdl_cld_mp_mod
     !real, parameter :: rvgas = runiver / mmv ! 461.52213549181386, gas constant for water vapor (J/kg/K)
 
     real, parameter :: zvir = rvgas / rdgas - 1. ! 0.6077667316114637
+    real, parameter :: eps = rdgas / rvgas ! 0.6219934994582882
+    real, parameter :: epsm1 = rdgas / rvgas - 1. ! -0.3780065005417118
     
     real, parameter :: tice = 273.15 ! freezing temperature (K): ref: GFDL, GFS
     !real, parameter :: tice = 273.16 ! freezing temperature (K), ref: IFS
@@ -1250,7 +1252,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
         do k = ks, ke
             
             ! -----------------------------------------------------------------------
-            ! convert moist mixing ratios to dry mixing ratios
+            ! convert specific ratios to mass mixing ratios
             ! -----------------------------------------------------------------------
             
             qvz (k) = qv (i, k)
@@ -1261,9 +1263,13 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
             qgz (k) = qg (i, k)
             qaz (k) = qa (i, k)
             
-            q_cond = qlz (k) + qrz (k) + qiz (k) + qsz (k) + qgz (k)
-            con_r8 = one_r8 - (qvz (k) + q_cond)
-            
+            if (do_inline_mp) then
+                q_cond = qlz (k) + qrz (k) + qiz (k) + qsz (k) + qgz (k)
+                con_r8 = one_r8 - (qvz (k) + q_cond)
+            else
+                con_r8 = one_r8 - qvz (k)
+            endif            
+
             dp (k) = delp (i, k) * con_r8
             con_r8 = one_r8 / con_r8
             qvz (k) = qvz (k) * con_r8
@@ -1505,11 +1511,15 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
         do k = ks, ke
             
             ! -----------------------------------------------------------------------
-            ! convert dry mixing ratios back to moist mixing ratios
+            ! convert mass mixing ratios back to specific ratios
             ! -----------------------------------------------------------------------
             
-            q_cond = qlz (k) + qrz (k) + qiz (k) + qsz (k) + qgz (k)
-            con_r8 = one_r8 + qvz (k) + q_cond
+            if (do_inline_mp) then
+                q_cond = qlz (k) + qrz (k) + qiz (k) + qsz (k) + qgz (k)
+                con_r8 = one_r8 + qvz (k) + q_cond
+            else
+                con_r8 = one_r8 + qvz (k)
+            endif
             
             delp (i, k) = dp (k) * con_r8
             con_r8 = one_r8 / con_r8
@@ -3202,7 +3212,7 @@ subroutine psmlt (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, cvm, te8, den, denfac
     
     integer :: k
     
-    real :: tc, factor, tmp, sink, qden, dqdt, tin, dq
+    real :: tc, factor, tmp, sink, qden, dqdt, tin, dq, qsi
     real :: psacw, psacr, pracs
     
     do k = ks, ke
@@ -3233,7 +3243,8 @@ subroutine psmlt (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, cvm, te8, den, denfac
             endif
             
             tin = tz (k)
-            dq = iqs (tin, den (k), dqdt) - qv (k)
+            qsi = iqs (tin, den (k), dqdt)
+            dq = qsi - qv (k)
             sink = max (0., pmlt (tc, dq, qden, psacw, psacr, csmlt, den (k), denfac (k), blins, mus, &
                 lcpk (k), icpk (k), cvm (k)))
             
@@ -3283,7 +3294,7 @@ subroutine pgmlt (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, cvm, te8, den, denfac
     
     integer :: k
     
-    real :: tc, factor, sink, qden, dqdt, tin, dq
+    real :: tc, factor, sink, qden, dqdt, tin, dq, qsi
     real :: pgacw, pgacr
     
     do k = ks, ke
@@ -3315,7 +3326,8 @@ subroutine pgmlt (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, cvm, te8, den, denfac
             endif
             
             tin = tz (k)
-            dq = iqs (tin, den (k), dqdt) - qv (k)
+            qsi = iqs (tin, den (k), dqdt)
+            dq = qsi - qv (k)
             if (do_hail) then
                 sink = max (0., pmlt (tc, dq, qden, pgacw, pgacr, cgmlt, den (k), denfac (k), &
                     blinh, muh, lcpk (k), icpk (k), cvm (k)))
@@ -3910,7 +3922,7 @@ subroutine pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
     
     integer :: k
     
-    real :: sink, tin, qpz, rh, dqdt, tmp
+    real :: sink, tin, qpz, rh, dqdt, tmp, qsi
     
     do k = ks, ke
         
@@ -3939,7 +3951,8 @@ subroutine pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
         
         if (tin .gt. t_sub + 6.) then
             
-            rh = qpz / iqs (tin, den (k), dqdt)
+            qsi = iqs (tin, den (k), dqdt)
+            rh = qpz / qsi
             if (rh .lt. rh_adj) then
                 
                 sink = ql (k)
@@ -5278,9 +5291,9 @@ function acr3d (v1, v2, q1, q2, c, acco, acc1, acc2, den)
     t1 = exp (1. / (acc1 + 3) * log (6 * q1 * den))
     t2 = exp (1. / (acc2 + 3) * log (6 * q2 * den))
 
-	if (vdiffflag .eq. 1) vdiff = abs (v1 - v2)
-	if (vdiffflag .eq. 2) vdiff = sqrt ((1.20 * v1 - 0.95 * v2) ** 2. + 0.08 * v1 * v2)
-	if (vdiffflag .eq. 3) vdiff = sqrt ((1.00 * v1 - 1.00 * v2) ** 2. + 0.04 * v1 * v2)
+    if (vdiffflag .eq. 1) vdiff = abs (v1 - v2)
+    if (vdiffflag .eq. 2) vdiff = sqrt ((1.20 * v1 - 0.95 * v2) ** 2. + 0.08 * v1 * v2)
+    if (vdiffflag .eq. 3) vdiff = sqrt ((1.00 * v1 - 1.00 * v2) ** 2. + 0.04 * v1 * v2)
     
     acr3d = c * vdiff / den
     
@@ -5763,7 +5776,7 @@ end subroutine psaut_simp
 ! cloud radii diagnosis built for gfdl cloud microphysics
 ! =======================================================================
 
-subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qw, qi, qr, qs, qg, qa, &
+subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qv, qw, qi, qr, qs, qg, qa, &
         qcw, qci, qcr, qcs, qcg, rew, rei, rer, res, reg, cld, cloud, snowd, &
         cnvw, cnvi, cnvc)
     
@@ -5778,7 +5791,7 @@ subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qw, qi, qr, qs, qg, qa,
     real, intent (in), dimension (is:ie) :: lsm, snowd
     
     real, intent (in), dimension (is:ie, ks:ke) :: delp, t, p, cloud
-    real, intent (in), dimension (is:ie, ks:ke) :: qw, qi, qr, qs, qg, qa
+    real, intent (in), dimension (is:ie, ks:ke) :: qv, qw, qi, qr, qs, qg, qa
     
     real, intent (in), dimension (is:ie, ks:ke), optional :: cnvw, cnvi, cnvc
     
@@ -5880,18 +5893,18 @@ subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qw, qi, qr, qs, qg, qa,
 
         do k = ks, ke
             
-            qmw (i, k) = max (qmw (i, k), 0.0)
-            qmi (i, k) = max (qmi (i, k), 0.0)
-            qmr (i, k) = max (qmr (i, k), 0.0)
-            qms (i, k) = max (qms (i, k), 0.0)
-            qmg (i, k) = max (qmg (i, k), 0.0)
+            qmw (i, k) = max (qmw (i, k), qcmin)
+            qmi (i, k) = max (qmi (i, k), qcmin)
+            qmr (i, k) = max (qmr (i, k), qcmin)
+            qms (i, k) = max (qms (i, k), qcmin)
+            qmg (i, k) = max (qmg (i, k), qcmin)
             
             cld (i, k) = min (max (cld (i, k), 0.0), 1.0)
             
             mask = min (max (lsm (i), 0.0), 2.0)
             
             dpg = abs (delp (i, k)) / grav
-            rho = p (i, k) / (rdgas * t (i, k))
+            rho = p (i, k) / (rdgas * t (i, k) * (1. + zvir * qv (i, k)))
             
             tc = t (i, k) - tice
             

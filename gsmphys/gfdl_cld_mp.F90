@@ -456,6 +456,11 @@ module gfdl_cld_mp_mod
     real :: resmin = 150.0, resmax = 10000.0 ! minimum and maximum effective radius for snow (micron)
     real :: regmin = 150.0, regmax = 10000.0 ! minimum and maximum effective radius for graupel
     !real :: rewmax = 15.0, rermin = 15.0 ! Kokhanovsky (2004)
+
+    real :: reifac = 1.0 ! this is a tuning parameter to compromise the inconsistency between
+                         ! GFDL MP's PSD and cloud ice radiative property's PSD assumption.
+                         ! after the cloud ice radiative property's PSD is rebuilt,
+                         ! this parameter should be 1.0.
     
     ! -----------------------------------------------------------------------
     ! local shared variables
@@ -510,7 +515,7 @@ module gfdl_cld_mp_mod
         n0r_exp, n0s_exp, n0g_exp, n0h_exp, muw, mui, mur, mus, mug, muh, &
         alinw, alini, alinr, alins, aling, alinh, blinw, blini, blinr, blins, bling, blinh, &
         do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac, &
-        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag
+        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, reifac
     
 contains
 
@@ -5810,9 +5815,6 @@ subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qv, qw, qi, qr, qs, qg,
     real :: dpg, rho, ccnw, mask, cor, tc, bw
     real :: lambdaw, lambdar, lambdai, lambdas, lambdag, rei_fac
     
-    real :: ccno = 90.
-    real :: ccnl = 270.
-    
     real :: retab (138) = (/ &
         0.05000, 0.05000, 0.05000, 0.05000, 0.05000, 0.05000, &
         0.05500, 0.06000, 0.07000, 0.08000, 0.09000, 0.10000, &
@@ -6148,7 +6150,7 @@ subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qv, qw, qi, qr, qs, qg,
                     qci (i, k) = dpg * qmi (i, k) * 1.0e3
                     call cal_pc_ed_oe_rr_tv (qmi (i, k), rho, blini, mui, &
                         eda = edai, edb = edbi, ed = rei (i, k))
-                    rei (i, k) = 0.5 * rei (i, k) * 1.0e6
+                    rei (i, k) = reifac * 0.5 * rei (i, k) * 1.0e6
                     rei (i, k) = max (reimin, min (reimax, rei (i, k)))
                 else
                     qci (i, k) = 0.0

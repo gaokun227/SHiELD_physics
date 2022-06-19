@@ -4089,7 +4089,7 @@ module GFS_typedefs
     type(GFS_control_type), intent(in) :: Model
     logical,optional, intent(in)       :: linit, iauwindow_center
 
-    logical :: set_totprcp = .false.
+    logical set_totprcp
 
     !--- In/Out
     Diag%srunoff = zero
@@ -4197,6 +4197,7 @@ module GFS_typedefs
 
     Diag%ps_dt = zero
 
+    set_totprcp      = .false.
     if (present(linit) ) set_totprcp = linit
     if (present(iauwindow_center) ) set_totprcp = iauwindow_center
     if (set_totprcp) then

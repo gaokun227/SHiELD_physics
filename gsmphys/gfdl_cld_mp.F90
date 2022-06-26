@@ -313,6 +313,8 @@ module gfdl_cld_mp_mod
     logical :: do_new_acc_water = .false. ! perform the new accretion for cloud water
     logical :: do_new_acc_ice = .false. ! perform the new accretion for cloud ice
     
+    logical :: cp_heating = .false. ! update temperature based on constant pressure
+    
     real :: mp_time = 150.0 ! maximum microphysics time step (s)
     
     real :: n0w_sig = 1.1 ! intercept parameter (significand) of cloud water (Lin et al. 1983) (1/m^4) (Martin et al. 1994)
@@ -515,7 +517,8 @@ module gfdl_cld_mp_mod
         n0r_exp, n0s_exp, n0g_exp, n0h_exp, muw, mui, mur, mus, mug, muh, &
         alinw, alini, alinr, alins, aling, alinh, blinw, blini, blinr, blins, bling, blinh, &
         do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac, &
-        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, reifac
+        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, reifac, &
+        cp_heating
     
 contains
 
@@ -591,9 +594,9 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     
     real, intent (in), dimension (is:ie) :: hs, gsize
     
-    real, intent (in), dimension (is:ie, ks:ke) :: delz, qnl, qni
+    real, intent (in), dimension (is:ie, ks:ke) :: qnl, qni
     
-    real, intent (inout), dimension (is:ie, ks:ke) :: delp, pt, ua, va, wa, te
+    real, intent (inout), dimension (is:ie, ks:ke) :: delp, delz, pt, ua, va, wa, te
     real, intent (inout), dimension (is:ie, ks:ke) :: qv, ql, qr, qi, qs, qg, qa
     real, intent (inout), dimension (is:ie, ks:ke) :: prefluxw, prefluxr, prefluxi, prefluxs, prefluxg
     
@@ -1145,9 +1148,9 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
     
     real, intent (in), dimension (is:ie) :: gsize, hs
     
-    real, intent (in), dimension (is:ie, ks:ke) :: delz, qnl, qni
+    real, intent (in), dimension (is:ie, ks:ke) :: qnl, qni
     
-    real, intent (inout), dimension (is:ie, ks:ke) :: delp, pt, ua, va, wa
+    real, intent (inout), dimension (is:ie, ks:ke) :: delp, delz, pt, ua, va, wa
     real, intent (inout), dimension (is:ie, ks:ke) :: qv, ql, qr, qi, qs, qg, qa
     real, intent (inout), dimension (is:ie, ks:ke) :: prefluxw, prefluxr, prefluxi, prefluxs, prefluxg
     
@@ -1599,7 +1602,15 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
         if (do_inline_mp) then
             do k = ks, ke
                 q_cond = qlz (k) + qrz (k) + qiz (k) + qsz (k) + qgz (k)
-                pt (i, k) = tz (k) * (1. + zvir * qvz (k)) * (1. - q_cond)
+                if (cp_heating) then
+                    con_r8 = one_r8 - (qvz (k) + q_cond)
+                    c8 = mhc (con_r8, qvz (k), q_liq (k), q_sol (k)) * c_air
+                    delz (i, k) = delz (i, k) / pt (i, k)
+                    pt (i, k) = pt (i, k) + (tz (k) * (1. + zvir * qvz (k)) * (1. - q_cond) - pt (i, k)) * c8 / cp_air
+                    delz (i, k) = delz (i, k) * pt (i, k)
+                else
+                    pt (i, k) = tz (k) * (1. + zvir * qvz (k)) * (1. - q_cond)
+                endif
             enddo
         else
             do k = ks, ke
@@ -5508,9 +5519,9 @@ subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     
     real, intent (in), dimension (is:ie) :: hs, gsize
     
-    real, intent (in), dimension (is:ie, ks:ke) :: delz, qnl, qni
+    real, intent (in), dimension (is:ie, ks:ke) :: qnl, qni
     
-    real, intent (inout), dimension (is:ie, ks:ke) :: delp, pt, te
+    real, intent (inout), dimension (is:ie, ks:ke) :: delp, delz, pt, te
     real, intent (inout), dimension (is:ie, ks:ke) :: qv, ql, qr, qi, qs, qg, qa
     
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa

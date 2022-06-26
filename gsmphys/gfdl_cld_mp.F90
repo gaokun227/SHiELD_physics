@@ -403,8 +403,8 @@ module gfdl_cld_mp_mod
     
     real :: c_paut = 0.55 ! cloud water to rain autoconversion efficiency
     real :: c_psacw = 1.0 ! cloud water to snow accretion efficiency
-    real :: c_psaci = 0.02 ! cloud ice to snow accretion efficiency (was 0.1 in ZETAC)
-    real :: c_pracw = 0.9 ! cloud water to rain accretion efficiency
+    real :: c_psaci = 0.05 ! cloud ice to snow accretion efficiency (was 0.1 in ZETAC)
+    real :: c_pracw = 0.8 ! cloud water to rain accretion efficiency
     real :: c_praci = 1.0 ! cloud ice to rain accretion efficiency
     real :: c_pgacw = 1.0 ! cloud water to graupel accretion efficiency
     real :: c_pgaci = 0.05 ! cloud ice to graupel accretion efficiency (was 0.1 in ZETAC)

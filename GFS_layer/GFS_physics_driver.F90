@@ -500,7 +500,8 @@ module module_physics_driver
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
-          ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en,            &
+          ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en, wu2_shal,  & 
+          eta_shal,                                                     &
           sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps
 
       !--- GFDL modification for FV3 
@@ -2867,8 +2868,10 @@ module module_physics_driver
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
                             dt_mf, cnvw, cnvc,                            &
                             Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
-                            Model%pgcon_shal, Model%asolfac_shal,         &
-                            Model%evfact_shal, Model%evfactl_shal)
+                            Model%cthk_shal, Model%top_shal,                &
+                            Model%pgcon_shal, Model%asolfac_shal,           &
+                            Model%evfact_shal, Model%evfactl_shal, wu2_shal,&
+                            eta_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
@@ -2958,9 +2961,12 @@ module module_physics_driver
               enddo
             enddo
           endif
+
           if (Model%ldiag3d) then
             Diag%dt3dt(:,:,5) = Diag%dt3dt(:,:,5) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain
             Diag%dq3dt(:,:,3) = Diag%dq3dt(:,:,3) + (Stateout%gq0(:,:,1)-dqdt(:,:,1)) * frain
+            Diag%wu2_shal = wu2_shal
+            Diag%eta_shal = eta_shal
           endif
         endif   ! end if_lssav
         

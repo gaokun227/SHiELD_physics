@@ -5690,6 +5690,28 @@ module FV3GFS_io_mod
        Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%flux_en(:,:)
     enddo
 
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'wu2_shal'
+    Diag(idx)%desc = 'updraft velocity square from shallow convection'
+    Diag(idx)%unit = 'm**2/s**2'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%wu2_shal(:,:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
+    Diag(idx)%name = 'eta_shal'
+    Diag(idx)%desc = 'normalized mass flux from shallow convection'
+    Diag(idx)%unit = 'non-dim'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%eta_shal(:,:)
+    enddo
+
 !    idx = idx + 1
 !    Diag(idx)%axes = 3
 !    Diag(idx)%name = 'refl_10cm'

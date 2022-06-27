@@ -505,7 +505,8 @@ module module_physics_driver
           pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs,             &
           pcg, edg, oeg, rrg, tvg,                                      &
           prefluxw, prefluxr, prefluxi, prefluxs, prefluxg,             &
-          sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps
+          sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps, &
+          wu2_shal,  eta_shal                                           &
 
       real(kind=kind_phys), allocatable ::                              &
            pfr(:,:), pfs(:,:), pfg(:,:)
@@ -2876,8 +2877,10 @@ module module_physics_driver
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
                             dt_mf, cnvw, cnvc,                            &
                             Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
-                            Model%pgcon_shal, Model%asolfac_shal,         &
-                            Model%evfact_shal, Model%evfactl_shal)
+                            Model%cthk_shal, Model%top_shal,                &
+                            Model%pgcon_shal, Model%asolfac_shal,           &
+                            Model%evfact_shal, Model%evfactl_shal, wu2_shal,&
+                            eta_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
@@ -2967,9 +2970,12 @@ module module_physics_driver
               enddo
             enddo
           endif
+
           if (Model%ldiag3d) then
             Diag%dt3dt(:,:,5) = Diag%dt3dt(:,:,5) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain
             Diag%dq3dt(:,:,3) = Diag%dq3dt(:,:,3) + (Stateout%gq0(:,:,1)-dqdt(:,:,1)) * frain
+            Diag%wu2_shal = wu2_shal
+            Diag%eta_shal = eta_shal
           endif
         endif   ! end if_lssav
         

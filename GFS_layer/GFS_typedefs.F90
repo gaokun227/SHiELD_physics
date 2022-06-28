@@ -738,6 +738,9 @@ module GFS_typedefs
     real(kind=kind_phys) :: c1_shal         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
     real(kind=kind_phys) :: cthk_shal       !< max cloud depth for shallow convection 
     real(kind=kind_phys) :: top_shal        !< max cloud height for shallow convection (P/Ps < top_shal)
+    real(kind=kind_phys) :: betaw_shal      !< ratio between cloud base mass flux and mean updraft (eq 6 in Han et al 2017)
+    real(kind=kind_phys) :: dxcrt_shal      !< critical resolution for calculating scale-aware cloud base mass flux
+
     real(kind=kind_phys) :: pgcon_shal      !< control the reduction in momentum transport
                                             !< 0.7 : Gregory et al. (1997, QJRMS)
                                             !< 0.55: Zhang & Wu (2003, JAS)
@@ -2241,6 +2244,8 @@ module GFS_typedefs
     real(kind=kind_phys) :: c1_shal        = 5.e-4           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
     real(kind=kind_phys) :: cthk_shal      = 200             !< max cloud top for shallow convection
     real(kind=kind_phys) :: top_shal       = 0.7             !< max cloud height for shallow convection (P/Ps < top_shal)
+    real(kind=kind_phys) :: betaw_shal     = 0.03            !< ratio between cloud base mass flux and mean updraft (eq 6 in Han et al 2017)
+    real(kind=kind_phys) :: dxcrt_shal     = 15.e3           !< critical resolution for calculating scale-aware cloud base mass flux
     real(kind=kind_phys) :: pgcon_shal     = 0.55            !< control the reduction in momentum transport
                                                              !< 0.7 : Gregory et al. (1997, QJRMS)
                                                              !< 0.55: Zhang & Wu (2003, JAS)
@@ -2374,7 +2379,7 @@ module GFS_typedefs
                                asolfac_deep, ext_rain_deep,                                 &
                           !--- mass flux shallow convection
                                clam_shal, c0s_shal, c1_shal, cthk_shal, top_shal,           &
-                               pgcon_shal, asolfac_shal,                                    &
+                               betaw_shal, dxcrt_shal, pgcon_shal, asolfac_shal,            &
                                ext_rain_shal, evfact_shal, evfactl_shal,                    &
                           !--- near surface temperature model
                                nst_anl, lsea, nstf_name,                                    &
@@ -2670,6 +2675,8 @@ module GFS_typedefs
     Model%c1_shal          = c1_shal
     Model%cthk_shal        = cthk_shal
     Model%top_shal         = top_shal
+    Model%betaw_shal       = betaw_shal
+    Model%dxcrt_shal       = dxcrt_shal
     Model%pgcon_shal       = pgcon_shal
     Model%asolfac_shal     = asolfac_shal
     Model%evfact_shal      = evfact_shal
@@ -3346,6 +3353,8 @@ module GFS_typedefs
       print *, ' c1_shal           : ', Model%c1_shal
       print *, ' cthk_shal         : ', Model%cthk_shal
       print *, ' top_shal          : ', Model%top_shal
+      print *, ' betaw_shal        : ', Model%betaw_shal
+      print *, ' dxcrt_shal        : ', Model%dxcrt_shal
       print *, ' pgcon_shal        : ', Model%pgcon_shal
       print *, ' asolfac_shal      : ', Model%asolfac_shal
       print *, ' evfact_shal       : ', Model%evfact_shal

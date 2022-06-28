@@ -1181,7 +1181,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
     real, dimension (ks:ke) :: den, pz, denfac, ccn, cin
     real, dimension (ks:ke) :: u, v, w
     
-    real (kind = r8) :: con_r8, c8
+    real (kind = r8) :: con_r8, c8, cp8
     
     real (kind = r8), dimension (is:ie, ks:ke) :: te_beg, te_end, tw_beg, tw_end
     real (kind = r8), dimension (is:ie, ks:ke) :: te_beg_0, te_end_0, tw_beg_0, tw_end_0
@@ -1605,8 +1605,9 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
                 if (cp_heating) then
                     con_r8 = one_r8 - (qvz (k) + q_cond)
                     c8 = mhc (con_r8, qvz (k), q_liq (k), q_sol (k)) * c_air
+                    cp8 = con_r8 * cp_air + qvz (k) * cp_vap + q_liq (k) * c_liq + q_sol (k) * c_ice
                     delz (i, k) = delz (i, k) / pt (i, k)
-                    pt (i, k) = pt (i, k) + (tz (k) * (1. + zvir * qvz (k)) * (1. - q_cond) - pt (i, k)) * c8 / cp_air
+                    pt (i, k) = pt (i, k) + (tz (k) * (1. + zvir * qvz (k)) * (1. - q_cond) - pt (i, k)) * c8 / cp8
                     delz (i, k) = delz (i, k) * pt (i, k)
                 else
                     pt (i, k) = tz (k) * (1. + zvir * qvz (k)) * (1. - q_cond)

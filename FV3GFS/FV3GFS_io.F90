@@ -2308,34 +2308,34 @@ module FV3GFS_io_mod
     character(len=8) :: dim_names_2d(3), dim_names_3d(4)
 
     !--- register the axes for restarts
-    call register_axis(Sfc_restart, 'xaxis_1', 'X')
-    call register_field(Sfc_restart, 'xaxis_1', 'double', (/'xaxis_1'/))
-    call register_variable_attribute(Sfc_restart, 'xaxis_1', 'cartesian_axis', 'X', str_len=1)
-    call get_global_io_domain_indices(Sfc_restart, 'xaxis_1', is, ie, indices=buffer)
-    call write_data(Sfc_restart, "xaxis_1", buffer)
+    call register_axis(Sfc_restart_coarse, 'xaxis_1', 'X')
+    call register_field(Sfc_restart_coarse, 'xaxis_1', 'double', (/'xaxis_1'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'xaxis_1', 'cartesian_axis', 'X', str_len=1)
+    call get_global_io_domain_indices(Sfc_restart_coarse, 'xaxis_1', is, ie, indices=buffer)
+    call write_data(Sfc_restart_coarse, "xaxis_1", buffer)
     deallocate(buffer)
 
-    call register_axis(Sfc_restart, 'yaxis_1', 'Y')
-    call register_field(Sfc_restart, 'yaxis_1', 'double', (/'yaxis_1'/))
-    call register_variable_attribute(Sfc_restart, 'yaxis_1', 'cartesian_axis', 'Y', str_len=1)
-    call get_global_io_domain_indices(Sfc_restart, 'yaxis_1', is, ie, indices=buffer)
-    call write_data(Sfc_restart, "yaxis_1", buffer)
+    call register_axis(Sfc_restart_coarse, 'yaxis_1', 'Y')
+    call register_field(Sfc_restart_coarse, 'yaxis_1', 'double', (/'yaxis_1'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'yaxis_1', 'cartesian_axis', 'Y', str_len=1)
+    call get_global_io_domain_indices(Sfc_restart_coarse, 'yaxis_1', is, ie, indices=buffer)
+    call write_data(Sfc_restart_coarse, "yaxis_1", buffer)
     deallocate(buffer)
 
-    call register_axis(Sfc_restart, 'zaxis_1', dimension_length=Model%lsoil)
-    call register_field(Sfc_restart, 'zaxis_1', 'double', (/'zaxis_1'/))
-    call register_variable_attribute(Sfc_restart, 'zaxis_1', 'cartesian_axis', 'Z', str_len=1)
+    call register_axis(Sfc_restart_coarse, 'zaxis_1', dimension_length=Model%lsoil)
+    call register_field(Sfc_restart_coarse, 'zaxis_1', 'double', (/'zaxis_1'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'zaxis_1', 'cartesian_axis', 'Z', str_len=1)
     allocate( buffer(Model%lsoil) )
     do lsoil=1, Model%lsoil
        buffer(lsoil) = lsoil
     end do
-    call write_data(Sfc_restart, 'zaxis_1', buffer)
+    call write_data(Sfc_restart_coarse, 'zaxis_1', buffer)
     deallocate(buffer)
 
-    call register_axis(Sfc_restart, 'Time', unlimited)
-    call register_field(Sfc_restart, 'Time', 'double', (/'Time'/))
-    call register_variable_attribute(Sfc_restart, 'Time', 'cartesian_axis', 'T', str_len=1)
-    call write_data(Sfc_restart, 'Time', 1)
+    call register_axis(Sfc_restart_coarse, 'Time', unlimited)
+    call register_field(Sfc_restart_coarse, 'Time', 'double', (/'Time'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'Time', 'cartesian_axis', 'T', str_len=1)
+    call write_data(Sfc_restart_coarse, 'Time', 1)
 
     !--- Assign dimensions to array for use in register_restart_field
     dim_names_2d(1) = "xaxis_1"

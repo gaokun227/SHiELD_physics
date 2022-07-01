@@ -459,6 +459,10 @@ module gfdl_cld_mp_mod
     real :: regmin = 150.0, regmax = 10000.0 ! minimum and maximum effective radius for graupel
     !real :: rewmax = 15.0, rermin = 15.0 ! Kokhanovsky (2004)
 
+    real :: rewfac = 1.0 ! this is a tuning parameter to compromise the inconsistency between
+                         ! GFDL MP's PSD and cloud water radiative property's PSD assumption.
+                         ! after the cloud water radiative property's PSD is rebuilt,
+                         ! this parameter should be 1.0.
     real :: reifac = 1.0 ! this is a tuning parameter to compromise the inconsistency between
                          ! GFDL MP's PSD and cloud ice radiative property's PSD assumption.
                          ! after the cloud ice radiative property's PSD is rebuilt,
@@ -517,7 +521,7 @@ module gfdl_cld_mp_mod
         n0r_exp, n0s_exp, n0g_exp, n0h_exp, muw, mui, mur, mus, mug, muh, &
         alinw, alini, alinr, alins, aling, alinh, blinw, blini, blinr, blins, bling, blinh, &
         do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac, &
-        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, reifac, &
+        snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, rewfac, reifac, &
         cp_heating
     
 contains
@@ -6009,7 +6013,7 @@ subroutine cld_eff_rad (is, ie, ks, ke, lsm, p, delp, t, qv, qw, qi, qr, qs, qg,
                     qcw (i, k) = dpg * qmw (i, k) * 1.0e3
                     call cal_pc_ed_oe_rr_tv (qmw (i, k), rho, blinw, muw, &
                         eda = edaw, edb = edbw, ed = rew (i, k))
-                    rew (i, k) = 0.5 * rew (i, k) * 1.0e6
+                    rew (i, k) = rewfac * 0.5 * rew (i, k) * 1.0e6
                     rew (i, k) = max (rewmin, min (rewmax, rew (i, k)))
                 else
                     qcw (i, k) = 0.0

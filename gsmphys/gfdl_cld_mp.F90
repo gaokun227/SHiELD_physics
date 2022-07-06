@@ -578,7 +578,7 @@ end subroutine gfdl_cld_mp_init
 
 subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
         ua, va, delz, delp, gsize, dtm, hs, water, rain, ice, snow, graupel, &
-        hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, te, &
+        hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, adj_vmr, te, &
         pcw, edw, oew, rrw, tvw, pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, &
         pcs, eds, oes, rrs, tvs, pcg, edg, oeg, rrg, tvg, &
         prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, condensation, &
@@ -610,6 +610,7 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     real, intent (inout), dimension (is:ie) :: condensation, deposition
     real, intent (inout), dimension (is:ie) :: evaporation, sublimation
     
+    real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
     real, intent (out), dimension (is:ie, ks:ke) :: pcw, edw, oew, rrw, tvw
     real, intent (out), dimension (is:ie, ks:ke) :: pci, edi, oei, rri, tvi
     real, intent (out), dimension (is:ie, ks:ke) :: pcr, edr, oer, rrr, tvr
@@ -628,7 +629,7 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
-        gsize, hs, q_con, cappa, consv_te, te, pcw, edw, oew, rrw, tvw, &
+        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, pcw, edw, oew, rrw, tvw, &
         pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs, &
         pcg, edg, oeg, rrg, tvg, prefluxw, prefluxr, prefluxi, &
         prefluxs, prefluxg, condensation, deposition, evaporation, sublimation, &
@@ -1129,9 +1130,9 @@ end subroutine setup_mhc_lhc
 ! major cloud microphysics driver
 ! =======================================================================
 
-subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
-        qg, qa, qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, &
-        graupel, gsize, hs, q_con, cappa, consv_te, te, pcw, edw, oew, rrw, tvw, &
+subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
+        qa, qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
+        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, pcw, edw, oew, rrw, tvw, &
         pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs, &
         pcg, edg, oeg, rrg, tvg, prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, &
         condensation, deposition, evaporation, sublimation, last_step, do_inline_mp, &
@@ -1164,7 +1165,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
     real, intent (inout), dimension (is:ie) :: condensation, deposition
     real, intent (inout), dimension (is:ie) :: evaporation, sublimation
     
-    real, intent (out), dimension (is:ie, ks:ke) :: te
+    real, intent (out), dimension (is:ie, ks:ke) :: te, adj_vmr
     real, intent (out), dimension (is:ie, ks:ke) :: pcw, edw, oew, rrw, tvw
     real, intent (out), dimension (is:ie, ks:ke) :: pci, edi, oei, rri, tvi
     real, intent (out), dimension (is:ie, ks:ke) :: pcr, edr, oer, rrr, tvr
@@ -1177,7 +1178,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
     
     integer :: i, k, n
     
-    real :: rh_adj, rh_rain, ccn0, cin0, cond
+    real :: rh_adj, rh_rain, ccn0, cin0, cond, q1, q2
     real :: convt, dts, q_cond, t_lnd, t_ocn, h_var, tmp, nl, ni
     
     real, dimension (ks:ke) :: q_liq, q_sol, dp, dz
@@ -1208,6 +1209,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
     
     dte = 0.0
     cond = 0.0
+    adj_vmr = 1.0
     
     ! -----------------------------------------------------------------------
     ! unit convert to mm/day
@@ -1542,6 +1544,10 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, &
             qsz (k) = qsz (k) * con_r8
             qgz (k) = qgz (k) * con_r8
             
+            q1 = qv (i, k) + ql (i, k) + qr (i, k) + qi (i, k) + qs (i, k) + qg (i, k)
+            q2 = qvz (k) + qlz (k) + qrz (k) + qiz (k) + qsz (k) + qgz (k)
+            adj_vmr (i, k) = ((one_r8 - q1) / (one_r8 - q2)) / (one_r8 + q2 - q1)
+
             qv (i, k) = qvz (k)
             ql (i, k) = qlz (k)
             qr (i, k) = qrz (k)
@@ -5506,9 +5512,9 @@ end subroutine sedi_heat
 ! =======================================================================
 
 subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
-        te, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, pt, delp, &
-        q_con, cappa, gsize, last_step, condensation, evaporation, &
-        deposition, sublimation, do_sat_adj)
+        adj_vmr, te, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, &
+        pt, delp, q_con, cappa, gsize, last_step, condensation, &
+        evaporation, deposition, sublimation, do_sat_adj)
     
     implicit none
     
@@ -5534,6 +5540,8 @@ subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     real, intent (inout), dimension (is:ie) :: condensation, deposition
     real, intent (inout), dimension (is:ie) :: evaporation, sublimation
     
+    real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
+
     ! -----------------------------------------------------------------------
     ! local variables
     ! -----------------------------------------------------------------------
@@ -5580,7 +5588,7 @@ subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
-        gsize, hs, q_con, cappa, consv_te, te, pcw, edw, oew, rrw, tvw, &
+        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, pcw, edw, oew, rrw, tvw, &
         pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs, &
         pcg, edg, oeg, rrg, tvg, prefluxw, prefluxr, prefluxi, &
         prefluxs, prefluxg, condensation, deposition, evaporation, sublimation, &

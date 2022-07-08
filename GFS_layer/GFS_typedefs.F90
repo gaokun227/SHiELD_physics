@@ -3735,7 +3735,6 @@ module GFS_typedefs
     if (present(linit) ) set_totprcp = linit
     if (present(iauwindow_center) ) set_totprcp = iauwindow_center
     if (set_totprcp) then
-      if (Model%me == 0) print *,'set_totprcp T kdt=', Model%kdt
       Diag%totprcp = zero
       Diag%cnvprcp = zero
       Diag%totice  = zero

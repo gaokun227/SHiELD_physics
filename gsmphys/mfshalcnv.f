@@ -3,7 +3,8 @@
      &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,
 !    &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,me)
      &     clam,c0s,c1,cthk,shal_top,betaw,dxcrt,
-     &     pgcon,asolfac,evfact,evfactl,wu2,eta)
+     &     pgcon,asolfac,evfact,evfactl,
+     &     wu2,eta,xmb,tfac_out,sigmagfm)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -116,6 +117,8 @@ c  local variables and arrays
 !  for updraft velocity calculation
       real(kind=kind_phys) wu2(im,km),     buo(im,km),    drag(im,km)
       real(kind=kind_phys) wc(im),         scaldfunc(im), sigmagfm(im)
+!  for writting out the Tadv/Tcnv factor - by KGao
+      real(kind=kind_phys) tfac_out(im)
 !
 c  cloud water
 !     real(kind=kind_phys) qlko_ktcon(im), dellal(im,km), tvo(im,km),
@@ -1221,6 +1224,7 @@ c
           rho = po(i,k)*100. / (rd*to(i,k))
           tfac = tauadv(i) / dtconv(i)
           tfac = min(tfac, 1.)
+          tfac_out(i) = tfac
           xmb(i) = tfac*betaw*rho*wc(i)
         endif
       enddo

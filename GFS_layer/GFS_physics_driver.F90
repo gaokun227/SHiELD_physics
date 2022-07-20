@@ -2880,8 +2880,9 @@ module module_physics_driver
                             Model%cthk_shal, Model%top_shal,                &
                             Model%betaw_shal, Model%dxcrt_shal,             &
                             Model%pgcon_shal, Model%asolfac_shal,           &
-                            Model%evfact_shal, Model%evfactl_shal, wu2_shal,&
-                            eta_shal)
+                            Model%evfact_shal, Model%evfactl_shal,          &
+                            wu2_shal, eta_shal,                             &
+                            Diag%xmb_shal, Diag%tfac_shal, Diag%sigma_shal)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)

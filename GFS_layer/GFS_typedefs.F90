@@ -1082,6 +1082,9 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
     real (kind=kind_phys), pointer :: hgamt  (:)    => null()   !< ysu counter-gradient flux
     real (kind=kind_phys), pointer :: hfxpbl (:)    => null()   !< ysu entrainment flux
+    real (kind=kind_phys), pointer :: xmb_shal(:)   => null()   !< cloud base mass flux from shal cnv 
+    real (kind=kind_phys), pointer :: tfac_shal(:)  => null()   !< Tadv/Tcnv factor from shal cnv
+    real (kind=kind_phys), pointer :: sigma_shal(:) => null()   !< updraft fractional area from shal cnv
     real (kind=kind_phys), pointer :: pwat   (:)    => null()   !< precipitable water
     real (kind=kind_phys), pointer :: t1     (:)    => null()   !< layer 1 temperature (K)
     real (kind=kind_phys), pointer :: q1     (:)    => null()   !< layer 1 specific humidity (kg/kg)
@@ -3589,6 +3592,9 @@ module GFS_typedefs
     allocate (Diag%hpbl    (IM))
     allocate (Diag%hgamt   (IM))
     allocate (Diag%hfxpbl  (IM))
+    allocate (Diag%xmb_shal(IM))
+    allocate (Diag%tfac_shal(IM))
+    allocate (Diag%sigma_shal(IM))
     allocate (Diag%pwat    (IM))
     allocate (Diag%t1      (IM))
     allocate (Diag%q1      (IM))
@@ -3728,6 +3734,9 @@ module GFS_typedefs
     Diag%hpbl    = zero
     Diag%hgamt   = zero
     Diag%hfxpbl  = zero
+    Diag%xmb_shal  = zero
+    Diag%tfac_shal = zero
+    Diag%sigma_shal= zero
     Diag%pwat    = zero
     Diag%t1      = zero
     Diag%q1      = zero

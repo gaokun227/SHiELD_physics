@@ -141,7 +141,7 @@ module FV3GFS_io_mod
    real(kind=kind_phys) :: zhour
 !
    integer :: tot_diag_idx = 0
-   integer, parameter :: DIAG_SIZE = 250
+   integer, parameter :: DIAG_SIZE = 260
    real(kind=kind_phys), parameter :: missing_value = 9.99e20
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
@@ -4435,6 +4435,39 @@ module FV3GFS_io_mod
     allocate (Diag(idx)%data(nblks))
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%hfxpbl(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'xmb_shal'
+    Diag(idx)%desc = 'cloud base mass flux from mass-flux shal cnv'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%xmb_shal(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'tfac_shal'
+    Diag(idx)%desc = 'Tadv/Tcnv factor from  mass-flux shal cnv'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%tfac_shal(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'sigma_shal'
+    Diag(idx)%desc = 'updraft fractional area from mass-flux shal cnv'
+    Diag(idx)%unit = 'XXX'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%sigma_shal(:)
     enddo
 
     idx = idx + 1

@@ -437,7 +437,7 @@ module gfdl_cld_mp_mod
     real :: xr_b = 100.0 ! alpha_0 value in Xu and Randall (1996)
     real :: xr_c = 0.49 ! gamma value in Xu and Randall (1996)
     
-    real :: te_err = 1.e-14 ! 64bit: 1.e-14, 32bit: 1.e-7; turn off to save computer time
+    real :: te_err = 1.e-7 ! 64bit: 1.e-14, 32bit: 1.e-7; turn off to save computer time
     
     real :: rh_thres = 0.75 ! minimum relative humidity for cloud fraction
     real :: rhc_cevap = 0.85 ! maximum relative humidity for cloud water evaporation
@@ -1643,19 +1643,38 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     if (consv_checker) then
         if (abs (sum (te_end) + sum (te_b_end) - sum (te_beg) - sum (te_b_beg)) / &
              (sum (te_beg) + sum (te_b_beg)) .gt. te_err) then
-            print *, "GFDL MP TE: ", (sum (te_beg) + sum (te_b_beg)) / sum (gsize ** 2), &
-                (sum (te_end) + sum (te_b_end)) / sum (gsize ** 2), &
+            print *, "GFDL MP TE DRY: ", &
+                !(sum (te_beg) + sum (te_b_beg)) / sum (gsize ** 2), &
+                !(sum (te_end) + sum (te_b_end)) / sum (gsize ** 2), &
                 (sum (te_end) + sum (te_b_end) - sum (te_beg) - sum (te_b_beg)) / &
                 (sum (te_beg) + sum (te_b_beg))
         endif
         if (abs (sum (tw_end) + sum (tw_b_end) - sum (tw_beg) - sum (tw_b_beg)) / &
              (sum (tw_beg) + sum (tw_b_beg)) .gt. te_err) then
-            print *, "GFDL MP TW: ", (sum (tw_beg) + sum (tw_b_beg)) / sum (gsize ** 2), &
-                (sum (tw_end) + sum (tw_b_end)) / sum (gsize ** 2), &
+            print *, "GFDL MP TW DRY: ", &
+                !(sum (tw_beg) + sum (tw_b_beg)) / sum (gsize ** 2), &
+                !(sum (tw_end) + sum (tw_b_end)) / sum (gsize ** 2), &
                 (sum (tw_end) + sum (tw_b_end) - sum (tw_beg) - sum (tw_b_beg)) / &
                 (sum (tw_beg) + sum (tw_b_beg))
         endif
-        ! print *, "GFDL MP TE LOSS (%) : ", sum (te_loss) / (sum (te_beg) + sum (te_b_beg)) * 100.0
+        !print *, "GFDL MP TE LOSS (%) : ", sum (te_loss) / (sum (te_beg) + sum (te_b_beg)) * 100.0
+        if (abs (sum (te_end_0) + sum (te_b_end_0) - sum (te_beg_0) - sum (te_b_beg_0)) / &
+             (sum (te_beg_0) + sum (te_b_beg_0)) .gt. te_err) then
+            print *, "GFDL MP TE WET: ", &
+                !(sum (te_beg_0) + sum (te_b_beg_0)) / sum (gsize ** 2), &
+                !(sum (te_end_0) + sum (te_b_end_0)) / sum (gsize ** 2), &
+                (sum (te_end_0) + sum (te_b_end_0) - sum (te_beg_0) - sum (te_b_beg_0)) / &
+                (sum (te_beg_0) + sum (te_b_beg_0))
+        endif
+        if (abs (sum (tw_end_0) + sum (tw_b_end_0) - sum (tw_beg_0) - sum (tw_b_beg_0)) / &
+             (sum (tw_beg_0) + sum (tw_b_beg_0)) .gt. te_err) then
+            print *, "GFDL MP TW WET: ", &
+                !(sum (tw_beg_0) + sum (tw_b_beg_0)) / sum (gsize ** 2), &
+                !(sum (tw_end_0) + sum (tw_b_end_0)) / sum (gsize ** 2), &
+                (sum (tw_end_0) + sum (tw_b_end_0) - sum (tw_beg_0) - sum (tw_b_beg_0)) / &
+                (sum (tw_beg_0) + sum (tw_b_beg_0))
+        endif
+        !print *, "GFDL MP TE LOSS (%) : ", sum (te_loss_0) / (sum (te_beg_0) + sum (te_b_beg_0)) * 100.0
     endif
     
 end subroutine mpdrv

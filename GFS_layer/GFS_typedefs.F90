@@ -2545,9 +2545,9 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, daily_mean,                         &
                           !--- microphysical parameterizations
-                               ncld, do_inline_mp, do_inline_sas, do_inline_edmf,           &
-                               do_inline_gwd, zhao_mic, psautco, prautco, evpco, do_cosp,   &
-                               wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
+                               ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
+                               do_inline_sas, do_inline_edmf, do_inline_gwd,                &
+                               do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !    Noah MP options

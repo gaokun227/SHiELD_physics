@@ -77,7 +77,7 @@ module gfdl_cld_mp_mod
     public :: fast_sat_adj, cld_eff_rad, rad_ref
     public :: qs_init, wqs, mqs, mqs3d
     public :: c_liq, c_ice, rhow, wet_bulb
-    public :: cv_air, cv_vap
+    public :: cv_air, cv_vap, mtetw
     
     ! -----------------------------------------------------------------------
     ! precision definition
@@ -437,7 +437,8 @@ module gfdl_cld_mp_mod
     real :: xr_b = 100.0 ! alpha_0 value in Xu and Randall (1996)
     real :: xr_c = 0.49 ! gamma value in Xu and Randall (1996)
     
-    real :: te_err = 1.e-7 ! 64bit: 1.e-14, 32bit: 1.e-7; turn off to save computer time
+    real :: te_err = 1.e-5 ! 64bit: 1.e-14, 32bit: 1.e-7; turn off to save computer time
+    real :: tw_err = 1.e-8 ! 64bit: 1.e-14, 32bit: 1.e-7; turn off to save computer time
     
     real :: rh_thres = 0.75 ! minimum relative humidity for cloud fraction
     real :: rhc_cevap = 0.85 ! maximum relative humidity for cloud water evaporation
@@ -511,7 +512,7 @@ module gfdl_cld_mp_mod
         prog_ccn, c_pracw, c_praci, rad_snow, rad_graupel, rad_rain, cld_min, &
         sedflag, sed_fac, do_sedi_uv, do_sedi_w, do_sedi_heat, icloud_f, &
         irain_f, xr_a, xr_b, xr_c, ntimes, tau_revp, tice_mlt, do_cond_timescale, &
-        mp_time, consv_checker, te_err, use_rhc_cevap, use_rhc_revap, tau_wbf, &
+        mp_time, consv_checker, te_err, tw_err, use_rhc_cevap, use_rhc_revap, tau_wbf, &
         do_warm_rain_mp, rh_thres, f_dq_p, f_dq_m, do_cld_adj, rhc_cevap, &
         rhc_revap, beta, liq_ice_combine, rewflag, reiflag, rerflag, resflag, &
         regflag, rewmin, rewmax, reimin, reimax, rermin, rermax, resmin, &
@@ -530,13 +531,15 @@ contains
 ! GFDL cloud microphysics initialization
 ! =======================================================================
 
-subroutine gfdl_cld_mp_init (input_nml_file, logunit)
+subroutine gfdl_cld_mp_init (input_nml_file, logunit, hydrostatic)
     
     implicit none
     
     ! -----------------------------------------------------------------------
     ! input / output arguments
     ! -----------------------------------------------------------------------
+    
+    logical, intent (in) :: hydrostatic
     
     integer, intent (in) :: logunit
     
@@ -570,6 +573,12 @@ subroutine gfdl_cld_mp_init (input_nml_file, logunit)
     
     call setup_mp
     
+    ! -----------------------------------------------------------------------
+    ! define various heat capacities and latent heat coefficients at 0 deg K
+    ! -----------------------------------------------------------------------
+    
+    call setup_mhc_lhc (hydrostatic)
+    
 end subroutine gfdl_cld_mp_init
 
 ! =======================================================================
@@ -578,7 +587,7 @@ end subroutine gfdl_cld_mp_init
 
 subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
         ua, va, delz, delp, gsize, dtm, hs, water, rain, ice, snow, graupel, &
-        hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, adj_vmr, te, &
+        hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, adj_vmr, te, dte, &
         pcw, edw, oew, rrw, tvw, pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, &
         pcs, eds, oes, rrs, tvs, pcg, edg, oeg, rrg, tvg, &
         prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, condensation, &
@@ -617,19 +626,15 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     real, intent (out), dimension (is:ie, ks:ke) :: pcs, eds, oes, rrs, tvs
     real, intent (out), dimension (is:ie, ks:ke) :: pcg, edg, oeg, rrg, tvg
 
-    ! -----------------------------------------------------------------------
-    ! define various heat capacities and latent heat coefficients at 0 deg K
-    ! -----------------------------------------------------------------------
-    
-    call setup_mhc_lhc (hydrostatic)
-    
+    real (kind = r8), intent (out), dimension (is:ie) :: dte
+
     ! -----------------------------------------------------------------------
     ! major cloud microphysics driver
     ! -----------------------------------------------------------------------
     
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
-        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, pcw, edw, oew, rrw, tvw, &
+        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, pcw, edw, oew, rrw, tvw, &
         pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs, &
         pcg, edg, oeg, rrg, tvg, prefluxw, prefluxr, prefluxi, &
         prefluxs, prefluxg, condensation, deposition, evaporation, sublimation, &
@@ -1132,7 +1137,7 @@ end subroutine setup_mhc_lhc
 
 subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         qa, qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
-        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, pcw, edw, oew, rrw, tvw, &
+        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, pcw, edw, oew, rrw, tvw, &
         pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs, &
         pcg, edg, oeg, rrg, tvg, prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, &
         condensation, deposition, evaporation, sublimation, last_step, do_inline_mp, &
@@ -1172,6 +1177,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, intent (out), dimension (is:ie, ks:ke) :: pcs, eds, oes, rrs, tvs
     real, intent (out), dimension (is:ie, ks:ke) :: pcg, edg, oeg, rrg, tvg
     
+    real (kind = r8), intent (out), dimension (is:ie) :: dte
+
     ! -----------------------------------------------------------------------
     ! local variables
     ! -----------------------------------------------------------------------
@@ -1188,11 +1195,11 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     
     real (kind = r8) :: con_r8, c8, cp8
     
-    real (kind = r8), dimension (is:ie, ks:ke) :: te_beg, te_end, tw_beg, tw_end
-    real (kind = r8), dimension (is:ie, ks:ke) :: te_beg_0, te_end_0, tw_beg_0, tw_end_0
+    real (kind = r8), dimension (is:ie, ks:ke) :: te_beg_d, te_end_d, tw_beg_d, tw_end_d
+    real (kind = r8), dimension (is:ie, ks:ke) :: te_beg_m, te_end_m, tw_beg_m, tw_end_m
     
-    real (kind = r8), dimension (is:ie) :: te_b_beg, te_b_end, tw_b_beg, tw_b_end, dte, te_loss
-    real (kind = r8), dimension (is:ie) :: te_b_beg_0, te_b_end_0, tw_b_beg_0, tw_b_end_0
+    real (kind = r8), dimension (is:ie) :: te_b_beg_d, te_b_end_d, tw_b_beg_d, tw_b_end_d, te_loss
+    real (kind = r8), dimension (is:ie) :: te_b_beg_m, te_b_end_m, tw_b_beg_m, tw_b_end_m
     
     real (kind = r8), dimension (ks:ke) :: tz
     
@@ -1259,8 +1266,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
             call mtetw (ks, ke, qv (i, :), ql (i, :), qr (i, :), qi (i, :), &
                 qs (i, :), qg (i, :), tz, ua (i, :), va (i, :), wa (i, :), &
                 delp (i, :), gsize (i), dte (i), water (i), rain (i), ice (i), snow (i), &
-                graupel (i), dtm, te_beg_0 (i, :), tw_beg_0 (i, :), &
-                te_b_beg_0 (i), tw_b_beg_0 (i), .true., hydrostatic)
+                graupel (i), dtm, te_beg_m (i, :), tw_beg_m (i, :), &
+                te_b_beg_m (i), tw_b_beg_m (i), .true., hydrostatic)
         endif
         
         do k = ks, ke
@@ -1324,8 +1331,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         if (consv_checker) then
             call mtetw (ks, ke, qvz, qlz, qrz, qiz, qsz, qgz, tz, u, v, w, &
                 dp, gsize (i), dte (i), water (i), rain (i), ice (i), snow (i), &
-                graupel (i), dtm, te_beg (i, :), tw_beg (i, :), &
-                te_b_beg (i), tw_b_beg (i), .false., hydrostatic)
+                graupel (i), dtm, te_beg_d (i, :), tw_beg_d (i, :), &
+                te_b_beg_d (i), tw_b_beg_d (i), .false., hydrostatic)
         endif
         
         ! -----------------------------------------------------------------------
@@ -1518,8 +1525,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         if (consv_checker) then
             call mtetw (ks, ke, qvz, qlz, qrz, qiz, qsz, qgz, tz, u, v, w, &
                 dp, gsize (i), dte (i), water (i), rain (i), ice (i), snow (i), &
-                graupel (i), dtm, te_end (i, :), tw_end (i, :), &
-                te_b_end (i), tw_b_end (i), .false., hydrostatic, te_loss (i))
+                graupel (i), dtm, te_end_d (i, :), tw_end_d (i, :), &
+                te_b_end_d (i), tw_b_end_d (i), .false., hydrostatic, te_loss (i))
         endif
         
         do k = ks, ke
@@ -1584,8 +1591,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
             call mtetw (ks, ke, qv (i, :), ql (i, :), qr (i, :), qi (i, :), &
                 qs (i, :), qg (i, :), tz, ua (i, :), va (i, :), wa (i, :), &
                 delp (i, :), gsize (i), dte (i), water (i), rain (i), ice (i), snow (i), &
-                graupel (i), dtm, te_end_0 (i, :), tw_end_0 (i, :), &
-                te_b_end_0 (i), tw_b_end_0 (i), .true., hydrostatic)
+                graupel (i), dtm, te_end_m (i, :), tw_end_m (i, :), &
+                te_b_end_m (i), tw_b_end_m (i), .true., hydrostatic)
         endif
         
         ! -----------------------------------------------------------------------
@@ -1634,48 +1641,48 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
             enddo
         endif
         
+        ! -----------------------------------------------------------------------
+        ! total energy checker
+        ! -----------------------------------------------------------------------
+        
+        if (consv_checker) then
+            if (abs (sum (te_end_d (i, :)) + te_b_end_d (i) - sum (te_beg_d (i, :)) - te_b_beg_d (i)) / &
+                 (sum (te_beg_d (i, :)) + te_b_beg_d (i)) .gt. te_err) then
+                print*, "GFDL-MP-DRY TE: ", &
+                    !(sum (te_beg_d (i, :)) + te_b_beg_d (i)) / (gsize (i) ** 2), &
+                    !(sum (te_end_d (i, :)) + te_b_end_d (i)) / (gsize (i) ** 2), &
+                    (sum (te_end_d (i, :)) + te_b_end_d (i) - sum (te_beg_d (i, :)) - te_b_beg_d (i)) / &
+                    (sum (te_beg_d (i, :)) + te_b_beg_d (i))
+            endif
+            if (abs (sum (tw_end_d (i, :)) + tw_b_end_d (i) - sum (tw_beg_d (i, :)) - tw_b_beg_d (i)) / &
+                 (sum (tw_beg_d (i, :)) + tw_b_beg_d (i)) .gt. tw_err) then
+                print*, "GFDL-MP-DRY TW: ", &
+                    !(sum (tw_beg_d (i, :)) + tw_b_beg_d (i)) / (gsize (i) ** 2), &
+                    !(sum (tw_end_d (i, :)) + tw_b_end_d (i)) / (gsize (i) ** 2), &
+                    (sum (tw_end_d (i, :)) + tw_b_end_d (i) - sum (tw_beg_d (i, :)) - tw_b_beg_d (i)) / &
+                    (sum (tw_beg_d (i, :)) + tw_b_beg_d (i))
+            endif
+            !print*, "GFDL MP TE DRY LOSS (%) : ", te_loss (i) / (sum (te_beg_d (i, :)) + te_b_beg_d (i)) * 100.0
+            if (abs (sum (te_end_m (i, :)) + te_b_end_m (i) - sum (te_beg_m (i, :)) - te_b_beg_m (i)) / &
+                 (sum (te_beg_m (i, :)) + te_b_beg_m (i)) .gt. te_err) then
+                print*, "GFDL-MP-WET TE: ", &
+                    !(sum (te_beg_m (i, :)) + te_b_beg_m (i)) / (gsize (i) ** 2), &
+                    !(sum (te_end_m (i, :)) + te_b_end_m (i)) / (gsize (i) ** 2), &
+                    (sum (te_end_m (i, :)) + te_b_end_m (i) - sum (te_beg_m (i, :)) - te_b_beg_m (i)) / &
+                    (sum (te_beg_m (i, :)) + te_b_beg_m (i))
+            endif
+            if (abs (sum (tw_end_m (i, :)) + tw_b_end_m (i) - sum (tw_beg_m (i, :)) - tw_b_beg_m (i)) / &
+                 (sum (tw_beg_m (i, :)) + tw_b_beg_m (i)) .gt. tw_err) then
+                print*, "GFDL-MP-WET TW: ", &
+                    !(sum (tw_beg_m (i, :)) + tw_b_beg_m (i)) / (gsize (i) ** 2), &
+                    !(sum (tw_end_m (i, :)) + tw_b_end_m (i)) / (gsize (i) ** 2), &
+                    (sum (tw_end_m (i, :)) + tw_b_end_m (i) - sum (tw_beg_m (i, :)) - tw_b_beg_m (i)) / &
+                    (sum (tw_beg_m (i, :)) + tw_b_beg_m (i))
+            endif
+            !print*, "GFDL MP TE WET LOSS (%) : ", te_loss_0 (i) / (sum (te_beg_m (i, :)) + te_b_beg_m (i)) * 100.0
+        endif
+    
     enddo ! i loop
-    
-    ! -----------------------------------------------------------------------
-    ! total energy checker
-    ! -----------------------------------------------------------------------
-    
-    if (consv_checker) then
-        if (abs (sum (te_end) + sum (te_b_end) - sum (te_beg) - sum (te_b_beg)) / &
-             (sum (te_beg) + sum (te_b_beg)) .gt. te_err) then
-            print *, "GFDL MP TE DRY: ", &
-                !(sum (te_beg) + sum (te_b_beg)) / sum (gsize ** 2), &
-                !(sum (te_end) + sum (te_b_end)) / sum (gsize ** 2), &
-                (sum (te_end) + sum (te_b_end) - sum (te_beg) - sum (te_b_beg)) / &
-                (sum (te_beg) + sum (te_b_beg))
-        endif
-        if (abs (sum (tw_end) + sum (tw_b_end) - sum (tw_beg) - sum (tw_b_beg)) / &
-             (sum (tw_beg) + sum (tw_b_beg)) .gt. te_err) then
-            print *, "GFDL MP TW DRY: ", &
-                !(sum (tw_beg) + sum (tw_b_beg)) / sum (gsize ** 2), &
-                !(sum (tw_end) + sum (tw_b_end)) / sum (gsize ** 2), &
-                (sum (tw_end) + sum (tw_b_end) - sum (tw_beg) - sum (tw_b_beg)) / &
-                (sum (tw_beg) + sum (tw_b_beg))
-        endif
-        !print *, "GFDL MP TE LOSS (%) : ", sum (te_loss) / (sum (te_beg) + sum (te_b_beg)) * 100.0
-        if (abs (sum (te_end_0) + sum (te_b_end_0) - sum (te_beg_0) - sum (te_b_beg_0)) / &
-             (sum (te_beg_0) + sum (te_b_beg_0)) .gt. te_err) then
-            print *, "GFDL MP TE WET: ", &
-                !(sum (te_beg_0) + sum (te_b_beg_0)) / sum (gsize ** 2), &
-                !(sum (te_end_0) + sum (te_b_end_0)) / sum (gsize ** 2), &
-                (sum (te_end_0) + sum (te_b_end_0) - sum (te_beg_0) - sum (te_b_beg_0)) / &
-                (sum (te_beg_0) + sum (te_b_beg_0))
-        endif
-        if (abs (sum (tw_end_0) + sum (tw_b_end_0) - sum (tw_beg_0) - sum (tw_b_beg_0)) / &
-             (sum (tw_beg_0) + sum (tw_b_beg_0)) .gt. te_err) then
-            print *, "GFDL MP TW WET: ", &
-                !(sum (tw_beg_0) + sum (tw_b_beg_0)) / sum (gsize ** 2), &
-                !(sum (tw_end_0) + sum (tw_b_end_0)) / sum (gsize ** 2), &
-                (sum (tw_end_0) + sum (tw_b_end_0) - sum (tw_beg_0) - sum (tw_b_beg_0)) / &
-                (sum (tw_beg_0) + sum (tw_b_beg_0))
-        endif
-        !print *, "GFDL MP TE LOSS (%) : ", sum (te_loss_0) / (sum (te_beg_0) + sum (te_b_beg_0)) * 100.0
-    endif
     
 end subroutine mpdrv
 
@@ -5531,7 +5538,7 @@ end subroutine sedi_heat
 ! =======================================================================
 
 subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
-        adj_vmr, te, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, &
+        adj_vmr, te, dte, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, &
         pt, delp, q_con, cappa, gsize, last_step, condensation, &
         evaporation, deposition, sublimation, do_sat_adj)
     
@@ -5560,6 +5567,8 @@ subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     real, intent (inout), dimension (is:ie) :: evaporation, sublimation
     
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
+
+    real (kind = r8), intent (out), dimension (is:ie) :: dte
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -5596,18 +5605,12 @@ subroutine fast_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     prefluxg = 0.0
     
     ! -----------------------------------------------------------------------
-    ! define various heat capacities and latent heat coefficients at 0 deg K
-    ! -----------------------------------------------------------------------
-    
-    call setup_mhc_lhc (hydrostatic)
-    
-    ! -----------------------------------------------------------------------
     ! major cloud microphysics driver
     ! -----------------------------------------------------------------------
     
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
-        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, pcw, edw, oew, rrw, tvw, &
+        gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, pcw, edw, oew, rrw, tvw, &
         pci, edi, oei, rri, tvi, pcr, edr, oer, rrr, tvr, pcs, eds, oes, rrs, tvs, &
         pcg, edg, oeg, rrg, tvg, prefluxw, prefluxr, prefluxi, &
         prefluxs, prefluxg, condensation, deposition, evaporation, sublimation, &

@@ -490,7 +490,7 @@ module module_physics_driver
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
           gsize, hs, land, water0, rain0, ice0, snow0, graupel0, cond0, &
-          dep0, reevap0, sub0
+          dep0, reevap0, sub0, dte
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -999,6 +999,8 @@ module module_physics_driver
       sbsno(:)      = 0.0
       snowc(:)      = 0.0
       snohf(:)      = 0.0
+      qss(:)        = 0.0
+      gflx(:)       = 0.0
       Diag%zlvl(:)    = Statein%phil(:,1) * onebg
       Diag%smcwlt2(:) = 0.0
       Diag%smcref2(:) = 0.0
@@ -2451,7 +2453,6 @@ module module_physics_driver
           cnvc  = 0.
         endif
 
-
         if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
           do k=1,levs
             do i=1,im
@@ -3479,7 +3480,7 @@ module module_physics_driver
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, water0, rain0, ice0, snow0, &
                                 graupel0, .false., 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                                .false., adj_vmr(:,levs:1:-1), te(:,levs:1:-1), &
+                                .false., adj_vmr(:,levs:1:-1), te(:,levs:1:-1), dte, &
                                 pcw(:,levs:1:-1), edw(:,levs:1:-1), oew(:,levs:1:-1), rrw(:,levs:1:-1), tvw(:,levs:1:-1), &
                                 pci(:,levs:1:-1), edi(:,levs:1:-1), oei(:,levs:1:-1), rri(:,levs:1:-1), tvi(:,levs:1:-1), &
                                 pcr(:,levs:1:-1), edr(:,levs:1:-1), oer(:,levs:1:-1), rrr(:,levs:1:-1), tvr(:,levs:1:-1), &

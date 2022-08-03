@@ -77,7 +77,8 @@ module gfdl_cld_mp_mod
     public :: fast_sat_adj, cld_eff_rad, rad_ref
     public :: qs_init, wqs, mqs, mqs3d
     public :: c_liq, c_ice, rhow, wet_bulb
-    public :: cv_air, cv_vap, hlv, mtetw
+    public :: cv_air, cv_vap, mtetw
+    public :: hlv, hlf, tice
     
     ! -----------------------------------------------------------------------
     ! precision definition

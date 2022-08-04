@@ -1267,7 +1267,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
             call mtetw (ks, ke, qv (i, :), ql (i, :), qr (i, :), qi (i, :), &
                 qs (i, :), qg (i, :), tz, ua (i, :), va (i, :), wa (i, :), &
                 delp (i, :), gsize (i), dte (i), 0.0, water (i), rain (i), &
-                ice (i), snow (i), graupel (i), 0.0, dtm, te_beg_m (i, :), &
+                ice (i), snow (i), graupel (i), 0.0, 0.0, dtm, te_beg_m (i, :), &
                 tw_beg_m (i, :), te_b_beg_m (i), tw_b_beg_m (i), .true., hydrostatic)
         endif
         
@@ -1333,7 +1333,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         if (consv_checker) then
             call mtetw (ks, ke, qvz, qlz, qrz, qiz, qsz, qgz, tz, u, v, w, &
                 dp, gsize (i), dte (i), 0.0, water (i), rain (i), ice (i), &
-                snow (i), graupel (i), 0.0, dtm, te_beg_d (i, :), tw_beg_d (i, :), &
+                snow (i), graupel (i), 0.0, 0.0, dtm, te_beg_d (i, :), tw_beg_d (i, :), &
                 te_b_beg_d (i), tw_b_beg_d (i), .false., hydrostatic)
         endif
         
@@ -1522,7 +1522,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         if (consv_checker) then
             call mtetw (ks, ke, qvz, qlz, qrz, qiz, qsz, qgz, tz, u, v, w, &
                 dp, gsize (i), dte (i), 0.0, water (i), rain (i), ice (i), &
-                snow (i), graupel (i), 0.0, dtm, te_end_d (i, :), tw_end_d (i, :), &
+                snow (i), graupel (i), 0.0, 0.0, dtm, te_end_d (i, :), tw_end_d (i, :), &
                 te_b_end_d (i), tw_b_end_d (i), .false., hydrostatic, te_loss (i))
         endif
         
@@ -1628,7 +1628,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
             call mtetw (ks, ke, qv (i, :), ql (i, :), qr (i, :), qi (i, :), &
                 qs (i, :), qg (i, :), tz, ua (i, :), va (i, :), wa (i, :), &
                 delp (i, :), gsize (i), dte (i), 0.0, water (i), rain (i), &
-                ice (i), snow (i), graupel (i), 0.0, dtm, te_end_m (i, :), &
+                ice (i), snow (i), graupel (i), 0.0, 0.0, dtm, te_end_m (i, :), &
                 tw_end_m (i, :), te_b_end_m (i), tw_b_end_m (i), .true., hydrostatic)
         endif
         
@@ -6654,7 +6654,7 @@ end function mte
 ! =======================================================================
 
 subroutine mtetw (ks, ke, qv, ql, qr, qi, qs, qg, tz, ua, va, wa, delp, &
-        gsize, dte, vapor, water, rain, ice, snow, graupel, sen, dts, &
+        gsize, dte, vapor, water, rain, ice, snow, graupel, sen, stress, dts, &
         te, tw, te_b, tw_b, moist_q, hydrostatic, te_loss)
     
     implicit none
@@ -6667,7 +6667,7 @@ subroutine mtetw (ks, ke, qv, ql, qr, qi, qs, qg, tz, ua, va, wa, delp, &
     
     logical, intent (in) :: moist_q, hydrostatic
     
-    real, intent (in) :: gsize, vapor, water, rain, ice, snow, graupel, dts, sen
+    real, intent (in) :: gsize, vapor, water, rain, ice, snow, graupel, dts, sen, stress
     
     real, intent (in), dimension (ks:ke) :: qv, ql, qr, qi, qs, qg, ua, va, wa, delp
     
@@ -6714,7 +6714,7 @@ subroutine mtetw (ks, ke, qv, ql, qr, qi, qs, qg, tz, ua, va, wa, delp, &
          te (k) = rgrav * te (k) * delp (k) * gsize ** 2.0
          tw (k) = rgrav * (qv (k) + q_cond) * delp (k) * gsize ** 2.0
      enddo
-     te_b = (dte + (lv00 * c_air * vapor - li00 * c_air * (ice + snow + graupel)) * dts / 86400 + sen * dts) * gsize ** 2.0
+     te_b = (dte + (lv00 * c_air * vapor - li00 * c_air * (ice + snow + graupel)) * dts / 86400 + sen * dts + stress * dts) * gsize ** 2.0
      tw_b = (vapor + water + rain + ice + snow + graupel) * dts / 86400 * gsize ** 2.0
 
      if (present (te_loss)) then

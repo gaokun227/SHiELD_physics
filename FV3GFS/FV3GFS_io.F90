@@ -166,21 +166,22 @@ module FV3GFS_io_mod
 !--------------------
 ! FV3GFS_restart_read
 !--------------------
-  subroutine FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, Model, fv_domain)
+  subroutine FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, Model, fv_domain, enforce_rst_cksum)
     type(IPD_data_type),      intent(inout) :: IPD_Data(:)
     type(IPD_restart_type),   intent(inout) :: IPD_Restart
     type(block_control_type), intent(in)    :: Atm_block
     type(IPD_control_type),   intent(inout) :: Model
     type(domain2d),           intent(in)    :: fv_domain
+    logical,                  intent(in)    :: enforce_rst_cksum
 
     !--- read in surface data from chgres
-    call sfc_prop_restart_read (IPD_Data%Sfcprop, Atm_block, Model, fv_domain)
+    call sfc_prop_restart_read (IPD_Data%Sfcprop, Atm_block, Model, fv_domain, enforce_rst_cksum)
 
     !--- read in
     if (Model%sfc_override) call sfc_prop_override  (IPD_Data%Sfcprop, IPD_Data%Grid, Atm_block, Model, fv_domain)
 
     !--- read in physics restart data
-    call phys_restart_read (IPD_Restart, Atm_block, Model, fv_domain)
+    call phys_restart_read (IPD_Restart, Atm_block, Model, fv_domain, enforce_rst_cksum)
 
   end subroutine FV3GFS_restart_read
 
@@ -798,7 +799,7 @@ module FV3GFS_io_mod
 
     !--- register the NOAH-MP 3D fields
     if (Model%lsm == Model%lsm_noahmp) then
-      opt = .false.
+      opt = .true.
       do num = nvar_s3+1,nvar_s3+3
         var3_p => sfc_var3sn(:,:,:,num)
         dim_names_3d(3) = "zaxis_2"
@@ -834,12 +835,13 @@ module FV3GFS_io_mod
 !    opens:  oro_data.tile?.nc, sfc_data.tile?.nc
 !
 !----------------------------------------------------------------------
-  subroutine sfc_prop_restart_read (Sfcprop, Atm_block, Model, fv_domain)
+  subroutine sfc_prop_restart_read (Sfcprop, Atm_block, Model, fv_domain, enforce_rst_cksum)
     !--- interface variable definitions
     type(GFS_sfcprop_type),    intent(inout) :: Sfcprop(:)
     type (block_control_type), intent(in)    :: Atm_block
     type(IPD_control_type),    intent(inout) :: Model
     type (domain2d),           intent(in)    :: fv_domain
+    logical,                   intent(in)    :: enforce_rst_cksum
     !--- local variables
     integer :: i, j, k, ix, lsoil, num, nb
     integer :: isc, iec, jsc, jec, npz, nx, ny
@@ -925,7 +927,7 @@ module FV3GFS_io_mod
 
       !--- read the orography restart/data
       call mpp_error(NOTE,'reading topographic/orographic information from INPUT/oro_data.tile*.nc')
-      call read_restart(Oro_restart)
+      call read_restart(Oro_restart, ignore_checksum=enforce_rst_cksum)
       call close_file(Oro_restart)
 
       !--- copy data into GFS containers
@@ -1003,7 +1005,7 @@ module FV3GFS_io_mod
 
       !--- read the surface restart/data
       call mpp_error(NOTE,'reading surface properties data from INPUT/sfc_data.tile*.nc')
-      call read_restart(Sfc_restart)
+      call read_restart(Sfc_restart, ignore_checksum=enforce_rst_cksum)
       call close_file(Sfc_restart)
 
       !--- place the data into the block GFS containers
@@ -2306,34 +2308,34 @@ module FV3GFS_io_mod
     character(len=8) :: dim_names_2d(3), dim_names_3d(4)
 
     !--- register the axes for restarts
-    call register_axis(Sfc_restart, 'xaxis_1', 'X')
-    call register_field(Sfc_restart, 'xaxis_1', 'double', (/'xaxis_1'/))
-    call register_variable_attribute(Sfc_restart, 'xaxis_1', 'cartesian_axis', 'X', str_len=1)
-    call get_global_io_domain_indices(Sfc_restart, 'xaxis_1', is, ie, indices=buffer)
-    call write_data(Sfc_restart, "xaxis_1", buffer)
+    call register_axis(Sfc_restart_coarse, 'xaxis_1', 'X')
+    call register_field(Sfc_restart_coarse, 'xaxis_1', 'double', (/'xaxis_1'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'xaxis_1', 'cartesian_axis', 'X', str_len=1)
+    call get_global_io_domain_indices(Sfc_restart_coarse, 'xaxis_1', is, ie, indices=buffer)
+    call write_data(Sfc_restart_coarse, "xaxis_1", buffer)
     deallocate(buffer)
 
-    call register_axis(Sfc_restart, 'yaxis_1', 'Y')
-    call register_field(Sfc_restart, 'yaxis_1', 'double', (/'yaxis_1'/))
-    call register_variable_attribute(Sfc_restart, 'yaxis_1', 'cartesian_axis', 'Y', str_len=1)
-    call get_global_io_domain_indices(Sfc_restart, 'yaxis_1', is, ie, indices=buffer)
-    call write_data(Sfc_restart, "yaxis_1", buffer)
+    call register_axis(Sfc_restart_coarse, 'yaxis_1', 'Y')
+    call register_field(Sfc_restart_coarse, 'yaxis_1', 'double', (/'yaxis_1'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'yaxis_1', 'cartesian_axis', 'Y', str_len=1)
+    call get_global_io_domain_indices(Sfc_restart_coarse, 'yaxis_1', is, ie, indices=buffer)
+    call write_data(Sfc_restart_coarse, "yaxis_1", buffer)
     deallocate(buffer)
 
-    call register_axis(Sfc_restart, 'zaxis_1', dimension_length=Model%lsoil)
-    call register_field(Sfc_restart, 'zaxis_1', 'double', (/'zaxis_1'/))
-    call register_variable_attribute(Sfc_restart, 'zaxis_1', 'cartesian_axis', 'Z', str_len=1)
+    call register_axis(Sfc_restart_coarse, 'zaxis_1', dimension_length=Model%lsoil)
+    call register_field(Sfc_restart_coarse, 'zaxis_1', 'double', (/'zaxis_1'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'zaxis_1', 'cartesian_axis', 'Z', str_len=1)
     allocate( buffer(Model%lsoil) )
     do lsoil=1, Model%lsoil
        buffer(lsoil) = lsoil
     end do
-    call write_data(Sfc_restart, 'zaxis_1', buffer)
+    call write_data(Sfc_restart_coarse, 'zaxis_1', buffer)
     deallocate(buffer)
 
-    call register_axis(Sfc_restart, 'Time', unlimited)
-    call register_field(Sfc_restart, 'Time', 'double', (/'Time'/))
-    call register_variable_attribute(Sfc_restart, 'Time', 'cartesian_axis', 'T', str_len=1)
-    call write_data(Sfc_restart, 'Time', 1)
+    call register_axis(Sfc_restart_coarse, 'Time', unlimited)
+    call register_field(Sfc_restart_coarse, 'Time', 'double', (/'Time'/))
+    call register_variable_attribute(Sfc_restart_coarse, 'Time', 'cartesian_axis', 'T', str_len=1)
+    call write_data(Sfc_restart_coarse, 'Time', 1)
 
     !--- Assign dimensions to array for use in register_restart_field
     dim_names_2d(1) = "xaxis_1"
@@ -2371,12 +2373,13 @@ module FV3GFS_io_mod
 !    opens:  phys_data.tile?.nc
 !
 !----------------------------------------------------------------------
-  subroutine phys_restart_read (IPD_Restart, Atm_block, Model, fv_domain)
+  subroutine phys_restart_read (IPD_Restart, Atm_block, Model, fv_domain, enforce_rst_cksum)
     !--- interface variable definitions
     type(IPD_restart_type),      intent(in) :: IPD_Restart
     type(block_control_type),    intent(in) :: Atm_block
     type(IPD_control_type),      intent(in) :: Model
     type(domain2d),              intent(in) :: fv_domain
+    logical,                     intent(in) :: enforce_rst_cksum
     !--- local variables
     integer :: i, j, k, nb, ix, num
     integer :: isc, iec, jsc, jec, npz, nx, ny
@@ -2439,7 +2442,7 @@ module FV3GFS_io_mod
 
       !--- read the surface restart/data
       call mpp_error(NOTE,'reading physics restart data from INPUT/phy_data.tile*.nc')
-      call read_restart(Phy_restart)
+      call read_restart(Phy_restart, ignore_checksum=enforce_rst_cksum)
       call close_file(Phy_restart)
     else
       call mpp_error(NOTE,'No physics restarts - cold starting physical parameterizations')
@@ -6343,6 +6346,7 @@ module FV3GFS_io_mod
     Diag(idx)%desc = 'restoring flux'
     Diag(idx)%unit = 'W/m**2'
     Diag(idx)%mod_name = 'gfs_phys'
+    Diag(idx)%time_avg = .TRUE.
     Diag(idx)%coarse_graining_method = AREA_WEIGHTED
     Diag(idx)%time_avg = .TRUE.
     allocate (Diag(idx)%data(nblks))
@@ -6745,7 +6749,7 @@ module FV3GFS_io_mod
             endif
 
            !!!! Accumulated diagnostics --- lmh 19 sep 17
-           if (fprint .or. prt_stats) then
+           if (fprint .and. prt_stats) then
            select case (trim(Diag(idx)%name))
            case('totprcp_ave')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)

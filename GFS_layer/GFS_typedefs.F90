@@ -6,15 +6,7 @@ module GFS_typedefs
        use ozne_def,                 only: levozp, oz_coeff
        use h2o_def,                  only: levh2o, h2o_coeff
        use gfdl_cld_mp_mod,          only: rhow
-#ifdef USE_COSP
-       use cosp2_test,               only: Ncolumns
-       use mod_cosp_config,          only: Nlvgrid, ntau, npres, nhgt, &
-                                           SR_BINS, PARASOL_NREFL, &
-                                           cloudsat_DBZE_BINS, &
-                                           numMODISReffLiqBins, &
-                                           numMODISReffIceBins, &
-                                           CFODD_NDBZE, CFODD_NICOD
-#endif
+
        implicit none
 
        !--- version of physics
@@ -556,9 +548,6 @@ module GFS_typedefs
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
 
-    !--- The CFMIP Observation Simulator Package (COSP)
-    logical              :: do_cosp         !< flag for COSP
-
     !--- Z-C microphysical parameters
     logical              :: zhao_mic        !< flag for Zhao-Carr microphysics
     real(kind=kind_phys) :: psautco(2)      !< [in] auto conversion coeff from ice to snow
@@ -1016,92 +1005,6 @@ module GFS_typedefs
       procedure :: create  => radtend_create   !<   allocate array data
   end type GFS_radtend_type
 
-#ifdef USE_COSP
-!----------------------------------------------------------------
-! cosp_type, Linjiong Zhou
-!----------------------------------------------------------------
-  type cosp_type
-    real (kind=kind_phys), pointer :: cltisccp                           (:)   => null()
-    real (kind=kind_phys), pointer :: meantbisccp                        (:)   => null()
-    real (kind=kind_phys), pointer :: meantbclrisccp                     (:)   => null()
-    real (kind=kind_phys), pointer :: pctisccp                           (:)   => null()
-    real (kind=kind_phys), pointer :: tauisccp                           (:)   => null()
-    real (kind=kind_phys), pointer :: albisccp                           (:)   => null()
-    real (kind=kind_phys), pointer :: misr_meanztop                      (:)   => null()
-    real (kind=kind_phys), pointer :: misr_cldarea                       (:)   => null()
-    real (kind=kind_phys), pointer :: cltmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: clwmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: climodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: clhmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: clmmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: cllmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: tautmodis                          (:)   => null()
-    real (kind=kind_phys), pointer :: tauwmodis                          (:)   => null()
-    real (kind=kind_phys), pointer :: tauimodis                          (:)   => null()
-    real (kind=kind_phys), pointer :: tautlogmodis                       (:)   => null()
-    real (kind=kind_phys), pointer :: tauwlogmodis                       (:)   => null()
-    real (kind=kind_phys), pointer :: tauilogmodis                       (:)   => null()
-    real (kind=kind_phys), pointer :: reffclwmodis                       (:)   => null()
-    real (kind=kind_phys), pointer :: reffclimodis                       (:)   => null()
-    real (kind=kind_phys), pointer :: pctmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: lwpmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: iwpmodis                           (:)   => null()
-    real (kind=kind_phys), pointer :: cltlidarradar                      (:)   => null()
-    real (kind=kind_phys), pointer :: cllcalipsoice                      (:)   => null()
-    real (kind=kind_phys), pointer :: clmcalipsoice                      (:)   => null()
-    real (kind=kind_phys), pointer :: clhcalipsoice                      (:)   => null()
-    real (kind=kind_phys), pointer :: cltcalipsoice                      (:)   => null()
-    real (kind=kind_phys), pointer :: cllcalipsoliq                      (:)   => null()
-    real (kind=kind_phys), pointer :: clmcalipsoliq                      (:)   => null()
-    real (kind=kind_phys), pointer :: clhcalipsoliq                      (:)   => null()
-    real (kind=kind_phys), pointer :: cltcalipsoliq                      (:)   => null()
-    real (kind=kind_phys), pointer :: cllcalipsoun                       (:)   => null()
-    real (kind=kind_phys), pointer :: clmcalipsoun                       (:)   => null()
-    real (kind=kind_phys), pointer :: clhcalipsoun                       (:)   => null()
-    real (kind=kind_phys), pointer :: cltcalipsoun                       (:)   => null()
-    real (kind=kind_phys), pointer :: cllcalipso                         (:)   => null()
-    real (kind=kind_phys), pointer :: clmcalipso                         (:)   => null()
-    real (kind=kind_phys), pointer :: clhcalipso                         (:)   => null()
-    real (kind=kind_phys), pointer :: cltcalipso                         (:)   => null()
-    real (kind=kind_phys), pointer :: clopaquecalipso                    (:)   => null()
-    real (kind=kind_phys), pointer :: clthincalipso                      (:)   => null()
-    real (kind=kind_phys), pointer :: clzopaquecalipso                   (:)   => null()
-    real (kind=kind_phys), pointer :: clopaquetemp                       (:)   => null()
-    real (kind=kind_phys), pointer :: clthintemp                         (:)   => null()
-    real (kind=kind_phys), pointer :: clzopaquetemp                      (:)   => null()
-    real (kind=kind_phys), pointer :: clopaquemeanz                      (:)   => null()
-    real (kind=kind_phys), pointer :: clthinmeanz                        (:)   => null()
-    real (kind=kind_phys), pointer :: clthinemis                         (:)   => null()
-    real (kind=kind_phys), pointer :: clopaquemeanzse                    (:)   => null()
-    real (kind=kind_phys), pointer :: clthinmeanzse                      (:)   => null()
-    real (kind=kind_phys), pointer :: clzopaquecalipsose                 (:)   => null()
-    real (kind=kind_phys), pointer :: cllgrLidar532                      (:)   => null()
-    real (kind=kind_phys), pointer :: clmgrLidar532                      (:)   => null()
-    real (kind=kind_phys), pointer :: clhgrLidar532                      (:)   => null()
-    real (kind=kind_phys), pointer :: cltgrLidar532                      (:)   => null()
-    real (kind=kind_phys), pointer :: cllatlid                           (:)   => null()
-    real (kind=kind_phys), pointer :: clmatlid                           (:)   => null()
-    real (kind=kind_phys), pointer :: clhatlid                           (:)   => null()
-    real (kind=kind_phys), pointer :: cltatlid                           (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag0                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag1                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag2                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag3                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag4                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag5                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag6                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag7                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag8                    (:)   => null()
-    real (kind=kind_phys), pointer :: ptcloudsatflag9                    (:)   => null()
-    real (kind=kind_phys), pointer :: cloudsatpia                        (:)   => null()
-    real (kind=kind_phys), pointer :: cloudsat_tcc                       (:)   => null()
-    real (kind=kind_phys), pointer :: cloudsat_tcc2                      (:)   => null()
-    real (kind=kind_phys), pointer :: npdfcld                            (:)   => null()
-    real (kind=kind_phys), pointer :: npdfdrz                            (:)   => null()
-    real (kind=kind_phys), pointer :: npdfrain                           (:)   => null()
-  end type cosp_type
-#endif
-
 !----------------------------------------------------------------
 ! GFS_diag_type
 !  internal diagnostic type used as arguments to gbphys and grrad
@@ -1122,9 +1025,6 @@ module GFS_typedefs
     type (topflw_type),    pointer :: topflw(:)     => null()   !< lw radiation fluxes at top, component:
                                                !       %upfxc    - total sky upward lw flux at toa (w/m**2)
                                                !       %upfx0    - clear sky upward lw flux at toa (w/m**2)
-#ifdef USE_COSP
-    type (cosp_type)               :: cosp                      !< cosp output
-#endif
 
     ! Input/output - used by physics
     real (kind=kind_phys), pointer :: srunoff(:)    => null()   !< surface water runoff (from lsm)
@@ -2050,9 +1950,6 @@ module GFS_typedefs
     !--- GFDL microphysical parameters
     logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
 
-    !--- The CFMIP Observation Simulator Package (COSP)
-    logical              :: do_cosp = .false.                !< flag for COSP
-
     !--- Z-C microphysical parameters
     integer              :: ncld           =  1                 !< cnoice of cloud scheme
     logical              :: zhao_mic       = .false.            !< flag for Zhao-Carr microphysics
@@ -2330,7 +2227,7 @@ module GFS_typedefs
                                fixed_date, fixed_solhr, daily_mean,                         &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
-                               do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
+                               wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
                           !    Noah MP options
@@ -2503,8 +2400,6 @@ module GFS_typedefs
     Model%ncld             = ncld
     !--- GFDL microphysical parameters
     Model%do_inline_mp     = do_inline_mp
-    !--- The CFMIP Observation Simulator Package (COSP)
-    Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
     Model%zhao_mic         = zhao_mic
     Model%psautco          = psautco
@@ -3172,8 +3067,6 @@ module GFS_typedefs
       print *, ' ncld              : ', Model%ncld
       print *, ' GFDL microphysical parameters'
       print *, ' do_inline_mp      : ', Model%do_inline_mp
-      print *, ' The CFMIP Observation Simulator Package (COSP)'
-      print *, ' do_cosp           : ', Model%do_cosp
       print *, ' Z-C microphysical parameters'
       print *, ' zhao_mic          : ', Model%zhao_mic
       print *, ' psautco           : ', Model%psautco
@@ -3724,88 +3617,6 @@ module GFS_typedefs
       allocate (Diag%det_mf (IM,Model%levs))
       allocate (Diag%cldcov (IM,Model%levs))
     endif
-#ifdef USE_COSP
-    if (Model%do_cosp) then
-      allocate (Diag%cosp%cltisccp                           (IM))
-      allocate (Diag%cosp%meantbisccp                        (IM))
-      allocate (Diag%cosp%meantbclrisccp                     (IM))
-      allocate (Diag%cosp%pctisccp                           (IM))
-      allocate (Diag%cosp%tauisccp                           (IM))
-      allocate (Diag%cosp%albisccp                           (IM))
-      allocate (Diag%cosp%misr_meanztop                      (IM))
-      allocate (Diag%cosp%misr_cldarea                       (IM))
-      allocate (Diag%cosp%cltmodis                           (IM))
-      allocate (Diag%cosp%clwmodis                           (IM))
-      allocate (Diag%cosp%climodis                           (IM))
-      allocate (Diag%cosp%clhmodis                           (IM))
-      allocate (Diag%cosp%clmmodis                           (IM))
-      allocate (Diag%cosp%cllmodis                           (IM))
-      allocate (Diag%cosp%tautmodis                          (IM))
-      allocate (Diag%cosp%tauwmodis                          (IM))
-      allocate (Diag%cosp%tauimodis                          (IM))
-      allocate (Diag%cosp%tautlogmodis                       (IM))
-      allocate (Diag%cosp%tauwlogmodis                       (IM))
-      allocate (Diag%cosp%tauilogmodis                       (IM))
-      allocate (Diag%cosp%reffclwmodis                       (IM))
-      allocate (Diag%cosp%reffclimodis                       (IM))
-      allocate (Diag%cosp%pctmodis                           (IM))
-      allocate (Diag%cosp%lwpmodis                           (IM))
-      allocate (Diag%cosp%iwpmodis                           (IM))
-      allocate (Diag%cosp%cltlidarradar                      (IM))
-      allocate (Diag%cosp%cllcalipsoice                      (IM))
-      allocate (Diag%cosp%clmcalipsoice                      (IM))
-      allocate (Diag%cosp%clhcalipsoice                      (IM))
-      allocate (Diag%cosp%cltcalipsoice                      (IM))
-      allocate (Diag%cosp%cllcalipsoliq                      (IM))
-      allocate (Diag%cosp%clmcalipsoliq                      (IM))
-      allocate (Diag%cosp%clhcalipsoliq                      (IM))
-      allocate (Diag%cosp%cltcalipsoliq                      (IM))
-      allocate (Diag%cosp%cllcalipsoun                       (IM))
-      allocate (Diag%cosp%clmcalipsoun                       (IM))
-      allocate (Diag%cosp%clhcalipsoun                       (IM))
-      allocate (Diag%cosp%cltcalipsoun                       (IM))
-      allocate (Diag%cosp%cllcalipso                         (IM))
-      allocate (Diag%cosp%clmcalipso                         (IM))
-      allocate (Diag%cosp%clhcalipso                         (IM))
-      allocate (Diag%cosp%cltcalipso                         (IM))
-      allocate (Diag%cosp%clopaquecalipso                    (IM))
-      allocate (Diag%cosp%clthincalipso                      (IM))
-      allocate (Diag%cosp%clzopaquecalipso                   (IM))
-      allocate (Diag%cosp%clopaquetemp                       (IM))
-      allocate (Diag%cosp%clthintemp                         (IM))
-      allocate (Diag%cosp%clzopaquetemp                      (IM))
-      allocate (Diag%cosp%clopaquemeanz                      (IM))
-      allocate (Diag%cosp%clthinmeanz                        (IM))
-      allocate (Diag%cosp%clthinemis                         (IM))
-      allocate (Diag%cosp%clopaquemeanzse                    (IM))
-      allocate (Diag%cosp%clthinmeanzse                      (IM))
-      allocate (Diag%cosp%clzopaquecalipsose                 (IM))
-      allocate (Diag%cosp%cllgrLidar532                      (IM))
-      allocate (Diag%cosp%clmgrLidar532                      (IM))
-      allocate (Diag%cosp%clhgrLidar532                      (IM))
-      allocate (Diag%cosp%cltgrLidar532                      (IM))
-      allocate (Diag%cosp%cllatlid                           (IM))
-      allocate (Diag%cosp%clmatlid                           (IM))
-      allocate (Diag%cosp%clhatlid                           (IM))
-      allocate (Diag%cosp%cltatlid                           (IM))
-      allocate (Diag%cosp%ptcloudsatflag0                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag1                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag2                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag3                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag4                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag5                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag6                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag7                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag8                    (IM))
-      allocate (Diag%cosp%ptcloudsatflag9                    (IM))
-      allocate (Diag%cosp%cloudsatpia                        (IM))
-      allocate (Diag%cosp%cloudsat_tcc                       (IM))
-      allocate (Diag%cosp%cloudsat_tcc2                      (IM))
-      allocate (Diag%cosp%npdfcld                            (IM))
-      allocate (Diag%cosp%npdfdrz                            (IM))
-      allocate (Diag%cosp%npdfrain                           (IM))
-    endif
-#endif
 
     allocate (Diag%ps_dt(IM))
 

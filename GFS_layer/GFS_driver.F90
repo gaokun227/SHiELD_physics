@@ -15,9 +15,6 @@ module GFS_driver
   use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init, gfdl_cld_mp_end
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
-#ifdef USE_COSP
-  use cosp2_test,               only: cosp2_init, cosp2_end
-#endif
 
   implicit none
 
@@ -252,20 +249,6 @@ module GFS_driver
     !--- FV3GFS handles this as part of the IC ingest
     !--- this note is placed here alertng users to study
     !--- the FV3GFS_io.F90 module
-
-#ifdef USE_COSP
-!-----------------------------------------------------------------------
-! The CFMIP Observation Simulator Package (COSP)
-! Added by Linjiong Zhou
-! May 2021
-!-----------------------------------------------------------------------
-
-    if (Model%do_cosp) then
-       do nb = 1, nblks
-          call cosp2_init (size(Grid(nb)%xlon,1), Model%levs)
-       enddo
-    endif
-#endif
 
   end subroutine GFS_initialize
 
@@ -568,18 +551,6 @@ module GFS_driver
     type(GFS_control_type),   intent(inout) :: Model
 
     call gfdl_cld_mp_end ()
-
-#ifdef USE_COSP
-!-----------------------------------------------------------------------
-! The CFMIP Observation Simulator Package (COSP)
-! Added by Linjiong Zhou
-! May 2021
-!-----------------------------------------------------------------------
-
-    if (Model%do_cosp) then
-        call cosp2_end ()
-    endif
-#endif
 
   end subroutine GFS_physics_end
 

@@ -23,7 +23,9 @@ module module_physics_driver
   use wv_saturation,         only: estblf
   
   use module_sfc_drv,        only: sfc_drv
+#ifdef USE_COSP
   use cosp2_test,            only: cosp2_driver
+#endif
   
   implicit none
 
@@ -3836,6 +3838,7 @@ module module_physics_driver
             final_dynamics_delp, im, levs, nwat, dtp)
       endif
 
+#ifdef USE_COSP
 !-----------------------------------------------------------------------
 ! The CFMIP Observation Simulator Package (COSP)
 ! Added by Linjiong Zhou
@@ -3948,6 +3951,7 @@ module module_physics_driver
         deallocate (pfg)
 
       endif
+#endif
 
       return
 !...................................

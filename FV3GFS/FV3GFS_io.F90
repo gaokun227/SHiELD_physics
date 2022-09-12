@@ -4674,6 +4674,7 @@ module FV3GFS_io_mod
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%sr(:)
     enddo
 
+#ifdef USE_COSP
 !--- 2D diagnostic variables from the CFMIP Observation Simulator Package (COSP), Linjiong Zhou
 
     idx = idx + 1
@@ -5533,6 +5534,7 @@ module FV3GFS_io_mod
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%npdfrain(:)
     enddo
+#endif
 
 !    idx = idx + 1
 !    Diag(idx)%axes = 2

@@ -1,22 +1,23 @@
+
 !***********************************************************************
-!*                   GNU General Public License                        *
-!* This file is a part of fvGFS.                                       *
-!*                                                                     *
-!* fvGFS is free software; you can redistribute it and/or modify it    *
-!* and are expected to follow the terms of the GNU General Public      *
-!* License as published by the Free Software Foundation; either        *
-!* version 2 of the License, or (at your option) any later version.    *
-!*                                                                     *
-!* fvGFS is distributed in the hope that it will be useful, but        *
-!* WITHOUT ANY WARRANTY; without even the implied warranty of          *
-!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU   *
-!* General Public License for more details.                            *
-!*                                                                     *
-!* For the full text of the GNU General Public License,                *
-!* write to: Free Software Foundation, Inc.,                           *
-!*           675 Mass Ave, Cambridge, MA 02139, USA.                   *
-!* or see:   http://www.gnu.org/licenses/gpl.html                      *
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Atmos Drivers project.
+!*
+!* This is free software: you can redistribute it and/or modify it under
+!* the terms of the GNU Lesser General Public License as published by
+!* the Free Software Foundation, either version 3 of the License, or (at
+!* your option) any later version.
+!*
+!* It is distributed in the hope that it will be useful, but WITHOUT
+!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+!* for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+
 module atmos_model_mod
 !-----------------------------------------------------------------------
 !<OVERVIEW>
@@ -88,7 +89,7 @@ use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
                               IPD_radiation_step,             &
                               IPD_physics_step1,              &
                               IPD_physics_step2
-#ifdef STOCHY 
+#ifdef STOCHY
 use stochastic_physics, only: init_stochastic_physics,         &
                               run_stochastic_physics
 use stochastic_physics_sfc, only: run_stochastic_physics_sfc
@@ -100,7 +101,7 @@ use FV3GFS_io_mod,      only: FV3GFS_restart_read, FV3GFS_restart_write, &
                               sfc_data_override
 use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, register_coarse_diag_manager_controlled_diagnostics
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
-use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize,replay_initialize
+use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize
 use module_ocean,       only: ocean_init
 !-----------------------------------------------------------------------
 
@@ -117,7 +118,8 @@ public atmos_model_restart
 !<PUBLICTYPE >
  type atmos_data_type
      type (domain2d)               :: domain             ! domain decomposition
-     integer                       :: axes(4)            ! axis indices (returned by diag_manager) for the atmospheric grid 
+     type (domain2d)               :: domain_for_read    ! domain decomposition for reads
+     integer                       :: axes(4)            ! axis indices (returned by diag_manager) for the atmospheric grid
                                                          ! (they correspond to the x, y, pfull, phalf axes)
      real,                 pointer, dimension(:,:) :: lon_bnd  => null() ! local longitude axis grid box corners in radians.
      real,                 pointer, dimension(:,:) :: lat_bnd  => null() ! local latitude axis grid box corners in radians.
@@ -129,7 +131,7 @@ public atmos_model_restart
      integer                       :: iau_offset         ! iau running window length
      integer, pointer              :: pelist(:) =>null() ! pelist where atmosphere is running.
      logical                       :: pe                 ! current pe.
-     type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange 
+     type(grid_box_type)           :: grid               ! hold grid information needed for 2nd order conservative flux exchange
                                                          ! to calculate gradient on cubic sphere grid.
      integer                       :: layout(2)          ! computer task laytout
      logical                       :: regional           ! true if domain is regional
@@ -156,11 +158,15 @@ logical :: chksum_debug    = .false.
 logical :: dycore_only     = .false.
 logical :: debug           = .false.
 logical :: sync            = .false.
-logical :: first_time_step = .true.
+logical :: first_time_step = .false.
 logical :: fprint          = .true.
+logical :: enforce_rst_cksum = .true. ! enforce or override data integrity restart checksums
 real, dimension(4096) :: fdiag = 0. ! xic: TODO: this is hard coded, space can run out in some cases. Should make it allocatable.
-logical :: fdiag_override = .false. ! lmh: if true overrides fdiag and fhzer: all quantities are zeroed out after every calcluation, output interval and accumulation/avg/max/min are controlled by diag_manager, fdiag controls output interval only
-namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag, fprint, fdiag_override
+logical :: fdiag_override = .false. ! lmh: if true overrides fdiag and fhzer: all quantities are zeroed out
+                                    ! after every calcluation, output interval and accumulation/avg/max/min
+                                    ! are controlled by diag_manager, fdiag controls output interval only
+namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, first_time_step, fdiag, fprint, &
+                           fdiag_override, enforce_rst_cksum
 type (time_type) :: diag_time, diag_time_fhzero
 logical :: fdiag_fix = .false.
 
@@ -200,7 +206,7 @@ contains
 !   atmospheric tendencies for dynamics, radiation, vertical diffusion of
 !   momentum, tracers, and heat/moisture.  For heat/moisture only the
 !   downward sweep of the tridiagonal elimination is performed, hence
-!   the name "_down". 
+!   the name "_down".
 !</DESCRIPTION>
 
 !   <TEMPLATE>
@@ -344,7 +350,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
 
   type (atmos_data_type), intent(inout) :: Atmos
   type (time_type), intent(in) :: Time_init, Time, Time_step
-  integer, intent(in) :: iau_offset 
+  integer, intent(in) :: iau_offset
 !--- local variables ---
   integer :: unit, ntdiag, ntfamily, i, j, k
   integer :: mlon, mlat, nlon, nlat, nlev, sec, dt, sec_prev
@@ -366,7 +372,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
   integer :: kdt_prev
   character(len=32), allocatable, target :: tracer_names(:)
   integer :: coarse_diagnostic_axes(4)
-  integer :: nthrds 
+  integer :: nthrds
   !-----------------------------------------------------------------------
 
 !---- set the atmospheric model time ------
@@ -407,16 +413,18 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
    call alloc_atmos_data_type (nlon, nlat, Atmos)
-   call atmosphere_domain (Atmos%domain, Atmos%layout, Atmos%regional, Atmos%bounded_domain)
+   call atmosphere_domain (Atmos%domain, Atmos%domain_for_read, Atmos%layout, Atmos%regional, &
+                           Atmos%bounded_domain)
    call atmosphere_diag_axes (Atmos%axes)
    call atmosphere_etalvls (Atmos%ak, Atmos%bk, flip=.true.)
    call atmosphere_grid_bdry (Atmos%lon_bnd, Atmos%lat_bnd, global=.false.)
    call atmosphere_grid_ctr (Atmos%lon, Atmos%lat)
    call atmosphere_hgt (Atmos%layer_hgt, 'layer', relative=.false., flip=.true.)
    call atmosphere_hgt (Atmos%level_hgt, 'level', relative=.false., flip=.true.)
-   call atmosphere_coarse_graining_parameters(Atmos%coarse_domain, Atmos%write_coarse_restart_files, Atmos%write_only_coarse_intermediate_restarts)
+   call atmosphere_coarse_graining_parameters(Atmos%coarse_domain, Atmos%write_coarse_restart_files, &
+                                              Atmos%write_only_coarse_intermediate_restarts)
    call atmosphere_coarsening_strategy(Atmos%coarsening_strategy)
-   
+
 !-----------------------------------------------------------------------
 !--- before going any further check definitions for 'blocks'
 !-----------------------------------------------------------------------
@@ -504,11 +512,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
    Atm(mygrid)%flagstruct%do_diss_est = IPD_Control%do_skeb
 
 !  initialize the IAU module
-   if ( Atm(mygrid)%flagstruct%replay == 1 ) then
-      call replay_initialize (IPD_Control, IAU_data)
-   else
-      call iau_initialize (IPD_Control,IAU_data,Init_parm)
-   endif
+   call iau_initialize (IPD_Control,IAU_data,Init_parm)
 
    IPD_Control%kdt_prev = kdt_prev
 
@@ -542,7 +546,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
        call register_coarse_diag_manager_controlled_diagnostics(Time, coarse_diagnostic_axes)
     endif
    if (.not. dycore_only) &
-      call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain)
+      call FV3GFS_restart_read (IPD_Data, IPD_Restart, Atm_block, IPD_Control, Atmos%domain_for_read, enforce_rst_cksum)
       if (chksum_debug) then
         if (mpp_pe() == mpp_root_pe()) print *,'RESTART READ  ', IPD_Control%kdt, IPD_Control%fhour
         call FV3GFS_IPD_checksum(IPD_Control, IPD_Data, Atm_block)
@@ -579,7 +583,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
       if (nint(fdiag(2)) == 0) then
          fdiag_fix = .true.
          do i = 2, size(fdiag,1)
-            fdiag(i) = fdiag(i-1) + fdiag(1)
+            fdiag(i) = fdiag(1) * i
          enddo
       endif
       if (mpp_pe() == mpp_root_pe()) write(6,*) "---fdiag",fdiag(1:40)
@@ -631,7 +635,7 @@ subroutine update_atmos_model_state (Atmos)
   integer :: isec,seconds,isec_fhzero
   real(kind=kind_phys) :: time_int, time_intfull
   integer :: is, ie, js, je, kt
-  
+
     call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
     call mpp_clock_begin(updClock)
@@ -653,17 +657,17 @@ subroutine update_atmos_model_state (Atmos)
        Atm(mygrid)%coarse_graining%write_coarse_diagnostics, &
        real(Atm(mygrid)%delp(is:ie,js:je,:), kind=kind_phys), &
        Atmos%coarsening_strategy, real(Atm(mygrid)%ptop, kind=kind_phys))
-    
+
     call get_time (Atmos%Time - diag_time, isec)
     call get_time (Atmos%Time - Atmos%Time_init, seconds)
 
+    time_int = real(isec)
     if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. (IPD_Control%kdt == 1 .and. first_time_step) ) then
       if (mpp_pe() == mpp_root_pe()) write(6,*) "---isec,seconds",isec,seconds
       if (mpp_pe() == mpp_root_pe()) write(6,*) ' gfs diags time since last bucket empty: ',time_int/3600.,'hrs'
       call atmosphere_nggps_diag(Atmos%Time)
     endif
-    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. first_time_step) then
-      time_int = real(isec)
+    if (ANY(nint(fdiag(:)*3600.0) == seconds) .or. (fdiag_fix .and. mod(seconds, nint(fdiag(1)*3600.0)) .eq. 0) .or. (IPD_Control%kdt == 1 .and. first_time_step)) then
       if(Atmos%iau_offset > zero) then
         if( time_int - Atmos%iau_offset*3600. > zero ) then
           time_int = time_int - Atmos%iau_offset*3600.
@@ -723,7 +727,7 @@ subroutine atmos_model_end (Atmos)
 
 !-----------------------------------------------------------------------
 !---- termination routine for atmospheric model ----
-                                              
+
     call atmosphere_end (Atmos % Time, Atmos%grid)
     if (.not. dycore_only) then
        call FV3GFS_restart_write (IPD_Data, IPD_Restart, Atm_block, &
@@ -789,7 +793,7 @@ end subroutine atmos_model_restart
 ! </IN>
 !
 subroutine atmos_data_type_chksum(id, timestep, atm)
-type(atmos_data_type), intent(in) :: atm 
+type(atmos_data_type), intent(in) :: atm
     character(len=*), intent(in) :: id
     integer         , intent(in) :: timestep
     integer :: n, outunit

@@ -88,8 +88,8 @@ use IPD_typedefs,       only: IPD_init_type, IPD_control_type, &
 use IPD_driver,         only: IPD_initialize, IPD_setup_step, &
                               IPD_radiation_step,             &
                               IPD_physics_step1,              &
-                              IPD_physics_step2
-#ifdef STOCHY
+                              IPD_physics_step2, IPD_physics_end
+#ifdef STOCHY 
 use stochastic_physics, only: init_stochastic_physics,         &
                               run_stochastic_physics
 use stochastic_physics_sfc, only: run_stochastic_physics_sfc
@@ -724,6 +724,8 @@ subroutine atmos_model_end (Atmos)
   type (atmos_data_type), intent(inout) :: Atmos
 !---local variables
   integer :: idx
+
+    call IPD_physics_end (IPD_Control)
 
 !-----------------------------------------------------------------------
 !---- termination routine for atmospheric model ----

@@ -6,6 +6,7 @@ module GFS_typedefs
        use ozne_def,                 only: levozp, oz_coeff
        use h2o_def,                  only: levh2o, h2o_coeff
        use gfdl_cld_mp_mod,          only: rhow
+
        implicit none
 
        !--- version of physics
@@ -120,10 +121,18 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: exch_h (:,:)   => null()  !< 3D heat exchange coefficient
 
     !--- precipitation
+    real (kind=kind_phys), pointer :: prew (:)     => null()  !< water
     real (kind=kind_phys), pointer :: prer (:)     => null()  !< rain
     real (kind=kind_phys), pointer :: prei (:)     => null()  !< ice
     real (kind=kind_phys), pointer :: pres (:)     => null()  !< snow
     real (kind=kind_phys), pointer :: preg (:)     => null()  !< graupel
+
+    !--- precipitation flux
+    real (kind=kind_phys), pointer :: prefluxw (:,:)     => null()  !< water
+    real (kind=kind_phys), pointer :: prefluxr (:,:)     => null()  !< rain
+    real (kind=kind_phys), pointer :: prefluxi (:,:)     => null()  !< ice
+    real (kind=kind_phys), pointer :: prefluxs (:,:)     => null()  !< snow
+    real (kind=kind_phys), pointer :: prefluxg (:,:)     => null()  !< graupel
 
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
@@ -791,6 +800,7 @@ module GFS_typedefs
     integer              :: ntrw            !< tracer index for rain water
     integer              :: ntsw            !< tracer index for snow water
     integer              :: ntgl            !< tracer index for graupel
+    integer              :: ntal            !< tracer index for aerosol
     integer              :: ntclamt         !< tracer index for cloud amount
     integer              :: ntlnc           !< tracer index for liquid number concentration
     integer              :: ntinc           !< tracer index for ice    number concentration
@@ -1006,6 +1016,8 @@ module GFS_typedefs
                                                                 !< hardcoded field indices, opt. includes aerosols!
     real (kind=kind_phys), pointer :: cloud (:,:,:) => null()   !< to save time accumulated 3-d fields defined as:!
                                                                 !< hardcoded field indices
+    real (kind=kind_phys), pointer :: reff(:,:,:)   => null()   !< to save cloud effective radii
+    real (kind=kind_phys), pointer :: ctau(:,:,:)   => null()   !< to save cloud optical depth and emissivity
     type (topfsw_type),    pointer :: topfsw(:)     => null()   !< sw radiation fluxes at toa, components:
                                                !       %upfxc    - total sky upward sw flux at toa (w/m**2)
                                                !       %dnfxc    - total sky downward sw flux at toa (w/m**2)
@@ -1212,15 +1224,29 @@ module GFS_typedefs
     endif
 
 
+    allocate (Statein%prew(IM))
     allocate (Statein%prer(IM))
     allocate (Statein%prei(IM))
     allocate (Statein%pres(IM))
     allocate (Statein%preg(IM))
 
+    Statein%prew = clear_val
     Statein%prer = clear_val
     Statein%prei = clear_val
     Statein%pres = clear_val
     Statein%preg = clear_val
+
+    allocate (Statein%prefluxw(IM,Model%levs))
+    allocate (Statein%prefluxr(IM,Model%levs))
+    allocate (Statein%prefluxi(IM,Model%levs))
+    allocate (Statein%prefluxs(IM,Model%levs))
+    allocate (Statein%prefluxg(IM,Model%levs))
+
+    Statein%prefluxw = clear_val
+    Statein%prefluxr = clear_val
+    Statein%prefluxi = clear_val
+    Statein%prefluxs = clear_val
+    Statein%prefluxg = clear_val
 
     allocate (Statein%sst(IM))
     allocate (Statein%ci(IM))
@@ -2592,6 +2618,7 @@ module GFS_typedefs
     Model%ntrw             = get_tracer_index(Model%tracer_names, 'rainwat',  Model%me, Model%master, Model%debug)
     Model%ntsw             = get_tracer_index(Model%tracer_names, 'snowwat',  Model%me, Model%master, Model%debug)
     Model%ntgl             = get_tracer_index(Model%tracer_names, 'graupel',  Model%me, Model%master, Model%debug)
+    Model%ntal             = get_tracer_index(Model%tracer_names, 'aerosol',  Model%me, Model%master, Model%debug)
     Model%ntclamt          = get_tracer_index(Model%tracer_names, 'cld_amt',  Model%me, Model%master, Model%debug)
     Model%ntlnc            = get_tracer_index(Model%tracer_names, 'water_nc', Model%me, Model%master, Model%debug)
     Model%ntinc            = get_tracer_index(Model%tracer_names, 'ice_nc',   Model%me, Model%master, Model%debug)
@@ -2805,6 +2832,7 @@ module GFS_typedefs
                  print *,' scale & aerosol-aware mass-flux deep conv scheme'
               endif
            else
+              Model%imfdeepcnv = -1
               print*, ' Deep convection scheme disabled'
            endif
         endif
@@ -3229,6 +3257,7 @@ module GFS_typedefs
       print *, ' ntrw              : ', Model%ntrw
       print *, ' ntsw              : ', Model%ntsw
       print *, ' ntgl              : ', Model%ntgl
+      print *, ' ntal              : ', Model%ntal
       print *, ' ntclamt           : ', Model%ntclamt
       print *, ' ntlnc             : ', Model%ntlnc
       print *, ' ntinc             : ', Model%ntinc
@@ -3474,6 +3503,8 @@ module GFS_typedefs
     !--- Radiation
     allocate (Diag%fluxr   (IM,Model%nfxr))
     allocate (Diag%cloud   (IM,Model%levs,Model%nkld))
+    allocate (Diag%reff    (IM,Model%levs,Model%ncld))
+    allocate (Diag%ctau    (IM,Model%levs,2))
     allocate (Diag%topfsw  (IM))
     allocate (Diag%topflw  (IM))
     !--- Physics
@@ -3603,6 +3634,8 @@ module GFS_typedefs
 
     Diag%fluxr        = zero
     Diag%cloud        = zero
+    Diag%reff         = zero
+    Diag%ctau         = zero
     Diag%topfsw%upfxc = zero
     Diag%topfsw%dnfxc = zero
     Diag%topfsw%upfx0 = zero
@@ -3735,7 +3768,7 @@ module GFS_typedefs
     if (present(linit) ) set_totprcp = linit
     if (present(iauwindow_center) ) set_totprcp = iauwindow_center
     if (set_totprcp) then
-      if (Model%me == 0) print *,'set_totprcp T kdt=', Model%kdt
+      !if (Model%me == 0) print *,'set_totprcp T kdt=', Model%kdt
       Diag%totprcp = zero
       Diag%cnvprcp = zero
       Diag%totice  = zero

@@ -59,7 +59,7 @@ module FV3GFS_io_mod
 !--- needed for dq3dt output
   use ozne_def,           only: oz_coeff
 !--- needed for cold-start capability to initialize q2m
-  use gfdl_cld_mp_mod,    only: wqs1, qsmith_init
+  use gfdl_cld_mp_mod,    only: wqs, qs_init
   use coarse_graining_mod, only: block_mode, block_upsample, block_min, block_max, block_sum, weighted_block_average
   use coarse_graining_mod, only: MODEL_LEVEL, PRESSURE_LEVEL
   use coarse_graining_mod, only: vertical_remapping_requirements, get_coarse_array_bounds
@@ -141,7 +141,7 @@ module FV3GFS_io_mod
    real(kind=kind_phys) :: zhour
 !
    integer :: tot_diag_idx = 0
-   integer, parameter :: DIAG_SIZE = 250
+   integer, parameter :: DIAG_SIZE = 500
    real(kind=kind_phys), parameter :: missing_value = 9.99e20
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
@@ -1712,7 +1712,7 @@ module FV3GFS_io_mod
     !--- read the sfc_prop_override namelist
     read(Model%input_nml_file, nml=sfc_prop_override_nml, iostat=ios)
 
-    call qsmith_init
+    call qs_init
 
     call mpp_error(NOTE, "Calling sfc_prop_override")
 
@@ -1753,7 +1753,7 @@ module FV3GFS_io_mod
              !--- t2m ! slt. unstable
              Sfcprop(nb)%t2m(ix)    = Sfcprop(nb)%t2m(ix) * 0.98
              !--- q2m ! use RH = 98% and assume ps = 1000 mb
-             Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
+             Sfcprop(nb)%q2m(ix)    = wqs (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix), Sfcprop(nb)%q2m(ix))
              !--- vtype
              Sfcprop(nb)%vtype(ix)  = 0
              !--- stype
@@ -1790,7 +1790,7 @@ module FV3GFS_io_mod
              !--- t2m
              Sfcprop(nb)%t2m(ix)    = stc * 0.98 !slt unstable
              !--- q2m ! use RH = 98%
-             Sfcprop(nb)%q2m(ix)    = wqs1 (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix))
+             Sfcprop(nb)%q2m(ix)    = wqs (Sfcprop(nb)%t2m(ix), 1.e5/rd/Sfcprop(nb)%t2m(ix), Sfcprop(nb)%q2m(ix))
              !--- vtype
              Sfcprop(nb)%vtype(ix)  = vegtype
              !--- stype
@@ -5734,7 +5734,7 @@ module FV3GFS_io_mod
     character(len=2) :: xtra
     real(kind=kind_phys), dimension(nx*ny) :: var2p
     real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
-    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask
+    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask, icemask
     real(kind=kind_phys), dimension(nx,ny,levs) :: var3
     real(kind=kind_phys) :: rdt, rtime_int, rtime_intfull, lcnvfac
     real(kind=kind_phys) :: rtime_radsw, rtime_radlw
@@ -5770,6 +5770,7 @@ module FV3GFS_io_mod
            one(i,j)  = 1.
            landmask(i,j) = IPD_Data(nb)%Sfcprop%slmsk(ix)
            seamask(i,j)  = 1. - landmask(i,j)
+           icemask(i,j)  = landmask(i,j) - 1.
         enddo
      enddo
 
@@ -5891,29 +5892,109 @@ module FV3GFS_io_mod
            !!!! Accumulated diagnostics --- lmh 19 sep 17
            if (fprint .and. prt_stats) then
            select case (trim(Diag(idx)%name))
-           case('totprcp_ave')
+           case('totprcpb_ave')
               call prt_gb_nh_sh_us('Total Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)
               call prt_gb_nh_sh_us('Land Precip  (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 86400.)
-           case('totsnw')
+              call prt_gb_nh_sh_us('Ocean Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, seamask, 86400.)
+              call prt_gb_nh_sh_us('SeaIce Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, icemask, 86400.)
+           case('cnvprcpb_ave')
+              call prt_gb_nh_sh_us('Total Convective Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 86400.)
+              call prt_gb_nh_sh_us('Land Convective Precip  (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 86400.)
+              call prt_gb_nh_sh_us('Ocean Convective Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, seamask, 86400.)
+              call prt_gb_nh_sh_us('SeaIce Convective Precip (mm/d)', 1, nx, 1, ny, var2, area, lon, lat, icemask, 86400.)
+           case('totsnwb_ave')
               call prt_gb_nh_sh_us('Total Snowfall (9:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 777600.)
               call prt_gb_nh_sh_us('Land Snowfall  (9:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 777600.)
+              call prt_gb_nh_sh_us('Ocean Snowfall (9:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, seamask, 777600.)
+              call prt_gb_nh_sh_us('SeaIce Snowfall (9:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, icemask, 777600.)
 !           case('totgrp') ! Tiny??
 !              call prt_gb_nh_sh_us('Total Icefall (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, one, 172800.)
 !              call prt_gb_nh_sh_us('Land Icefall  (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, landmask, 172800.)
+!              call prt_gb_nh_sh_us('Ocean Icefall (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, seamask, 172800.)
+!              call prt_gb_nh_sh_us('SeaIce Icefall (2:1 mm/d)', 1, nx, 1, ny, var2, area, lon, lat, icemask, 172800.)
            case('lhtfl_ave')
-              call prt_gb_nh_sh_us('Total sfc LH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Total sfc LH flux ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land sfc LH flux  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean sfc LH flux ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce sfc LH flux ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
            case('shtfl_ave')
-              call prt_gb_nh_sh_us('Total sfc SH flux  ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Total sfc SH flux ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land sfc SH flux  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean sfc SH flux ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce sfc SH flux ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('hpbl')
+              call prt_gb_nh_sh_us('Total pbl height ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land pbl height  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean pbl height ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce pbl height ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('dusfc')
+              call prt_gb_nh_sh_us('Total u-wind stress ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land u-wind stress  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean u-wind stress ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce u-wind stress ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('dvsfc')
+              call prt_gb_nh_sh_us('Total v-wind stress ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land v-wind stress  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean v-wind stress ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce v-wind stress ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
            case('DSWRFtoa')
               call prt_gb_nh_sh_us('TOA SW down ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('USWRFtoa')
               call prt_gb_nh_sh_us('TOA SW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('ULWRFtoa')
               call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+           case('u10m')
+              call prt_gb_nh_sh_us('Total 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land 10-m u avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('v10m')
+              call prt_gb_nh_sh_us('Total 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land 10-m v avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('acond')
+              call prt_gb_nh_sh_us('Total momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land momentum exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('sfexc')
+              call prt_gb_nh_sh_us('Total thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land thermal exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('ffmm')
+              call prt_gb_nh_sh_us('Total ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land ffmm for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('ffhh')
+              call prt_gb_nh_sh_us('Total ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land ffhh for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('ZORLsfc')
+              call prt_gb_nh_sh_us('Total surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land surface roughness  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+           case('q2m')
+              call prt_gb_nh_sh_us('Total 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
            case('t2m')
+              call prt_gb_nh_sh_us('Total 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               call prt_gb_nh_sh_us('2-m T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
               call prt_gb_nh_sh_us('2-m T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
            case('tsfc')
+              call prt_gb_nh_sh_us('Total sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
+              call prt_gb_nh_sh_us('Land sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+              call prt_gb_nh_sh_us('Ocean sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+              call prt_gb_nh_sh_us('SeaIce sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               call prt_gb_nh_sh_us('sfc T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
               call prt_gb_nh_sh_us('sfc T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
               call prt_gb_nh_sh_us('SST max ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MAX')

@@ -12,10 +12,7 @@ module GFS_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
   use module_radlw_parameters,  only: topflw_type, sfcflw_type
   use funcphys,                 only: gfuncphys
-  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init
-#ifndef fvGFS_2017
-  use cld_eff_rad_mod,          only: cld_eff_rad_init
-#endif
+  use gfdl_cld_mp_mod,          only: gfdl_cld_mp_init, gfdl_cld_mp_end
   use myj_pbl_mod,              only: myj_pbl_init
   use myj_jsfc_mod,             only: myj_jsfc_init
 
@@ -94,6 +91,7 @@ module GFS_driver
   public  GFS_radiation_driver        !< radiation_driver (was grrad)
   public  GFS_physics_driver          !< physics_driver (was gbphys)
   public  GFS_stochastic_driver       !< stochastic physics
+  public  GFS_physics_end             !< GFS physics end routine
 
 
   CONTAINS
@@ -216,11 +214,8 @@ module GFS_driver
     endif
 
     !--- initialize GFDL Cloud microphysics
-    if (.not. Model%do_inline_mp .and. Model%ncld == 5) then
-      call gfdl_cld_mp_init (Model%input_nml_file, Init_parm%logunit)
-#ifndef fvGFS_2017
-      call cld_eff_rad_init (Model%input_nml_file, Init_parm%logunit)
-#endif
+    if (Model%ncld == 5) then
+      call gfdl_cld_mp_init (Model%input_nml_file, Init_parm%logunit, Statein(1)%dycore_hydrostatic)
     endif
 
     !--- initialize ras
@@ -545,6 +540,19 @@ module GFS_driver
 
   end subroutine GFS_stochastic_driver
 
+!--------------
+! GFS physics end
+!--------------
+  subroutine GFS_physics_end (Model)
+
+    implicit none
+
+    !--- interface variables
+    type(GFS_control_type),   intent(inout) :: Model
+
+    call gfdl_cld_mp_end ()
+
+  end subroutine GFS_physics_end
 
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

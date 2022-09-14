@@ -74,7 +74,7 @@
 !!        + 2) For the "dynamic control", using a reference cloud work function, estimate the change in cloud work function due to the large-scale dynamics. Following the quasi-equilibrium assumption, calculate the cloud base mass flux required to keep the large-scale convective destabilization in balance with the stabilization effect of the convection.
 !!  -# For grid sizes smaller than the threshold value (currently 8 km):
 !!        + 1) compute the cloud base mass flux using the cumulus updraft velocity averaged ove the whole cloud depth.
-!!  -# For scale awareness, the updraft fraction (sigma) is obtained as a function of cloud base entrainment. Then, the final cloud base mass flux is obtained by the original mass flux multiplied by the (1−sigma) 2  .
+!!  -# For scale awareness, the updraft fraction (sigma) is obtained as a function of cloud base entrainment. Then, the final cloud base mass flux is obtained by the original mass flux multiplied by the (1sigma) 2  .
 !!  -# For the "feedback control", calculate updated values of the state variables by multiplying the cloud base mass flux and the tendencies calculated per unit cloud base mass flux from the static control.
 !!
 !!  \section detailed Detailed Algorithm
@@ -212,7 +212,7 @@ c  physical parameters
       parameter(clamd=0.03,tkemx=0.65,tkemn=0.05)
       parameter(dtke=tkemx-tkemn)
       parameter(dbeta=0.1)
-      parameter(cthk=150.,dthk=25.)
+      parameter(cthk=200.,dthk=25.)
       parameter(cinpcrmx=180.,cinpcrmn=120.)
 !     parameter(cinacrmx=-120.,cinacrmn=-120.)
       parameter(cinacrmx=-120.,cinacrmn=-80.)
@@ -1130,7 +1130,9 @@ c
 !
           k = kbcon(i)
           dp = 1000. * del(i,k)
-          xmbmax(i) = dp / (g * dt2)
+          xmbmax(i) = dp / (2. * g * dt2)
+!
+!         xmbmax(i) = dp / (g * dt2)
 !
 !         mbdt(i) = 0.1 * dp / g
 !
@@ -2792,3 +2794,4 @@ c
       endif
       return
       end
+

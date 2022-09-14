@@ -23,7 +23,9 @@ module module_physics_driver
   use wv_saturation,         only: estblf
   
   use module_sfc_drv,        only: sfc_drv
+#ifdef USE_COSP
   use cosp2_test,            only: cosp2_driver
+#endif
   
   implicit none
 
@@ -449,7 +451,7 @@ module module_physics_driver
            dtshoc,                                                      &
            !--- GFDL Cloud microphysics
            crain, csnow,                                                &
-           diag_water, diag_rain, diag_rain1
+           z0fun, diag_water, diag_rain, diag_rain1
 
       real(kind=kind_phys), dimension(Model%ntrac-Model%ncld+2) ::      &
            fscav, fswtr
@@ -490,7 +492,7 @@ module module_physics_driver
 #else
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
           gsize, hs, land, water0, rain0, ice0, snow0, graupel0, cond0, &
-          dep0, reevap0, sub0, dte
+          dep0, reevap0, sub0, dte, zvfun
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -1330,7 +1332,7 @@ module module_physics_driver
 !  ---  inputs:
            (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
             Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
-            Radtend%semis, gabsbdlw, adjsfcdsw, adjsfcnsw, dtf,        &
+            Radtend%semis, adjsfcdlw, adjsfcdsw, adjsfcnsw, dtf,       &
             Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &
             Diag%zlvl, dry,   wind, slopetyp,                          &
             Sfcprop%shdmin,   Sfcprop%shdmax,  Sfcprop%snoalb,         &
@@ -1339,7 +1341,7 @@ module module_physics_driver
             Model%iopt_run,   Model%iopt_sfc,  Model%iopt_frz,         &
             Model%iopt_inf,   Model%iopt_rad,  Model%iopt_alb,         &
             Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
-            grid%xlat, xcosz, Model%yearlen,   Model%julian,           &
+            grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
             Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
             Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
 !  ---  in/outs:
@@ -1358,11 +1360,11 @@ module module_physics_driver
             Sfcprop%fastcpxy, Sfcprop%xlaixy,  Sfcprop%xsaixy,                  &
             Sfcprop%taussxy,  Sfcprop%smoiseq, Sfcprop%smcwtdxy,                &
             Sfcprop%deeprechxy, Sfcprop%rechxy,                                 &
+            Sfcprop%albdvis, Sfcprop%albdnir,  Sfcprop%albivis,  Sfcprop%albinir,&
 !  ---  outputs:
             Sfcprop%sncovr, qss, gflx, drain, evap, hflx, ep1d, runof,          &
-            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,  &
+            Diag%cmm, Diag%chh, evbs, evcw, sbsno, snowc, Diag%soilm,           &
             snohf, Diag%smcwlt2, Diag%smcref2, Diag%wet1, t2mmp, q2mp)
-
 
         endif
 
@@ -1719,12 +1721,20 @@ module module_physics_driver
                    Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
 
              elseif (Model%isatmedmf == 1) then   
+                do i=1,im
+                   if (islmsk(i) == 1) then
+                      z0fun =  min(max((Sfcprop%zorl(i)*0.01-0.1)/0.9, 0.0), 1.0) ! jih jul2020:  (z0fun=0.~1.0)
+                      zvfun(i) = sqrt( max(sigmaf(i), 0.1) * z0fun ) !jih jul2020: over land, zvfun=0 over ocean
+                   else
+                      zvfun(i) = 0.
+                   endif
+                enddo
                 ! updated version of satmedmfvdif (May 2019) modified by kgao
                 call satmedmfvdifq(ix, im, levs, nvdiff,                            &
                        Model%ntcw, Model%ntiw, Model%ntke,                          &
                        dvdt, dudt, dtdt, dqdt,                                      &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
-                       Radtend%htrsw, Radtend%htrlw, xmu, garea, islmsk,            &
+                       Radtend%htrsw, Radtend%htrlw, xmu, garea, zvfun, islmsk,     &
                        Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                        Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
                        stress, wind, kpbl, Statein%prsi, del, Statein%prsl,         &
@@ -2560,6 +2570,7 @@ module module_physics_driver
           cnvw  = 0.
           cnvc  = 0.
         endif
+
 
         if (Model%npdf3d == 3 .and. Model%num_p3d == 4) then
           do k=1,levs
@@ -3974,6 +3985,7 @@ module module_physics_driver
             final_dynamics_delp, im, levs, nwat, dtp)
       endif
 
+#ifdef USE_COSP
 !-----------------------------------------------------------------------
 ! The CFMIP Observation Simulator Package (COSP)
 ! Added by Linjiong Zhou
@@ -4086,6 +4098,7 @@ module module_physics_driver
         deallocate (pfg)
 
       endif
+#endif
 
       return
 !...................................

@@ -142,7 +142,7 @@ module FV3GFS_io_mod
 !
    integer :: tot_diag_idx = 0
    integer, parameter :: DIAG_SIZE = 500
-   real(kind=kind_phys), parameter :: missing_value = -1.d30
+   real(kind=kind_phys), parameter :: missing_value = 9.99e20
    type(gfdl_diag_type), dimension(DIAG_SIZE) :: Diag, Diag_coarse, Diag_diag_manager_controlled, Diag_diag_manager_controlled_coarse
 !-RAB
 
@@ -4674,6 +4674,7 @@ module FV3GFS_io_mod
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%sr(:)
     enddo
 
+#ifdef USE_COSP
 !--- 2D diagnostic variables from the CFMIP Observation Simulator Package (COSP), Linjiong Zhou
 
     idx = idx + 1
@@ -5533,6 +5534,7 @@ module FV3GFS_io_mod
     do nb = 1,nblks
       Diag(idx)%data(nb)%var2 => Gfs_diag(nb)%cosp%npdfrain(:)
     enddo
+#endif
 
 !    idx = idx + 1
 !    Diag(idx)%axes = 2

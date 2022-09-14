@@ -6,6 +6,7 @@ module GFS_typedefs
        use ozne_def,                 only: levozp, oz_coeff
        use h2o_def,                  only: levh2o, h2o_coeff
        use gfdl_cld_mp_mod,          only: rhow
+#ifdef USE_COSP
        use cosp2_test,               only: Ncolumns
        use mod_cosp_config,          only: Nlvgrid, ntau, npres, nhgt, &
                                            SR_BINS, PARASOL_NREFL, &
@@ -13,6 +14,7 @@ module GFS_typedefs
                                            numMODISReffLiqBins, &
                                            numMODISReffIceBins, &
                                            CFODD_NDBZE, CFODD_NICOD
+#endif
        implicit none
 
        !--- version of physics
@@ -1093,6 +1095,7 @@ module GFS_typedefs
       procedure :: create  => radtend_create   !<   allocate array data
   end type GFS_radtend_type
 
+#ifdef USE_COSP
 !----------------------------------------------------------------
 ! cosp_type, Linjiong Zhou
 !----------------------------------------------------------------
@@ -1176,6 +1179,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: npdfdrz                            (:)   => null()
     real (kind=kind_phys), pointer :: npdfrain                           (:)   => null()
   end type cosp_type
+#endif
 
 !----------------------------------------------------------------
 ! GFS_diag_type
@@ -1197,7 +1201,9 @@ module GFS_typedefs
     type (topflw_type),    pointer :: topflw(:)     => null()   !< lw radiation fluxes at top, component:
                                                !       %upfxc    - total sky upward lw flux at toa (w/m**2)
                                                !       %upfx0    - clear sky upward lw flux at toa (w/m**2)
+#ifdef USE_COSP
     type (cosp_type)               :: cosp                      !< cosp output
+#endif
 
     ! Input/output - used by physics
     real (kind=kind_phys), pointer :: srunoff(:)    => null()   !< surface water runoff (from lsm)
@@ -2365,7 +2371,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx           = 300.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f
-    real(kind=kind_phys) :: cs0            = 0.0                      !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
+    real(kind=kind_phys) :: cs0            = 0.2                      !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
     real(kind=kind_phys) :: dspfac         = 1.0                      !< tke dissipative heating factor
     real(kind=kind_phys) :: bl_upfr        = 0.13                     !< updraft fraction in boundary layer mass flux scheme
@@ -3970,6 +3976,7 @@ module GFS_typedefs
       allocate (Diag%det_mf (IM,Model%levs))
       allocate (Diag%cldcov (IM,Model%levs))
     endif
+#ifdef USE_COSP
     if (Model%do_cosp) then
       allocate (Diag%cosp%cltisccp                           (IM))
       allocate (Diag%cosp%meantbisccp                        (IM))
@@ -4050,6 +4057,7 @@ module GFS_typedefs
       allocate (Diag%cosp%npdfdrz                            (IM))
       allocate (Diag%cosp%npdfrain                           (IM))
     endif
+#endif
 
     allocate (Diag%ps_dt(IM))
 

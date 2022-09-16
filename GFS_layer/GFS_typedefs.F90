@@ -585,6 +585,7 @@ module GFS_typedefs
     logical              :: mom4ice         !< flag controls mom4 sea ice
     logical              :: use_ufo         !< flag for gcycle surface option
     real(kind=kind_phys) :: czil_sfc        !< Zilintkinivich constant
+    real(kind=kind_phys) :: Ts0             !< constant surface temp. if surface data not found 
 
     ! -- the Noah MP options
 
@@ -2078,6 +2079,7 @@ module GFS_typedefs
     logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
     logical              :: use_ufo        = .false.         !< flag for gcycle surface option
     real(kind=kind_phys) :: czil_sfc       = 0.8             !< Zilintkivitch constant
+    real(kind=kind_phys) :: Ts0            = 300.            !< constant surface temp. if surface data not found 
 
     ! -- to use Noah MP, lsm needs to be set to 2 and both ivegsrc and isot are set
     ! to 1 - MODIS IGBP and STATSGO - the defaults are the same as in the
@@ -2332,7 +2334,7 @@ module GFS_typedefs
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
                           !--- land/surface model control
-                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
+                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
                           !    Noah MP options
                                iopt_dveg,iopt_crs,iopt_btr,iopt_run,iopt_sfc, iopt_frz,     &
                                iopt_inf, iopt_rad,iopt_alb,iopt_snf,iopt_tbot,iopt_stc,     &
@@ -2525,6 +2527,7 @@ module GFS_typedefs
     Model%mom4ice          = mom4ice
     Model%use_ufo          = use_ufo
     Model%czil_sfc         = czil_sfc
+    Model%Ts0              = Ts0
 
 ! Noah MP options from namelist
 !
@@ -3194,6 +3197,7 @@ module GFS_typedefs
       print *, ' mom4ice           : ', Model%mom4ice
       print *, ' use_ufo           : ', Model%use_ufo
       print *, ' czil_sfc          : ', Model%czil_sfc
+      print *, ' Ts0               : ', Model%Ts0
 
       if (Model%lsm == Model%lsm_noahmp) then
       print *, ' Noah MP LSM is used, the options are'

@@ -1521,7 +1521,7 @@ module FV3GFS_io_mod
           !--- slmsk
           Sfcprop(nb)%slmsk(ix)  = 0.
           !--- tsfc (tsea in sfc file)
-          Sfcprop(nb)%tsfc(ix)   = 300. ! should specify some latitudinal profile
+          Sfcprop(nb)%tsfc(ix)   = Model%Ts0 ! should specify some latitudinal profile
           !--- weasd (sheleg in sfc file)
           Sfcprop(nb)%weasd(ix)  = 0.0
           !--- tg3

@@ -532,6 +532,7 @@ module GFS_typedefs
     logical              :: swhtr           !< flag to output sw heating rate (Radtend%swhc)
     logical              :: fixed_date      !< flag to fix astronomy (not solar angle) to initial date
     logical              :: fixed_solhr     !< flag to fix solar angle to initial time
+    logical              :: fixed_sollat    !< flag to fix solar latitude
     logical              :: daily_mean      !< flag to replace cosz with daily mean value
 
     !--- microphysical switch
@@ -1890,6 +1891,7 @@ module GFS_typedefs
     !--- radiation parameters
     real(kind=kind_phys) :: fhswr          = 3600.           !< frequency for shortwave radiation (secs)
     real(kind=kind_phys) :: fhlwr          = 3600.           !< frequency for longwave radiation (secs)
+    real(kind=kind_phys) :: sollat         = 0.              !< latitude the solar position fixed to (-90. to 90.)
     integer              :: levr           = -99             !< number of vertical levels for radiation calculations
     integer              :: nfxr           = 39              !< second dimension of input/output array fluxr
     integer              :: nkld           = 8               !< second dimension of input/output array fluxr
@@ -1927,6 +1929,7 @@ module GFS_typedefs
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
     logical              :: fixed_date     = .false.         !< flag to fix astronomy (not solar angle) to initial date
     logical              :: fixed_solhr    = .false.         !< flag to fix solar angle to initial time
+    logical              :: fixed_sollat   = .false.         !< flag to fix solar latitude
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
     !--- GFDL microphysical parameters
@@ -2211,7 +2214,7 @@ module GFS_typedefs
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
-                               fixed_date, fixed_solhr, daily_mean,                         &
+                               fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,             &
@@ -2354,6 +2357,7 @@ module GFS_typedefs
     !--- radiation control parameters
     Model%fhswr            = fhswr
     Model%fhlwr            = fhlwr
+    Model%sollat           = sollat
     Model%nsswr            = nint(fhswr/Model%dtp)
     Model%nslwr            = nint(fhlwr/Model%dtp)
     if (levr < 0) then
@@ -2381,6 +2385,7 @@ module GFS_typedefs
     Model%swhtr            = swhtr
     Model%fixed_date       = fixed_date
     Model%fixed_solhr      = fixed_solhr
+    Model%fixed_sollat     = fixed_sollat
     Model%daily_mean       = daily_mean
 
     !--- microphysical switch
@@ -3024,6 +3029,7 @@ module GFS_typedefs
       print *, 'radiation control parameters'
       print *, ' fhswr             : ', Model%fhswr
       print *, ' fhlwr             : ', Model%fhlwr
+      print *, ' sollat            : ', Model%sollat
       print *, ' nsswr             : ', Model%nsswr
       print *, ' nslwr             : ', Model%nslwr
       print *, ' levr              : ', Model%levr
@@ -3051,6 +3057,7 @@ module GFS_typedefs
       print *, ' swhtr             : ', Model%swhtr
       print *, ' fixed_date        : ', Model%fixed_date
       print *, ' fixed_solhr       : ', Model%fixed_solhr
+      print *, ' fixed_sollat      : ', Model%fixed_sollat
       print *, ' daily_mean        : ', Model%daily_mean
       print *, ' '
       print *, 'microphysical switch'

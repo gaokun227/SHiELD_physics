@@ -1354,6 +1354,7 @@
         call coszmn (Grid%xlon,Grid%sinlat,         &     !  ---  inputs
                    Grid%coslat,Model%solhr, IM, me, & 
                    Model%daily_mean,                &
+                   Model%fixed_sollat, Model%sollat,&
                    Radtend%coszen, Radtend%coszdg)        !  ---  outputs
       endif
 

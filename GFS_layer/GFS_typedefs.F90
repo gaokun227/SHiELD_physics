@@ -618,6 +618,7 @@ module GFS_typedefs
     logical              :: swhtr           !< flag to output sw heating rate (Radtend%swhc)
     logical              :: fixed_date      !< flag to fix astronomy (not solar angle) to initial date
     logical              :: fixed_solhr     !< flag to fix solar angle to initial time
+    logical              :: fixed_sollat    !< flag to fix solar latitude
     logical              :: daily_mean      !< flag to replace cosz with daily mean value
 
     !--- microphysical switch
@@ -664,6 +665,7 @@ module GFS_typedefs
     logical              :: mom4ice         !< flag controls mom4 sea ice
     logical              :: use_ufo         !< flag for gcycle surface option
     real(kind=kind_phys) :: czil_sfc        !< Zilintkinivich constant
+    real(kind=kind_phys) :: Ts0             !< constant surface temp. if surface data not found 
 
     ! -- the Noah MP options
 
@@ -2221,6 +2223,7 @@ module GFS_typedefs
     !--- radiation parameters
     real(kind=kind_phys) :: fhswr          = 3600.           !< frequency for shortwave radiation (secs)
     real(kind=kind_phys) :: fhlwr          = 3600.           !< frequency for longwave radiation (secs)
+    real(kind=kind_phys) :: sollat         = 0.              !< latitude the solar position fixed to (-90. to 90.)
     integer              :: levr           = -99             !< number of vertical levels for radiation calculations
     integer              :: nfxr           = 39              !< second dimension of input/output array fluxr
     integer              :: nkld           = 8               !< second dimension of input/output array fluxr
@@ -2258,6 +2261,7 @@ module GFS_typedefs
     logical              :: swhtr          = .true.          !< flag to output sw heating rate (Radtend%swhc)
     logical              :: fixed_date     = .false.         !< flag to fix astronomy (not solar angle) to initial date
     logical              :: fixed_solhr    = .false.         !< flag to fix solar angle to initial time
+    logical              :: fixed_sollat   = .false.         !< flag to fix solar latitude
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
     !--- GFDL microphysical parameters
@@ -2300,6 +2304,7 @@ module GFS_typedefs
     logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
     logical              :: use_ufo        = .false.         !< flag for gcycle surface option
     real(kind=kind_phys) :: czil_sfc       = 0.8             !< Zilintkivitch constant
+    real(kind=kind_phys) :: Ts0            = 300.            !< constant surface temp. if surface data not found 
 
     ! -- to use Noah MP, lsm needs to be set to 2 and both ivegsrc and isot are set
     ! to 1 - MODIS IGBP and STATSGO - the defaults are the same as in the
@@ -2549,13 +2554,13 @@ module GFS_typedefs
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
-                               fixed_date, fixed_solhr, daily_mean,                         &
+                               fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
                                do_inline_sas, do_inline_edmf, do_inline_gwd,                &
                                do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
                           !--- land/surface model control
-                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc,      &
+                               lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
                           !    Noah MP options
                                iopt_dveg,iopt_crs,iopt_btr,iopt_run,iopt_sfc, iopt_frz,     &
                                iopt_inf, iopt_rad,iopt_alb,iopt_snf,iopt_tbot,iopt_stc,     &
@@ -2693,6 +2698,7 @@ module GFS_typedefs
     !--- radiation control parameters
     Model%fhswr            = fhswr
     Model%fhlwr            = fhlwr
+    Model%sollat           = sollat
     Model%nsswr            = nint(fhswr/Model%dtp)
     Model%nslwr            = nint(fhlwr/Model%dtp)
     if (levr < 0) then
@@ -2720,6 +2726,7 @@ module GFS_typedefs
     Model%swhtr            = swhtr
     Model%fixed_date       = fixed_date
     Model%fixed_solhr      = fixed_solhr
+    Model%fixed_sollat     = fixed_sollat
     Model%daily_mean       = daily_mean
 
     !--- microphysical switch
@@ -2754,6 +2761,7 @@ module GFS_typedefs
     Model%mom4ice          = mom4ice
     Model%use_ufo          = use_ufo
     Model%czil_sfc         = czil_sfc
+    Model%Ts0              = Ts0
 
 ! Noah MP options from namelist
 !
@@ -3385,6 +3393,7 @@ module GFS_typedefs
       print *, 'radiation control parameters'
       print *, ' fhswr             : ', Model%fhswr
       print *, ' fhlwr             : ', Model%fhlwr
+      print *, ' sollat            : ', Model%sollat
       print *, ' nsswr             : ', Model%nsswr
       print *, ' nslwr             : ', Model%nslwr
       print *, ' levr              : ', Model%levr
@@ -3412,6 +3421,7 @@ module GFS_typedefs
       print *, ' swhtr             : ', Model%swhtr
       print *, ' fixed_date        : ', Model%fixed_date
       print *, ' fixed_solhr       : ', Model%fixed_solhr
+      print *, ' fixed_sollat      : ', Model%fixed_sollat
       print *, ' daily_mean        : ', Model%daily_mean
       print *, ' '
       print *, 'microphysical switch'
@@ -3446,6 +3456,7 @@ module GFS_typedefs
       print *, ' mom4ice           : ', Model%mom4ice
       print *, ' use_ufo           : ', Model%use_ufo
       print *, ' czil_sfc          : ', Model%czil_sfc
+      print *, ' Ts0               : ', Model%Ts0
 
       if (Model%lsm == Model%lsm_noahmp) then
       print *, ' Noah MP LSM is used, the options are'

@@ -1679,6 +1679,7 @@ module FV3GFS_io_mod
     integer :: isc, iec, jsc, jec, npz, nx, ny, ios
 
     logical :: ideal_sst = .false.
+    logical :: ideal_sst_dp = .false.
     real(kind=kind_phys) :: sst_max = 300.
     real(kind=kind_phys) :: sst_min = 271.14 ! -2c --> sea ice
     integer :: sst_profile = 0
@@ -1695,8 +1696,9 @@ module FV3GFS_io_mod
     real(kind=kind_phys) :: smc = 0.4 ! wet season vs. 0.08 dry ! 0.2 okc highly variable and patchy
 
     namelist /sfc_prop_override_nml/ &
-         ideal_sst, sst_max, sst_profile, & !Aquaplanet SST options
-         ideal_land, vegtype, soiltype, & ! idealized soil/veg options
+         ideal_sst, sst_max, sst_profile, & ! Aquaplanet SST options
+         ideal_sst_dp,                    & ! Constant sst for double periodic simulations (KGao)
+         ideal_land, vegtype, soiltype,   & ! Idealized soil/veg options
          vegfrac, zorl, stc, smc
 
     isc = Atm_block%isc
@@ -1765,6 +1767,15 @@ module FV3GFS_io_mod
           enddo
        enddo
 
+    elseif (ideal_sst_dp) then ! only change SST values
+       do nb = 1, Atm_block%nblks
+          do ix = 1, Atm_block%blksz(nb)
+             i = Atm_block%index(nb)%ii(ix) - isc + 1
+             j = Atm_block%index(nb)%jj(ix) - jsc + 1
+             Sfcprop(nb)%tsfc(ix)   = sst_max
+             Sfcprop(nb)%tisfc(ix)  = Sfcprop(nb)%tsfc(ix)
+          enddo
+       enddo
 
     elseif (ideal_land) then
        do nb = 1, Atm_block%nblks

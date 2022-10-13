@@ -23,9 +23,6 @@ module module_physics_driver
   use wv_saturation,         only: estblf
   
   use module_sfc_drv,        only: sfc_drv
-#ifdef USE_COSP
-  use cosp2_test,            only: cosp2_driver
-#endif
   
   implicit none
 
@@ -3529,6 +3526,16 @@ module module_physics_driver
           endif
         enddo
 
+        if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
+            Diag%pfr = Statein%prefluxr
+            Diag%pfs = Statein%prefluxs
+            Diag%pfg = Statein%prefluxg
+        else
+            Diag%pfr = prefluxr
+            Diag%pfs = prefluxs
+            Diag%pfg = prefluxg
+        endif
+
 #endif
       endif
 
@@ -3868,43 +3875,6 @@ module module_physics_driver
             dq3dt_initial, Diag%dq3dt, Statein%qgrs(:,:,1:nwat), Stateout%gq0(:,:,1:nwat), &
             final_dynamics_delp, im, levs, nwat, dtp)
       endif
-
-#ifdef USE_COSP
-!-----------------------------------------------------------------------
-! The CFMIP Observation Simulator Package (COSP)
-! Added by Linjiong Zhou
-! May 2021
-!-----------------------------------------------------------------------
-
-      if (Model%do_cosp) then
-
-        allocate (pfr(ix,levs))
-        allocate (pfs(ix,levs))
-        allocate (pfg(ix,levs))
-
-        if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
-            pfr = Statein%prefluxr
-            pfs = Statein%prefluxs
-            pfg = Statein%prefluxg
-        else
-            pfr = prefluxr
-            pfs = prefluxs
-            pfg = prefluxg
-        endif
-
-        call cosp2_driver (im, levs, Stateout%gt0, Stateout%gq0(:,:,1), Stateout%gu0, &
-            Stateout%gv0, Statein%prsl, Statein%prsi, Statein%phil, Statein%phii, Sfcprop%tsfc, &
-            Stateout%gq0(:,:,Model%ntoz), 1-abs(Sfcprop%slmsk-1), Sfcprop%oro, &
-            Stateout%gq0(:,:,Model%ntclamt), Stateout%gq0(:,:,Model%ntcw), &
-            Stateout%gq0(:,:,Model%ntiw), pfr, pfs, pfg, model%ncld, diag%reff, &
-            Radtend%coszen, diag%ctau, Diag%cosp)
-      
-        deallocate (pfr)
-        deallocate (pfs)
-        deallocate (pfg)
-
-      endif
-#endif
 
       return
 !...................................

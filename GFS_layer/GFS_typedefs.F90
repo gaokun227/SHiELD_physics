@@ -1213,6 +1213,10 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: shum_wts(:,:)  => null()   !<
     real (kind=kind_phys), pointer :: zmtnblck(:)    => null()   !<mountain blocking level of dividing streamline
 
+    real (kind=kind_phys), pointer :: pfr (:,:)     => null()  !< rain
+    real (kind=kind_phys), pointer :: pfs (:,:)     => null()  !< snow
+    real (kind=kind_phys), pointer :: pfg (:,:)     => null()  !< graupel
+
 !
     real (kind=kind_phys), pointer :: netflxsfc     (:)    => null()   !net surface heat flux
     real (kind=kind_phys), pointer :: qflux_restore (:)    => null()   !restoring term for diagnosis only
@@ -3712,6 +3716,10 @@ module GFS_typedefs
     allocate (Diag%shum_wts(IM,Model%levs))
     allocate (Diag%zmtnblck(IM))
 
+    allocate (Diag%pfr(IM,Model%levs))
+    allocate (Diag%pfs(IM,Model%levs))
+    allocate (Diag%pfg(IM,Model%levs))
+
     !--- 3D diagnostics
     if (Model%ldiag3d) then
       allocate (Diag%du3dt  (IM,Model%levs,4))
@@ -3935,6 +3943,10 @@ module GFS_typedefs
     Diag%toticeb    = zero
     Diag%totsnwb    = zero
     Diag%totgrpb    = zero
+
+    Diag%pfr   = zero
+    Diag%pfs   = zero
+    Diag%pfg   = zero
 
     if (Model%do_ca) then
       Diag%ca_out   = zero

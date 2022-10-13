@@ -103,6 +103,9 @@ use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, regi
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
 use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize
 use module_ocean,       only: ocean_init
+#ifdef USE_COSP
+use cosp2_test,         only: cosp2_driver
+#endif
 !-----------------------------------------------------------------------
 
 implicit none
@@ -174,6 +177,7 @@ logical :: fdiag_fix = .false.
 !----------------
 !  IPD containers
 !----------------
+type(IPD_init_type)                 :: Init_parm
 type(IPD_control_type)              :: IPD_Control
 type(IPD_data_type),    allocatable :: IPD_Data(:)  ! number of blocks
 type(IPD_diag_type)                 :: IPD_Diag(250)
@@ -366,7 +370,6 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
   character(len=132) :: text
   logical :: p_hydro, hydro, fexist
   logical, save :: block_message = .true.
-  type(IPD_init_type) :: Init_parm
   integer :: bdat(8), cdat(8)
   integer :: ntracers
   integer :: kdt_prev
@@ -683,6 +686,21 @@ subroutine update_atmos_model_state (Atmos)
           time_intfull = time_intfull - Atmos%iau_offset*3600.
         endif
       endif
+#ifdef USE_COSP
+      !-----------------------------------------------------------------------
+      ! The CFMIP Observation Simulator Package (COSP)
+      ! Added by Linjiong Zhou
+      ! May 2021
+      !-----------------------------------------------------------------------
+
+      if (IPD_Control%do_cosp) then
+
+        call cosp2_driver (IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Statein, &
+                           IPD_Data(:)%Stateout, IPD_Data(:)%Sfcprop, &
+                           IPD_Data(:)%Radtend, IPD_Data(:)%Intdiag, Init_parm)
+      
+      endif
+#endif
       call gfdl_diag_output(Atmos%Time, Atm_block, IPD_Data, IPD_Control%nx, IPD_Control%ny, fprint, &
                             IPD_Control%levs, 1, 1, 1.d0, time_int, time_intfull, &
                             IPD_Control%fhswr, IPD_Control%fhlwr, &

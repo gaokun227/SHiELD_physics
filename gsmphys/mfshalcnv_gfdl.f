@@ -1,8 +1,10 @@
-      subroutine mfshalcnv(im,ix,km,delt,delp,prslp,psp,phil,ql,
+      subroutine mfshalcnv_gfdl(im,ix,km,delt,delp,prslp,psp,phil,ql,
      &     q1,t1,u1,v1,er,qr,rn,kbot,ktop,kcnv,islimsk,garea,
      &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,
 !    &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,me)
-     &     clam,c0s,c1,pgcon,asolfac,evfact,evfactl)
+     &     clam,c0s,c1,cthk,shal_top,betaw,dxcrt,
+     &     pgcon,asolfac,evfact,evfactl,
+     &     wu2,eta,xmb,tfac_out,sigmagfm)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -44,7 +46,7 @@
      &                     el2orc,  elocp,   aafac,   cm,
      &                     es,      etah,    h1,
      &                     evef,    evfact,  evfactl, fact1,
-     &                     fact2,   factor,  dthk,
+     &                     fact2,   factor,  dthk,    cthk, 
      &                     g,       gamma,   pprime,  betaw,
      &                     qlk,     qrch,    qs,
      &                     rfact,   shear,   tfac,
@@ -54,7 +56,7 @@
      &                     w3s,     w4,      w4l,     w4s,
      &                     rho,     tem,     tem1,    tem2,    
      &                     ptem,    ptem1,
-     &                     pgcon
+     &                     pgcon,   shal_top
 !
       integer              kb(im), kbcon(im), kbcon1(im),
      &                     ktcon(im), ktcon1(im), ktconn(im),
@@ -107,7 +109,7 @@ c  physical parameters
       parameter(crtlamd=3.e-4)
       parameter(dtmax=10800.,dtmin=600.)
       parameter(bet1=1.875,cd1=.506,f1=2.0,gam1=.5)
-      parameter(betaw=.03,dxcrt=15.e3)
+!      parameter(betaw=.03,dxcrt=15.e3)
       parameter(h1=0.33333333)
 c  local variables and arrays
       real(kind=kind_phys) pfld(im,km),    to(im,km),     qo(im,km),
@@ -115,6 +117,8 @@ c  local variables and arrays
 !  for updraft velocity calculation
       real(kind=kind_phys) wu2(im,km),     buo(im,km),    drag(im,km)
       real(kind=kind_phys) wc(im),         scaldfunc(im), sigmagfm(im)
+!  for writting out the Tadv/Tcnv factor - by KGao
+      real(kind=kind_phys) tfac_out(im)
 !
 c  cloud water
 !     real(kind=kind_phys) qlko_ktcon(im), dellal(im,km), tvo(im,km),
@@ -238,8 +242,11 @@ c
 !     
       do k = 1, km
         do i=1,im
-          if (prsl(i,k)*tx1(i) > 0.70) kbm(i)   = k + 1
-          if (prsl(i,k)*tx1(i) > 0.60) kmax(i)  = k + 1
+          ! After KG 06/22/2022 change:
+          ! kbm  - upper limiter for cloud base (kbcon) 
+          ! kmax - upper limiter for cloud top (ktcon)
+          if (prsl(i,k)*tx1(i) > 0.70) kbm(i)   = k + 1 
+          if (prsl(i,k)*tx1(i) > shal_top) kmax(i)  = k + 1 ! KG
         enddo
       enddo
       do i=1,im
@@ -286,11 +293,15 @@ c
 c!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 c   convert surface pressure to mb from cb
 c
+
+      wu2 = 0.
+      eta = 1.
+
       do k = 1, km
         do i = 1, im
           if (cnvflg(i) .and. k <= kmax(i)) then
             pfld(i,k) = prsl(i,k) * 10.0
-            eta(i,k)  = 1.
+!            eta(i,k)  = 1.
             hcko(i,k) = 0.
             qcko(i,k) = 0.
             qrcko(i,k)= 0.
@@ -305,7 +316,7 @@ c
             vo(i,k)   = v1(i,k)
 !           uo(i,k)   = u1(i,k) * rcs(i)
 !           vo(i,k)   = v1(i,k) * rcs(i)
-            wu2(i,k)  = 0.
+!           wu2(i,k)  = 0.
             buo(i,k)  = 0.
             drag(i,k) = 0.
             cnvwt(i,k) = 0.
@@ -414,7 +425,7 @@ c  look for the level of free convection as cloud base
 c
       do i=1,im
         flg(i)   = cnvflg(i)
-        if(flg(i)) kbcon(i) = kmax(i)
+        if(flg(i)) kbcon(i) =  kmax(i)
       enddo
       do k = 2, km1
         do i=1,im
@@ -521,13 +532,14 @@ c
       do k = 2, km1
         do i = 1, im
          if(flg(i))then
-           if(k > kbcon(i) .and. k < kmax(i)) then
+           !if(k > kbcon(i) .and. k < kmax(i)) then 
+           if(k > kbcon(i) ) then ! KG
               dz       = zi(i,k) - zi(i,k-1)
               ptem     = 0.5*(xlamue(i,k)+xlamue(i,k-1))-xlamud(i)
               eta(i,k) = eta(i,k-1) * (1 + ptem * dz)
               if(eta(i,k) <= 0.) then
-                kmax(i) = k
-                ktconn(i) = k
+                !kmax(i) = k  ! KG 
+                ktconn(i) = k ! useless
                 kbm(i) = min(kbm(i),kmax(i))
                 flg(i) = .false.
               endif
@@ -679,15 +691,15 @@ c
 !!
 c
 c  determine first guess cloud top as the level of zero buoyancy
-c    limited to the level of P/Ps=0.7
 c
       do i = 1, im
         flg(i) = cnvflg(i)
-        if(flg(i)) ktcon(i) = kbm(i)
+        !if(flg(i)) ktcon(i) = kbm(i) ! KG
       enddo
       do k = 2, km1
       do i=1,im
-        if (flg(i) .and. k < kbm(i)) then
+        !if (flg(i) .and. k < kbm(i)) then
+        if (flg(i)) then ! KG
           if(k > kbcon1(i) .and. dbyo(i,k) < 0.) then
              ktcon(i) = k
              flg(i)   = .false.
@@ -695,6 +707,20 @@ c
         endif
       enddo
       enddo
+
+      ! KG change: turn off shal conv based on diagnosed cloud depth or top 
+      ! The idea here is that if the cloud is too deep or too high, it should not be
+      ! handled by shal conv  
+      do i = 1, im
+        if(cnvflg(i)) then
+          ! a) cloud depth criterion as in deep conv
+          tem = pfld(i,kbcon(i))-pfld(i,ktcon(i))
+          if(tem >= cthk) cnvflg(i) = .false.
+          ! b) cloud top criterion; ensures ktcon <= kmax 
+          if(ktcon(i) > kmax(i)) cnvflg(i) = .false. 
+        endif
+      enddo
+
 c
 c  specify upper limit of mass flux at cloud base
 c
@@ -723,7 +749,12 @@ c
       do k = 2, km1
         do i = 1, im
           if (cnvflg(i)) then
-            if(k > kb(i) .and. k < ktcon(i)) then
+            ! KG: change upper limit for the following k loop to make sure
+            ! wu2 are not zeros beyond ktcon
+            ! overshooting layers calculation now included here
+
+            !if(k > kb(i) .and. k < ktcon(i)) then
+            if(k > kb(i) .and. k < kmax(i)) then  
               dz    = zi(i,k) - zi(i,k-1)
               gamma = el2orc * qeso(i,k) / (to(i,k)**2)
               qrch = qeso(i,k)
@@ -833,10 +864,9 @@ c
       if(totflg) return
 !!
 c
-c  estimate the onvective overshooting as the level
+c  estimate the convective overshooting as the level
 c    where the [aafac * cloud work function] becomes zero,
 c    which is the final cloud top
-c    limited to the level of P/Ps=0.7
 c
       do i = 1, im
         if (cnvflg(i)) then
@@ -846,12 +876,15 @@ c
 c
       do i = 1, im
         flg(i) = cnvflg(i)
-        ktcon1(i) = kbm(i)
+        !ktcon1(i) = kbm(i)
+        ktcon1(i) = kmax(i) ! KG; ktcon1 <= kmax
       enddo
       do k = 2, km1
         do i = 1, im
           if (flg(i)) then
-            if(k >= ktcon(i) .and. k < kbm(i)) then
+            !if(k >= ktcon(i) .and. k < kbm(i)) then
+            if (k >= ktcon(i) .and. k < kmax(i)) then ! KG
+
               dz1 = zo(i,k+1) - zo(i,k)
               gamma = el2orc * qeso(i,k) / (to(i,k)**2)
               rfact =  1. + delta * cp * gamma
@@ -878,44 +911,45 @@ c
 c  compute cloud moisture property, detraining cloud water
 c    and precipitation in overshooting layers
 c
-      do k = 2, km1
-        do i = 1, im
-          if (cnvflg(i)) then
-            if(k >= ktcon(i) .and. k < ktcon1(i)) then
-              dz    = zi(i,k) - zi(i,k-1)
-              gamma = el2orc * qeso(i,k) / (to(i,k)**2)
-              qrch = qeso(i,k)
-     &             + gamma * dbyo(i,k) / (hvap * (1. + gamma))
+!      do k = 2, km1
+!        do i = 1, im
+!          if (cnvflg(i)) then
+!            if(k >= ktcon(i) .and. k < ktcon1(i)) then
+!              dz    = zi(i,k) - zi(i,k-1)
+!              gamma = el2orc * qeso(i,k) / (to(i,k)**2)
+!              qrch = qeso(i,k)
+!     &             + gamma * dbyo(i,k) / (hvap * (1. + gamma))
 cj
-              tem  = 0.5 * (xlamue(i,k)+xlamue(i,k-1)) * dz
-              tem1 = 0.5 * xlamud(i) * dz
-              factor = 1. + tem - tem1
-              qcko(i,k) = ((1.-tem1)*qcko(i,k-1)+tem*0.5*
-     &                     (qo(i,k)+qo(i,k-1)))/factor
-              qrcko(i,k) = qcko(i,k)
+!              tem  = 0.5 * (xlamue(i,k)+xlamue(i,k-1)) * dz
+!              tem1 = 0.5 * xlamud(i) * dz
+!              factor = 1. + tem - tem1
+!              qcko(i,k) = ((1.-tem1)*qcko(i,k-1)+tem*0.5*
+!     &                     (qo(i,k)+qo(i,k-1)))/factor
+!              qrcko(i,k) = qcko(i,k)
 cj
-              dq = eta(i,k) * (qcko(i,k) - qrch)
+!              dq = eta(i,k) * (qcko(i,k) - qrch)
 c
 c  check if there is excess moisture to release latent heat
 c
-              if(dq > 0.) then
-                etah = .5 * (eta(i,k) + eta(i,k-1))
-                dp = 1000. * del(i,k)
-                if(ncloud > 0) then
-                  ptem = c0t(i,k) + c1
-                  qlk = dq / (eta(i,k) + etah * ptem * dz)
-                  dellal(i,k) = etah * c1 * dz * qlk * g / dp
-                else
-                  qlk = dq / (eta(i,k) + etah * c0t(i,k) * dz)
-                endif
-                qcko(i,k) = qlk + qrch
-                pwo(i,k) = etah * c0t(i,k) * dz * qlk
-                cnvwt(i,k) = etah * qlk * g / dp
-              endif
-            endif
-          endif
-        enddo
-      enddo
+!              if(dq > 0.) then
+!                etah = .5 * (eta(i,k) + eta(i,k-1))
+!                dp = 1000. * del(i,k)
+!                if(ncloud > 0) then
+!                  ptem = c0t(i,k) + c1
+!                  qlk = dq / (eta(i,k) + etah * ptem * dz)
+!                  dellal(i,k) = etah * c1 * dz * qlk * g / dp
+!                else
+!                  qlk = dq / (eta(i,k) + etah * c0t(i,k) * dz)
+!                endif
+!                qcko(i,k) = qlk + qrch
+!                pwo(i,k) = etah * c0t(i,k) * dz * qlk
+!                cnvwt(i,k) = etah * qlk * g / dp
+!              endif
+!            endif
+!          endif
+!        enddo
+!      enddo
+
 !
 !  compute updraft velocity square(wu2)
 !
@@ -946,7 +980,8 @@ c
       do k = 2, km1
         do i = 1, im
           if (cnvflg(i)) then
-            if(k > kbcon1(i) .and. k < ktcon(i)) then
+            !if(k > kbcon1(i) .and. k < ktcon(i)) then  
+            if(k > kbcon1(i) .and. k < kmax(i)) then ! KG
               dz    = zi(i,k) - zi(i,k-1)
               tem  = 0.25 * bb1 * (drag(i,k)+drag(i,k-1)) * dz
               tem1 = 0.5 * bb2 * (buo(i,k)+buo(i,k-1)) * dz
@@ -968,7 +1003,8 @@ c
       do k = 2, km1
         do i = 1, im
           if (cnvflg(i)) then
-            if(k > kbcon1(i) .and. k < ktcon(i)) then
+            ! KG - is ktcon a good upper limit?
+            if(k > kbcon1(i) .and. k < ktcon(i)) then 
               dz = zi(i,k) - zi(i,k-1)
               tem = 0.5 * (sqrt(wu2(i,k)) + sqrt(wu2(i,k-1)))
               wc(i) = wc(i) + tem * dz
@@ -1059,7 +1095,7 @@ c--- will do to the environment?
 c
       do k = 1, km
         do i = 1, im
-          if(cnvflg(i) .and. k <= kmax(i)) then
+          if(cnvflg(i) .and. k <= kmax(i)) then 
             dellah(i,k) = 0.
             dellaq(i,k) = 0.
             dellau(i,k) = 0.
@@ -1188,6 +1224,7 @@ c
           rho = po(i,k)*100. / (rd*to(i,k))
           tfac = tauadv(i) / dtconv(i)
           tfac = min(tfac, 1.)
+          tfac_out(i) = tfac
           xmb(i) = tfac*betaw*rho*wc(i)
         endif
       enddo
@@ -1226,7 +1263,7 @@ c!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 c
       do k = 1, km
         do i = 1, im
-          if (cnvflg(i) .and. k <= kmax(i)) then
+          if (cnvflg(i) .and. k <= kmax(i)) then 
             qeso(i,k) = 0.01 * fpvs(t1(i,k))      ! fpvs is in pa
             qeso(i,k) = eps * qeso(i,k) / (pfld(i,k) + epsm1*qeso(i,k))
             val     =             1.e-8

@@ -2864,11 +2864,25 @@ module module_physics_driver
               Tbd%phy_f3d(:,:,num2) = cnvw(:,:)
             endif
 
-          elseif (Model%imfshalcnv == 2) then
+          elseif (Model%imfshalcnv == 2 .or. Model%imfshalcnv == 4) then
             if (Model%ncld == 5 .and. Model%ext_rain_shal) then
                 qrn(:,:) = Stateout%gq0(:,:,Model%ntrw)
             endif
-            call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,         &
+            if (Model%imfshalcnv == 2) then 
+               call mfshalcnv (im, ix, levs, dtp, del, Statein%prsl,     &
+                            Statein%pgr, Statein%phil, clw(:,:,1:2),      &
+                            Stateout%gq0(:,:,1:1),                        &
+                            Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
+                            Model%ext_rain_shal, qrn,                     &
+                            rain1, kbot, ktop, kcnv, islmsk, garea,       &
+                            Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
+                            dt_mf, cnvw, cnvc,                            &
+                            Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                            Model%pgcon_shal, Model%asolfac_shal,         &
+                            Model%evfact_shal, Model%evfactl_shal)
+
+            elseif (Model%imfshalcnv == 4) then ! a modified version by KGao
+               call mfshalcnv_gfdl (im, ix, levs, dtp, del, Statein%prsl, &
                             Statein%pgr, Statein%phil, clw(:,:,1:2),      &
                             Stateout%gq0(:,:,1:1),                        &
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
@@ -2883,7 +2897,7 @@ module module_physics_driver
                             Model%evfact_shal, Model%evfactl_shal,          &
                             wu2_shal, eta_shal,                             &
                             Diag%xmb_shal, Diag%tfac_shal, Diag%sigma_shal)
-
+            endif
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)
 ! in  mfshalcnv,  'cnvw' and 'cnvc' are set to zero before computation starts:
@@ -2976,8 +2990,10 @@ module module_physics_driver
           if (Model%ldiag3d) then
             Diag%dt3dt(:,:,5) = Diag%dt3dt(:,:,5) + (Stateout%gt0(:,:)-dtdt(:,:)) * frain
             Diag%dq3dt(:,:,3) = Diag%dq3dt(:,:,3) + (Stateout%gq0(:,:,1)-dqdt(:,:,1)) * frain
-            Diag%wu2_shal = wu2_shal
-            Diag%eta_shal = eta_shal
+            if (Model%imfshalcnv == 4) then ! added by KGao 
+               Diag%wu2_shal = wu2_shal
+               Diag%eta_shal = eta_shal
+            endif
           endif
         endif   ! end if_lssav
         

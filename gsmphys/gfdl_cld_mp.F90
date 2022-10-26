@@ -1208,6 +1208,11 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     dte = 0.0
     cond = 0.0
     adj_vmr = 1.0
+
+    condensation = 0.0
+    deposition = 0.0
+    evaporation = 0.0
+    sublimation = 0.0
     
     ! -----------------------------------------------------------------------
     ! unit convert to mm/day

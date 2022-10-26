@@ -753,6 +753,7 @@ module GFS_typedefs
                                             !<         current operational version as of 2016
                                             !<     2: scale- & aerosol-aware mass-flux shallow conv scheme (2017)
                                             !<     3: scale- & aerosol-aware mass-flux shallow conv scheme (2020)
+                                            !<     4: a modified version based on option 2
                                             !<     0: modified Tiedtke's eddy-diffusion shallow conv scheme
                                             !<    -1: no shallow convection used
     integer              :: imfdeepcnv      !< flag for mass-flux deep convection scheme
@@ -1439,17 +1440,21 @@ module GFS_typedefs
     Statein%kcnv = clear_val
     Statein%cumabs = clear_val
 
-    allocate (Statein%prefluxw(IM,Model%levs))
-    allocate (Statein%prefluxr(IM,Model%levs))
-    allocate (Statein%prefluxi(IM,Model%levs))
-    allocate (Statein%prefluxs(IM,Model%levs))
-    allocate (Statein%prefluxg(IM,Model%levs))
+    if (Model%do_cosp) then
 
-    Statein%prefluxw = clear_val
-    Statein%prefluxr = clear_val
-    Statein%prefluxi = clear_val
-    Statein%prefluxs = clear_val
-    Statein%prefluxg = clear_val
+       allocate (Statein%prefluxw(IM,Model%levs))
+       allocate (Statein%prefluxr(IM,Model%levs))
+       allocate (Statein%prefluxi(IM,Model%levs))
+       allocate (Statein%prefluxs(IM,Model%levs))
+       allocate (Statein%prefluxg(IM,Model%levs))
+     
+       Statein%prefluxw = clear_val
+       Statein%prefluxr = clear_val
+       Statein%prefluxi = clear_val
+       Statein%prefluxs = clear_val
+       Statein%prefluxg = clear_val
+
+    endif
 
     allocate (Statein%hpbl(IM))
     allocate (Statein%kpbl(IM))
@@ -2410,6 +2415,7 @@ module GFS_typedefs
                                                                       !<         current operational version as of 2016
                                                                       !<     2: scale- & aerosol-aware mass-flux shallow conv scheme (2017)
                                                                       !<     3: scale- & aerosol-aware mass-flux shallow conv scheme (2020)
+                                                                      !<     4: a modified version based on option 2
                                                                       !<     0: modified Tiedtke's eddy-diffusion shallow conv scheme
                                                                       !<    -1: no shallow convection used
     integer              :: imfdeepcnv     =  1                       !< flag for mass-flux deep convection scheme
@@ -3232,7 +3238,7 @@ module GFS_typedefs
           print *,' modified Tiedtke eddy-diffusion shallow conv scheme used'
         elseif (Model%imfshalcnv == 1) then
           print *,' July 2010 version of mass-flux shallow conv scheme used'
-        elseif (Model%imfshalcnv == 2 .or. Model%imfshalcnv == 3) then
+        elseif (Model%imfshalcnv == 2 .or. Model%imfshalcnv == 3 .or. Model%imfshalcnv == 4) then
           print *,' scale- & aerosol-aware mass-flux shallow conv scheme (2017)'
         else
           print *,' unknown mass-flux scheme in use - defaulting to no shallow convection'

@@ -153,7 +153,7 @@ public atmos_model_restart
 end type atmos_data_type
 !</PUBLICTYPE >
 
-integer :: fv3Clock, getClock, overrideClock, updClock, setupClock, radClock, physClock
+integer :: fv3Clock, getClock, overrideClock, setupClock, radClock, physClock, diagClock, shieldClock
 
 !-----------------------------------------------------------------------
 integer :: blocksize       = 1
@@ -230,6 +230,8 @@ subroutine update_atmos_radiation_physics (Atmos)
 !--- local variables---
     integer :: nb, jdat(8)
     integer :: nthrds
+
+    call mpp_clock_begin(shieldClock)
 
 #ifdef OPENMP
     nthrds = omp_get_max_threads()
@@ -332,6 +334,8 @@ subroutine update_atmos_radiation_physics (Atmos)
       call getiauforcing(IPD_Control,IAU_data)
       if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "end of radiation and physics step"
     endif
+
+    call mpp_clock_end(shieldClock)
 
 !-----------------------------------------------------------------------
  end subroutine update_atmos_radiation_physics
@@ -593,17 +597,18 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step, iau_offset)
    endif
 #endif
 
-   setupClock = mpp_clock_id( 'GFS Step Setup        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   overrideClock = mpp_clock_id( 'GFS Override          ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   radClock   = mpp_clock_id( 'GFS Radiation         ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   physClock  = mpp_clock_id( 'GFS Physics           ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   getClock   = mpp_clock_id( 'Dynamics get state    ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-   updClock   = mpp_clock_id( 'Dynamics update state ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   setupClock = mpp_clock_id( '---GFS Step Setup     ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   overrideClock = mpp_clock_id( '---GFS Override       ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   radClock   = mpp_clock_id( '---GFS Radiation      ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   physClock  = mpp_clock_id( '---GFS Physics        ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   diagClock  = mpp_clock_id( '---GFS Diag           ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   getClock   = mpp_clock_id( '---GFS Get State      ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    if (sync) then
-     fv3Clock = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default+MPP_CLOCK_SYNC, grain=CLOCK_COMPONENT )
+     fv3Clock = mpp_clock_id( '--FV3 Dycore          ', flags=clock_flag_default+MPP_CLOCK_SYNC, grain=CLOCK_COMPONENT )
    else
-     fv3Clock = mpp_clock_id( 'FV3 Dycore            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+     fv3Clock = mpp_clock_id( '--FV3 Dycore          ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    endif
+   shieldClock= mpp_clock_id( '--SHiELD Physics      ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
 
 !-----------------------------------------------------------------------
 end subroutine atmos_model_init
@@ -641,10 +646,11 @@ subroutine update_atmos_model_state (Atmos)
 
     call set_atmosphere_pelist()
     call mpp_clock_begin(fv3Clock)
-    call mpp_clock_begin(updClock)
     call atmosphere_state_update (Atmos%Time, IPD_Data, IAU_Data, Atm_block)
-    call mpp_clock_end(updClock)
     call mpp_clock_end(fv3Clock)
+
+    call mpp_clock_begin(shieldClock)
+    call mpp_clock_begin(diagClock)
 
     if (chksum_debug) then
       if (mpp_pe() == mpp_root_pe()) print *,'UPDATE STATE    ', IPD_Control%kdt, IPD_Control%fhour
@@ -711,6 +717,9 @@ subroutine update_atmos_model_state (Atmos)
       call diag_send_complete_instant (Atmos%Time)
       if (mod(isec,nint(3600*IPD_Control%fhzero)) == 0) diag_time = Atmos%Time
     endif
+
+    call mpp_clock_end(diagClock)
+    call mpp_clock_end(shieldClock)
 
  end subroutine update_atmos_model_state
 ! </SUBROUTINE>

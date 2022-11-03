@@ -716,7 +716,7 @@ module module_physics_driver
 !
 !  --- ...  frain=factor for centered difference scheme correction of rain amount.
 
-      if (Model%do_inline_edmf) then
+      if (Model%do_inline_pbl) then
       
          do i=1,im
             ! from dycore (because ocean and sea ice are off)
@@ -1017,7 +1017,7 @@ module module_physics_driver
       Diag%smcwlt2(:) = 0.0
       Diag%smcref2(:) = 0.0
       
-      if (Model%do_inline_edmf) then
+      if (Model%do_inline_pbl) then
       
          do i=1,im
             ! from dycore (because ocean and sea ice are off)
@@ -1271,7 +1271,7 @@ module module_physics_driver
 
         else
 
-          if (.not. Model%do_inline_edmf) then
+          if (.not. Model%do_inline_pbl) then
           
 !  --- ...  surface energy balance over ocean
 
@@ -1375,7 +1375,7 @@ module module_physics_driver
           enddo
         endif
 
-        if (.not. Model%do_inline_edmf) then
+        if (.not. Model%do_inline_pbl) then
 
         call sfc_sice                                                   &
 !  ---  inputs:
@@ -1589,7 +1589,7 @@ module module_physics_driver
       dtsfc1(:) = 0.
       dqsfc1(:) = 0.
 
-      if (Model%do_inline_edmf) then
+      if (Model%do_inline_pbl) then
 
          do i=1,im
             ! from dycore (because PBL is off)
@@ -2467,7 +2467,7 @@ module module_physics_driver
 !
       if (.not. Model%ras .and. .not. Model%cscnv) then
 
-        if (Model%do_inline_sas) then
+        if (Model%do_inline_cnv) then
 
           cld1d = 0.
           rain1 = Statein%prec(:)
@@ -2764,7 +2764,7 @@ module module_physics_driver
 !  --- ...  calculate maximum convective heating rate 
 !           cuhr = temperature change due to deep convection
 
-        if (Model%do_inline_sas) then
+        if (Model%do_inline_cnv) then
 
         cumabs(:) = Statein%cumabs(:)
 
@@ -3468,7 +3468,7 @@ module module_physics_driver
 
       elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
 
-        if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
+        if (Model%do_inline_mp) then       ! inline microphysics
 
         tem = dtp * con_p001 / con_day
         Statein%prew(:) = Statein%prew(:) * tem
@@ -3650,7 +3650,7 @@ module module_physics_driver
         enddo
 
         if (Model%do_cosp) then
-            if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
+            if (Model%do_inline_mp) then       ! inline microphysics
                 Diag%pfr = Statein%prefluxr
                 Diag%pfs = Statein%prefluxs
                 Diag%pfg = Statein%prefluxg
@@ -3810,7 +3810,7 @@ module module_physics_driver
               crain = 0.0
               csnow = Diag%rainc(i)
             endif
-            if (Model%do_inline_mp) then       ! GFDL Cloud microphysics
+            if (Model%do_inline_mp) then       ! inline microphysics
             if ((Statein%prei(i)+Statein%pres(i)+Statein%preg(i)+csnow) .gt. (Statein%prew(i)+Statein%prer(i)+crain)) then
               Sfcprop%srflag(i) = 1.              ! clu: set srflag to 'snow' (i.e. 1)
             endif

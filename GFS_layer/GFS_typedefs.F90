@@ -617,17 +617,17 @@ module GFS_typedefs
     !--- microphysical switch
     integer              :: ncld            !< cnoice of cloud scheme
 
-    !--- GFDL microphysical parameters
-    logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
+    !--- inline microphysical parameters
+    logical              :: do_inline_mp    !< flag for inline microphysics
 
-    !--- SA-TKE-EDMF parameters
-    logical              :: do_inline_edmf  !< flag for SA-TKE-EDMF
+    !--- inline planetary boundary layer parameters
+    logical              :: do_inline_pbl   !< flag for inline planetary boundary layer
 
-    !--- SA-SAS parameters
-    logical              :: do_inline_sas   !< flag for SA-SAS
+    !--- inline convection parameters
+    logical              :: do_inline_cnv   !< flag for inline convection
 
-    !--- GWD parameters
-    logical              :: do_inline_gwd   !< flag for GWD
+    !--- inline gravity wave drag parameters
+    logical              :: do_inline_gwd   !< flag for inline gravity wave drag
 
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp         !< flag for COSP
@@ -2279,17 +2279,17 @@ module GFS_typedefs
     logical              :: fixed_sollat   = .false.         !< flag to fix solar latitude
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
-    !--- GFDL microphysical parameters
-    logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
+    !--- inline microphysical parameters
+    logical              :: do_inline_mp = .false.           !< flag for inline microphysics
 
-    !--- SA-TKE-EDMF parameters
-    logical              :: do_inline_edmf = .false.         !< flag for SA-TKE-EDMF
+    !--- inline planetary boundary layer parameters
+    logical              :: do_inline_pbl = .false.          !< flag for inline planetary boundary layer
 
-    !--- SA-SAS parameters
-    logical              :: do_inline_sas = .false.          !< flag for SA-SAS
+    !--- inline convection parameters
+    logical              :: do_inline_cnv = .false.          !< flag for inline convection
 
-    !--- GWD parameters
-    logical              :: do_inline_gwd = .false.          !< flag for GWD
+    !--- inline gravity wave drag parameters
+    logical              :: do_inline_gwd = .false.          !< flag for inline gravity wave drag
 
     !--- The CFMIP Observation Simulator Package (COSP)
     logical              :: do_cosp = .false.                !< flag for COSP
@@ -2577,7 +2577,7 @@ module GFS_typedefs
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
                                ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
-                               do_inline_sas, do_inline_edmf, do_inline_gwd,                &
+                               do_inline_cnv, do_inline_pbl, do_inline_gwd,                 &
                                do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
@@ -2752,13 +2752,13 @@ module GFS_typedefs
 
     !--- microphysical switch
     Model%ncld             = ncld
-    !--- GFDL microphysical parameters
+    !--- inline microphysical parameters
     Model%do_inline_mp     = do_inline_mp
-    !--- SA-TKE-EDMF parameters
-    Model%do_inline_edmf   = do_inline_edmf
-    !--- SA-SAS parameters
-    Model%do_inline_sas    = do_inline_sas
-    !--- GWD parameters
+    !--- inline planetary boundary layer parameters
+    Model%do_inline_pbl    = do_inline_pbl
+    !--- inline convection parameters
+    Model%do_inline_cnv    = do_inline_cnv
+    !--- inline gravity wave drag parameters
     Model%do_inline_gwd    = do_inline_gwd
     !--- The CFMIP Observation Simulator Package (COSP)
     Model%do_cosp          = do_cosp
@@ -3125,18 +3125,18 @@ module GFS_typedefs
                                             ' ntke=',Model%ntke
     endif
 
-    !--- turn off PBL when the inline SA-TKE-EDMF is activated
-    if (Model%do_inline_edmf) then
+    !--- turn off PBL when the inline planetary boundary layer is activated
+    if (Model%do_inline_pbl) then
       Model%no_pbl = .true.
     endif
 
-    !--- turn off convection when the inline SA-SAS is activated
-    if (Model%do_inline_sas) then
+    !--- turn off convection when the inline convection is activated
+    if (Model%do_inline_cnv) then
       Model%do_deep = .false.
       Model%shal_cnv = .false.
     endif
 
-    !--- turn off gravity wave drag when the inline GWD is activated
+    !--- turn off gravity wave drag when the inline gravity wave drag is activated
     if (Model%do_inline_gwd) then
       Model%orogwd = .false.
       Model%cnvgwd = .false.
@@ -3451,13 +3451,13 @@ module GFS_typedefs
       print *, ' '
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
-      print *, ' GFDL microphysical parameters'
+      print *, ' inline microphysical parameters'
       print *, ' do_inline_mp      : ', Model%do_inline_mp
-      print *, ' SA-EDMF parameters'
-      print *, ' do_inline_edmf    : ', Model%do_inline_edmf
-      print *, ' SA-SAS parameters'
-      print *, ' do_inline_sas     : ', Model%do_inline_sas
-      print *, ' GWD parameters'
+      print *, ' inline planetary boundary layer parameters'
+      print *, ' do_inline_pbl     : ', Model%do_inline_pbl
+      print *, ' inline convection parameters'
+      print *, ' do_inline_cnv     : ', Model%do_inline_cnv
+      print *, ' inline gravity wave drag parameters'
       print *, ' do_inline_gwd     : ', Model%do_inline_gwd
       print *, ' The CFMIP Observation Simulator Package (COSP)'
       print *, ' do_cosp           : ', Model%do_cosp

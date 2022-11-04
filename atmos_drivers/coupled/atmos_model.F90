@@ -103,8 +103,11 @@ use FV3GFS_io_mod,      only: register_diag_manager_controlled_diagnostics, regi
 use FV3GFS_io_mod,      only: send_diag_manager_controlled_diagnostic_data
 use fv_iau_mod,         only: iau_external_data_type,getiauforcing,iau_initialize
 use module_ocean,       only: ocean_init
-#ifdef USE_COSP
+#if defined (USE_COSP)
 use cosp2_test,         only: cosp2_driver
+#endif
+#if defined (COSP_OFFLINE)
+use cosp2_test,         only: cosp2_offline
 #endif
 !-----------------------------------------------------------------------
 
@@ -692,7 +695,7 @@ subroutine update_atmos_model_state (Atmos)
           time_intfull = time_intfull - Atmos%iau_offset*3600.
         endif
       endif
-#ifdef USE_COSP
+#if defined (USE_COSP)
       !-----------------------------------------------------------------------
       ! The CFMIP Observation Simulator Package (COSP)
       ! Added by Linjiong Zhou
@@ -702,6 +705,21 @@ subroutine update_atmos_model_state (Atmos)
       if (IPD_Control%do_cosp) then
 
         call cosp2_driver (IPD_Control, IPD_Data(:)%Grid, IPD_Data(:)%Statein, &
+                           IPD_Data(:)%Stateout, IPD_Data(:)%Sfcprop, &
+                           IPD_Data(:)%Radtend, IPD_Data(:)%Intdiag, Init_parm)
+      
+      endif
+#endif
+#if defined (COSP_OFFLINE)
+      !-----------------------------------------------------------------------
+      ! Output Variables for the Offline CFMIP Observation Simulator Package (COSP)
+      ! Added by Linjiong Zhou
+      ! Nov 2022
+      !-----------------------------------------------------------------------
+
+      if (IPD_Control%do_cosp) then
+
+        call cosp2_offline (IPD_Control, IPD_Data(:)%Statein, &
                            IPD_Data(:)%Stateout, IPD_Data(:)%Sfcprop, &
                            IPD_Data(:)%Radtend, IPD_Data(:)%Intdiag, Init_parm)
       

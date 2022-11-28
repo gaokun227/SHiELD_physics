@@ -422,7 +422,8 @@ module gfdl_cld_mp_mod
     real :: ss_fac = 0.2 ! snow sublimation temperature factor
     real :: gs_fac = 0.2 ! graupel sublimation temperature factor
 
-    real :: rh_fac = 10.0 ! cloud water condensation / evaporation relative humidity factor
+    real :: rh_fac_evap = 10.0 ! cloud water evaporation relative humidity factor
+    real :: rh_fac_cond = 10.0 ! cloud water condensation relative humidity factor
 
     real :: sed_fac = 1.0 ! coefficient for sedimentation fall, scale from 1.0 (implicit) to 0.0 (lagrangian)
 
@@ -526,7 +527,7 @@ module gfdl_cld_mp_mod
         n0w_sig, n0i_sig, n0r_sig, n0s_sig, n0g_sig, n0h_sig, n0w_exp, n0i_exp, &
         n0r_exp, n0s_exp, n0g_exp, n0h_exp, muw, mui, mur, mus, mug, muh, &
         alinw, alini, alinr, alins, aling, alinh, blinw, blini, blinr, blins, bling, blinh, &
-        do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac, &
+        do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac_evap, rh_fac_cond, &
         snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, rewfac, reifac, &
         cp_heating
 
@@ -4103,14 +4104,14 @@ subroutine pcond_pevap (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, d
         rh_tem = qpz / qsw
         dq = qsw - qv (k)
         if (dq .gt. 0.) then
-            factor = min (1., fac_l2v * (rh_fac * dq / qsw))
+            factor = min (1., fac_l2v * (rh_fac_evap * dq / qsw))
             sink = min (ql (k), factor * dq / (1. + tcp3 (k) * dqdt))
             if (use_rhc_cevap .and. rh_tem .ge. rhc_cevap) then
                 sink = 0.
             endif
             reevap = reevap + sink * dp (k)
         elseif (do_cond_timescale) then
-            factor = min (1., fac_v2l * (rh_fac * (- dq) / qsw))
+            factor = min (1., fac_v2l * (rh_fac_cond * (- dq) / qsw))
             sink = - min (qv (k), factor * (- dq) / (1. + tcp3 (k) * dqdt))
             cond = cond - sink * dp (k)
         else

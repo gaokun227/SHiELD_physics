@@ -560,8 +560,6 @@ subroutine gfdl_cld_mp_init (input_nml_file, logunit, hydrostatic)
     ! local variables
     ! -----------------------------------------------------------------------
 
-    logical :: exists
-
     integer :: ios
 
     ! -----------------------------------------------------------------------

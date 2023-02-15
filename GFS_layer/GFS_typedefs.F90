@@ -579,7 +579,7 @@ module GFS_typedefs
     logical              :: mom4ice         !< flag controls mom4 sea ice
     logical              :: use_ufo         !< flag for gcycle surface option
     real(kind=kind_phys) :: czil_sfc        !< Zilintkinivich constant
-    real(kind=kind_phys) :: Ts0             !< constant surface temp. if surface data not found 
+    real(kind=kind_phys) :: Ts0             !< constant surface temp. if surface data not found
 
     ! -- the Noah MP options
 
@@ -737,7 +737,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: clam_shal       !< c_e for shallow convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_shal        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_shal         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
-    real(kind=kind_phys) :: cthk_shal       !< max cloud depth for shallow convection 
+    real(kind=kind_phys) :: cthk_shal       !< max cloud depth for shallow convection
     real(kind=kind_phys) :: top_shal        !< max cloud height for shallow convection (P/Ps < top_shal)
     real(kind=kind_phys) :: betaw_shal      !< ratio between cloud base mass flux and mean updraft (eq 6 in Han et al 2017)
     real(kind=kind_phys) :: dxcrt_shal      !< critical resolution for calculating scale-aware cloud base mass flux
@@ -1017,7 +1017,7 @@ module GFS_typedefs
       procedure :: create  => radtend_create   !<   allocate array data
   end type GFS_radtend_type
 
-#ifdef USE_COSP
+#if defined (USE_COSP)
 !----------------------------------------------------------------
 ! cosp_type, Linjiong Zhou
 !----------------------------------------------------------------
@@ -1103,6 +1103,47 @@ module GFS_typedefs
   end type cosp_type
 #endif
 
+#if defined (COSP_OFFLINE)
+!----------------------------------------------------------------
+! cosp_type, Linjiong Zhou
+!----------------------------------------------------------------
+  type cosp_type
+    real (kind=kind_phys), pointer :: skt                                (:)   => null()
+    real (kind=kind_phys), pointer :: surfelev                           (:)   => null()
+    real (kind=kind_phys), pointer :: landmask                           (:)   => null()
+    real (kind=kind_phys), pointer :: sunlit                             (:)   => null()
+    real (kind=kind_phys), pointer :: p                                  (:,:) => null()
+    real (kind=kind_phys), pointer :: ph                                 (:,:) => null()
+    real (kind=kind_phys), pointer :: zlev                               (:,:) => null()
+    real (kind=kind_phys), pointer :: zlev_half                          (:,:) => null()
+    real (kind=kind_phys), pointer :: T                                  (:,:) => null()
+    real (kind=kind_phys), pointer :: sh                                 (:,:) => null()
+    real (kind=kind_phys), pointer :: tca                                (:,:) => null()
+    real (kind=kind_phys), pointer :: cca                                (:,:) => null()
+    real (kind=kind_phys), pointer :: u_wind                             (:,:) => null()
+    real (kind=kind_phys), pointer :: v_wind                             (:,:) => null()
+    real (kind=kind_phys), pointer :: mr_lsliq                           (:,:) => null()
+    real (kind=kind_phys), pointer :: mr_lsice                           (:,:) => null()
+    real (kind=kind_phys), pointer :: mr_ccliq                           (:,:) => null()
+    real (kind=kind_phys), pointer :: mr_ccice                           (:,:) => null()
+    real (kind=kind_phys), pointer :: mr_ozone                           (:,:) => null()
+    real (kind=kind_phys), pointer :: fl_lsrain                          (:,:) => null()
+    real (kind=kind_phys), pointer :: fl_lssnow                          (:,:) => null()
+    real (kind=kind_phys), pointer :: fl_lsgrpl                          (:,:) => null()
+    real (kind=kind_phys), pointer :: fl_ccrain                          (:,:) => null()
+    real (kind=kind_phys), pointer :: fl_ccsnow                          (:,:) => null()
+    real (kind=kind_phys), pointer :: dtau_s                             (:,:) => null()
+    real (kind=kind_phys), pointer :: dtau_c                             (:,:) => null()
+    real (kind=kind_phys), pointer :: dem_s                              (:,:) => null()
+    real (kind=kind_phys), pointer :: dem_c                              (:,:) => null()
+    real (kind=kind_phys), pointer :: Reff_LSCLIQ                        (:,:) => null()
+    real (kind=kind_phys), pointer :: Reff_LSCICE                        (:,:) => null()
+    real (kind=kind_phys), pointer :: Reff_LSRAIN                        (:,:) => null()
+    real (kind=kind_phys), pointer :: Reff_LSSNOW                        (:,:) => null()
+    real (kind=kind_phys), pointer :: Reff_LSGRPL                        (:,:) => null()
+  end type cosp_type
+#endif
+
 !----------------------------------------------------------------
 ! GFS_diag_type
 !  internal diagnostic type used as arguments to gbphys and grrad
@@ -1123,7 +1164,7 @@ module GFS_typedefs
     type (topflw_type),    pointer :: topflw(:)     => null()   !< lw radiation fluxes at top, component:
                                                !       %upfxc    - total sky upward lw flux at toa (w/m**2)
                                                !       %upfx0    - clear sky upward lw flux at toa (w/m**2)
-#ifdef USE_COSP
+#if defined (USE_COSP) || defined (COSP_OFFLINE)
     type (cosp_type)               :: cosp                      !< cosp output
 #endif
 
@@ -1182,7 +1223,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: hpbl   (:)    => null()   !< pbl height (m)
     real (kind=kind_phys), pointer :: hgamt  (:)    => null()   !< ysu counter-gradient flux
     real (kind=kind_phys), pointer :: hfxpbl (:)    => null()   !< ysu entrainment flux
-    real (kind=kind_phys), pointer :: xmb_shal(:)   => null()   !< cloud base mass flux from shal cnv 
+    real (kind=kind_phys), pointer :: xmb_shal(:)   => null()   !< cloud base mass flux from shal cnv
     real (kind=kind_phys), pointer :: tfac_shal(:)  => null()   !< Tadv/Tcnv factor from shal cnv
     real (kind=kind_phys), pointer :: sigma_shal(:) => null()   !< updraft fractional area from shal cnv
     real (kind=kind_phys), pointer :: pwat   (:)    => null()   !< precipitable water
@@ -1276,7 +1317,7 @@ module GFS_typedefs
          GFS_coupling_type
   public GFS_control_type,  GFS_grid_type,     GFS_tbd_type, &
          GFS_cldprop_type,  GFS_radtend_type,  GFS_diag_type
-#ifdef USE_COSP
+#if defined (USE_COSP) || defined (COSP_OFFLINE)
   public cosp_type
 #endif
 
@@ -1356,7 +1397,7 @@ module GFS_typedefs
        allocate (Statein%prefluxi(IM,Model%levs))
        allocate (Statein%prefluxs(IM,Model%levs))
        allocate (Statein%prefluxg(IM,Model%levs))
-     
+
        Statein%prefluxw = clear_val
        Statein%prefluxr = clear_val
        Statein%prefluxi = clear_val
@@ -2097,7 +2138,7 @@ module GFS_typedefs
     logical              :: mom4ice        = .false.         !< flag controls mom4 sea ice
     logical              :: use_ufo        = .false.         !< flag for gcycle surface option
     real(kind=kind_phys) :: czil_sfc       = 0.8             !< Zilintkivitch constant
-    real(kind=kind_phys) :: Ts0            = 300.            !< constant surface temp. if surface data not found 
+    real(kind=kind_phys) :: Ts0            = 300.            !< constant surface temp. if surface data not found
 
     ! -- to use Noah MP, lsm needs to be set to 2 and both ivegsrc and isot are set
     ! to 1 - MODIS IGBP and STATSGO - the defaults are the same as in the
@@ -2783,6 +2824,15 @@ module GFS_typedefs
         n = get_tracer_index(Model%tracer_names, 'msa', Model%me, Model%master, Model%debug) - Model%ntchs + 1
         if (n > 0) Model%ntdiag(n) = .false.
       endif
+    endif
+
+    ! -- CHECK for ntke if using satmedmf
+    if (Model%satmedmf) then
+       if (Model%ntke < 1 .or. Model%ntke > Model%ntrac) then
+          write(*,*) ' FATAL GFS_typedefs: TKE PBL scheme enabled (satmedmf) but TKE tracer not found in field_table.'
+          write(*,*) ' Stopping execution.'
+          stop 999
+       endif
     endif
 
     ! -- setup aerosol scavenging factors
@@ -3774,7 +3824,7 @@ module GFS_typedefs
       allocate (Diag%det_mf (IM,Model%levs))
       allocate (Diag%cldcov (IM,Model%levs))
     endif
-#ifdef USE_COSP
+#if defined (USE_COSP)
     if (Model%do_cosp) then
       allocate (Diag%cosp%cltisccp                           (IM))
       allocate (Diag%cosp%meantbisccp                        (IM))
@@ -3854,6 +3904,43 @@ module GFS_typedefs
       allocate (Diag%cosp%npdfcld                            (IM))
       allocate (Diag%cosp%npdfdrz                            (IM))
       allocate (Diag%cosp%npdfrain                           (IM))
+    endif
+#endif
+#if defined (COSP_OFFLINE)
+    if (Model%do_cosp) then
+      allocate (Diag%cosp%skt                                (IM))
+      allocate (Diag%cosp%surfelev                           (IM))
+      allocate (Diag%cosp%landmask                           (IM))
+      allocate (Diag%cosp%sunlit                             (IM))
+      allocate (Diag%cosp%p                                  (IM,Model%levs))
+      allocate (Diag%cosp%ph                                 (IM,Model%levs))
+      allocate (Diag%cosp%zlev                               (IM,Model%levs))
+      allocate (Diag%cosp%zlev_half                          (IM,Model%levs))
+      allocate (Diag%cosp%T                                  (IM,Model%levs))
+      allocate (Diag%cosp%sh                                 (IM,Model%levs))
+      allocate (Diag%cosp%tca                                (IM,Model%levs))
+      allocate (Diag%cosp%cca                                (IM,Model%levs))
+      allocate (Diag%cosp%u_wind                             (IM,Model%levs))
+      allocate (Diag%cosp%v_wind                             (IM,Model%levs))
+      allocate (Diag%cosp%mr_lsliq                           (IM,Model%levs))
+      allocate (Diag%cosp%mr_lsice                           (IM,Model%levs))
+      allocate (Diag%cosp%mr_ccliq                           (IM,Model%levs))
+      allocate (Diag%cosp%mr_ccice                           (IM,Model%levs))
+      allocate (Diag%cosp%mr_ozone                           (IM,Model%levs))
+      allocate (Diag%cosp%fl_lsrain                          (IM,Model%levs))
+      allocate (Diag%cosp%fl_lssnow                          (IM,Model%levs))
+      allocate (Diag%cosp%fl_lsgrpl                          (IM,Model%levs))
+      allocate (Diag%cosp%fl_ccrain                          (IM,Model%levs))
+      allocate (Diag%cosp%fl_ccsnow                          (IM,Model%levs))
+      allocate (Diag%cosp%dtau_s                             (IM,Model%levs))
+      allocate (Diag%cosp%dtau_c                             (IM,Model%levs))
+      allocate (Diag%cosp%dem_s                              (IM,Model%levs))
+      allocate (Diag%cosp%dem_c                              (IM,Model%levs))
+      allocate (Diag%cosp%Reff_LSCLIQ                        (IM,Model%levs))
+      allocate (Diag%cosp%Reff_LSCICE                        (IM,Model%levs))
+      allocate (Diag%cosp%Reff_LSRAIN                        (IM,Model%levs))
+      allocate (Diag%cosp%Reff_LSSNOW                        (IM,Model%levs))
+      allocate (Diag%cosp%Reff_LSGRPL                        (IM,Model%levs))
     endif
 #endif
 

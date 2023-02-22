@@ -2395,15 +2395,16 @@ module module_physics_driver
             endif
             call mfdeepcnv (im, ix, levs, dtp, del, Statein%prsl,         &
                             Statein%pgr, Statein%phil, clw(:,:,1:2),      &
-                            Stateout%gq0(:,:,1),                        &
+                            Stateout%gq0(:,:,1),                          &
                             Stateout%gt0, Stateout%gu0, Stateout%gv0,     &
                             Model%ext_rain_deep, qrn,                     &
                             cld1d, rain1, kbot, ktop, kcnv, islmsk,       &
                             garea, Statein%vvl, Model%ncld, ud_mf, dd_mf, &
                             dt_mf, cnvw, cnvc,                            &
-                            Model%clam_deep, Model%c0s_deep,                       &
-                            Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
-                            Model%evfact_deep, Model%evfactl_deep,                 &
+                            Model%clam_deep, Model%c0s_deep,              &
+                            Model%c1_deep, Model%betaw_deep,              &
+                            Model%betal_deep, Model%betas_deep,           &
+                            Model%evfact_deep, Model%evfactl_deep,        &
                             Model%pgcon_deep, Model%asolfac_deep)
 !           if (lprnt) print *,' rain1=',rain1(ipr)
             if (Model%ncld == 5 .and. Model%ext_rain_deep) then
@@ -2428,7 +2429,8 @@ module module_physics_driver
                       ! TODO: reorganize ways of calling microphysics 
                              5, &  
                              Model%clam_deep,   Model%c0s_deep,                    &
-                             Model%c1_deep,  Model%betal_deep, Model%betas_deep,   &
+                             Model%c1_deep,  Model%betaw_deep,                     &
+                             Model%betal_deep, Model%betas_deep,   &
                              Model%evfact_deep, Model%evfactl_deep,                &
                              Model%pgcon_deep,  Model%asolfac_deep)
 
@@ -2869,6 +2871,7 @@ module module_physics_driver
                             Statein%vvl, Model%ncld, DIag%hpbl, ud_mf,    &
                             dt_mf, cnvw, cnvc,                            &
                             Model%clam_shal, Model%c0s_shal, Model%c1_shal, &
+                            Model%betaw_shal,                               &
                             Model%pgcon_shal, Model%asolfac_shal,         &
                             Model%evfact_shal, Model%evfactl_shal)
 
@@ -2919,6 +2922,7 @@ module module_physics_driver
                               Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
                               dt_mf, cnvw, cnvc,                                   &
                               Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
+                              Model%betaw_shal,                                    &
                               Model%pgcon_shal, Model%asolfac_shal)
 
 

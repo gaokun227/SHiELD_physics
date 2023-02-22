@@ -711,6 +711,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: clam_deep       !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep        !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep         !< conversion parameter of detrainment from liquid water into grid-scale cloud water
+    real(kind=kind_phys) :: betaw_deep      !< ratio between cloud base mass flux and mean updraft (eq 6 in Han et al 2017)
     real(kind=kind_phys) :: betal_deep      !< downdraft heat flux contribution over land
     real(kind=kind_phys) :: betas_deep      !< downdraft heat flux contribution over ocean
     real(kind=kind_phys) :: evfact_deep     !< evaporation factor
@@ -2111,6 +2112,7 @@ module GFS_typedefs
     real(kind=kind_phys) :: clam_deep      = 0.1             !< c_e for deep convection (Han and Pan, 2011, eq(6))
     real(kind=kind_phys) :: c0s_deep       = 0.002           !< conversion parameter of detrainment from liquid water into convetive precipitaiton
     real(kind=kind_phys) :: c1_deep        = 0.002           !< conversion parameter of detrainment from liquid water into grid-scale cloud water
+    real(kind=kind_phys) :: betaw_deep     = 0.03            !< ratio between cloud base mass flux and mean updraft (eq 6 in Han et al 2017)
     real(kind=kind_phys) :: betal_deep     = 0.05            !< downdraft heat flux contribution over land
     real(kind=kind_phys) :: betas_deep     = 0.05            !< downdraft heat flux contribution over ocean
     real(kind=kind_phys) :: evfact_deep    = 0.3             !< evaporation factor
@@ -2262,7 +2264,7 @@ module GFS_typedefs
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
-                               clam_deep, c0s_deep, c1_deep, betal_deep,                    &
+                               clam_deep, c0s_deep, c1_deep, betaw_deep, betal_deep,        &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
                                asolfac_deep, ext_rain_deep,                                 &
                           !--- mass flux shallow convection
@@ -2551,6 +2553,7 @@ module GFS_typedefs
     Model%clam_deep        = clam_deep
     Model%c0s_deep         = c0s_deep
     Model%c1_deep          = c1_deep
+    Model%betaw_deep       = betaw_deep
     Model%betal_deep       = betal_deep
     Model%betas_deep       = betas_deep
     Model%evfact_deep      = evfact_deep
@@ -3229,6 +3232,7 @@ module GFS_typedefs
       print *, ' clam_deep         : ', Model%clam_deep
       print *, ' c0s_deep          : ', Model%c0s_deep
       print *, ' c1_deep           : ', Model%c1_deep
+      print *, ' betaw_deep        : ', Model%betaw_deep
       print *, ' betal_deep        : ', Model%betal_deep
       print *, ' betas_deep        : ', Model%betas_deep
       print *, ' evfact_deep       : ', Model%evfact_deep

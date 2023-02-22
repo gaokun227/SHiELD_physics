@@ -69,7 +69,7 @@
      &     prslp,psp,phil,qtr,q1,t1,u1,v1,fscav,
      &     rn,kbot,ktop,kcnv,islimsk,garea,
      &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,
-     &     clam,c0s,c1,pgcon,asolfac)
+     &     clam,c0s,c1,betaw,pgcon,asolfac)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -183,7 +183,7 @@ c  physical parameters
       parameter(crtlamd=3.e-4)
       parameter(dtmax=10800.,dtmin=600.)
       parameter(bet1=1.875,cd1=.506,f1=2.0,gam1=.5)
-      parameter(betaw=.03,dxcrt=15.e3)
+      parameter(dxcrt=15.e3)
       parameter(h1=0.33333333)
 c  local variables and arrays
       real(kind=kind_phys) pfld(im,km),    to(im,km),     qo(im,km),

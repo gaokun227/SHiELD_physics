@@ -86,7 +86,7 @@
      &     QLCN, QICN, w_upi, cf_upi, CNV_MFD,
 !    &     QLCN, QICN, w_upi, cf_upi, CNV_MFD, CNV_PRC3,
      &     CNV_DQLDT,CLCN,CNV_FICE,CNV_NDROP,CNV_NICE,mp_phys,
-     &     clam,c0s,c1,betal,betas,evfact,evfactl,pgcon,asolfac)
+     &     clam,c0s,c1,betaw,betal,betas,evfact,evfactl,pgcon,asolfac)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -217,7 +217,7 @@ c  physical parameters
 !     parameter(cinacrmx=-120.,cinacrmn=-120.)
       parameter(cinacrmx=-120.,cinacrmn=-80.)
       parameter(bet1=1.875,cd1=.506,f1=2.0,gam1=.5)
-      parameter(betaw=.03,dxcrtas=8.e3,dxcrtuf=15.e3)
+      parameter(dxcrtas=8.e3,dxcrtuf=15.e3)
 !
 !  local variables and arrays
       real(kind=kind_phys) pfld(im,km),    to(im,km),     qo(im,km),

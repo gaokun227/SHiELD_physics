@@ -78,15 +78,18 @@ module FV3GFS_io_mod
   character(len=32)  :: fn_oro = 'oro_data.nc'
   character(len=32)  :: fn_srf = 'sfc_data.nc'
   character(len=32)  :: fn_phy = 'phy_data.nc'
+  character(len=32)  :: fn_ifsSST = 'ifs_sst_data.nc'
 
   !--- GFDL FMS netcdf restart data types
   type(restart_file_type) :: Oro_restart
   type(restart_file_type) :: Sfc_restart
   type(restart_file_type) :: Phy_restart
+  type(restart_file_type) :: ifsSST_restart
  
   !--- GFDL FMS restart containers
   character(len=32),    allocatable,         dimension(:)       :: oro_name2, sfc_name2, sfc_name3
   real(kind=kind_phys), allocatable, target, dimension(:,:,:)   :: oro_var2, sfc_var2, phy_var2
+  real(kind=kind_phys), allocatable, target, dimension(:,:)     :: ifsSST
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3, phy_var3
   !--- Noah MP restart containers
   real(kind=kind_phys), allocatable, target, dimension(:,:,:,:) :: sfc_var3sn,sfc_var3eq,sfc_var3zn
@@ -803,6 +806,10 @@ module FV3GFS_io_mod
         endif
       enddo
       
+      if (Model%use_ifs_ini_sst) then
+         allocate(ifsSST(nx,ny))
+         id_restart = register_restart_field(ifsSST_restart, fn_ifsSST, 'sst', ifsSST(:,:), domain=fv_domain, mandatory=.false.)
+      endif
       
       if (Model%nstf_name(1) > 0) then
         mand = .false.
@@ -975,6 +982,15 @@ module FV3GFS_io_mod
 
       call mpp_error(NOTE,'reading surface properties data from INPUT/sfc_data.tile*.nc')
       call restore_state(Sfc_restart)       
+
+      if (Model%use_ifs_ini_sst) then
+         call mpp_error(NOTE,'reading ifs SST data from INPUT/ifsSST_data.tile*.nc')
+         if (.not. file_exist('INPUT/'//trim(fn_ifsSST))) then
+            call mpp_error(NOTE,'use_ifs_ini_sst = .T., but no INPUT/ifsSST_data.tile*.nc surface data found.')
+            stop
+         endif
+         call restore_state(ifsSST_restart) 
+      endif
  
       !--- place the data into the block GFS containers
       do nb = 1, Atm_block%nblks
@@ -985,7 +1001,11 @@ module FV3GFS_io_mod
 !--- 2D variables
 !    ------------
            Sfcprop(nb)%slmsk(ix)  = sfc_var2(i,j,1)    !--- slmsk
-           Sfcprop(nb)%tsfco(ix)  = sfc_var2(i,j,2)    !--- tsfc (tsea in sfc file)
+           if (Model%use_ifs_ini_sst) then
+              Sfcprop(nb)%tsfco(ix)  = ifsSST(i,j)    !--- tsfc (sst in ifsSST file)
+           else
+              Sfcprop(nb)%tsfco(ix)  = sfc_var2(i,j,2)    !--- tsfc (tsea in sfc file)
+           endif     
            Sfcprop(nb)%weasd(ix)  = sfc_var2(i,j,3)    !--- weasd (sheleg in sfc file)
            Sfcprop(nb)%tg3(ix)    = sfc_var2(i,j,4)    !--- tg3
            Sfcprop(nb)%zorlo(ix)  = sfc_var2(i,j,5)    !--- zorl on ocean
@@ -1119,6 +1139,8 @@ module FV3GFS_io_mod
         enddo   !ix
       enddo    !nb    
       
+      if (Model%use_ifs_ini_sst) deallocate (ifsSST)
+
       call mpp_error(NOTE, 'gfs_driver:: - after put to container ')
 ! so far: At cold start everything is 9999.0, warm start snowxy has values
 !         but the 3D of snow fields are not available because not allocated yet.
@@ -1478,6 +1500,7 @@ module FV3GFS_io_mod
         endif    
       endif !if Noah MP cold start ends    
 
+       
     endif
 
 

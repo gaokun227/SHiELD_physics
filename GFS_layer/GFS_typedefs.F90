@@ -844,7 +844,8 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug
     logical              :: pre_rad         !< flag for testing purpose
-    logical              :: do_ocean        !< flag for slab ocean model
+    logical              :: do_ocean        !< flag for slab ocean model 
+    logical              :: use_ifs_ini_sst !< only work when "ecmwf_ic = .T."
     logical              :: use_ext_sst     !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
     !--- variables modified at each time step
@@ -2375,7 +2376,8 @@ module GFS_typedefs
     logical              :: debug          = .false.
     logical              :: lprnt          = .false.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
-    logical              :: do_ocean       = .false.         !< flag for slab ocean model
+    logical              :: do_ocean       = .false.         !< flag for slab ocean model 
+    logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T. 
     logical              :: use_ext_sst    = .false.         !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
 !--- aerosol scavenging factors
@@ -2444,7 +2446,7 @@ module GFS_typedefs
                                iau_delthrs,iaufhrs,iau_inc_files,iau_forcing_var,           &
                                iau_filter_increments,iau_drymassfixer,                      &
                           !--- debug options
-                               debug, pre_rad, do_ocean, use_ext_sst, lprnt,                &
+                               debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst, lprnt, &
                           !--- aerosol scavenging factors ('name:value' string array)
                                fscav_aero
 
@@ -2869,6 +2871,7 @@ module GFS_typedefs
     Model%debug            = debug
     Model%pre_rad          = pre_rad
     Model%do_ocean         = do_ocean
+    Model%use_ifs_ini_sst  = use_ifs_ini_sst
     Model%use_ext_sst      = use_ext_sst
     Model%lprnt            = lprnt
 
@@ -3476,6 +3479,7 @@ module GFS_typedefs
       print *, ' debug             : ', Model%debug
       print *, ' pre_rad           : ', Model%pre_rad
       print *, ' do_ocean          : ', Model%do_ocean
+      print *, ' use_ifs_ini_sst   : ', Model%use_ifs_ini_sst
       print *, ' use_ext_sst       : ', Model%use_ext_sst
       print *, ' '
       print *, 'variables modified at each time step'

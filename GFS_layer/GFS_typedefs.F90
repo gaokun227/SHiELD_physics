@@ -548,6 +548,7 @@ module GFS_typedefs
     integer              :: ncld            !< cnoice of cloud scheme
 
     !--- GFDL microphysical parameters
+    logical              :: do_sat_adj      !< flag for fast saturation adjustment
     logical              :: do_inline_mp    !< flag for GFDL cloud microphysics
 
     !--- The CFMIP Observation Simulator Package (COSP)
@@ -2109,6 +2110,7 @@ module GFS_typedefs
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
     !--- GFDL microphysical parameters
+    logical              :: do_sat_adj   = .false.           !< flag for fast saturation adjustment
     logical              :: do_inline_mp = .false.           !< flag for GFDL cloud microphysics
 
     !--- The CFMIP Observation Simulator Package (COSP)
@@ -2397,8 +2399,9 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
-                               ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
-                               do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
+                               ncld, do_sat_adj, do_inline_mp, zhao_mic, psautco, prautco,  &
+                               evpco, do_cosp, wminco, fprcp, mg_dcs, mg_qcvar,             &
+                               mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
                           !    Noah MP options
@@ -2573,6 +2576,7 @@ module GFS_typedefs
     !--- microphysical switch
     Model%ncld             = ncld
     !--- GFDL microphysical parameters
+    Model%do_sat_adj       = do_sat_adj
     Model%do_inline_mp     = do_inline_mp
     !--- The CFMIP Observation Simulator Package (COSP)
     Model%do_cosp          = do_cosp
@@ -3259,6 +3263,7 @@ module GFS_typedefs
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
       print *, ' GFDL microphysical parameters'
+      print *, ' do_sat_adj        : ', Model%do_sat_adj
       print *, ' do_inline_mp      : ', Model%do_inline_mp
       print *, ' The CFMIP Observation Simulator Package (COSP)'
       print *, ' do_cosp           : ', Model%do_cosp

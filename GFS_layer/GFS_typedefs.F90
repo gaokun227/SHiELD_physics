@@ -617,6 +617,9 @@ module GFS_typedefs
     !--- microphysical switch
     integer              :: ncld            !< cnoice of cloud scheme
 
+    !--- GFDL microphysical parameters
+    logical              :: do_sat_adj      !< flag for fast saturation adjustment
+
     !--- inline microphysical parameters
     logical              :: do_inline_mp    !< flag for inline microphysics
 
@@ -2321,6 +2324,9 @@ module GFS_typedefs
     logical              :: fixed_sollat   = .false.         !< flag to fix solar latitude
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
+    !--- GFDL microphysical parameters
+    logical              :: do_sat_adj   = .false.           !< flag for fast saturation adjustment
+
     !--- inline microphysical parameters
     logical              :: do_inline_mp = .false.           !< flag for inline microphysics
 
@@ -2619,8 +2625,8 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
-                               ncld, do_inline_mp, zhao_mic, psautco, prautco, evpco,       &
-                               do_inline_cnv, do_inline_pbl, do_inline_gwd,                 &
+                               ncld, do_sat_adj, do_inline_mp, zhao_mic, psautco, prautco,  &
+                               evpco, do_inline_cnv, do_inline_pbl, do_inline_gwd,          &
                                do_cosp, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
@@ -2795,6 +2801,8 @@ module GFS_typedefs
 
     !--- microphysical switch
     Model%ncld             = ncld
+    !--- GFDL microphysical parameters
+    Model%do_sat_adj       = do_sat_adj
     !--- inline microphysical parameters
     Model%do_inline_mp     = do_inline_mp
     !--- inline planetary boundary layer parameters
@@ -3504,6 +3512,8 @@ module GFS_typedefs
       print *, ' '
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
+      print *, ' GFDL microphysical parameters'
+      print *, ' do_sat_adj        : ', Model%do_sat_adj
       print *, ' inline microphysical parameters'
       print *, ' do_inline_mp      : ', Model%do_inline_mp
       print *, ' inline planetary boundary layer parameters'

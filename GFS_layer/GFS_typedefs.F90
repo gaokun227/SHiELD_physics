@@ -137,7 +137,6 @@ module GFS_typedefs
     !--- sea surface temperature
     real (kind=kind_phys), pointer :: sst (:)     => null()   !< sea surface temperature
     real (kind=kind_phys), pointer :: ci (:)      => null()   !< sea ice fraction
-    logical, pointer :: dycore_hydrostatic        => null()  !< whether the dynamical core is hydrostatic
     integer, pointer :: nwat                      => null()  !< number of water species used in the model
     contains
       procedure :: create  => statein_create  !<   allocate array data
@@ -546,6 +545,9 @@ module GFS_typedefs
 
     !--- microphysical switch
     integer              :: ncld            !< cnoice of cloud scheme
+
+    !--- dynamical core parameters
+    logical              :: dycore_hydrostatic !< whether the dynamical core is hydrostatic
 
     !--- GFDL microphysical parameters
     logical              :: do_sat_adj      !< flag for fast saturation adjustment
@@ -1414,9 +1416,6 @@ module GFS_typedefs
     Statein%sst = clear_val
     Statein%ci = -999. ! if below zero it is empty so don't use it
 
-    allocate(Statein%dycore_hydrostatic)
-    Statein%dycore_hydrostatic = .true.
-
     allocate(Statein%nwat)
     Statein%nwat = 6
 
@@ -2108,6 +2107,9 @@ module GFS_typedefs
     logical              :: fixed_solhr    = .false.         !< flag to fix solar angle to initial time
     logical              :: fixed_sollat   = .false.         !< flag to fix solar latitude
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
+
+    !--- dynamical core parameters
+    logical              :: dycore_hydrostatic  = .true.     !< whether the dynamical core is hydrostatic
 
     !--- GFDL microphysical parameters
     logical              :: do_sat_adj   = .false.           !< flag for fast saturation adjustment
@@ -3262,6 +3264,8 @@ module GFS_typedefs
       print *, ' '
       print *, 'microphysical switch'
       print *, ' ncld              : ', Model%ncld
+      print *, ' dynamical core parameters'
+      print *, ' dycore_hydrostatic: ', Model%dycore_hydrostatic
       print *, ' GFDL microphysical parameters'
       print *, ' do_sat_adj        : ', Model%do_sat_adj
       print *, ' do_inline_mp      : ', Model%do_inline_mp

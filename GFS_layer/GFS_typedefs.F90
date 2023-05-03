@@ -2401,8 +2401,8 @@ module GFS_typedefs
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
-                               ncld, do_sat_adj, do_inline_mp, zhao_mic, psautco, prautco,  &
-                               evpco, do_cosp, wminco, fprcp, mg_dcs, mg_qcvar,             &
+                               ncld, do_sat_adj, zhao_mic, psautco, prautco,                &
+                               evpco, wminco, fprcp, mg_dcs, mg_qcvar,                      &
                                mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
@@ -2579,9 +2579,6 @@ module GFS_typedefs
     Model%ncld             = ncld
     !--- GFDL microphysical parameters
     Model%do_sat_adj       = do_sat_adj
-    Model%do_inline_mp     = do_inline_mp
-    !--- The CFMIP Observation Simulator Package (COSP)
-    Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
     Model%zhao_mic         = zhao_mic
     Model%psautco          = psautco

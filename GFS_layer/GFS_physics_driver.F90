@@ -3472,7 +3472,11 @@ module module_physics_driver
 
         hs        = Sfcprop%oro(:) * con_g
         gsize     = sqrt(Grid%area(:))
-        qnl1      = 0.0
+        if (Model%ntal .gt. 0) then
+          qnl1    = Stateout%gq0(:,1:levs,Model%ntal)
+        else
+          qnl1    = 0.0
+        endif
         qni1      = 0.0
         do k = 1, levs
           w    (:,k) = -Statein%vvl(:,levs-k+1)*con_rd*Stateout%gt0(:,levs-k+1)     &
@@ -3618,7 +3622,11 @@ module module_physics_driver
         ice0      = 0.0
         snow0     = 0.0
         graupel0  = 0.0
-        qnl1      = 0.0
+        if (Model%ntal .gt. 0) then
+          qnl1    = Stateout%gq0(:,1:levs,Model%ntal)
+        else
+          qnl1    = 0.0
+        endif
         qni1      = 0.0
         prefluxw  = 0.0
         prefluxr  = 0.0

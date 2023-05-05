@@ -3530,7 +3530,7 @@ module module_physics_driver
                                 Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
                                 Stateout%gt0(:,levs:1:-1), w, Stateout%gu0(:,levs:1:-1), &
                                 Stateout%gv0(:,levs:1:-1), dz, delp, gsize, dtp, hs, water0, rain0, ice0, snow0, &
-                                graupel0, Statein%dycore_hydrostatic, 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
+                                graupel0, Model%dycore_hydrostatic, 1, im, 1, levs, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
                                 .false., adj_vmr(:,levs:1:-1), te(:,levs:1:-1), dte, &
                                 prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
                                 prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &

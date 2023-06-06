@@ -85,6 +85,13 @@ module GFS_typedefs
     character(len=65) :: fn_nml                   !< namelist filename
     character(len=:), pointer, dimension(:) :: input_nml_file => null() !< character string containing full namelist
                                                                         !< for use with internal file reads
+    logical :: hydro                             !< whether the dynamical core is hydrostatic
+    logical :: do_inline_mp                      !< flag for GFDL cloud microphysics
+    logical :: do_inline_pbl                     !< flag for inline planetary boundary layer
+    logical :: do_inline_cnv                     !< flag for inline convection
+    logical :: do_inline_gwd                     !< flag for inline gravity wave drag
+    logical :: do_cosp                           !< flag for COSP
+
   end type GFS_init_type
 
 
@@ -2214,7 +2221,10 @@ module GFS_typedefs
                                  cnx, cny, gnx, gny, dt_dycore,     &
                                  dt_phys, idat, jdat, iau_offset,   &
                                  tracer_names, input_nml_file,      &
-                                 tile_num, blksz)
+                                 tile_num, blksz, hydro,            &
+                                 do_inline_mp, do_inline_pbl,       &
+                                 do_inline_cnv, do_inline_gwd,      &
+                                 do_cosp)
 
     !--- modules
     use physcons,         only: max_lon, max_lat, min_lon, min_lat, &
@@ -2251,6 +2261,12 @@ module GFS_typedefs
     character(len=32),      intent(in) :: tracer_names(:)
     character(len=:),       intent(in),  dimension(:), pointer :: input_nml_file
     integer,                intent(in) :: blksz(:)
+    logical,                intent(in) :: hydro
+    logical,                intent(in) :: do_inline_mp
+    logical,                intent(in) :: do_inline_pbl
+    logical,                intent(in) :: do_inline_cnv
+    logical,                intent(in) :: do_inline_gwd
+    logical,                intent(in) :: do_cosp
     !--- local variables
     integer :: n, i, j
     integer :: ios
@@ -2323,26 +2339,8 @@ module GFS_typedefs
     logical              :: fixed_sollat   = .false.         !< flag to fix solar latitude
     logical              :: daily_mean     = .false.         !< flag to replace cosz with daily mean value
 
-    !--- dynamical core parameters
-    logical              :: dycore_hydrostatic  = .true.     !< whether the dynamical core is hydrostatic
-
     !--- GFDL microphysical parameters
     logical              :: do_sat_adj   = .false.           !< flag for fast saturation adjustment
-
-    !--- inline microphysical parameters
-    logical              :: do_inline_mp = .false.           !< flag for inline microphysics
-
-    !--- inline planetary boundary layer parameters
-    logical              :: do_inline_pbl = .false.          !< flag for inline planetary boundary layer
-
-    !--- inline convection parameters
-    logical              :: do_inline_cnv = .false.          !< flag for inline convection
-
-    !--- inline gravity wave drag parameters
-    logical              :: do_inline_gwd = .false.          !< flag for inline gravity wave drag
-
-    !--- The CFMIP Observation Simulator Package (COSP)
-    logical              :: do_cosp = .false.                !< flag for COSP
 
     !--- Z-C microphysical parameters
     integer              :: ncld           =  1                 !< cnoice of cloud scheme
@@ -2628,7 +2626,8 @@ module GFS_typedefs
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
                           !--- microphysical parameterizations
                                ncld, do_sat_adj, zhao_mic, psautco, prautco,                &
-                               evpco, wminco, fprcp, mg_dcs, mg_qcvar, mg_ts_auto_ice,      &
+                               evpco, wminco, fprcp, mg_dcs, mg_qcvar,                      &
+                               mg_ts_auto_ice,    &
                           !--- land/surface model control
                                lsm, lsoil, nmtvr, ivegsrc, mom4ice, use_ufo, czil_sfc, Ts0, &
                           !    Noah MP options
@@ -2802,8 +2801,20 @@ module GFS_typedefs
 
     !--- microphysical switch
     Model%ncld             = ncld
+    !--- dynamical core parameters
+    Model%dycore_hydrostatic = hydro
     !--- GFDL microphysical parameters
     Model%do_sat_adj       = do_sat_adj
+    !--- inline microphysical parameters
+    Model%do_inline_mp     = do_inline_mp
+    !--- inline planetary boundary layer parameters
+    Model%do_inline_pbl    = do_inline_pbl
+    !--- inline convection parameters
+    Model%do_inline_cnv    = do_inline_cnv
+    !--- inline gravity wave drag parameters
+    Model%do_inline_gwd    = do_inline_gwd
+    !--- The CFMIP Observation Simulator Package (COSP)
+    Model%do_cosp          = do_cosp
     !--- Zhao-Carr MP parameters
     Model%zhao_mic         = zhao_mic
     Model%psautco          = psautco

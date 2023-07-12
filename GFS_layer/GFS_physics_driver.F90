@@ -1913,7 +1913,8 @@ module module_physics_driver
         if (Model%do_ocean) then
            call update_ocean (im, dtp, Grid, islmsk, kdt, Model%kdt_prev, netflxsfc, dusfc1*(-1.), dvsfc1*(-1.),  &
                            Sfcprop%tprcp, Statein%tgrs(:,1), qflux_restore, Sfcprop%qfluxadj,                     &
-                           Sfcprop%mldclim, Sfcprop%tsclim,Sfcprop%ts_clim_iano, Statein%sst, Sfcprop%ts_som,     &
+                           Sfcprop%mldclim,Sfcprop%tsclim,Sfcprop%ts_clim_iano, Statein%sst + Model%sst_perturbation,&
+                           Sfcprop%ts_som, &
                            Sfcprop%tsfc, Sfcprop%tml, Sfcprop%tml0, Sfcprop%mld, Sfcprop%mld0,                    &
                            Sfcprop%huml, Sfcprop%hvml, Sfcprop%tmoml, Sfcprop%tmoml0, Model%iau_offset)
         endif
@@ -1924,7 +1925,7 @@ module module_physics_driver
 !
         if (Model%use_ext_sst .and. .not. Model%do_ocean) then
            do i = 1, im 
-              if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i)
+              if (islmsk(i) == 0 ) Sfcprop%tsfc(i) = Statein%sst(i) + Model%sst_perturbation
            enddo
         endif
 !-------------------------------------------------------lssav if loop ----------

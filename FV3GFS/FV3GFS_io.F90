@@ -61,7 +61,7 @@ module FV3GFS_io_mod
 !--- needed for cold-start capability to initialize q2m
   use gfdl_cld_mp_mod,    only: wqs, qs_init
   use coarse_graining_mod, only: block_mode, block_upsample, block_min, block_max, block_sum, weighted_block_average
-  use coarse_graining_mod, only: MODEL_LEVEL, PRESSURE_LEVEL
+  use coarse_graining_mod, only: MODEL_LEVEL, PRESSURE_LEVEL, PRESSURE_LEVEL_EXTRAPOLATE
   use coarse_graining_mod, only: vertical_remapping_requirements, get_coarse_array_bounds
   use coarse_graining_mod, only: vertically_remap_field, mask_area_weights
 !
@@ -6927,6 +6927,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys),      intent(in) :: ptop
 
     logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
+    logical :: extrapolate
     real(kind=kind_phys), allocatable :: area(:,:)
     real(kind=kind_phys), allocatable :: mass(:,:,:), phalf(:,:,:), phalf_coarse_on_fine(:,:,:)
     real(kind=kind_phys), allocatable :: masked_area(:,:,:)
@@ -6955,9 +6956,10 @@ module FV3GFS_io_mod
         allocate(phalf(nx, ny, levs + 1))
         allocate(phalf_coarse_on_fine(nx, ny, levs + 1))
         allocate(masked_area(nx, ny, levs))
+        extrapolate = trim(coarsening_strategy) .eq. PRESSURE_LEVEL_EXTRAPOLATE
         call get_area(Atm_block, IPD_Data, nx, ny, area)
         call vertical_remapping_requirements(delp, area, ptop, phalf, phalf_coarse_on_fine)
-        call mask_area_weights(area, phalf, phalf_coarse_on_fine, masked_area)
+        call mask_area_weights(area, phalf, phalf_coarse_on_fine, extrapolate, masked_area)
       endif
     endif
 
@@ -7002,13 +7004,14 @@ module FV3GFS_io_mod
                   & Diag_diag_manager_controlled_coarse(index)%name, &
                   & Diag_diag_manager_controlled_coarse(index)%coarse_graining_method, &
                   & nx, ny, levs, var3d, area, mass, Time)
-            elseif (trim(coarsening_strategy) .eq. PRESSURE_LEVEL) then
+            elseif (trim(coarsening_strategy) .eq. PRESSURE_LEVEL .or. &
+                    trim(coarsening_strategy) .eq. PRESSURE_LEVEL_EXTRAPOLATE) then
               call store_data3D_coarse_pressure_level(Diag_diag_manager_controlled_coarse(index)%id, &
                   & Diag_diag_manager_controlled_coarse(index)%name, &
                   & Diag_diag_manager_controlled_coarse(index)%coarse_graining_method, &
                   & nx, ny, levs, var3d, phalf, phalf_coarse_on_fine, masked_area, Time, ptop)
             else
-              call mpp_error(FATAL, 'Invalid coarse-graining strategy provided.')
+              call mpp_error(FATAL, 'FV3GFS_io invalid coarse-graining strategy provided.')
             endif
           endif
         endif
@@ -7061,6 +7064,7 @@ module FV3GFS_io_mod
 
     ! Local variables required for coarse-grianing
     logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
+    logical :: extrapolate
     real(kind=kind_phys), allocatable :: mass(:,:,:), phalf(:,:,:), phalf_coarse_on_fine(:,:,:)
     real(kind=kind_phys), allocatable :: masked_area(:,:,:)
 
@@ -7105,8 +7109,9 @@ module FV3GFS_io_mod
           allocate(phalf(nx, ny, levs + 1))
           allocate(phalf_coarse_on_fine(nx, ny, levs + 1))
           allocate(masked_area(nx, ny, levs))
+          extrapolate = trim(coarsening_strategy) .eq. PRESSURE_LEVEL_EXTRAPOLATE
           call vertical_remapping_requirements(delp, area, ptop, phalf, phalf_coarse_on_fine)
-          call mask_area_weights(area, phalf, phalf_coarse_on_fine, masked_area)
+          call mask_area_weights(area, phalf, phalf_coarse_on_fine, extrapolate, masked_area)
        endif
     endif
 
@@ -7345,12 +7350,13 @@ module FV3GFS_io_mod
                   call store_data3D_coarse_model_level(Diag_coarse(idx)%id, Diag_coarse(idx)%name, &
                        Diag_coarse(idx)%coarse_graining_method, &
                        nx, ny, levo, var3, area, mass, Time)
-               elseif (trim(coarsening_strategy) .eq. PRESSURE_LEVEL) then
+               elseif (trim(coarsening_strategy) .eq. PRESSURE_LEVEL .or. &
+                       trim(coarsening_strategy) .eq. PRESSURE_LEVEL_EXTRAPOLATE) then
                   call store_data3D_coarse_pressure_level(Diag_coarse(idx)%id, Diag_coarse(idx)%name, &
                        Diag_coarse(idx)%coarse_graining_method, &
                        nx, ny, levo, var3, phalf, phalf_coarse_on_fine, masked_area, Time, ptop)
                else
-                  call mpp_error(FATAL, 'Invalid coarse-graining strategy provided.')
+                  call mpp_error(FATAL, 'FV3GFS_io invalid coarse-graining strategy provided.')
                endif
             endif
 
@@ -7611,7 +7617,7 @@ module FV3GFS_io_mod
    require_area = any(coarse_diag%id .gt. 0 .and. coarse_diag%coarse_graining_method .eq. AREA_WEIGHTED)
    require_mass = any(coarse_diag%id .gt. 0 .and. coarse_diag%coarse_graining_method .eq. MASS_WEIGHTED)
 
-   if (trim(coarsening_strategy) .eq. PRESSURE_LEVEL) then
+   if (trim(coarsening_strategy) .eq. PRESSURE_LEVEL .or. trim(coarsening_strategy) .eq. PRESSURE_LEVEL_EXTRAPOLATE) then
      require_masked_area = any(coarse_diag%id .gt. 0 .and. coarse_diag%axes .eq. 3 .and. &
                              & coarse_diag%coarse_graining_method .eq. AREA_WEIGHTED)
      require_vertical_remapping = any(coarse_diag%id .gt. 0 .and. coarse_diag%axes .eq. 3)

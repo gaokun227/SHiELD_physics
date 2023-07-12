@@ -877,6 +877,7 @@ module GFS_typedefs
     integer              :: imn             !< initial forecast month
     real(kind=kind_phys) :: julian          !< julian day using midnight of January 1 of forecast year as initial epoch
     integer              :: yearlen         !< length of the current forecast year in days
+    real(kind=kind_phys) :: sst_perturbation !< perturbation to add to the reference sea surface temperature
 
 !--- IAU
     integer              :: iau_offset
@@ -2388,6 +2389,8 @@ module GFS_typedefs
 !--- aerosol scavenging factors
     character(len=20) :: fscav_aero(20) = 'default'
 
+    real(kind=kind_phys) :: sst_perturbation = 0.0     !< perturbation to add to the reference sea surface temperature
+
     !--- END NAMELIST VARIABLES
 
     NAMELIST /gfs_physics_nml/                                                              &
@@ -2454,7 +2457,8 @@ module GFS_typedefs
                           !--- debug options
                                debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst, lprnt, &
                           !--- aerosol scavenging factors ('name:value' string array)
-                               fscav_aero
+                               fscav_aero, &
+                               sst_perturbation
 
     !--- other parameters
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -2787,6 +2791,8 @@ module GFS_typedefs
     Model%isppt_deep       = isppt_deep
     Model%nspinup          = nspinup
     Model%nthresh          = nthresh
+
+    Model%sst_perturbation = sst_perturbation
 
     ! IAU flags
     !--- iau parameters
@@ -3519,6 +3525,7 @@ module GFS_typedefs
       print *, ' zhour             : ', Model%zhour
       print *, ' kdt               : ', Model%kdt
       print *, ' jdat              : ', Model%jdat
+      print *, '  sst_perturbation   : ', Model%sst_perturbation
     endif
 
   end subroutine control_print

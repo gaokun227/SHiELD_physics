@@ -1254,7 +1254,7 @@ c
       do i=1,im
          ad(i,1) = 1.
          f1(i,1) = t1(i,1)   + dtdz1(i) * heat(i)
-         f2(i,1) = max(0.0, q1(i,1,1) + dtdz1(i) * evap(i))
+         f2(i,1) = q1(i,1,1) + dtdz1(i) * evap(i)
       enddo
       if(ntrac1 >= 2) then
         do kk = 2, ntrac1

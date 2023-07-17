@@ -460,7 +460,7 @@ module module_physics_driver
            stress, t850, ep1d, gamt, gamq, sigmaf, oc, theta, gamma,    &
            sigma, elvmax, wind, work1, work2, runof, xmu, fm10, fh2,    &
            tsurf,  tx1, tx2, ctei_r, evbs, evcw, trans, sbsno, snowc,   &
-           frland, adjsfcdsw, adjsfcnsw, adjsfcdlw, adjsfculw,          &
+           frland, adjsfcdsw, adjsfcnsw, adjsfcdlw, adjsfculw, maxevap, &
            adjnirbmu, adjnirdfu, adjvisbmu, adjvisdfu, adjnirbmd,       &
            adjnirdfd, adjvisbmd, adjvisdfd, gabsbdlw, xcosz, tseal,     &
            snohf, dlqfac, work3, ctei_rml, cldf, domr, domzr, domip,    &
@@ -1045,6 +1045,12 @@ module module_physics_driver
 
       do iter = 1, 2
 
+!  --- ...  compute the maximum downward latent heat flux
+
+         do i=1,im
+            maxevap(i) = statein%qgrs(i,1,1)/(dtp/(statein%phii(i,2)-statein%phii(i,1))*con_g)
+         enddo
+!
 !  --- ...  surface exchange coefficients
 !
 !     if (lprnt) write(0,*)' tsea=',tsea(ipr),' tsurf=',tsurf(ipr),iter
@@ -1230,7 +1236,7 @@ module module_physics_driver
                         Radtend%semis, gabsbdlw, adjsfcnsw, Sfcprop%tprcp, &
                         dtf, kdt, Model%solhr, xcosz,                      &
                         Tbd%phy_f2d(1,Model%num_p2d), flag_iter,           &
-                        flag_guess, Model%nstf_name, lprnt, ipr,           &
+                        flag_guess, Model%nstf_name, lprnt, ipr, maxevap,  &
 !  --- Input/output
                         tseal, tsurf, Sfcprop%xt, Sfcprop%xs, Sfcprop%xu,  &
                         Sfcprop%xv, Sfcprop%xz, Sfcprop%zm, Sfcprop%xtts,  &
@@ -1280,6 +1286,7 @@ module module_physics_driver
            (im, Statein%pgr, Statein%ugrs, Statein%vgrs, Statein%tgrs,  &
             Statein%qgrs, Sfcprop%tsfc, cd, cdq, Statein%prsl(1,1),     &
             work3, islmsk, Tbd%phy_f2d(1,Model%num_p2d), flag_iter,     &
+            maxevap,                                                    &
 !  ---  outputs:
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
 
@@ -1309,7 +1316,7 @@ module module_physics_driver
             Sfcprop%shdmin, Sfcprop%shdmax, Sfcprop%snoalb,            &
             Radtend%sfalb, flag_iter, flag_guess,                      &
             Model%lheatstrg, Model%isot, Model%ivegsrc,                &
-            bexp1d, xlai1d, vegf1d, Model%pertvegf,                    &
+            bexp1d, xlai1d, vegf1d, Model%pertvegf, maxevap,           &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
             Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
@@ -1337,7 +1344,7 @@ module module_physics_driver
             Model%iopt_snf,   Model%iopt_tbot, Model%iopt_stc,         &
             grid%xlat, xcosz, Model%yearlen,   Model%julian, Model%imn,&
             Sfcprop%drainncprv, Sfcprop%draincprv, Sfcprop%dsnowprv,   &
-            Sfcprop%dgraupelprv, Sfcprop%diceprv,                      &
+            Sfcprop%dgraupelprv, Sfcprop%diceprv, maxevap,             &
 !  ---  in/outs:
             Sfcprop%weasd, Sfcprop%snowd, Sfcprop%tsfc, Sfcprop%tprcp, &
             Sfcprop%srflag, smsoil, stsoil, slsoil, Sfcprop%canopy,    &
@@ -1384,7 +1391,7 @@ module module_physics_driver
             adjsfcnsw, adjsfcdsw, Sfcprop%srflag, cd, cdq,              &
             Statein%prsl(1,1), work3, islmsk,                           &
             Tbd%phy_f2d(1,Model%num_p2d), flag_iter, Model%mom4ice,     &
-            Model%lsm, lprnt, ipr,                                      &
+            Model%lsm, lprnt, ipr, maxevap,                             &
 !  ---  input/outputs:
             zice, cice, tice, Sfcprop%weasd, Sfcprop%tsfc,              &
             Sfcprop%tprcp, stsoil, ep1d,                                & 
@@ -1406,7 +1413,7 @@ module module_physics_driver
            (im, Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs, &
             cd, cdq, Statein%prsl(1,1), work3, islmsk_cice,             &
             Tbd%phy_f2d(1,Model%num_p2d),flag_iter, dqsfc_cice,         &
-            dtsfc_cice,                                                 &
+            dtsfc_cice, maxevap,                                        &
 !  ---     outputs:
             qss, Diag%cmm, Diag%chh, evap, hflx)
         endif

@@ -1624,7 +1624,8 @@ module module_physics_driver
                    Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  & 
                    Model%xkzm_s,  Model%xkzminv, Model%do_dk_hb19,              &
                    Model%xkzm_lim, Model%xkgdx,                                 &
-                   Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
+                   Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt,              &
+                   Model%pbl_ck0, Model%pbl_ck1, Model%pbl_ch0, Model%pbl_ch1)
 
              elseif (Model%isatmedmf == 1) then   
                 do i=1,im

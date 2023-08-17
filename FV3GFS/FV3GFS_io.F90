@@ -2180,7 +2180,7 @@ module FV3GFS_io_mod
       ! Then coarse-grain the vegetation and soil types and upsample them too
       call block_mode(sfc_var2(:,:,17), sfc_type_mask, sfc_var2_coarse(:,:,17))
       call block_upsample(sfc_var2_coarse(:,:,17), dominant_vtype)
-      call block_mode(sfc_var2(isc:iec,jsc:jec,18), sfc_type_mask, sfc_var2_coarse(:,:,18))
+      call block_mode(sfc_var2(:,:,18), sfc_type_mask, sfc_var2_coarse(:,:,18))
       call block_upsample(sfc_var2_coarse(:,:,18), dominant_stype)
 
       sfc_and_vtype_mask = (sfc_type_mask .and. (dominant_vtype .eq. sfc_var2(:,:,17)))

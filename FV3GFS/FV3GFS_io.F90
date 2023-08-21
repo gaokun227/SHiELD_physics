@@ -60,7 +60,7 @@ module FV3GFS_io_mod
   use ozne_def,           only: oz_coeff
 !--- needed for cold-start capability to initialize q2m
   use gfdl_cld_mp_mod,    only: wqs, qs_init
-  use coarse_graining_mod, only: block_mode, block_upsample, block_min, block_max, block_sum, weighted_block_average
+  use coarse_graining_mod, only: block_mode, block_upsample, block_sum, weighted_block_average
   use coarse_graining_mod, only: MODEL_LEVEL, PRESSURE_LEVEL, PRESSURE_LEVEL_EXTRAPOLATE, BLENDED_AREA_WEIGHTED
   use coarse_graining_mod, only: vertical_remapping_requirements, get_coarse_array_bounds
   use coarse_graining_mod, only: vertically_remap_field, mask_area_weights
@@ -2181,7 +2181,7 @@ module FV3GFS_io_mod
       ! Then coarse-grain the vegetation and soil types and upsample them too
       call block_mode(sfc_var2(:,:,17), sfc_type_mask, sfc_var2_coarse(:,:,17))
       call block_upsample(sfc_var2_coarse(:,:,17), dominant_vtype)
-      call block_mode(sfc_var2(isc:iec,jsc:jec,18), sfc_type_mask, sfc_var2_coarse(:,:,18))
+      call block_mode(sfc_var2(:,:,18), sfc_type_mask, sfc_var2_coarse(:,:,18))
       call block_upsample(sfc_var2_coarse(:,:,18), dominant_stype)
 
       sfc_and_vtype_mask = (sfc_type_mask .and. (dominant_vtype .eq. sfc_var2(:,:,17)))
@@ -2247,15 +2247,15 @@ module FV3GFS_io_mod
       ! Take the area weighted average for snow depth
       call weighted_block_average(area, sfc_var2(:,:,27), sfc_var2_coarse(:,:,27))
 
-      ! Take the min and max over the dominant sfc type for shdmin and shdmax
-      call block_min(sfc_var2(:,:,28), sfc_type_mask, sfc_var2_coarse(:,:,28))
-      call block_max(sfc_var2(:,:,29), sfc_type_mask, sfc_var2_coarse(:,:,29))
+      ! Take the area weighted average over the dominant surface type for shdmin and shdmax
+      call weighted_block_average(area, sfc_var2(:,:,28), sfc_type_mask, sfc_var2_coarse(:,:,28))
+      call weighted_block_average(area, sfc_var2(:,:,29), sfc_type_mask, sfc_var2_coarse(:,:,29))
 
       ! Take the masked block mode over the dominant surface type for slope
       call block_mode(sfc_var2(:,:,30), sfc_type_mask, sfc_var2_coarse(:,:,30))
 
-      ! Take the block maximum for the snoalb
-      call block_max(sfc_var2(:,:,31), sfc_type_mask, sfc_var2_coarse(:,:,31))
+      ! Take the area weighted average over the dominant surface type for snoalb
+      call weighted_block_average(area, sfc_var2(:,:,31), sfc_type_mask, sfc_var2_coarse(:,:,31))
 
       ! Take the area weighted average over the dominant surface type for sncovr
       call weighted_block_average(area, sfc_var2(:,:,32), sfc_type_mask, sfc_var2_coarse(:,:,32))

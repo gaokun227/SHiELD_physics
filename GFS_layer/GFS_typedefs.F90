@@ -826,6 +826,7 @@ module GFS_typedefs
                                             !< Nccn: CCN number concentration in cm^(-3)
                                             !< Until a realistic Nccn is provided, typical Nccns are assumed
                                             !< as Nccn=100 for sea and Nccn=7000 for land
+    real(kind=kind_phys) :: dxcrtas         !< the threshold value (unit: m) for the quasi-equilibrium assumption of Arakawa-Schubert
 
     !--- mass flux shallow convection
     logical              :: ext_rain_shal   !< Whether to extract rain water from the shallow convection
@@ -2524,6 +2525,7 @@ module GFS_typedefs
                                                              !< Nccn: CCN number concentration in cm^(-3)
                                                              !< Until a realistic Nccn is provided, typical Nccns are assumed
                                                              !< as Nccn=100 for sea and Nccn=7000 for land
+    real(kind=kind_phys) :: dxcrtas        = 8.e3            !< threshold value (unit: m) for the quasi-equilibrium assumption of Arakawa-Schubert
 
     !--- mass flux shallow convection
     logical              :: ext_rain_shal  = .false.         !< Whether to extract rain water from the shallow convection
@@ -2668,7 +2670,7 @@ module GFS_typedefs
                           !--- mass flux deep convection
                                clam_deep, c0s_deep, c1_deep, betal_deep,                    &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
-                               asolfac_deep, ext_rain_deep,                                 &
+                               asolfac_deep, dxcrtas, ext_rain_deep,                        &
                           !--- mass flux shallow convection
                                clam_shal, c0s_shal, c1_shal, cthk_shal, top_shal,           &
                                betaw_shal, dxcrt_shal, pgcon_shal, asolfac_shal,            &
@@ -2974,6 +2976,7 @@ module GFS_typedefs
     Model%evfactl_deep     = evfactl_deep
     Model%pgcon_deep       = pgcon_deep
     Model%asolfac_deep     = asolfac_deep
+    Model%dxcrtas          = dxcrtas
 
     !--- mass flux shallow convection
     Model%ext_rain_shal    = ext_rain_shal
@@ -3695,6 +3698,7 @@ module GFS_typedefs
       print *, ' evfactl_deep      : ', Model%evfactl_deep
       print *, ' pgcon_deep        : ', Model%pgcon_deep
       print *, ' asolfac_deep      : ', Model%asolfac_deep
+      print *, ' dxcrtas           : ', Model%dxcrtas
       print *, ' '
       print *, 'mass flux shallow convection'
       print *, ' ext_rain_shal     : ', Model%ext_rain_shal

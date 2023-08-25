@@ -2418,7 +2418,7 @@ module module_physics_driver
                             Model%clam_deep, Model%c0s_deep,                       &
                             Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
                             Model%evfact_deep, Model%evfactl_deep,                 &
-                            Model%pgcon_deep, Model%asolfac_deep)
+                            Model%pgcon_deep, Model%asolfac_deep, Model%dxcrtas)
 !           if (lprnt) print *,' rain1=',rain1(ipr)
             if (Model%ncld == 5 .and. Model%ext_rain_deep) then
                 Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
@@ -2444,7 +2444,7 @@ module module_physics_driver
                              Model%clam_deep,   Model%c0s_deep,                    &
                              Model%c1_deep,  Model%betal_deep, Model%betas_deep,   &
                              Model%evfact_deep, Model%evfactl_deep,                &
-                             Model%pgcon_deep,  Model%asolfac_deep)
+                             Model%pgcon_deep,  Model%asolfac_deep, Model%dxcrtas)
 
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &

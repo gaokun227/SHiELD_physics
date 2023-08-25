@@ -7832,7 +7832,7 @@ subroutine store_data3D_coarse_blended_area_weighted(id, name, method, nx, ny, n
     real(kind=kind_phys), intent(in) :: area(1:nx,1:ny)
     real(kind=kind_phys), intent(in) :: blending_weights(1:nx_coarse,1:ny_coarse,1:nz)
     type(time_type), intent(in) :: Time
-    real, intent(in) :: ptop
+    real(kind=kind_phys), intent(in) :: ptop
 
     real(kind=kind_phys), allocatable :: coarse(:,:,:)
     character(len=128) :: message

@@ -858,6 +858,7 @@ module GFS_typedefs
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
     logical              :: lprnt           !< control flag for diagnostic print out
+    logical              :: landseaprt      !< in fprint partition into land/ocean/seaice
     logical              :: lsswr           !< logical flags for sw radiation calls
     logical              :: lslwr           !< logical flags for lw radiation calls
     real(kind=kind_phys) :: solhr           !< hour time after 00z at the t-step
@@ -2381,6 +2382,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug          = .false.
     logical              :: lprnt          = .false.
+    logical              :: landseaprt     = .true.
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_ocean       = .false.         !< flag for slab ocean model 
     logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T. 
@@ -2455,7 +2457,8 @@ module GFS_typedefs
                                iau_delthrs,iaufhrs,iau_inc_files,iau_forcing_var,           &
                                iau_filter_increments,iau_drymassfixer,                      &
                           !--- debug options
-                               debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst, lprnt, &
+                               debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst,      &
+                               lprnt, landseaprt, &
                           !--- aerosol scavenging factors ('name:value' string array)
                                fscav_aero, &
                                sst_perturbation
@@ -2898,6 +2901,7 @@ module GFS_typedefs
     Model%use_ifs_ini_sst  = use_ifs_ini_sst
     Model%use_ext_sst      = use_ext_sst
     Model%lprnt            = lprnt
+    Model%landseaprt       = landseaprt
 
     !--- set initial values for time varying properties
     Model%ipt              = 1
@@ -3512,6 +3516,7 @@ module GFS_typedefs
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt
       print *, ' lprnt             : ', Model%lprnt
+      print *, ' landseaprt        : ', Model%landseaprt
       print *, ' lsswr             : ', Model%lsswr
       print *, ' lslwr             : ', Model%lslwr
       print *, ' solhr             : ', Model%solhr

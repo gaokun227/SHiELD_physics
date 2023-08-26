@@ -7030,7 +7030,7 @@ module FV3GFS_io_mod
 !
 !    calls:  send_data
 !-------------------------------------------------------------------------
-  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
+  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, Model, nx, ny, fprint, &
                              levs, ntcw, ntoz, dt, time_int, time_intfull, &
                              fhswr, fhlwr, &
                              prt_stats, write_coarse_diagnostics, delp, &
@@ -7040,6 +7040,7 @@ module FV3GFS_io_mod
     type(time_type),           intent(in) :: Time
     type (block_control_type), intent(in) :: Atm_block
     type(IPD_data_type),       intent(in) :: IPD_Data(:)
+    type(IPD_control_type),    intent(in) :: Model
     integer,                   intent(in) :: nx, ny, levs, ntcw, ntoz
     real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
@@ -7269,56 +7270,76 @@ module FV3GFS_io_mod
               call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('u10m')
               call prt_gb_nh_sh_us('Total 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land 10-m u avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land 10-m u avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('v10m')
               call prt_gb_nh_sh_us('Total 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land 10-m v avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land 10-m v avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('acond')
               call prt_gb_nh_sh_us('Total momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land momentum exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land momentum exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('sfexc')
               call prt_gb_nh_sh_us('Total thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land thermal exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land thermal exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('ffmm')
               call prt_gb_nh_sh_us('Total ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land ffmm for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land ffmm for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('ffhh')
               call prt_gb_nh_sh_us('Total ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land ffhh for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land ffhh for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('ZORLsfc')
               call prt_gb_nh_sh_us('Total surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land surface roughness  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land surface roughness  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('q2m')
               call prt_gb_nh_sh_us('Total 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
            case('t2m')
               call prt_gb_nh_sh_us('Total 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
               call prt_gb_nh_sh_us('2-m T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
               call prt_gb_nh_sh_us('2-m T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
            case('tsfc')
               call prt_gb_nh_sh_us('Total sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              call prt_gb_nh_sh_us('Land sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
-              call prt_gb_nh_sh_us('Ocean sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
-              call prt_gb_nh_sh_us('SeaIce sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              if (Model%landseaprt) then
+                 call prt_gb_nh_sh_us('Land sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
+                 call prt_gb_nh_sh_us('Ocean sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
+                 call prt_gb_nh_sh_us('SeaIce sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
+              endif
               call prt_gb_nh_sh_us('sfc T max ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MAX')
               call prt_gb_nh_sh_us('sfc T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
               call prt_gb_nh_sh_us('SST max ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1., 'MAX')
@@ -7567,7 +7588,8 @@ module FV3GFS_io_mod
         call mp_reduce_sum(   t_us)
      endif
 
-     diagstr = trim(qname) // ' ' // trim(mpp_get_current_pelist_name()) // ' '
+     write(diagstr,'(A20, 1x,A,1x)') trim(qname), trim(mpp_get_current_pelist_name())
+     !diagstr = trim(qname) // ' ' //  // ' '
      !if (area_gb < 1.) then
      !   diagstr1 = ''
      !elseif( area_gb <= 4.*pi*RADIUS*RADIUS*.98) then

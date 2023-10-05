@@ -1,4 +1,4 @@
-!> \defgroup SAMF_shal Scale-Aware Mass-Flux Shallow Convection
+!> \defgroup SAMF_shal Scale-Aware Mass-Flux Shallow Convection: September 2023 Revision
 !! @{
 !!  \brief The scale-aware mass-flux shallow (SAMF_shal) convection scheme is an updated version of the previous mass-flux shallow convection scheme with scale and aerosol awareness and parameterizes the effect of shallow convection on the environment.  The SAMF_shal scheme is similar to the SAMF deep convection scheme but with a few key differences. First, no quasi-equilibrium assumption is used for any grid size and the shallow cloud base mass flux is parameterized using a mean updraft velocity. Further, there are no convective downdrafts, the entrainment rate is greater than for deep convection, and the shallow convection is limited to not extend over the level where \f$p=0.7p_{sfc}\f$. The paramerization of scale and aerosol awareness follows that of the SAMF deep convection scheme.
 !!
@@ -7,6 +7,8 @@
 !! In further update for FY19 GFS implementation, interaction with turbulent kinetic energy (TKE), which is a prognostic variable used in a scale-aware TKE-based moist EDMF vertical turbulent mixing scheme, is included. Entrainment rates in updrafts are proportional to sub-cloud mean TKE. TKE is transported by cumulus convection. TKE contribution from cumulus convection is deduced from cumulus mass flux. On the other hand, tracers such as ozone and aerosol are also transported by cumulus convection.
 !!
 !! To reduce too much convective cooling at the cloud top, the convection schemes have been modified for the rain conversion rate, entrainment and detrainment rates, overshooting layers, and maximum allowable cloudbase mass flux (as of June 2018).
+!!
+!! In this new scheme, if the diagnosed cloud depth or cloud top exceeds certain critical values (set by cthk_shal and top_shal, respectively), shallow convection will not be called. This version is based on the October 2022 Revision (imshalcnv = 3).
 !!
 !!  \section diagram Calling Hierarchy Diagram
 !!  \image html SAMF_shal_Flowchart.png "Diagram depicting how the SAMF shallow convection scheme is called from the FV3GFS physics time loop" height=2cm

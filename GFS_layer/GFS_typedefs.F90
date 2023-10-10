@@ -656,6 +656,10 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkgdx           !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn            !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx            !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: pbl_ck0         !< [in] proportionality coefficient for momentum in PBL
+    real(kind=kind_phys) :: pbl_ck1         !< [in] proportionality coefficient for momentum above PBL
+    real(kind=kind_phys) :: pbl_ch0         !< [in] proportionality coefficient for heat & q in PBL
+    real(kind=kind_phys) :: pbl_ch1         !< [in] proportionality coefficient for heat & q above PBL
     real(kind=kind_phys) :: zolcru          !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f
     real(kind=kind_phys) :: cs0             !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
     real(kind=kind_phys) :: moninq_fac      !< turbulence diffusion coefficient factor
@@ -738,6 +742,7 @@ module GFS_typedefs
                                             !< Nccn: CCN number concentration in cm^(-3)
                                             !< Until a realistic Nccn is provided, typical Nccns are assumed
                                             !< as Nccn=100 for sea and Nccn=7000 for land
+    real(kind=kind_phys) :: dxcrtas         !< the threshold value (unit: m) for the quasi-equilibrium assumption of Arakawa-Schubert
 
     !--- mass flux shallow convection
     logical              :: ext_rain_shal   !< Whether to extract rain water from the shallow convection
@@ -2217,6 +2222,10 @@ module GFS_typedefs
     real(kind=kind_phys) :: xkgdx          = 25.e3                    !< [in] background vertical diffusion threshold
     real(kind=kind_phys) :: rlmn           = 30.                      !< [in] lower-limter on asymtotic mixing length in satmedmfdiff.f
     real(kind=kind_phys) :: rlmx           = 300.                     !< [in] upper-limter on asymtotic mixing length in satmedmfdiff.f
+    real(kind=kind_phys) :: pbl_ck0        = 0.4                      !< [in] proportionality coefficient for momentum in PBL
+    real(kind=kind_phys) :: pbl_ck1        = 0.15                     !< [in] proportionality coefficient for momentum above PBL
+    real(kind=kind_phys) :: pbl_ch0        = 0.4                      !< [in] proportionality coefficient for heat & q in PBL
+    real(kind=kind_phys) :: pbl_ch1        = 0.15                     !< [in] proportionality coefficient for heat & q above PBL
     real(kind=kind_phys) :: zolcru         = -0.02                    !< [in] a threshold for activating the surface-driven updraft transports in satmedmfdifq.f
     real(kind=kind_phys) :: cs0            = 0.2                      !< [in] a parameter that controls the shear effect on the mixing length in satmedmfdifq.f
     real(kind=kind_phys) :: moninq_fac     = 1.0                      !< turbulence diffusion coefficient factor
@@ -2294,6 +2303,7 @@ module GFS_typedefs
                                                              !< Nccn: CCN number concentration in cm^(-3)
                                                              !< Until a realistic Nccn is provided, typical Nccns are assumed
                                                              !< as Nccn=100 for sea and Nccn=7000 for land
+    real(kind=kind_phys) :: dxcrtas        = 8.e3            !< threshold value (unit: m) for the quasi-equilibrium assumption of Arakawa-Schubert
 
     !--- mass flux shallow convection
     logical              :: ext_rain_shal  = .false.         !< Whether to extract rain water from the shallow convection
@@ -2423,7 +2433,7 @@ module GFS_typedefs
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx,                   &
-                               rlmn, rlmx, zolcru, cs0,                                     &
+                               rlmn, rlmx, zolcru, cs0, pbl_ck0, pbl_ck1, pbl_ch0, pbl_ch1, &
                                xkzm_m, xkzm_h, xkzm_ml, xkzm_hl, xkzm_mi, xkzm_hi,          &
                                xkzm_s, xkzminv, moninq_fac, dspfac,                         &
                                bl_upfr, bl_dnfr, ysu_ent_fac, ysu_pfac_q,                   &
@@ -2439,7 +2449,7 @@ module GFS_typedefs
                           !--- mass flux deep convection
                                clam_deep, c0s_deep, c1_deep, betal_deep,                    &
                                betas_deep, evfact_deep, evfactl_deep, pgcon_deep,           &
-                               asolfac_deep, ext_rain_deep,                                 &
+                               asolfac_deep, dxcrtas, ext_rain_deep,                        &
                           !--- mass flux shallow convection
                                clam_shal, c0s_shal, c1_shal, cthk_shal, top_shal,           &
                                betaw_shal, dxcrt_shal, pgcon_shal, asolfac_shal,            &
@@ -2680,6 +2690,10 @@ module GFS_typedefs
     Model%xkgdx            = xkgdx
     Model%rlmn             = rlmn
     Model%rlmx             = rlmx
+    Model%pbl_ck0          = pbl_ck0
+    Model%pbl_ck1          = pbl_ck1
+    Model%pbl_ch0          = pbl_ch0
+    Model%pbl_ch1          = pbl_ch1
     Model%zolcru           = zolcru
     Model%cs0              = cs0
     Model%moninq_fac       = moninq_fac
@@ -2735,6 +2749,7 @@ module GFS_typedefs
     Model%evfactl_deep     = evfactl_deep
     Model%pgcon_deep       = pgcon_deep
     Model%asolfac_deep     = asolfac_deep
+    Model%dxcrtas          = dxcrtas
 
     !--- mass flux shallow convection
     Model%ext_rain_shal    = ext_rain_shal
@@ -3375,6 +3390,10 @@ module GFS_typedefs
       print *, ' xkgdx             : ', Model%xkgdx
       print *, ' rlmn              : ', Model%rlmn
       print *, ' rlmx              : ', Model%rlmx
+      print *, ' pbl_ck0           : ', Model%pbl_ck0
+      print *, ' pbl_ck1           : ', Model%pbl_ck1
+      print *, ' pbl_ch0           : ', Model%pbl_ch0
+      print *, ' pbl_ch1           : ', Model%pbl_ch1
       print *, ' zolcru            : ', Model%zolcru
       print *, ' cs0               : ', Model%cs0
       print *, ' moninq_fac        : ', Model%moninq_fac
@@ -3429,6 +3448,7 @@ module GFS_typedefs
       print *, ' evfactl_deep      : ', Model%evfactl_deep
       print *, ' pgcon_deep        : ', Model%pgcon_deep
       print *, ' asolfac_deep      : ', Model%asolfac_deep
+      print *, ' dxcrtas           : ', Model%dxcrtas
       print *, ' '
       print *, 'mass flux shallow convection'
       print *, ' ext_rain_shal     : ', Model%ext_rain_shal

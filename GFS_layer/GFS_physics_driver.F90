@@ -1624,7 +1624,8 @@ module module_physics_driver
                    Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  & 
                    Model%xkzm_s,  Model%xkzminv, Model%do_dk_hb19,              &
                    Model%xkzm_lim, Model%xkgdx,                                 &
-                   Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt)
+                   Model%rlmn, Model%rlmx, Model%cap_k0_land, dkt,              &
+                   Model%pbl_ck0, Model%pbl_ck1, Model%pbl_ch0, Model%pbl_ch1)
 
              elseif (Model%isatmedmf == 1) then   
                 do i=1,im
@@ -2417,7 +2418,7 @@ module module_physics_driver
                             Model%clam_deep, Model%c0s_deep,                       &
                             Model%c1_deep, Model%betal_deep, Model%betas_deep,     &
                             Model%evfact_deep, Model%evfactl_deep,                 &
-                            Model%pgcon_deep, Model%asolfac_deep)
+                            Model%pgcon_deep, Model%asolfac_deep, Model%dxcrtas)
 !           if (lprnt) print *,' rain1=',rain1(ipr)
             if (Model%ncld == 5 .and. Model%ext_rain_deep) then
                 Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
@@ -2443,7 +2444,7 @@ module module_physics_driver
                              Model%clam_deep,   Model%c0s_deep,                    &
                              Model%c1_deep,  Model%betal_deep, Model%betas_deep,   &
                              Model%evfact_deep, Model%evfactl_deep,                &
-                             Model%pgcon_deep,  Model%asolfac_deep)
+                             Model%pgcon_deep,  Model%asolfac_deep, Model%dxcrtas)
 
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
@@ -2918,13 +2919,15 @@ module module_physics_driver
                 Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
 
-          elseif (Model%imfshalcnv == 3) then
+          elseif (Model%imfshalcnv == 3 .or. Model%imfshalcnv == 5) then
             if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
                nsamftrac = 0
             else
                nsamftrac = tottracer
             endif
-            call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
+
+            if (Model%imfshalcnv == 3) then
+               call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
                               del, Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:nsamftrac+2),   &
                               Stateout%gq0(:,:,1), Stateout%gt0,                   &
                               Stateout%gu0, Stateout%gv0, Model%fscav,             &
@@ -2934,6 +2937,19 @@ module module_physics_driver
                               Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
                               Model%pgcon_shal, Model%asolfac_shal)
 
+            elseif (Model%imfshalcnv == 5) then ! a modified version of samfshalcnv by KGao
+               call samfshalcnv_gfdl (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
+                              del, Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:nsamftrac+2),   &
+                              Stateout%gq0(:,:,1), Stateout%gt0,                   &
+                              Stateout%gu0, Stateout%gv0, Model%fscav,             &
+                              rain1, kbot, ktop, kcnv, islmsk, garea,              &
+                              Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
+                              dt_mf, cnvw, cnvc,                                   &
+                              Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
+                              Model%cthk_shal, Model%top_shal,                     &
+                              Model%betaw_shal, Model%dxcrt_shal,                  &
+                              Model%pgcon_shal, Model%asolfac_shal)
+            endif
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)

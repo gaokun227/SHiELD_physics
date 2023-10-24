@@ -1128,7 +1128,11 @@ subroutine setup_mhc_lhc (hydrostatic)
     if (hydrostatic) then
         lv00 = (hlv - d0_vap * tice) / c_air
     else
+#ifdef ENG_CNV_OLD
+        lv00 = (hlv - d0_vap * tice) / c_air
+#else
         lv00 = (hlv - d0_vap * tice - rvgas * tice) / c_air
+#endif
     endif
     li00 = (hlf - dc_ice * tice) / c_air
     li20 = lv00 + li00

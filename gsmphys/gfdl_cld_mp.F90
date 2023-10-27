@@ -1125,7 +1125,15 @@ subroutine setup_mhc_lhc (hydrostatic)
     d1_vap = d0_vap / c_air
     d1_ice = dc_ice / c_air
 
-    lv00 = (hlv - d0_vap * tice) / c_air
+    if (hydrostatic) then
+        lv00 = (hlv - d0_vap * tice) / c_air
+    else
+#ifdef ENG_CNV_OLD
+        lv00 = (hlv - d0_vap * tice) / c_air
+#else
+        lv00 = (hlv - d0_vap * tice - rvgas * tice) / c_air
+#endif
+    endif
     li00 = (hlf - dc_ice * tice) / c_air
     li20 = lv00 + li00
 
@@ -7233,8 +7241,6 @@ function es_core (length, tk, table, des)
     integer :: it
 
     real :: ap1, tmin
-
-    if (.not. tables_are_initialized) call qs_init
 
     tmin = tice - 160.
     ap1 = 10. * dim (tk, tmin) + 1.

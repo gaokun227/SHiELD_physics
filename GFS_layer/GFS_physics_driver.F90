@@ -462,7 +462,7 @@ module module_physics_driver
            stress, t850, ep1d, gamt, gamq, sigmaf, oc, theta, gamma,    &
            sigma, elvmax, wind, work1, work2, runof, xmu, fm10, fh2,    &
            tsurf,  tx1, tx2, ctei_r, evbs, evcw, trans, sbsno, snowc,   &
-           frland, adjsfculw, maxevap                                   &
+           frland, adjsfculw, maxevap,                                  &
            adjnirbmu, adjnirdfu, adjvisbmu, adjvisdfu, adjnirbmd,       &
            adjnirdfd, adjvisbmd, adjvisdfd, gabsbdlw, xcosz, tseal,     &
            snohf, dlqfac, work3, ctei_rml, cldf, domr, domzr, domip,    &
@@ -544,7 +544,7 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs,Model%nctp) ::  &
            sigmai, vverti 
 
-      real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs,oz_coeff+5) ::  &
+      real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs,4) ::  &
            dq3dt_loc
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),1) ::  & ! for MYJ scheme
@@ -2160,18 +2160,19 @@ module module_physics_driver
 !  --- ...  ozone physics
 
       if ((Model%ntoz > 0) .and. (ntrac >= Model%ntoz)) then
+         dq3dt_loc = 0.0
         if (oz_coeff > 4) then
           call ozphys_2015 (ix, im, levs, levozp, dtp,               &
                             Stateout%gq0(1,1,Model%ntoz),            &
                             Stateout%gq0(1,1,Model%ntoz),            &
                             Stateout%gt0, oz_pres, Statein%prsl,     &
                             Tbd%ozpl, oz_coeff, del, Model%ldiag3d,  &
-                            dq3dt_loc(1,1,6), me)
+                            dq3dt_loc, me)
           if (Model%ldiag3d) then
-            Diag%dq3dt(:,:,6) = dq3dt_loc(:,:,6)
-            Diag%dq3dt(:,:,7) = dq3dt_loc(:,:,7)
-            Diag%dq3dt(:,:,8) = dq3dt_loc(:,:,8)
-            Diag%dq3dt(:,:,9) = dq3dt_loc(:,:,9)
+            Diag%dq3dt(:,:,6) = dq3dt_loc(:,:,1)
+            Diag%dq3dt(:,:,7) = dq3dt_loc(:,:,2)
+            Diag%dq3dt(:,:,8) = dq3dt_loc(:,:,3)
+            Diag%dq3dt(:,:,9) = dq3dt_loc(:,:,4)
           endif
         else
           call ozphys (ix, im, levs, levozp, dtp,                 &
@@ -2179,12 +2180,12 @@ module module_physics_driver
                        Stateout%gq0(1,1,Model%ntoz),              &
                        Stateout%gt0, oz_pres, Statein%prsl,       &
                        Tbd%ozpl, oz_coeff, del, Model%ldiag3d,    &
-                       dq3dt_loc(1,1,6), me)
+                       dq3dt_loc, me)
           if (Model%ldiag3d) then
-            Diag%dq3dt(:,:,6) = dq3dt_loc(:,:,6)
-            Diag%dq3dt(:,:,7) = dq3dt_loc(:,:,7)
-            Diag%dq3dt(:,:,8) = dq3dt_loc(:,:,8)
-            Diag%dq3dt(:,:,9) = dq3dt_loc(:,:,9)
+            Diag%dq3dt(:,:,6) = dq3dt_loc(:,:,1)
+            Diag%dq3dt(:,:,7) = dq3dt_loc(:,:,2)
+            Diag%dq3dt(:,:,8) = dq3dt_loc(:,:,3)
+            Diag%dq3dt(:,:,9) = dq3dt_loc(:,:,4)
           endif
         endif
       endif

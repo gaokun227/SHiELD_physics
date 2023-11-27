@@ -7352,9 +7352,8 @@ module FV3GFS_io_mod
 !
 !    calls:  send_data
 !-------------------------------------------------------------------------
-  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, Model, nx, ny, fprint, &
-                             levs, ntcw, ntoz, dt, time_int, time_intfull, &
-                             fhswr, fhlwr, &
+  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, Model, fprint, &
+                             time_int, time_intfull, &
                              prt_stats, write_coarse_diagnostics, delp, &
                              coarsening_strategy, ptop)
 !--- subroutine interface variable definitions
@@ -7363,28 +7362,27 @@ module FV3GFS_io_mod
     type (block_control_type), intent(in) :: Atm_block
     type(IPD_data_type),       intent(in) :: IPD_Data(:)
     type(IPD_control_type),    intent(in) :: Model
-    integer,                   intent(in) :: nx, ny, levs, ntcw, ntoz
-    real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
     real(kind=kind_phys),      intent(in) :: time_intfull
-    real(kind=kind_phys),      intent(in) :: fhswr, fhlwr
     logical,                   intent(in) :: prt_stats
     logical,                   intent(in) :: write_coarse_diagnostics
     real(kind=kind_phys),      intent(in) :: delp(isco:ieco,jsco:jeco,1:levo)
     character(len=64),         intent(in) :: coarsening_strategy
     real(kind=kind_phys),      intent(in) :: ptop
 !--- local variables
+    integer :: nx, ny, levs
     integer :: i, j, k, idx, nblks, nb, ix, ii, jj, kflip
     integer :: is_in, js_in, isc, jsc
     integer :: nx_coarse, ny_coarse, is_coarse, ie_coarse, js_coarse, je_coarse
     character(len=2) :: xtra
-    real(kind=kind_phys), dimension(nx*ny) :: var2p
-    real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
-    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask, icemask
-    real(kind=kind_phys), dimension(nx,ny,levs) :: var3
+    real(kind=kind_phys) :: fhswr, fhlwr
+    real(kind=kind_phys), dimension(Model%nx*Model%ny) :: var2p
+    real(kind=kind_phys), dimension(Model%nx*Model%ny,Model%levs) :: var3p
+    real(kind=kind_phys), dimension(Model%nx,Model%ny) :: var2, area, lat, lon, one, landmask, seamask, icemask
+    real(kind=kind_phys), dimension(Model%nx,Model%ny,Model%levs) :: var3
     real(kind=kind_phys) :: rdt, rtime_int, rtime_intfull, lcnvfac
     real(kind=kind_phys) :: rtime_radsw, rtime_radlw
-    logical :: used
+    logical :: used, landseaprt
 
     ! Local variables required for coarse-grianing
     logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
@@ -7393,8 +7391,14 @@ module FV3GFS_io_mod
     real(kind=kind_phys), allocatable :: masked_area(:,:,:)
     real(kind=kind_phys), allocatable :: blending_weights(:,:,:)
 
+    nx = Model%nx
+    ny = Model%ny
+    levs = Model%levs
+    fhswr = Model%fhswr
+    fhlwr = Model%fhlwr
+    landseaprt = landseaprt
+
      nblks = Atm_block%nblks
-     rdt = 1.0d0/dt
      rtime_int = 1.0d0/time_int
      rtime_intfull = 1.0d0/time_intfull
      rtime_radsw   = 1.0d0/fhswr
@@ -7602,63 +7606,63 @@ module FV3GFS_io_mod
               call prt_gb_nh_sh_us('TOA LW up ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
            case('u10m')
               call prt_gb_nh_sh_us('Total 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land 10-m u avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce 10-m u avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('v10m')
               call prt_gb_nh_sh_us('Total 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land 10-m v avg  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce 10-m v avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('acond')
               call prt_gb_nh_sh_us('Total momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land momentum exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce momentum exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('sfexc')
               call prt_gb_nh_sh_us('Total thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land thermal exchange coefficient  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce thermal exchange coefficient ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('ffmm')
               call prt_gb_nh_sh_us('Total ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land ffmm for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce ffmm for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('ffhh')
               call prt_gb_nh_sh_us('Total ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land ffhh for PBL  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce ffhh for PBL ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('ZORLsfc')
               call prt_gb_nh_sh_us('Total surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land surface roughness  ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce surface roughness ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('q2m')
               call prt_gb_nh_sh_us('Total 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce 2-m Q avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
               endif
            case('t2m')
               call prt_gb_nh_sh_us('Total 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce 2-m T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
@@ -7667,7 +7671,7 @@ module FV3GFS_io_mod
               call prt_gb_nh_sh_us('2-m T min ', 1, nx, 1, ny, var2, area, lon, lat, one, 1., 'MIN')
            case('tsfc')
               call prt_gb_nh_sh_us('Total sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, one, 1.)
-              if (Model%landseaprt) then
+              if (landseaprt) then
                  call prt_gb_nh_sh_us('Land sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, landmask, 1.)
                  call prt_gb_nh_sh_us('Ocean sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, seamask, 1.)
                  call prt_gb_nh_sh_us('SeaIce sfc T avg ', 1, nx, 1, ny, var2, area, lon, lat, icemask, 1.)
@@ -7717,74 +7721,6 @@ module FV3GFS_io_mod
                endif
             endif
 
-#ifdef JUNK
-           !--- dq3dt variables
-           do num = 1,5+Mdl_parms%pl_coeff
-             write(xtra,'(i1)') num
-             if (trim(Diag(idx)%name) == 'dq3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dq3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-             endif
-           enddo
-           !--- du3dt and dv3dt variables
-           do num = 1,4
-             write(xtra,'(i1)') num
-             if (trim(Diag(idx)%name) == 'du3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%du3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-             endif
-             if (trim(Diag(idx)%name) == 'dv3dt_'//trim(xtra)) then
-               var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dv3dt(1:ngptc,levs:1:-1,num:num), (/nx,ny,levs/))
-               used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-             endif
-           enddo
-           if (trim(Diag(idx)%name) == 'dqdt_v') then
-             var3(1:nx,1:ny,1:levs) = RESHAPE(Gfs_diag%dqdt_v(1:ngptc,levs:1:-1), (/nx,ny,levs/))
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-           endif
-           !--- temperature tendency
-           if (trim(Diag(idx)%name) == 'dtemp_dt') then
-             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%tgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
-             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gt0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-           endif
-           !--- horizontal wind component tendency
-           if (trim(Diag(idx)%name) == 'du_dt') then
-             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%ugrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
-             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gu0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-           endif
-           !--- meridional wind component tendency
-           if (trim(Diag(idx)%name) == 'dv_dt') then
-             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%vgrs(1:ngptc,levs:1:-1), (/nx,ny,levs/))
-             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gv0(1:ngptc,levs:1:-1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-           endif
-           !--- specific humidity tendency
-           if (trim(Diag(idx)%name) == 'dsphum_dt') then
-             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))
-             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,1:1), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-           endif
-           !--- cloud water mixing ration tendency
-           if (trim(Diag(idx)%name) == 'dclwmr_dt') then
-             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))
-             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntcw:ntcw), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-           endif
-           !--- ozone mixing ration tendency
-           if (trim(Diag(idx)%name) == 'do3mr_dt') then
-             var3(1:nx,1:ny,1:levs) =  RESHAPE(Statein%qgrs(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))
-             var3(1:nx,1:ny,1:levs) = (RESHAPE(Stateout%gq0(1:ngptc,levs:1:-1,ntoz:ntoz), (/nx,ny,levs/))  &
-                                        - var3(1:nx,1:ny,1:levs))*rdt
-             used=send_data(Diag(idx)%id, var3, Time, is_in=is_in, js_in=js_in, ks_in=1)
-          endif
-#endif
        endif
     endif
  enddo

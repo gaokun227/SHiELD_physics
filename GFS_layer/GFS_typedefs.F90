@@ -1369,7 +1369,7 @@ module GFS_typedefs
 #if defined (USE_COSP) || defined (COSP_OFFLINE)
   public cosp_type
 #endif
-
+  logical, public :: landseaprt     = .true.
 !*******************************************************************************************
   CONTAINS
 
@@ -2443,7 +2443,7 @@ end subroutine overrides_create
     !--- debug flag
     logical              :: debug          = .false.
     logical              :: lprnt          = .false.
-    logical              :: landseaprt     = .true.
+    !logical              :: landseaprt     = .true. !moved to being a public module variable, for convenience
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_ocean       = .false.         !< flag for slab ocean model 
     logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T. 

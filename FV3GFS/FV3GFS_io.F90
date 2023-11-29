@@ -48,7 +48,7 @@ module FV3GFS_io_mod
 !
 !--- GFS_typedefs
   use GFS_typedefs,       only: GFS_sfcprop_type, GFS_diag_type, GFS_grid_type
-  use GFS_typedefs,       only: GFS_cldprop_type
+  use GFS_typedefs,       only: GFS_cldprop_type, landseaprt
   use ozne_def,           only: oz_coeff
 !
 !--- IPD typdefs
@@ -7352,8 +7352,9 @@ module FV3GFS_io_mod
 !
 !    calls:  send_data
 !-------------------------------------------------------------------------
-  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, Model, fprint, &
-                             time_int, time_intfull, &
+  subroutine gfdl_diag_output(Time, Atm_block, IPD_Data, nx, ny, fprint, &
+                             levs, ntcw, ntoz, dt, time_int, time_intfull, &
+                             fhswr, fhlwr, &
                              prt_stats, write_coarse_diagnostics, delp, &
                              coarsening_strategy, ptop)
 !--- subroutine interface variable definitions
@@ -7361,28 +7362,28 @@ module FV3GFS_io_mod
     type(time_type),           intent(in) :: Time
     type (block_control_type), intent(in) :: Atm_block
     type(IPD_data_type),       intent(in) :: IPD_Data(:)
-    type(IPD_control_type),    intent(in) :: Model
+    integer,                   intent(in) :: nx, ny, levs, ntcw, ntoz
+    real(kind=kind_phys),      intent(in) :: dt
     real(kind=kind_phys),      intent(in) :: time_int
     real(kind=kind_phys),      intent(in) :: time_intfull
+    real(kind=kind_phys),      intent(in) :: fhswr, fhlwr
     logical,                   intent(in) :: prt_stats
     logical,                   intent(in) :: write_coarse_diagnostics
     real(kind=kind_phys),      intent(in) :: delp(isco:ieco,jsco:jeco,1:levo)
     character(len=64),         intent(in) :: coarsening_strategy
     real(kind=kind_phys),      intent(in) :: ptop
 !--- local variables
-    integer :: nx, ny, levs
     integer :: i, j, k, idx, nblks, nb, ix, ii, jj, kflip
     integer :: is_in, js_in, isc, jsc
     integer :: nx_coarse, ny_coarse, is_coarse, ie_coarse, js_coarse, je_coarse
     character(len=2) :: xtra
-    real(kind=kind_phys) :: fhswr, fhlwr
-    real(kind=kind_phys), dimension(Model%nx*Model%ny) :: var2p
-    real(kind=kind_phys), dimension(Model%nx*Model%ny,Model%levs) :: var3p
-    real(kind=kind_phys), dimension(Model%nx,Model%ny) :: var2, area, lat, lon, one, landmask, seamask, icemask
-    real(kind=kind_phys), dimension(Model%nx,Model%ny,Model%levs) :: var3
+    real(kind=kind_phys), dimension(nx*ny) :: var2p
+    real(kind=kind_phys), dimension(nx*ny,levs) :: var3p
+    real(kind=kind_phys), dimension(nx,ny) :: var2, area, lat, lon, one, landmask, seamask, icemask
+    real(kind=kind_phys), dimension(nx,ny,levs) :: var3
     real(kind=kind_phys) :: rdt, rtime_int, rtime_intfull, lcnvfac
     real(kind=kind_phys) :: rtime_radsw, rtime_radlw
-    logical :: used, landseaprt
+    logical :: used
 
     ! Local variables required for coarse-grianing
     logical :: require_area, require_masked_area, require_mass, require_masked_mass, require_vertical_remapping
@@ -7391,14 +7392,8 @@ module FV3GFS_io_mod
     real(kind=kind_phys), allocatable :: masked_area(:,:,:)
     real(kind=kind_phys), allocatable :: blending_weights(:,:,:)
 
-    nx = Model%nx
-    ny = Model%ny
-    levs = Model%levs
-    fhswr = Model%fhswr
-    fhlwr = Model%fhlwr
-    landseaprt = landseaprt
-
      nblks = Atm_block%nblks
+     rdt = 1.0d0/dt
      rtime_int = 1.0d0/time_int
      rtime_intfull = 1.0d0/time_intfull
      rtime_radsw   = 1.0d0/fhswr

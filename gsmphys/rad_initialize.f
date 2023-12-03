@@ -2,9 +2,9 @@
       subroutine rad_initialize                                         &
 !...................................
 !  ---  inputs:
-     &     ( si,levr,ictm,isol,ico2,iaer,ialb,iems,ntcw, num_p2d,       &
-     &       num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,isubc_lw,     &
-     &       crick_proof,ccnorm,norad_precip,                           &
+     &     ( si,levr,ictm,isol,ico2,ico2_scaling,iaer,ialb,iems,ntcw,   &
+     &       num_p2d,num_p3d,npdf3d,ntoz,iovr_sw,iovr_lw,isubc_sw,      &
+     &       isubc_lw,crick_proof,ccnorm,norad_precip,                  &
      &       idate,iflip,me )
 !  ---  outputs: ( none )
 
@@ -107,7 +107,7 @@
      &             iaermdl, laswflg, lalwflg, lavoflg, icldflg, icmphys,&
      &             iovrsw , iovrlw , lcrick , lcnorm , lnoprec,         &
      &             ialbflg, iemsflg, isubcsw, isubclw, ivflip , ipsd0,  &
-     &             kind_phys
+     &             kind_phys, co2_scaling
 
       use module_radiation_driver, only : radinit
 !
@@ -118,7 +118,7 @@
      &       ntcw, ialb, iems, num_p3d, npdf3d, ntoz, iovr_sw, iovr_lw, &
      &       isubc_sw, isubc_lw, iflip, me, idate(4)
 
-      real (kind=kind_phys), intent(in) :: si(levr+1)
+      real (kind=kind_phys), intent(in) :: si(levr+1), ico2_scaling 
 
       logical, intent(in) :: crick_proof, ccnorm, norad_precip
 
@@ -135,6 +135,7 @@
 
       ictmflg= ictm                     ! data ic time/date control flag
       ico2flg= ico2                     ! co2 data source control flag
+      co2_scaling= ico2_scaling         ! co2 level scaling
       ioznflg= ntoz                     ! ozone data source control flag
 
       if ( ictm==0 .or. ictm==-2 ) then

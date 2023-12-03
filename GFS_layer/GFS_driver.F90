@@ -206,7 +206,7 @@ module GFS_driver
     si = (Init_parm%ak + Init_parm%bk * p_ref - Init_parm%ak(Model%levr+1)) &
              / (p_ref - Init_parm%ak(Model%levr+1))
     call rad_initialize (si, Model%levr, Model%ictm, Model%isol, &
-           Model%ico2, Model%iaer, Model%ialb, Model%iems,       &
+           Model%ico2, Model%ico2_scaling , Model%iaer, Model%ialb, Model%iems,       &
            Model%ntcw, Model%num_p2d,  Model%num_p3d,            &
            Model%npdf3d, Model%ntoz,                             &
            Model%iovr_sw, Model%iovr_lw, Model%isubc_sw,         &

@@ -514,6 +514,7 @@ module GFS_typedefs
     integer              :: iflip           !< iflip - is not the same as flipv
     integer              :: isol            !< use prescribed solar constant
     integer              :: ico2            !< prescribed global mean value (old opernl)
+    real(kind=kind_phys) :: fco2_scaling    !< scaling of CO2 level
     integer              :: ialb            !< use climatology alb, based on sfc type
                                             !< 1 => use modis based alb
     integer              :: iems            !< use fixed value of 1.0
@@ -2141,6 +2142,7 @@ end subroutine overrides_create
     integer              :: iflip          =  1              !< iflip - is not the same as flipv
     integer              :: isol           =  0              !< use prescribed solar constant
     integer              :: ico2           =  0              !< prescribed global mean value (old opernl)
+    real(kind=kind_phys) :: fco2_scaling   = 1.              !< scaling of CO2 level
     integer              :: ialb           =  0              !< use climatology alb, based on sfc type
                                                              !< 1 => use modis based alb
     integer              :: iems           =  0              !< use fixed value of 1.0
@@ -2468,6 +2470,7 @@ end subroutine overrides_create
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
+                               fco2_scaling,                                                &
                           !--- microphysical parameterizations
                                ncld, do_sat_adj, zhao_mic, psautco, prautco,                &
                                evpco, wminco, fprcp, mg_dcs, mg_qcvar,                      &
@@ -2629,6 +2632,7 @@ end subroutine overrides_create
     Model%iflip            = iflip
     Model%isol             = isol
     Model%ico2             = ico2
+    Model%fco2_scaling     = fco2_scaling
     Model%ialb             = ialb
     Model%iems             = iems
     Model%iaer             = iaer
@@ -3332,6 +3336,7 @@ end subroutine overrides_create
       print *, ' iflip             : ', Model%iflip
       print *, ' isol              : ', Model%isol
       print *, ' ico2              : ', Model%ico2
+      print *, ' fco2_scaling      : ', Model%fco2_scaling
       print *, ' ialb              : ', Model%ialb
       print *, ' iems              : ', Model%iems
       print *, ' iaer              : ', Model%iaer

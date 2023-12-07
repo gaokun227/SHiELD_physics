@@ -549,7 +549,7 @@
      &          '  May 01 2007'
         print *, VTAGRAD                !print out version tag
         print *,' - Selected Control Flag settings: ICTMflg=',ictmflg,  &
-     &    ' ISOLar =',isolar, ' ICO2flg=',ico2flg,' IAERflg=',iaerflg,  &
+     &    ' ISOLar =',isolar, ' ICO2flg=',ico2flg,' CO2_scaling=',co2_scaling, ' IAERflg=',iaerflg,  &
      &    ' IALBflg=',ialbflg,' IEMSflg=',iemsflg,' ICLDflg=',icldflg,  &
      &    ' ICMPHYS=',icmphys,' IOZNflg=',ioznflg
         print *,' IVFLIP=',ivflip,' IOVRSW=',iovrsw,' IOVRLW=',iovrlw,  &

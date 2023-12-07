@@ -514,6 +514,7 @@ module GFS_typedefs
     integer              :: iflip           !< iflip - is not the same as flipv
     integer              :: isol            !< use prescribed solar constant
     integer              :: ico2            !< prescribed global mean value (old opernl)
+    real(kind=kind_phys) :: fco2_scaling    !< scaling of CO2 level
     integer              :: ialb            !< use climatology alb, based on sfc type
                                             !< 1 => use modis based alb
     integer              :: iems            !< use fixed value of 1.0
@@ -863,6 +864,7 @@ module GFS_typedefs
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
     logical              :: lprnt           !< control flag for diagnostic print out
+    logical              :: landseaprt      !< in fprint partition into land/ocean/seaice
     logical              :: lsswr           !< logical flags for sw radiation calls
     logical              :: lslwr           !< logical flags for lw radiation calls
     real(kind=kind_phys) :: solhr           !< hour time after 00z at the t-step
@@ -891,6 +893,7 @@ module GFS_typedefs
     character(len=32)    :: iau_forcing_var(20)  ! list of tracers with IAU forcing
     real(kind=kind_phys) :: iaufhrs(7)      ! forecast hours associated with increment files
     logical :: iau_filter_increments, iau_drymassfixer
+    logical :: override_surface_radiative_fluxes  ! Whether to use Overrides to override the surface radiative fluxes
 
     contains
       procedure :: init  => control_initialize
@@ -1202,6 +1205,11 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: gflux  (:)    => null()   !< groud conductive heat flux
     real (kind=kind_phys), pointer :: dlwsfc (:)    => null()   !< time accumulated sfc dn lw flux ( w/m**2 )
     real (kind=kind_phys), pointer :: ulwsfc (:)    => null()   !< time accumulated sfc up lw flux ( w/m**2 )
+    real (kind=kind_phys), pointer :: dswsfc (:)    => null()   !< time accumulated sfc dn sw flux ( w/m**2 )
+    real (kind=kind_phys), pointer :: uswsfc (:)    => null()   !< time accumulated sfc up sw flux ( w/m**2 )
+    real (kind=kind_phys), pointer :: dlwsfc_override (:) => null()   !< time accumulated sfc dn lw flux ( w/m**2 ) when gfs_physics_nml.override_surface_radiative_fluxes == .true.
+    real (kind=kind_phys), pointer :: dswsfc_override (:) => null()   !< time accumulated sfc dn sw flux ( w/m**2 ) when gfs_physics_nml.override_surface_radiative_fluxes == .true.
+    real (kind=kind_phys), pointer :: uswsfc_override (:) => null()   !< time accumulated sfc up sw flux ( w/m**2 ) when gfs_physics_nml.override_surface_radiative_fluxes == .true.
     real (kind=kind_phys), pointer :: suntim (:)    => null()   !< sunshine duration time (s)
     real (kind=kind_phys), pointer :: runoff (:)    => null()   !< total water runoff
     real (kind=kind_phys), pointer :: ep     (:)    => null()   !< potential evaporation
@@ -1251,6 +1259,9 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: ulwsfci(:)    => null()   !< instantaneous sfc upwd lw flux ( w/m**2 )
     real (kind=kind_phys), pointer :: dswsfci(:)    => null()   !< instantaneous sfc dnwd sw flux ( w/m**2 )
     real (kind=kind_phys), pointer :: uswsfci(:)    => null()   !< instantaneous sfc upwd sw flux ( w/m**2 )
+    real (kind=kind_phys), pointer :: dlwsfci_override(:) => null()   !< instantaneous sfc dnwd lw flux ( w/m**2 ) when gfs_physics_nml.override_surface_radiative_fluxes == .true.
+    real (kind=kind_phys), pointer :: dswsfci_override(:) => null()   !< instantaneous sfc dnwd sw flux ( w/m**2 ) when gfs_physics_nml.override_surface_radiative_fluxes == .true.
+    real (kind=kind_phys), pointer :: uswsfci_override(:) => null()   !< instantaneous sfc upwd sw flux ( w/m**2 ) when gfs_physics_nml.override_surface_radiative_fluxes == .true.
     real (kind=kind_phys), pointer :: dusfci (:)    => null()   !< instantaneous u component of surface stress
     real (kind=kind_phys), pointer :: dvsfci (:)    => null()   !< instantaneous v component of surface stress
     real (kind=kind_phys), pointer :: dtsfci (:)    => null()   !< instantaneous sfc sensible heat flux
@@ -1323,6 +1334,31 @@ module GFS_typedefs
       procedure :: phys_zero => diag_phys_zero
   end type GFS_diag_type
 
+!----------------------------------------------------------------
+! GFS_overrides_type
+!  Container with variables used for overriding fields in the
+!  GFS_physics_driver.
+!
+!  Currently the only supported variables for overriding are the downward
+!  longwave, downward shortwave, and net shortwave radiative fluxes at the
+!  surface seen by the ocean and/or land surface model.  Memory will only be
+!  allocated for these variables, and they will only be used for overriding if
+!  gfs_physics_nml.override_surface_radiative_fluxes is set to .true..
+!
+!  Note that from the perspective of the fortran code, these variables will
+!  appear to never be populated with anything other than zeros.  This is because
+!  they are expected to be populated within a Python-wrapped version of the
+!  model, which has the ability to set the state of the running fortran model
+!  within each timestep.
+!----------------------------------------------------------------
+  type GFS_overrides_type
+    real (kind=kind_phys), pointer :: adjsfcdlw_override(:) => null()  !< override to the downward longwave radiation flux at the surface
+    real (kind=kind_phys), pointer :: adjsfcdsw_override(:) => null()  !< override to the downward shortwave radiation flux at the surface
+    real (kind=kind_phys), pointer :: adjsfcnsw_override(:) => null()  !< override to the net shortwave radiation flux at the surface
+    contains
+      procedure :: create  => overrides_create  !<   allocate array data
+  end type GFS_overrides_type
+
 !----------------
 ! PUBLIC ENTITIES
 !----------------
@@ -1334,7 +1370,7 @@ module GFS_typedefs
 #if defined (USE_COSP) || defined (COSP_OFFLINE)
   public cosp_type
 #endif
-
+  logical, public :: landseaprt     = .true.
 !*******************************************************************************************
   CONTAINS
 
@@ -2000,6 +2036,23 @@ module GFS_typedefs
 
   end subroutine coupling_create
 
+subroutine overrides_create(Overrides, IM, Model)
+  implicit none
+
+  class(GFS_overrides_type) :: Overrides
+  integer,                 intent(in) :: IM
+  type(GFS_control_type),  intent(in) :: Model
+
+  if (Model%override_surface_radiative_fluxes) then
+    allocate(Overrides%adjsfcdlw_override(IM))
+    allocate(Overrides%adjsfcdsw_override(IM))
+    allocate(Overrides%adjsfcnsw_override(IM))
+    Overrides%adjsfcdlw_override = clear_val
+    Overrides%adjsfcdsw_override = clear_val
+    Overrides%adjsfcnsw_override = clear_val
+  endif
+
+end subroutine overrides_create
 
 !----------------------
 ! GFS_control_type%init
@@ -2089,6 +2142,7 @@ module GFS_typedefs
     integer              :: iflip          =  1              !< iflip - is not the same as flipv
     integer              :: isol           =  0              !< use prescribed solar constant
     integer              :: ico2           =  0              !< prescribed global mean value (old opernl)
+    real(kind=kind_phys) :: fco2_scaling   = 1.              !< scaling of CO2 level
     integer              :: ialb           =  0              !< use climatology alb, based on sfc type
                                                              !< 1 => use modis based alb
     integer              :: iems           =  0              !< use fixed value of 1.0
@@ -2391,6 +2445,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug          = .false.
     logical              :: lprnt          = .false.
+    !logical              :: landseaprt     = .true. !moved to being a public module variable, for convenience
     logical              :: pre_rad        = .false.         !< flag for testing purpose
     logical              :: do_ocean       = .false.         !< flag for slab ocean model 
     logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T. 
@@ -2400,6 +2455,7 @@ module GFS_typedefs
     character(len=20) :: fscav_aero(20) = 'default'
 
     real(kind=kind_phys) :: sst_perturbation = 0.0     !< perturbation to add to the reference sea surface temperature
+    logical :: override_surface_radiative_fluxes = .false.
 
     !--- END NAMELIST VARIABLES
 
@@ -2414,6 +2470,7 @@ module GFS_typedefs
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
+                               fco2_scaling,                                                &
                           !--- microphysical parameterizations
                                ncld, do_sat_adj, zhao_mic, psautco, prautco,                &
                                evpco, wminco, fprcp, mg_dcs, mg_qcvar,                      &
@@ -2465,10 +2522,12 @@ module GFS_typedefs
                                iau_delthrs,iaufhrs,iau_inc_files,iau_forcing_var,           &
                                iau_filter_increments,iau_drymassfixer,                      &
                           !--- debug options
-                               debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst, lprnt, &
+                               debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst,      &
+                               lprnt, landseaprt, &
                           !--- aerosol scavenging factors ('name:value' string array)
                                fscav_aero, &
-                               sst_perturbation
+                               sst_perturbation,                                            &
+                               override_surface_radiative_fluxes
 
     !--- other parameters
     integer :: nctp    =  0                !< number of cloud types in CS scheme
@@ -2573,6 +2632,7 @@ module GFS_typedefs
     Model%iflip            = iflip
     Model%isol             = isol
     Model%ico2             = ico2
+    Model%fco2_scaling     = fco2_scaling
     Model%ialb             = ialb
     Model%iems             = iems
     Model%iaer             = iaer
@@ -2819,6 +2879,12 @@ module GFS_typedefs
     Model%iau_drymassfixer = iau_drymassfixer
     if(Model%me==0) print *,' model init,iaufhrs=',Model%iaufhrs
 
+    !--- whether to enable overriding the surface radiative fluxes used by the
+    ! ocean, sea-ice, and land surface models in the physics driver with those
+    ! prescribed via the physics Overrides type.
+    Model%override_surface_radiative_fluxes = override_surface_radiative_fluxes
+
+
     !--- tracer handling
     Model%ntrac            = size(tracer_names)
     allocate (Model%tracer_names(Model%ntrac))
@@ -2913,6 +2979,7 @@ module GFS_typedefs
     Model%use_ifs_ini_sst  = use_ifs_ini_sst
     Model%use_ext_sst      = use_ext_sst
     Model%lprnt            = lprnt
+    Model%landseaprt       = landseaprt
 
     !--- set initial values for time varying properties
     Model%ipt              = 1
@@ -3223,6 +3290,7 @@ module GFS_typedefs
       print *, ' sfcpress_id       : ', Model%sfcpress_id
       print *, ' gen_coord_hybrid  : ', Model%gen_coord_hybrid
       print *, ' sfc_override      : ', Model%sfc_override
+      print *, ' override_surface_radiative_fluxes: ', Model%override_surface_radiative_fluxes
       print *, ' '
       print *, 'grid extent parameters'
       print *, ' isc               : ', Model%isc
@@ -3268,6 +3336,7 @@ module GFS_typedefs
       print *, ' iflip             : ', Model%iflip
       print *, ' isol              : ', Model%isol
       print *, ' ico2              : ', Model%ico2
+      print *, ' fco2_scaling      : ', Model%fco2_scaling
       print *, ' ialb              : ', Model%ialb
       print *, ' iems              : ', Model%iems
       print *, ' iaer              : ', Model%iaer
@@ -3532,6 +3601,7 @@ module GFS_typedefs
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt
       print *, ' lprnt             : ', Model%lprnt
+      print *, ' landseaprt        : ', Model%landseaprt
       print *, ' lsswr             : ', Model%lsswr
       print *, ' lslwr             : ', Model%lslwr
       print *, ' solhr             : ', Model%solhr
@@ -3767,6 +3837,7 @@ module GFS_typedefs
     allocate (Diag%totprcpb(IM))
     allocate (Diag%gflux   (IM))
     allocate (Diag%dlwsfc  (IM))
+    allocate (Diag%dswsfc  (IM))
     allocate (Diag%netflxsfc     (IM))
     allocate (Diag%qflux_restore (IM))
     allocate (Diag%MLD     (IM))
@@ -3776,6 +3847,16 @@ module GFS_typedefs
        allocate (Diag%el_myj (IM, Model%levs))
     endif
     allocate (Diag%ulwsfc  (IM))
+    allocate (Diag%uswsfc  (IM))
+    if (Model%override_surface_radiative_fluxes) then
+      allocate (Diag%dlwsfc_override(IM))
+      allocate (Diag%dswsfc_override(IM))
+      allocate (Diag%uswsfc_override(IM))
+
+      allocate (Diag%dlwsfci_override(IM))
+      allocate (Diag%dswsfci_override(IM))
+      allocate (Diag%uswsfci_override(IM))
+    endif
     allocate (Diag%suntim  (IM))
     allocate (Diag%runoff  (IM))
     allocate (Diag%ep      (IM))
@@ -4044,11 +4125,13 @@ module GFS_typedefs
     Diag%dqsfc   = zero
     Diag%gflux   = zero
     Diag%dlwsfc  = zero
+    Diag%dswsfc  = zero
     Diag%netflxsfc     = zero
     Diag%qflux_restore = zero
     Diag%MLD     = zero
     Diag%tclim_iano    = zero
     Diag%ulwsfc  = zero
+    Diag%uswsfc  = zero
     Diag%suntim  = zero
     Diag%runoff  = zero
     Diag%ep      = zero
@@ -4090,6 +4173,15 @@ module GFS_typedefs
     Diag%ulwsfci = zero
     Diag%dswsfci = zero
     Diag%uswsfci = zero
+    if (Model%override_surface_radiative_fluxes) then
+      Diag%dlwsfc_override  = zero
+      Diag%dswsfc_override  = zero
+      Diag%uswsfc_override  = zero
+
+      Diag%dlwsfci_override = zero
+      Diag%dswsfci_override = zero
+      Diag%uswsfci_override = zero
+    endif
     Diag%dusfci  = zero
     Diag%dvsfci  = zero
     Diag%dtsfci  = zero

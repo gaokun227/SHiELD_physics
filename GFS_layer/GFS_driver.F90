@@ -6,7 +6,8 @@ module GFS_driver
                                       GFS_sfcprop_type, GFS_coupling_type, &
                                       GFS_control_type, GFS_grid_type,     &
                                       GFS_tbd_type,     GFS_cldprop_type,  &
-                                      GFS_radtend_type, GFS_diag_type
+                                      GFS_radtend_type, GFS_diag_type,     &
+                                      GFS_overrides_type
   use module_radiation_driver,  only: GFS_radiation_driver, radupdate
   use module_physics_driver,    only: GFS_physics_driver
   use module_radsw_parameters,  only: topfsw_type, sfcfsw_type
@@ -106,7 +107,7 @@ module GFS_driver
 !--------------
   subroutine GFS_initialize (Model, Statein, Stateout, Sfcprop,    &
                              Coupling, Grid, Tbd, Cldprop, Radtend, &
-                             Diag, Init_parm)
+                             Diag, Overrides, Init_parm)
 
     use module_microphysics, only: gsmconst
     use cldwat2m_micro,      only: ini_micro
@@ -125,6 +126,7 @@ module GFS_driver
     type(GFS_cldprop_type),   intent(inout) :: Cldprop(:)
     type(GFS_radtend_type),   intent(inout) :: Radtend(:)
     type(GFS_diag_type),      intent(inout) :: Diag(:)
+    type(GFS_overrides_type), intent(inout) :: Overrides(:)
     type(GFS_init_type),      intent(in)    :: Init_parm
 
     !--- local variables
@@ -173,6 +175,7 @@ module GFS_driver
       call Radtend  (nb)%create (Init_parm%blksz(nb), Model)
       !--- internal representation of diagnostics
       call Diag     (nb)%create (Init_parm%blksz(nb), Model)
+      call Overrides(nb)%create (Init_parm%blksz(nb), Model)
     enddo
 
     !--- populate the grid components
@@ -206,7 +209,7 @@ module GFS_driver
     si = (Init_parm%ak + Init_parm%bk * p_ref - Init_parm%ak(Model%levr+1)) &
              / (p_ref - Init_parm%ak(Model%levr+1))
     call rad_initialize (si, Model%levr, Model%ictm, Model%isol, &
-           Model%ico2, Model%iaer, Model%ialb, Model%iems,       &
+           Model%ico2, Model%fco2_scaling , Model%iaer, Model%ialb, Model%iems,       &
            Model%ntcw, Model%num_p2d,  Model%num_p3d,            &
            Model%npdf3d, Model%ntoz,                             &
            Model%iovr_sw, Model%iovr_lw, Model%isubc_sw,         &

@@ -501,7 +501,7 @@ module module_physics_driver
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
           ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en, wu2_shal,  & 
-          eta_shal,                                                     &
+          eta_shal, elm_pbl,                                            &
           sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps
 
       !--- GFDL modification for FV3 
@@ -1639,7 +1639,9 @@ module module_physics_driver
                        Model%zolcru, Model%cs0, Model%ck0, Model%ck1,               & 
                        Model%ce0, Model%do_dk_hb19,                                 &
                        Model%xkgdx,  Model%dspfac, Model%bl_upfr, Model%bl_dnfr,    & 
-                       dkt, flux_cg, flux_en) !cg as up and en as down
+                       Model%l2_diag_opt, Model%use_lup_only, Model%l1l2_blend_opt, &
+                       Model%use_l1_sfc, Model%use_tke_pbl, Model%use_shear_pbl,    &
+                       dkt, flux_cg, flux_en, elm_pbl) !cg as up and en as down
         endif
 
         elseif (Model%ysupbl) then
@@ -1839,6 +1841,7 @@ module module_physics_driver
          do i=1,im
             Diag%flux_cg(i,k) = flux_cg(i,k)
             Diag%flux_en(i,k) = flux_en(i,k)
+            Diag%elm_pbl(i,k) = elm_pbl(i,k)
          enddo
          enddo
 
@@ -2432,7 +2435,8 @@ module module_physics_driver
                              Model%c1_deep,  Model%betaw_deep,                     &
                              Model%betal_deep, Model%betas_deep,   &
                              Model%evfact_deep, Model%evfactl_deep,                &
-                             Model%pgcon_deep,  Model%asolfac_deep)
+                             Model%pgcon_deep,  Model%asolfac_deep,                &
+                             Model%use_tke_conv, Model%use_shear_conv)
 
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
@@ -2923,8 +2927,8 @@ module module_physics_driver
                               dt_mf, cnvw, cnvc,                                   &
                               Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
                               Model%betaw_shal,                                    &
-                              Model%pgcon_shal, Model%asolfac_shal)
-
+                              Model%pgcon_shal, Model%asolfac_shal,                &
+                              Model%use_tke_conv, Model%use_shear_conv)
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)

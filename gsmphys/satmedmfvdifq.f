@@ -1067,7 +1067,7 @@
           rlam(i,k) = max(rlam(i,k), tem1)
           rlam(i,k) = min(rlam(i,k), rlmx)
 !
-          ptem2 = sqrt(zlup*zldn)
+          ptem2 = sqrt(zlup*zldn) ! kgao: how about this one?
 
           ele(i,k) = elefac * ptem2
           ele(i,k) = max(ele(i,k), tem1)
@@ -1089,6 +1089,10 @@
             ptem = 1. + 2.7 * zol(i)
             zk = tem / ptem
           endif 
+
+          ! kgao tmp: diagnosis only
+          flux_up(i,k) = zk
+          flux_dn(i,k) = rlam(i,k)
 
           ! kgao 12/08/2023: introduce multiple l1 and l2 blending options
           if (l1l2_blend_opt == 0) then
@@ -1514,8 +1518,8 @@ c
              ptem      = tcko(i,k) + tcko(i,k+1)
              f1(i,k)   = f1(i,k)+dtodsd*dsdzt -(ptem-tem)*ptem1
              f1(i,k+1) = t1(i,k+1)-dtodsu*dsdzt +(ptem-tem)*ptem2
-             ! kgao - updraft mass flux
-             flux_up(i,k) = xmf(i,k) !0.5*(ptem-tem)*xmf(i,k)
+             ! kgao - t flux by updraft
+             !flux_up(i,k) = xmf(i,k) !0.5*(ptem-tem)*xmf(i,k)
 
              tem       = q1(i,k,1) + q1(i,k+1,1)
              ptem      = qcko(i,k,1) + qcko(i,k+1,1)
@@ -1536,8 +1540,8 @@ c
               tem       = t1(i,k) + t1(i,k+1)
               f1(i,k)   = f1(i,k) + (ptem - tem) * ptem1
               f1(i,k+1) = f1(i,k+1) - (ptem - tem) * ptem2
-              ! kgao - downdraft mass flux
-              flux_dn(i,k) = xmfd(i,k) !-0.5*(ptem-tem)*xmfd(i,k)
+              ! kgao - t flux by downdraft
+              !flux_dn(i,k) = xmfd(i,k) !-0.5*(ptem-tem)*xmfd(i,k)
 
               tem       = q1(i,k,1) + q1(i,k+1,1)
               ptem      = qcdo(i,k,1) + qcdo(i,k+1,1)

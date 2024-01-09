@@ -69,7 +69,8 @@
      &     prslp,psp,phil,qtr,q1,t1,u1,v1,fscav,
      &     rn,kbot,ktop,kcnv,islimsk,garea,
      &     dot,ncloud,hpbl,ud_mf,dt_mf,cnvw,cnvc,
-     &     clam,c0s,c1,pgcon,asolfac)
+     &     clam,c0s,c1,pgcon,asolfac,
+     &     use_tke_conv,use_shear_conv)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -98,6 +99,7 @@
      &                     asolfac, pgcon
 !
 !  local variables
+      logical              use_tke_conv, use_shear_conv
       integer              i,j,indx, k, kk, km1, n
       integer              kpbl(im)
 !
@@ -152,7 +154,7 @@ c
 !
 !  parameters for updraft velocity calculation
       real(kind=kind_phys) bet1,    cd1,     f1,      gam1,
-     &                     bb1,     bb2
+     &                     bb1,     bb2,     tkcrt,   cmxfac, csmf
 !    &                     bb1,     bb2,     wucb
 cc
 c  physical parameters
@@ -185,6 +187,9 @@ c  physical parameters
       parameter(bet1=1.875,cd1=.506,f1=2.0,gam1=.5)
       parameter(betaw=.03,dxcrt=15.e3)
       parameter(h1=0.33333333)
+      parameter(bb1=4.0,bb2=0.8,csmf=0.2)
+      parameter(tkcrt=2.,cmxfac=15.)
+
 c  local variables and arrays
       real(kind=kind_phys) pfld(im,km),    to(im,km),     qo(im,km),
      &                     uo(im,km),      vo(im,km),     qeso(im,km),
@@ -192,7 +197,8 @@ c  local variables and arrays
 !  for aerosol transport
       real(kind=kind_phys) qaero(im,km,ntc)
 !  for updraft velocity calculation
-      real(kind=kind_phys) wu2(im,km),     buo(im,km),    drag(im,km)
+      real(kind=kind_phys) wu2(im,km),     buo(im,km),    drag(im,km),
+     &                     wush(im,km)
       real(kind=kind_phys) wc(im),         scaldfunc(im), sigmagfm(im)
 !
 c  cloud water
@@ -646,6 +652,19 @@ c
              endif
           endif
         enddo
+
+! kgao 12/18/2023 - adjust entrainment rate based on tke
+        if (use_tke_conv) then
+        do i=1,im
+          if(cnvflg(i)) then
+            if(tkemean(i) > tkcrt) then
+              tem = 1. + tkemean(i)/tkcrt
+              tem1 = min(tem, cmxfac)
+              clamt(i) = tem1 * clam
+            endif
+          endif
+        enddo
+        endif
 !
       else
 !
@@ -998,6 +1017,11 @@ c
                 buo(i,k) = buo(i,k) + g * delta *
      &                     max(val,(qeso(i,k) - qo(i,k)))
                 drag(i,k) = max(xlamue(i,k),xlamud(i))
+
+                ! kgao 12/18/2023 
+                tem = ((uo(i,k)-uo(i,k-1))/dz)**2
+                tem = tem+((vo(i,k)-vo(i,k-1))/dz)**2
+                wush(i,k) = csmf * sqrt(tem)
               endif
 !
             endif
@@ -1165,8 +1189,8 @@ c
 !     bb1 = 2.0
 !     bb2 = 4.0
 !
-      bb1 = 4.0
-      bb2 = 0.8
+!      bb1 = 4.0
+!      bb2 = 0.8
 !
 !     do i = 1, im
 !       if (cnvflg(i)) then
@@ -1187,9 +1211,18 @@ c
               dz    = zi(i,k) - zi(i,k-1)
               tem  = 0.25 * bb1 * (drag(i,k)+drag(i,k-1)) * dz
               tem1 = 0.5 * bb2 * (buo(i,k)+buo(i,k-1)) * dz
-              ptem = (1. - tem) * wu2(i,k-1)
-              ptem1 = 1. + tem
-              wu2(i,k) = (ptem + tem1) / ptem1
+              ! kgao 12/18/2023 - considers shear effect on updraft
+              if (use_shear_conv) then
+                tem2 = wush(i,k) * sqrt(wu2(i,k-1))
+                tem2 = (tem1 - tem2) * dz
+                ptem = (1. - tem) * wu2(i,k-1)
+                ptem1 = 1. + tem
+                wu2(i,k) = (ptem + tem2) / ptem1
+              else
+                ptem = (1. - tem) * wu2(i,k-1)
+                ptem1 = 1. + tem
+                wu2(i,k) = (ptem + tem1) / ptem1
+              endif
               wu2(i,k) = max(wu2(i,k), 0.)
             endif
           endif

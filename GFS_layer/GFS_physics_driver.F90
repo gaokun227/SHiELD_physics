@@ -1692,7 +1692,9 @@ module module_physics_driver
                        Model%xkzm_s, Model%xkzminv, Model%rlmx, Model%zolcru,       &
                        Model%cs0, Model%do_dk_hb19, Model%xkgdx,                    &
                        Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt,             &
-                       flux_cg, flux_en) !cg as up and en as down
+                       Model%l2_diag_opt, Model%use_lup_only, Model%l1l2_blend_opt, &
+                       Model%use_l1_sfc, Model%use_tke_pbl, Model%use_shear_pbl,    &
+                       flux_cg, flux_en, elm_pbl) !cg as up and en as down
         endif
 
         elseif (Model%ysupbl) then
@@ -1892,6 +1894,7 @@ module module_physics_driver
          do i=1,im
             Diag%flux_cg(i,k) = flux_cg(i,k)
             Diag%flux_en(i,k) = flux_en(i,k)
+            Diag%elm_pbl(i,k) = elm_pbl(i,k)
          enddo
          enddo
 
@@ -2485,7 +2488,8 @@ module module_physics_driver
                              Model%clam_deep,   Model%c0s_deep,                    &
                              Model%c1_deep,  Model%betal_deep, Model%betas_deep,   &
                              Model%evfact_deep, Model%evfactl_deep,                &
-                             Model%pgcon_deep,  Model%asolfac_deep, Model%dxcrtas)
+                             Model%pgcon_deep,  Model%asolfac_deep, Model%dxcrtas, &
+                             Model%use_tke_conv, Model%use_shear_conv)
 
           elseif (Model%imfdeepcnv == 0) then         ! random cloud top
             call sascnv (im, ix, levs, Model%jcap, dtp, del,              &
@@ -2976,7 +2980,8 @@ module module_physics_driver
                               Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
                               dt_mf, cnvw, cnvc,                                   &
                               Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
-                              Model%pgcon_shal, Model%asolfac_shal)
+                              Model%pgcon_shal, Model%asolfac_shal,                &
+                              Model%use_tke_conv, Model%use_shear_conv)
 
             elseif (Model%imfshalcnv == 5) then ! a modified version of samfshalcnv by KGao
                call samfshalcnv_gfdl (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &

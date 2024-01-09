@@ -1,9 +1,7 @@
       subroutine mfscuq(im,ix,km,kmscu,ntcw,ntrac1,delt,
      &   cnvflg,zl,zm,q1,t1,u1,v1,plyr,pix,
      &   thlx,thvx,thlvx,gdx,thetae,
-     &   krad,mrad,radmin,buo,
-     &   use_shear,wush,
-     &   use_tke_ent_det,tkemean,vez0fun,xmfd,
+     &   krad,mrad,radmin,buo,xmfd,
      &   tcdo,qcdo,ucdo,vcdo,xlamde,a1)
 !
       use machine , only : kind_phys
@@ -24,17 +22,15 @@
       real(kind=kind_phys) q1(ix,km,ntrac1),t1(ix,km),
      &                     u1(ix,km),      v1(ix,km),
      &                     plyr(im,km),    pix(im,km),
-     &                     thlx(im,km),    wush(im,km),
+     &                     thlx(im,km),
      &                     thvx(im,km),    thlvx(im,km),
      &                     gdx(im),
      &                     zl(im,km),      zm(im,km),
      &                     thetae(im,km),  radmin(im),
-     &                     tkemean(im), vez0fun(im),
      &                     buo(im,km), xmfd(im,km),
      &                     tcdo(im,km), qcdo(im,km,ntrac1),
      &                     ucdo(im,km), vcdo(im,km),
      &                     xlamde(im,km-1)
-      logical use_tke_ent_det, use_shear
 !
 !  local variables and arrays
 !
@@ -49,8 +45,7 @@
      &                     cteit,   pgcon,
      &                     qmin,    qlmin,
      &                     xmmx,    tem,     tem1,    tem2,
-     &                     ptem,    ptem1,   ptem2,
-     &                     tkcrt,   cmxfac
+     &                     ptem,    ptem1,   ptem2
 !
       real(kind=kind_phys) elocp,   el2orc,  qs,      es,
      &                     tld,     gamma,   qld,     thdn,
@@ -60,7 +55,7 @@
      &                     qtx(im,km), qtd(im,km),
      &                     thlvd(im),  hrad(im),
      &                     xlamdem(im,km-1), ra1(im)
-      real(kind=kind_phys) delz(im), xlamax(im), ce0t(im)
+      real(kind=kind_phys) delz(im), xlamax(im)
 !
       real(kind=kind_phys) xlamavg(im),   sigma(im),
      &                     scaldfunc(im), sumx(im)
@@ -74,7 +69,6 @@ c  physical parameters
       parameter(gocp=g/cp)
       parameter(elocp=hvap/cp,el2orc=hvap*hvap/(rv*cp))
       parameter(ce0=0.4,cm=1.0,pgcon=0.55)
-      parameter(tkcrt=2.,cmxfac=5.)
       parameter(qmin=1.e-8,qlmin=1.e-12)
       parameter(b1=0.45,f1=0.15)
       parameter(a2=0.5)
@@ -178,22 +172,6 @@ c  physical parameters
       if(totflg) return
 !!
 !
-! kgao 12/08/2023: compute entrainment/detrainment rate based on pbl-mean tke
-!
-!  if tkemean>tkcrt, ce0t=sqrt(tkemean/tkcrt)*ce0
-!
-      do i=1,im
-        if( use_tke_ent_det .and. cnvflg(i) ) then
-          ce0t(i) = ce0 * vez0fun(i)
-          if(tkemean(i) > tkcrt) then
-            tem = sqrt(tkemean(i)/tkcrt)
-            tem1 = min(tem, cmxfac)
-            tem2 = tem1 * ce0
-            ce0t(i) = max(ce0t(i), tem2)
-          endif
-        endif
-      enddo
-!
 !  compute entrainment rate
 !
       do i=1,im
@@ -201,12 +179,7 @@ c  physical parameters
           k = mrad(i) + (krad(i)-mrad(i)) / 2
           k = max(k, mrad(i))
           delz(i) = zl(i,k+1) - zl(i,k)
-          ! kgao 12/08/2023
-          if (use_tke_ent_det) then
-             xlamax(i) = ce0t(i) / delz(i)
-          else
-             xlamax(i) = ce0 / delz(i)
-          endif
+          xlamax(i) = ce0 / delz(i)
         endif
       enddo
 !
@@ -221,12 +194,7 @@ c  physical parameters
               endif
               tem = max((hrad(i)-zm(i,k)+delz(i)) ,delz(i))
               ptem1 = 1./tem
-              ! kgao 12/08/2023
-              if (use_tke_ent_det) then
-                 xlamde(i,k) = ce0t(i) * (ptem+ptem1)
-              else
-                 xlamde(i,k) = ce0 * (ptem+ptem1)
-              endif
+              xlamde(i,k) = ce0 * (ptem+ptem1)
             else
               xlamde(i,k) = xlamax(i)
             endif
@@ -305,20 +273,10 @@ c  physical parameters
           if(cnvflg(i) .and. k < krad1(i)) then
             dz    = zm(i,k+1) - zm(i,k)
             tem  = 0.25*bb1*(xlamde(i,k)+xlamde(i,k+1))*dz
-            ! kgao 12/15/2023 - consider shear effect on wd diagnosis
-            if (use_shear) then
-              tem1 = max(wd2(i,k+1), 0.)
-              tem1 = bb2*buo(i,k+1) - wush(i,k+1)*sqrt(tem1)
-              tem2 = tem1 * dz
-              ptem = (1. - tem) * wd2(i,k+1)
-              ptem1 = 1. + tem
-              wd2(i,k) = (ptem + tem2) / ptem1
-            else
-              tem1 = bb2 * buo(i,k+1) * dz
-              ptem = (1. - tem) * wd2(i,k+1)
-              ptem1 = 1. + tem
-              wd2(i,k) = (ptem + tem1) / ptem1
-            endif
+            tem1 = bb2 * buo(i,k+1) * dz
+            ptem = (1. - tem) * wd2(i,k+1)
+            ptem1 = 1. + tem
+            wd2(i,k) = (ptem + tem1) / ptem1
           endif
         enddo
       enddo
@@ -360,12 +318,7 @@ c
           k = mrad(i) + (krad(i)-mrad(i)) / 2
           k = max(k, mrad(i))
           delz(i) = zl(i,k+1) - zl(i,k)
-          ! kgao 12/08/2023
-          if (use_tke_ent_det) then
-            xlamax(i) = ce0t(i) / delz(i)
-          else
-            xlamax(i) = ce0 / delz(i)
-          endif
+          xlamax(i) = ce0 / delz(i)
         endif
       enddo
 !
@@ -380,12 +333,7 @@ c
               endif
               tem = max((hrad(i)-zm(i,k)+delz(i)) ,delz(i))
               ptem1 = 1./tem
-              ! kgao 12/08/2023
-              if (use_tke_ent_det) then
-                xlamde(i,k) = ce0t(i) * (ptem+ptem1)
-              else
-                xlamde(i,k) = ce0 * (ptem+ptem1)
-              endif
+              xlamde(i,k) = ce0 * (ptem+ptem1)
             else
               xlamde(i,k) = xlamax(i)
             endif

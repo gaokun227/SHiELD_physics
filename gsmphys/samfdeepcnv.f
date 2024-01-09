@@ -86,8 +86,7 @@
      &     QLCN, QICN, w_upi, cf_upi, CNV_MFD,
 !    &     QLCN, QICN, w_upi, cf_upi, CNV_MFD, CNV_PRC3,
      &     CNV_DQLDT,CLCN,CNV_FICE,CNV_NDROP,CNV_NICE,mp_phys,
-     &     clam,c0s,c1,betaw,betal,betas,evfact,evfactl,pgcon,asolfac,
-     &     use_tke_conv,use_shear_conv)
+     &     clam,c0s,c1,betaw,betal,betas,evfact,evfactl,pgcon,asolfac)
 !
       use machine , only : kind_phys
       use funcphys , only : fpvs
@@ -119,8 +118,6 @@
      &                     evfact,  evfactl, pgcon
 !
 !------local variables
-
-      logical              use_tke_conv, use_shear_conv
       integer              i, indx, jmn, k, kk, km1, n
 !     integer              latd,lond
 !
@@ -181,9 +178,7 @@
      &                     xmb(im),     xmbmax(im), xpwav(im),
 !    &                     xpwev(im),   xlamx(im),  delebar(im,ntr),
      &                     xpwev(im),   delebar(im,ntr),
-     &                     delubar(im), delvbar(im),
-     &                     xlamdet(im), xlamddt(im),
-     &                     cxlamet(im), cxlamdt(im)
+     &                     delubar(im), delvbar(im)
 !
       real(kind=kind_phys) c0(im)
 cj
@@ -193,7 +188,7 @@ cj
 !
 !  parameters for updraft velocity calculation
       real(kind=kind_phys) bet1,    cd1,     f1,      gam1,
-     &                     bb1,     bb2,     csmf,    tkcrt, cmxfac
+     &                     bb1,     bb2
 !    &                     bb1,     bb2,     wucb
 !
 c  physical parameters
@@ -223,8 +218,6 @@ c  physical parameters
       parameter(cinacrmx=-120.,cinacrmn=-80.)
       parameter(bet1=1.875,cd1=.506,f1=2.0,gam1=.5)
       parameter(dxcrtas=8.e3,dxcrtuf=15.e3)
-      parameter(bb1=4.0,bb2=0.8,csmf=0.2)
-      parameter(tkcrt=2.,cmxfac=15.)
 !
 !  local variables and arrays
       real(kind=kind_phys) pfld(im,km),    to(im,km),     qo(im,km),
@@ -233,8 +226,7 @@ c  physical parameters
 !  for aerosol transport
       real(kind=kind_phys) qaero(im,km,ntc)
 !  for updraft velocity calculation
-      real(kind=kind_phys) wu2(im,km),     buo(im,km),    drag(im,km),
-     &                     wush(im,km)
+      real(kind=kind_phys) wu2(im,km),     buo(im,km),    drag(im,km)
       real(kind=kind_phys) wc(im),         scaldfunc(im), sigmagfm(im)
 !
 c  cloud water
@@ -753,27 +745,6 @@ c
              endif
           endif
         enddo
-
-        ! kgao 12/08/2023: adjust ent/det rates based on tke 
-        if (use_tke_conv) then
-        do i=1,im
-          if(cnvflg(i)) then
-            xlamdet(i) = xlamde
-            xlamddt(i) = xlamdd
-            cxlamet(i) = cxlame
-            cxlamdt(i) = cxlamd
-            if(tkemean(i) > tkcrt) then
-              tem = 1. + tkemean(i)/tkcrt
-              tem1 = min(tem, cmxfac)
-              clamt(i) = tem1 * clam
-              xlamdet(i) = tem1 * xlamdet(i)
-              xlamddt(i) = tem1 * xlamddt(i)
-              cxlamet(i) = tem1 * cxlamet(i)
-              cxlamdt(i) = tem1 * cxlamdt(i)
-            endif
-          endif
-        enddo
-        endif
 !
       else
 !
@@ -853,23 +824,6 @@ c  final entrainment and detrainment rates as the sum of turbulent part and
 c    organized one depending on the environmental relative humidity
 c    (Bechtold et al., 2008; Derbyshire et al., 2011)
 c
-      ! kgao 12/21/2023
-      if (use_tke_conv) then
-      ! new code
-      do k = 2, km1
-        do i=1,im
-          if(cnvflg(i) .and.
-     &      (k > kbcon(i) .and. k < kmax(i))) then
-               tem = cxlamet(i) * frh(i,k) * fent2(i,k)
-               xlamue(i,k) = xlamue(i,k)*fent1(i,k) + tem
-               tem1 = cxlamdt(i) * frh(i,k)
-               xlamud(i,k) = xlamud(i,k) + tem1
-          endif
-        enddo
-      enddo
-
-      else
-      ! ori code
       do k = 2, km1
         do i=1,im
           if(cnvflg(i) .and.
@@ -881,8 +835,6 @@ c
           endif
         enddo
       enddo
-
-      endif ! end of use_tke_conv
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 c
@@ -1255,12 +1207,6 @@ c
                 buo(i,k) = buo(i,k) + g * delta *
      &                     max(val,(qeso(i,k) - qo(i,k)))
                 drag(i,k) = max(xlamue(i,k),xlamud(i,k))
-
-                ! kgao 12/18/2023: considers shear effect
-                tem = ((uo(i,k)-uo(i,k-1))/dz)**2
-                tem = tem+((vo(i,k)-vo(i,k-1))/dz)**2
-                wush(i,k) = csmf * sqrt(tem)
-
               endif
 !
             endif
@@ -1435,8 +1381,8 @@ c
 !     bb1 = 2.0
 !     bb2 = 4.0
 !
-!      bb1 = 4.0
-!      bb2 = 0.8
+      bb1 = 4.0
+      bb2 = 0.8
 !
 !     do i = 1, im
 !       if (cnvflg(i)) then
@@ -1457,18 +1403,9 @@ c
               dz    = zi(i,k) - zi(i,k-1)
               tem  = 0.25 * bb1 * (drag(i,k)+drag(i,k-1)) * dz
               tem1 = 0.5 * bb2 * (buo(i,k)+buo(i,k-1)) * dz
-              ! kgao 12/18/2023
-              if (use_shear_conv) then
-                tem2 = wush(i,k) * sqrt(wu2(i,k-1))
-                tem2 = (tem1 - tem2) * dz
-                ptem = (1. - tem) * wu2(i,k-1)
-                ptem1 = 1. + tem
-                wu2(i,k) = (ptem + tem2) / ptem1
-              else
-                ptem = (1. - tem) * wu2(i,k-1)
-                ptem1 = 1. + tem
-                wu2(i,k) = (ptem + tem1) / ptem1
-              endif
+              ptem = (1. - tem) * wu2(i,k-1)
+              ptem1 = 1. + tem
+              wu2(i,k) = (ptem + tem1) / ptem1
               wu2(i,k) = max(wu2(i,k), 0.)
             endif
           endif
@@ -1640,21 +1577,11 @@ c
           if (cnvflg(i) .and. k <= kmax(i)-1) then
            if(k < jmin(i) .and. k >= kbcon(i)) then
               dz        = zi(i,k+1) - zi(i,k)
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                ptem      = xlamddt(i) - xlamdet(i)
-              else
-                ptem      = xlamdd - xlamde
-              endif
+              ptem      = xlamdd - xlamde
               etad(i,k) = etad(i,k+1) * (1. - ptem * dz)
            else if(k < kbcon(i)) then
               dz        = zi(i,k+1) - zi(i,k)
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                ptem      = xlamd(i) + xlamddt(i) - xlamdet(i)
-              else
-                ptem      = xlamd(i) + xlamdd - xlamde
-              endif
+              ptem      = xlamd(i) + xlamdd - xlamde
               etad(i,k) = etad(i,k+1) * (1. - ptem * dz)
            endif
           endif
@@ -1691,23 +1618,11 @@ cj
           if (cnvflg(i) .and. k < jmin(i)) then
               dz = zi(i,k+1) - zi(i,k)
               if(k >= kbcon(i)) then
-                 ! kgao 12/18/2023
-                 if (use_tke_conv) then
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * xlamddt(i) * dz
-                 else
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * xlamdd * dz
-                 endif
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * xlamdd * dz
               else
-                 ! kgao 12/18/2023
-                 if (use_tke_conv) then
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamddt(i)) * dz
-                 else
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
-                 endif
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
               endif
               factor = 1. + tem - tem1
               hcdo(i,k) = ((1.-tem1)*hcdo(i,k+1)+tem*0.5*
@@ -1730,12 +1645,7 @@ cj
         do i = 1, im
           if (cnvflg(i) .and. k < jmin(i)) then
               dz = zi(i,k+1) - zi(i,k)
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                tem  = 0.5 * xlamdet(i) * dz
-              else
-                tem  = 0.5 * xlamde * dz
-              endif
+              tem  = 0.5 * xlamde * dz
               factor = 1. + tem
               ecdo(i,k,n) = ((1.-tem)*ecdo(i,k+1,n)+tem*
      &                     (ctro(i,k,n)+ctro(i,k+1,n)))/factor
@@ -1754,26 +1664,13 @@ c
 !             detad      = etad(i,k+1) - etad(i,k)
 cj
               dz = zi(i,k+1) - zi(i,k)
-
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                if(k >= kbcon(i)) then
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * xlamddt(i) * dz
-                else
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamddt(i)) * dz
-                endif
+              if(k >= kbcon(i)) then
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * xlamdd * dz
               else
-                if(k >= kbcon(i)) then
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * xlamdd * dz
-                else
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
-                endif
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
               endif
-
               factor = 1. + tem - tem1
               qcdo(i,k) = ((1.-tem1)*qrcdo(i,k+1)+tem*0.5*
      &                     (qo(i,k)+qo(i,k+1)))/factor
@@ -1911,24 +1808,13 @@ c
 c
               tem  = 0.5 * (xlamue(i,k)+xlamue(i,k-1))
               tem1 = 0.5 * (xlamud(i,k)+xlamud(i,k-1))
-ci
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                if(k <= kbcon(i)) then
-                  ptem  = xlamdet(i)
-                  ptem1 = xlamd(i)+xlamddt(i)
-                else
-                  ptem  = xlamdet(i)
-                  ptem1 = xlamddt(i)
-                endif
+c
+              if(k <= kbcon(i)) then
+                ptem  = xlamde
+                ptem1 = xlamd(i)+xlamdd
               else
-                if(k <= kbcon(i)) then
-                  ptem  = xlamde
-                  ptem1 = xlamd(i)+xlamdd
-                else
-                  ptem  = xlamde
-                  ptem1 = xlamdd
-                endif
+                ptem  = xlamde
+                ptem1 = xlamdd
               endif
 cj
               dellah(i,k) = dellah(i,k) +
@@ -2231,24 +2117,12 @@ cj
         do i = 1, im
           if (asqecflg(i) .and. k < jmin(i)) then
               dz = zi(i,k+1) - zi(i,k)
-
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                if(k >= kbcon(i)) then
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * xlamddt(i) * dz
-                else
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamddt(i)) * dz
-                endif
-              else  
-                if(k >= kbcon(i)) then
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * xlamdd * dz
-                else
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
-                endif
+              if(k >= kbcon(i)) then
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * xlamdd * dz
+              else
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
               endif
               factor = 1. + tem - tem1
               hcdo(i,k) = ((1.-tem1)*hcdo(i,k+1)+tem*0.5*
@@ -2268,24 +2142,12 @@ cj
 !             detad    = etad(i,k+1) - etad(i,k)
 cj
               dz = zi(i,k+1) - zi(i,k)
-
-              ! kgao 12/18/2023
-              if (use_tke_conv) then
-                if(k >= kbcon(i)) then
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * xlamddt(i) * dz
-                else
-                   tem  = xlamdet(i) * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamddt(i)) * dz
-                endif
+              if(k >= kbcon(i)) then
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * xlamdd * dz
               else
-                if(k >= kbcon(i)) then
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * xlamdd * dz
-                else
-                   tem  = xlamde * dz
-                   tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
-                endif
+                 tem  = xlamde * dz
+                 tem1 = 0.5 * (xlamd(i)+xlamdd) * dz
               endif
               factor = 1. + tem - tem1
               qcdo(i,k) = ((1.-tem1)*qrcd(i,k+1)+tem*0.5*

@@ -113,7 +113,7 @@ module FV3GFS_io_mod
   type data_subtype
     real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
     real(kind=kind_phys), dimension(:,:), pointer :: var3 => NULL()
-    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL()
+    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL() !used to specify a mask
   end type data_subtype
   !--- data type definition for use with GFDL FMS diagnostic manager until write component is working
   type gfdl_diag_type
@@ -7451,7 +7451,7 @@ module FV3GFS_io_mod
        if ((Diag(idx)%id > 0) .or. (diag_coarse(idx)%id > 0)) then
          lcnvfac = Diag(idx)%cnvfac
          if (Diag(idx)%time_avg) then
-           if ( trim(Diag(idx)%time_avg_kind) == 'full' ) then
+           if ( trim(Diag(idx)%time_avg_kind) == 'full' ) then !accumulated over the entire simulation from initialization
              lcnvfac = lcnvfac*rtime_intfull
            else if ( trim(Diag(idx)%time_avg_kind) == 'rad_lw' ) then
              lcnvfac = lcnvfac*min(rtime_radlw,rtime_int)

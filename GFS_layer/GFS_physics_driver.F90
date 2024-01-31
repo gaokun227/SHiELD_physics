@@ -501,7 +501,7 @@ module module_physics_driver
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),Model%levs) ::  &
           del, rhc, dtdt, dudt, dvdt, gwdcu, gwdcv, dtdtc, rainp,       &
-          ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en,            &
+          ud_mf, dd_mf, dt_mf, prnum, dkt, flux_cg, flux_en, elm_pbl,   &
           prefluxw, prefluxr, prefluxi, prefluxs, prefluxg,             &
           sigmatot, sigmafrac, specific_heat, final_dynamics_delp, dtdt_gwdps, &
           wu2_shal,  eta_shal 
@@ -1691,10 +1691,10 @@ module module_physics_driver
                        Model%xkzm_ml, Model%xkzm_hl, Model%xkzm_mi, Model%xkzm_hi,  &
                        Model%xkzm_s, Model%xkzminv, Model%rlmx, Model%zolcru,       &
                        Model%cs0, Model%do_dk_hb19, Model%xkgdx,                    &
-                       Model%dspfac, Model%bl_upfr, Model%bl_dnfr, dkt,             &
+                       Model%dspfac, Model%bl_upfr, Model%bl_dnfr,                  &
                        Model%l2_diag_opt, Model%use_lup_only, Model%l1l2_blend_opt, &
                        Model%use_l1_sfc, Model%use_tke_pbl, Model%use_shear_pbl,    &
-                       flux_cg, flux_en, elm_pbl) !cg as up and en as down
+                       dkt, flux_cg, flux_en, elm_pbl) !cg as up and en as down
         endif
 
         elseif (Model%ysupbl) then

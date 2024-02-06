@@ -82,7 +82,7 @@ module FV3GFS_io_mod
   public  register_coarse_diag_manager_controlled_diagnostics
   public  send_diag_manager_controlled_diagnostic_data
   public  sfc_data_override
-  public  Diag
+  public  gfdl_diag_type, Diag, Diag_diag_manager_controlled
 
   !--- GFDL filenames
   character(len=32)  :: fn_oro = 'oro_data.nc'
@@ -119,7 +119,7 @@ module FV3GFS_io_mod
   type data_subtype
     real(kind=kind_phys), dimension(:),   pointer :: var2 => NULL()
     real(kind=kind_phys), dimension(:,:), pointer :: var3 => NULL()
-    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL()
+    real(kind=kind_phys), dimension(:),   pointer :: var21 => NULL() !used to specify a mask
   end type data_subtype
   !--- data type definition for use with GFDL FMS diagnostic manager until write component is working
   type gfdl_diag_type
@@ -1657,6 +1657,38 @@ module FV3GFS_io_mod
 
   end subroutine sfc_prop_restart_read
 
+  subroutine compute_surface_type_fraction(Atm_block, isc, jsc, nx, ny, diagnostic, result)
+    type(block_control_type), intent(in) :: Atm_block
+    integer, intent(in) :: isc, jsc, nx, ny
+    type(gfdl_diag_type), intent(in) :: diagnostic
+    real(kind=kind_phys), intent(out) :: result(nx, ny)
+
+    integer :: i, j, ii, jj, nb, ix, surface_type_code
+
+    select case(trim(diagnostic%name))
+      case ('ocean_fraction')
+        surface_type_code = 0
+      case ('land_fraction')
+        surface_type_code = 1
+      case ('sea_ice_fraction')
+        surface_type_code = 2
+    end select
+
+    do j = 1, ny
+      jj = j + jsc - 1
+      do i = 1, nx
+          ii = i + isc - 1
+          nb = Atm_block%blkno(ii,jj)
+          ix = Atm_block%ixp(ii,jj)
+          if (nint(diagnostic%data(nb)%var2(ix)) .eq. surface_type_code) then
+            result(i,j) = 1.0
+          else
+            result(i,j) = 0.0
+          endif
+      enddo
+    enddo
+  end subroutine compute_surface_type_fraction
+
   subroutine sfc_data_override(Time, IPD_data, Atm_block, Model)
 
     implicit none
@@ -2660,8 +2692,9 @@ module FV3GFS_io_mod
 
   end subroutine phys_restart_write
 
-  subroutine register_diag_manager_controlled_diagnostics(Time, IntDiag, nblks, axes)
+  subroutine register_diag_manager_controlled_diagnostics(Time, Sfcprop, IntDiag, nblks, axes)
     type(time_type), intent(in) :: Time
+    type(Gfs_sfcprop_type), intent(in) :: Sfcprop(:)
     type(GFS_diag_type), intent(in) :: IntDiag(:)
     integer, intent(in) :: nblks
     integer, intent(in) :: axes(4)
@@ -3004,6 +3037,66 @@ module FV3GFS_io_mod
     allocate (Diag_diag_manager_controlled(index)%data(nblks))
     do nb = 1,nblks
       Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%q_dt_int(:,5)
+   enddo
+
+   index = index + 1
+   Diag_diag_manager_controlled(index)%axes = 2
+   Diag_diag_manager_controlled(index)%name = 'ocean_fraction'
+   Diag_diag_manager_controlled(index)%desc = 'fraction of grid cell classified as ocean type'
+   Diag_diag_manager_controlled(index)%unit = 'fraction'
+   Diag_diag_manager_controlled(index)%mod_name = 'gfs_sfc'
+   Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+   allocate (Diag_diag_manager_controlled(index)%data(nblks))
+   do nb = 1,nblks
+     Diag_diag_manager_controlled(index)%data(nb)%var2 => Sfcprop(nb)%slmsk(:)
+   enddo
+
+   index = index + 1
+   Diag_diag_manager_controlled(index)%axes = 2
+   Diag_diag_manager_controlled(index)%name = 'land_fraction'
+   Diag_diag_manager_controlled(index)%desc = 'fraction of grid cell classified as land type'
+   Diag_diag_manager_controlled(index)%unit = 'fraction'
+   Diag_diag_manager_controlled(index)%mod_name = 'gfs_sfc'
+   Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+   allocate (Diag_diag_manager_controlled(index)%data(nblks))
+   do nb = 1,nblks
+     Diag_diag_manager_controlled(index)%data(nb)%var2 => Sfcprop(nb)%slmsk(:)
+   enddo
+
+   index = index + 1
+   Diag_diag_manager_controlled(index)%axes = 2
+   Diag_diag_manager_controlled(index)%name = 'sea_ice_fraction'
+   Diag_diag_manager_controlled(index)%desc = 'fraction of grid cell classified as sea ice type'
+   Diag_diag_manager_controlled(index)%unit = 'fraction'
+   Diag_diag_manager_controlled(index)%mod_name = 'gfs_sfc'
+   Diag_diag_manager_controlled(index)%coarse_graining_method = 'area_weighted'
+   allocate (Diag_diag_manager_controlled(index)%data(nblks))
+   do nb = 1,nblks
+     Diag_diag_manager_controlled(index)%data(nb)%var2 => Sfcprop(nb)%slmsk(:)
+   enddo
+
+   index = index + 1
+   Diag_diag_manager_controlled(index)%axes = 2
+   Diag_diag_manager_controlled(index)%name = 'mixed_layer_depth'
+   Diag_diag_manager_controlled(index)%desc = 'ocean mixed layer depth'
+   Diag_diag_manager_controlled(index)%unit = 'm'
+   Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+   Diag_diag_manager_controlled(index)%coarse_graining_method = AREA_WEIGHTED
+   allocate (Diag_diag_manager_controlled(index)%data(nblks))
+   do nb = 1,nblks
+     Diag_diag_manager_controlled(index)%data(nb)%var2 => Sfcprop(nb)%mld(:)
+   enddo
+
+   index = index + 1
+   Diag_diag_manager_controlled(index)%axes = 2
+   Diag_diag_manager_controlled(index)%name = 'prescribed_qflux'
+   Diag_diag_manager_controlled(index)%desc = 'prescribed ocean Q-flux'
+   Diag_diag_manager_controlled(index)%unit = 'W/m**2'
+   Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+   Diag_diag_manager_controlled(index)%coarse_graining_method = AREA_WEIGHTED
+   allocate (Diag_diag_manager_controlled(index)%data(nblks))
+   do nb = 1,nblks
+     Diag_diag_manager_controlled(index)%data(nb)%var2 => Sfcprop(nb)%qfluxadj(:)
    enddo
 
    do index = 1, DIAG_SIZE
@@ -7167,7 +7260,7 @@ module FV3GFS_io_mod
     idx = idx + 1
     Diag(idx)%axes = 2
     Diag(idx)%name = 'MLD'
-    Diag(idx)%desc = 'ocean mixed layer depth'
+    Diag(idx)%desc = 'Interval-average ocean mixed layer depth'
     Diag(idx)%unit = 'm'
     Diag(idx)%mod_name = 'gfs_phys'
     Diag(idx)%cnvfac = cn_one
@@ -7317,15 +7410,21 @@ module FV3GFS_io_mod
       if (trim(Diag_diag_manager_controlled(index)%name) .eq. '') exit
       if (Diag_diag_manager_controlled(index)%id .gt. 0 .or. Diag_diag_manager_controlled_coarse(index)%id .gt. 0) then
         if (Diag_diag_manager_controlled(index)%axes .eq. 2) then
-          do j = 1, ny
-            jj = j + jsc - 1
-            do i = 1, nx
-                ii = i + isc - 1
-                nb = Atm_block%blkno(ii,jj)
-                ix = Atm_block%ixp(ii,jj)
-                var2d(i,j) = Diag_diag_manager_controlled(index)%data(nb)%var2(ix)
+          if (trim(Diag_diag_manager_controlled(index)%name) .eq. 'ocean_fraction' .or. &
+              trim(Diag_diag_manager_controlled(index)%name) .eq. 'land_fraction' .or. &
+              trim(Diag_diag_manager_controlled(index)%name) .eq. 'sea_ice_fraction') then
+            call compute_surface_type_fraction(Atm_block, isc, jsc, nx, ny, Diag_diag_manager_controlled(index), var2d)
+          else
+            do j = 1, ny
+              jj = j + jsc - 1
+              do i = 1, nx
+                  ii = i + isc - 1
+                  nb = Atm_block%blkno(ii,jj)
+                  ix = Atm_block%ixp(ii,jj)
+                  var2d(i,j) = Diag_diag_manager_controlled(index)%data(nb)%var2(ix)
+              enddo
             enddo
-          enddo
+          endif
           if (Diag_diag_manager_controlled(index)%id > 0) then
             used = send_data(Diag_diag_manager_controlled(index)%id, var2d, Time)
           endif
@@ -7484,7 +7583,7 @@ module FV3GFS_io_mod
        if ((Diag(idx)%id > 0) .or. (diag_coarse(idx)%id > 0)) then
          lcnvfac = Diag(idx)%cnvfac
          if (Diag(idx)%time_avg) then
-           if ( trim(Diag(idx)%time_avg_kind) == 'full' ) then
+           if ( trim(Diag(idx)%time_avg_kind) == 'full' ) then !accumulated over the entire simulation from initialization
              lcnvfac = lcnvfac*rtime_intfull
            else if ( trim(Diag(idx)%time_avg_kind) == 'rad_lw' ) then
              lcnvfac = lcnvfac*min(rtime_radlw,rtime_int)

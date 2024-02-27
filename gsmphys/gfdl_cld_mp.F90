@@ -331,6 +331,8 @@ module gfdl_cld_mp_mod
     logical :: fast_fr_mlt = .true. ! do freezing and melting in fast microphysics
     logical :: fast_dep_sub = .true. ! do deposition and sublimation in fast microphysics
 
+    logical :: do_mp_diag = .false. ! enable microphysical quantities diagnostic
+
     real :: mp_time = 150.0 ! maximum microphysics time step (s)
 
     real :: n0w_sig = 1.1 ! intercept parameter (significand) of cloud water (Lin et al. 1983) (1/m^4) (Martin et al. 1994)
@@ -538,7 +540,7 @@ module gfdl_cld_mp_mod
         do_new_acc_water, do_new_acc_ice, is_fac, ss_fac, gs_fac, rh_fac_evap, rh_fac_cond, &
         snow_grauple_combine, do_psd_water_num, do_psd_ice_num, vdiffflag, rewfac, reifac, &
         cp_heating, nconds, do_evap_timescale, delay_cond_evap, do_subgrid_proc, &
-        fast_fr_mlt, fast_dep_sub
+        fast_fr_mlt, fast_dep_sub, do_mp_diag
 
 contains
 
@@ -1193,11 +1195,11 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, dimension (ks:ke) :: den, pz, denfac, ccn, cin
     real, dimension (ks:ke) :: u, v, w
 
-    real, dimension (is:ie, ks:ke) :: pcw, edw, oew, rrw, tvw
-    real, dimension (is:ie, ks:ke) :: pci, edi, oei, rri, tvi
-    real, dimension (is:ie, ks:ke) :: pcr, edr, oer, rrr, tvr
-    real, dimension (is:ie, ks:ke) :: pcs, eds, oes, rrs, tvs
-    real, dimension (is:ie, ks:ke) :: pcg, edg, oeg, rrg, tvg
+    real, dimension (ks:ke) :: pcw, edw, oew, rrw, tvw
+    real, dimension (ks:ke) :: pci, edi, oei, rri, tvi
+    real, dimension (ks:ke) :: pcr, edr, oer, rrr, tvr
+    real, dimension (ks:ke) :: pcs, eds, oes, rrs, tvs
+    real, dimension (ks:ke) :: pcg, edg, oeg, rrg, tvg
 
     real, dimension (is:ie) :: condensation, deposition
     real, dimension (is:ie) :: evaporation, sublimation
@@ -1454,67 +1456,71 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         ! mass-weighted terminal velocity (tv)
         ! =======================================================================
 
-        pcw (i, :) = 0.0
-        edw (i, :) = 0.0
-        oew (i, :) = 0.0
-        rrw (i, :) = 0.0
-        tvw (i, :) = 0.0
-        pci (i, :) = 0.0
-        edi (i, :) = 0.0
-        oei (i, :) = 0.0
-        rri (i, :) = 0.0
-        tvi (i, :) = 0.0
-        pcr (i, :) = 0.0
-        edr (i, :) = 0.0
-        oer (i, :) = 0.0
-        rrr (i, :) = 0.0
-        tvr (i, :) = 0.0
-        pcs (i, :) = 0.0
-        eds (i, :) = 0.0
-        oes (i, :) = 0.0
-        rrs (i, :) = 0.0
-        tvs (i, :) = 0.0
-        pcg (i, :) = 0.0
-        edg (i, :) = 0.0
-        oeg (i, :) = 0.0
-        rrg (i, :) = 0.0
-        tvg (i, :) = 0.0
+        if (do_mp_diag) then
 
-        do k = ks, ke
-            if (qlz (k) .gt. qcmin) then
-                call cal_pc_ed_oe_rr_tv (qlz (k), den (k), blinw, muw, pcaw, pcbw, pcw (i, k), &
-                    edaw, edbw, edw (i, k), oeaw, oebw, oew (i, k), rraw, rrbw, rrw (i, k), &
-                    tvaw, tvbw, tvw (i, k))
-            endif
-            if (qiz (k) .gt. qcmin) then
-                call cal_pc_ed_oe_rr_tv (qiz (k), den (k), blini, mui, pcai, pcbi, pci (i, k), &
-                    edai, edbi, edi (i, k), oeai, oebi, oei (i, k), rrai, rrbi, rri (i, k), &
-                    tvai, tvbi, tvi (i, k))
-            endif
-            if (qrz (k) .gt. qcmin) then
-                call cal_pc_ed_oe_rr_tv (qrz (k), den (k), blinr, mur, pcar, pcbr, pcr (i, k), &
-                    edar, edbr, edr (i, k), oear, oebr, oer (i, k), rrar, rrbr, rrr (i, k), &
-                    tvar, tvbr, tvr (i, k))
-            endif
-            if (qsz (k) .gt. qcmin) then
-                call cal_pc_ed_oe_rr_tv (qsz (k), den (k), blins, mus, pcas, pcbs, pcs (i, k), &
-                    edas, edbs, eds (i, k), oeas, oebs, oes (i, k), rras, rrbs, rrs (i, k), &
-                    tvas, tvbs, tvs (i, k))
-            endif
-            if (do_hail) then
-                if (qgz (k) .gt. qcmin) then
-                    call cal_pc_ed_oe_rr_tv (qgz (k), den (k), blinh, muh, pcah, pcbh, pcg (i, k), &
-                        edah, edbh, edg (i, k), oeah, oebh, oeg (i, k), rrah, rrbh, rrg (i, k), &
-                        tvah, tvbh, tvg (i, k))
+            pcw (:) = 0.0
+            edw (:) = 0.0
+            oew (:) = 0.0
+            rrw (:) = 0.0
+            tvw (:) = 0.0
+            pci (:) = 0.0
+            edi (:) = 0.0
+            oei (:) = 0.0
+            rri (:) = 0.0
+            tvi (:) = 0.0
+            pcr (:) = 0.0
+            edr (:) = 0.0
+            oer (:) = 0.0
+            rrr (:) = 0.0
+            tvr (:) = 0.0
+            pcs (:) = 0.0
+            eds (:) = 0.0
+            oes (:) = 0.0
+            rrs (:) = 0.0
+            tvs (:) = 0.0
+            pcg (:) = 0.0
+            edg (:) = 0.0
+            oeg (:) = 0.0
+            rrg (:) = 0.0
+            tvg (:) = 0.0
+         
+            do k = ks, ke
+                if (qlz (k) .gt. qcmin) then
+                    call cal_pc_ed_oe_rr_tv (qlz (k), den (k), blinw, muw, pcaw, pcbw, pcw (k), &
+                        edaw, edbw, edw (k), oeaw, oebw, oew (k), rraw, rrbw, rrw (k), &
+                        tvaw, tvbw, tvw (k))
                 endif
-            else
-                if (qgz (k) .gt. qcmin) then
-                    call cal_pc_ed_oe_rr_tv (qgz (k), den (k), bling, mug, pcag, pcbg, pcg (i, k), &
-                        edag, edbg, edg (i, k), oeag, oebg, oeg (i, k), rrag, rrbg, rrg (i, k), &
-                        tvag, tvbg, tvg (i, k))
+                if (qiz (k) .gt. qcmin) then
+                    call cal_pc_ed_oe_rr_tv (qiz (k), den (k), blini, mui, pcai, pcbi, pci (k), &
+                        edai, edbi, edi (k), oeai, oebi, oei (k), rrai, rrbi, rri (k), &
+                        tvai, tvbi, tvi (k))
                 endif
-            endif
-        enddo
+                if (qrz (k) .gt. qcmin) then
+                    call cal_pc_ed_oe_rr_tv (qrz (k), den (k), blinr, mur, pcar, pcbr, pcr (k), &
+                        edar, edbr, edr (k), oear, oebr, oer (k), rrar, rrbr, rrr (k), &
+                        tvar, tvbr, tvr (k))
+                endif
+                if (qsz (k) .gt. qcmin) then
+                    call cal_pc_ed_oe_rr_tv (qsz (k), den (k), blins, mus, pcas, pcbs, pcs (k), &
+                        edas, edbs, eds (k), oeas, oebs, oes (k), rras, rrbs, rrs (k), &
+                        tvas, tvbs, tvs (k))
+                endif
+                if (do_hail) then
+                    if (qgz (k) .gt. qcmin) then
+                        call cal_pc_ed_oe_rr_tv (qgz (k), den (k), blinh, muh, pcah, pcbh, pcg (k), &
+                            edah, edbh, edg (k), oeah, oebh, oeg (k), rrah, rrbh, rrg (k), &
+                            tvah, tvbh, tvg (k))
+                    endif
+                else
+                    if (qgz (k) .gt. qcmin) then
+                        call cal_pc_ed_oe_rr_tv (qgz (k), den (k), bling, mug, pcag, pcbg, pcg (k), &
+                            edag, edbg, edg (k), oeag, oebg, oeg (k), rrag, rrbg, rrg (k), &
+                            tvag, tvbg, tvg (k))
+                    endif
+                endif
+            enddo
+
+        endif
 
         ! -----------------------------------------------------------------------
         ! momentum transportation during sedimentation
@@ -2227,7 +2233,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
         vti, i1, pfi, u, v, w, dte, "qi")
 
     pfi (ks) = max (0.0, pfi (ks))
-    do k = ke, ks + 1, -1
+    do k = ke, ks + 1, - 1
         pfi (k) = max (0.0, pfi (k) - pfi (k - 1))
     enddo
 
@@ -2246,7 +2252,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
         vts, s1, pfs, u, v, w, dte, "qs")
 
     pfs (ks) = max (0.0, pfs (ks))
-    do k = ke, ks + 1, -1
+    do k = ke, ks + 1, - 1
         pfs (k) = max (0.0, pfs (k) - pfs (k - 1))
     enddo
 
@@ -2269,7 +2275,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
         vtg, g1, pfg, u, v, w, dte, "qg")
 
     pfg (ks) = max (0.0, pfg (ks))
-    do k = ke, ks + 1, -1
+    do k = ke, ks + 1, - 1
         pfg (k) = max (0.0, pfg (k) - pfg (k - 1))
     enddo
 
@@ -2285,7 +2291,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
             vtw, w1, pfw, u, v, w, dte, "ql")
 
         pfw (ks) = max (0.0, pfw (ks))
-        do k = ke, ks + 1, -1
+        do k = ke, ks + 1, - 1
             pfw (k) = max (0.0, pfw (k) - pfw (k - 1))
         enddo
 
@@ -2301,7 +2307,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
         vtr, r1, pfr, u, v, w, dte, "qr")
 
     pfr (ks) = max (0.0, pfr (ks))
-    do k = ke, ks + 1, -1
+    do k = ke, ks + 1, - 1
         pfr (k) = max (0.0, pfr (k) - pfr (k - 1))
     enddo
 
@@ -6741,32 +6747,32 @@ subroutine mtetw (ks, ke, qv, ql, qr, qi, qs, qg, tz, ua, va, wa, delp, &
 
     real (kind = r8), dimension (ks:ke) :: cvm
 
-     do k = ks, ke
-         q_liq (k) = ql (k) + qr (k)
-         q_sol (k) = qi (k) + qs (k) + qg (k)
-         q_cond = q_liq (k) + q_sol (k)
-         con_r8 = one_r8 - (qv (k) + q_cond)
-         if (moist_q) then
-             cvm (k) = mhc (con_r8, qv (k), q_liq (k), q_sol (k))
-         else
-             cvm (k) = mhc (qv (k), q_liq (k), q_sol (k))
-         endif
-         te (k) = (cvm (k) * tz (k) + lv00 * qv (k) - li00 * q_sol (k)) * c_air
-         if (hydrostatic) then
-             te (k) = te (k) + 0.5 * (ua (k) ** 2 + va (k) ** 2)
-         else
-             te (k) = te (k) + 0.5 * (ua (k) ** 2 + va (k) ** 2 + wa (k) ** 2)
-         endif
-         te (k) = rgrav * te (k) * delp (k)
-         tw (k) = rgrav * (qv (k) + q_cond) * delp (k)
-     enddo
-     te_b = (dte + (lv00 * c_air * vapor - li00 * c_air * (ice + snow + graupel)) * dts / 86400 + sen * dts + stress * dts)
-     tw_b = (vapor + water + rain + ice + snow + graupel) * dts / 86400
+    do k = ks, ke
+        q_liq (k) = ql (k) + qr (k)
+        q_sol (k) = qi (k) + qs (k) + qg (k)
+        q_cond = q_liq (k) + q_sol (k)
+        con_r8 = one_r8 - (qv (k) + q_cond)
+        if (moist_q) then
+            cvm (k) = mhc (con_r8, qv (k), q_liq (k), q_sol (k))
+        else
+            cvm (k) = mhc (qv (k), q_liq (k), q_sol (k))
+        endif
+        te (k) = (cvm (k) * tz (k) + lv00 * qv (k) - li00 * q_sol (k)) * c_air
+        if (hydrostatic) then
+            te (k) = te (k) + 0.5 * (ua (k) ** 2 + va (k) ** 2)
+        else
+            te (k) = te (k) + 0.5 * (ua (k) ** 2 + va (k) ** 2 + wa (k) ** 2)
+        endif
+        te (k) = rgrav * te (k) * delp (k)
+        tw (k) = rgrav * (qv (k) + q_cond) * delp (k)
+    enddo
+    te_b = (dte + (lv00 * c_air * vapor - li00 * c_air * (ice + snow + graupel)) * dts / 86400 + sen * dts + stress * dts)
+    tw_b = (vapor + water + rain + ice + snow + graupel) * dts / 86400
 
-     if (present (te_loss)) then
-          ! total energy change due to sedimentation and its heating
-          te_loss = dte
-     endif
+    if (present (te_loss)) then
+        ! total energy change due to sedimentation and its heating
+        te_loss = dte
+    endif
 
 end subroutine mtetw
 

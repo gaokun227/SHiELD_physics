@@ -593,6 +593,13 @@ module GFS_typedefs
     real(kind=kind_phys) :: fco2_scaling    !< scaling of CO2 level
     integer              :: ialb            !< use climatology alb, based on sfc type
                                             !< 1 => use modis based alb
+
+    logical              :: disable_radiation_quasi_sea_ice
+                                            !< flag to disable
+                                            !< radiation code treating ocean grid
+                                            !< cells with temperature below
+                                            !< freezing as sea ice
+
     integer              :: iems            !< use fixed value of 1.0
     integer              :: iaer            !< default aerosol effect in sw only
     integer              :: iovr_sw         !< sw: max-random overlap clouds
@@ -1409,6 +1416,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: flux_en(:,:)  => null()
     real (kind=kind_phys), pointer :: wu2_shal(:,:) => null()
     real (kind=kind_phys), pointer :: eta_shal(:,:) => null()
+    real (kind=kind_phys), pointer :: co2(:,:) => null()  ! Vertically resolved CO2 concentration
 
     !--- accumulated quantities for 3D diagnostics
     real (kind=kind_phys), pointer :: upd_mf (:,:)   => null()  !< instantaneous convective updraft mass flux
@@ -2372,6 +2380,13 @@ end subroutine overrides_create
     real(kind=kind_phys) :: fco2_scaling   = 1.              !< scaling of CO2 level
     integer              :: ialb           =  0              !< use climatology alb, based on sfc type
                                                              !< 1 => use modis based alb
+
+    logical              :: disable_radiation_quasi_sea_ice = .false.
+                                                             !< flag to disable
+                                                             !< radiation code treating ocean grid
+                                                             !< cells with temperature below
+                                                             !< freezing as sea ice
+
     integer              :: iems           =  0              !< use fixed value of 1.0
     integer              :: iaer           =  1              !< default aerosol effect in sw only
     integer              :: iovr_sw        =  1              !< sw: max-random overlap clouds
@@ -2694,6 +2709,7 @@ end subroutine overrides_create
                                cplflx, cplwav, lsidea,                                      &
                           !--- radiation parameters
                                fhswr, fhlwr, levr, nfxr, aero_in, iflip, isol, ico2, ialb,  &
+                               disable_radiation_quasi_sea_ice,                             &
                                isot, iems,  iaer, iovr_sw, iovr_lw, ictm, isubc_sw,         &
                                isubc_lw, crick_proof, ccnorm, lwhtr, swhtr, nkld,           &
                                fixed_date, fixed_solhr, fixed_sollat, daily_mean, sollat,   &
@@ -2861,6 +2877,7 @@ end subroutine overrides_create
     Model%ico2             = ico2
     Model%fco2_scaling     = fco2_scaling
     Model%ialb             = ialb
+    Model%disable_radiation_quasi_sea_ice = disable_radiation_quasi_sea_ice
     Model%iems             = iems
     Model%iaer             = iaer
     Model%iovr_sw          = iovr_sw
@@ -3589,6 +3606,7 @@ end subroutine overrides_create
       print *, ' ico2              : ', Model%ico2
       print *, ' fco2_scaling      : ', Model%fco2_scaling
       print *, ' ialb              : ', Model%ialb
+      print *, ' disable_radiation_quasi_sea_ice: ', Model%disable_radiation_quasi_sea_ice
       print *, ' iems              : ', Model%iems
       print *, ' iaer              : ', Model%iaer
       print *, ' iovr_sw           : ', Model%iovr_sw
@@ -4199,6 +4217,7 @@ end subroutine overrides_create
       allocate (Diag%flux_en(IM,Model%levs))
       allocate (Diag%wu2_shal(IM,Model%levs))
       allocate (Diag%eta_shal(IM,Model%levs))
+      allocate (Diag%co2(IM,Model%levs))
 
       !--- needed to allocate GoCart coupling fields
       allocate (Diag%upd_mf (IM,Model%levs))

@@ -2980,8 +2980,8 @@ module module_physics_driver
                               dt_mf, cnvw, cnvc,                                   &
                               Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
                               Model%cthk_shal, Model%top_shal, Model%betaw_shal,   &
-                              Model%pgcon_shal, Model%asolfac_shal,                &
-                              Model%limit_shal_conv,                               &
+                              Model%dxcrt_shal, Model%pgcon_shal,                  & 
+                              Model%asolfac_shal, Model%limit_shal_conv,           &
                               Model%use_tke_conv, Model%use_shear_conv)
 
 

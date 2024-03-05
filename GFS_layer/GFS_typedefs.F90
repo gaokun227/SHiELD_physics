@@ -653,6 +653,7 @@ module GFS_typedefs
     logical              :: use_shear_pbl   !< flag for considering shear effect on updraft/downdraft diagnosis in tke-edmf 
     logical              :: use_tke_conv    !< flag for adjusting entrainment/detrainment rate in conv scheme 
     logical              :: use_shear_conv  !< flag for considering shear effect on updraft/downdraft diagnosis in conv scheme
+    logical              :: limit_shal_conv !< flag for constraining shal conv based on diagnosed cloud depth/top 
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
@@ -2288,6 +2289,7 @@ end subroutine overrides_create
     logical              :: use_shear_pbl  = .false.                  !< flag for considering shear effect for wu/wd in edmf 
     logical              :: use_tke_conv   = .false.                  !< flag for adjusting entrainment/detrainment rates in conv 
     logical              :: use_shear_conv = .false.                  !< flag for considering shear effect for wu/wd in conv
+    logical              :: limit_shal_conv= .false.                  !< flag for constraining shal conv based on diagnosed cloud depth/top 
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
@@ -2533,7 +2535,7 @@ end subroutine overrides_create
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,satmedmf,         &
                                cap_k0_land,do_dk_hb19,use_lup_only,use_l1_sfc,              &
                                use_tke_pbl,use_shear_pbl,use_tke_conv,use_shear_conv,       &
-                               cloud_gfdl,gwd_p_crit,                                       &
+                               limit_shal_conv,cloud_gfdl,gwd_p_crit,                       &
                           !--- Rayleigh friction
                                prslrd0, ral_ts,                                             &
                           !--- mass flux deep convection
@@ -2772,6 +2774,7 @@ end subroutine overrides_create
     Model%use_shear_pbl    = use_shear_pbl
     Model%use_tke_conv     = use_tke_conv
     Model%use_shear_conv   = use_shear_conv
+    Model%limit_shal_conv  = limit_shal_conv 
     Model%dspheat          = dspheat
     Model%lheatstrg        = lheatstrg
     Model%hour_canopy      = hour_canopy
@@ -3489,6 +3492,7 @@ end subroutine overrides_create
       print *, ' use_shear_pbl     : ', Model%use_shear_pbl
       print *, ' use_tke_conv      : ', Model%use_tke_conv
       print *, ' use_shear_conv    : ', Model%use_shear_conv
+      print *, ' limit_shal_conv   : ', Model%limit_shal_conv
       print *, ' dspheat           : ', Model%dspheat
       print *, ' lheatstrg         : ', Model%lheatstrg
       print *, ' hour_canopy       : ', Model%hour_canopy

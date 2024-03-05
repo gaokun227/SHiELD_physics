@@ -2964,15 +2964,14 @@ module module_physics_driver
                 Stateout%gq0(:,:,Model%ntrw) = qrn(:,:)
             endif
 
-          elseif (Model%imfshalcnv == 3 .or. Model%imfshalcnv == 5) then
+          elseif (Model%imfshalcnv == 3 ) then
             if(.not. Model%satmedmf .and. .not. Model%trans_trac) then
                nsamftrac = 0
             else
                nsamftrac = tottracer
             endif
 
-            if (Model%imfshalcnv == 3) then
-               call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
+            call samfshalcnv (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
                               del, Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:nsamftrac+2),   &
                               Stateout%gq0(:,:,1), Stateout%gt0,                   &
                               Stateout%gu0, Stateout%gv0, Model%fscav,             &
@@ -2980,22 +2979,11 @@ module module_physics_driver
                               Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
                               dt_mf, cnvw, cnvc,                                   &
                               Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
+                              Model%cthk_shal, Model%top_shal, Model%betaw_shal,   &
                               Model%pgcon_shal, Model%asolfac_shal,                &
+                              Model%limit_shal_conv,                               &
                               Model%use_tke_conv, Model%use_shear_conv)
 
-            elseif (Model%imfshalcnv == 5) then ! a modified version of samfshalcnv by KGao
-               call samfshalcnv_gfdl (im, ix, levs, dtp, itc, Model%ntchm, ntk, nsamftrac, &
-                              del, Statein%prsl, Statein%pgr, Statein%phil, clw(:,:,1:nsamftrac+2),   &
-                              Stateout%gq0(:,:,1), Stateout%gt0,                   &
-                              Stateout%gu0, Stateout%gv0, Model%fscav,             &
-                              rain1, kbot, ktop, kcnv, islmsk, garea,              &
-                              Statein%vvl, Model%ncld, Diag%hpbl, ud_mf,           &
-                              dt_mf, cnvw, cnvc,                                   &
-                              Model%clam_shal,  Model%c0s_shal, Model%c1_shal,     &
-                              Model%cthk_shal, Model%top_shal,                     &
-                              Model%betaw_shal, Model%dxcrt_shal,                  &
-                              Model%pgcon_shal, Model%asolfac_shal)
-            endif
 
             raincs(:)     = frain * rain1(:)
             Diag%rainc(:) = Diag%rainc(:) + raincs(:)

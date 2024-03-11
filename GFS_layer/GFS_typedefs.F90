@@ -3440,7 +3440,7 @@ end subroutine overrides_create
           print *,' modified Tiedtke eddy-diffusion shallow conv scheme used'
         elseif (Model%imfshalcnv == 1) then
           print *,' July 2010 version of mass-flux shallow conv scheme used'
-        elseif (Model%imfshalcnv == 2 .or. Model%imfshalcnv == 3 .or. Model%imfshalcnv == 4 .or. Model%imfshalcnv == 5) then
+        elseif (Model%imfshalcnv == 2 .or. Model%imfshalcnv == 3 .or. Model%imfshalcnv == 4) then
           print *,' scale- & aerosol-aware mass-flux shallow conv scheme (2017)'
         else
           print *,' unknown mass-flux scheme in use - defaulting to no shallow convection'

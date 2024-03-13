@@ -1205,6 +1205,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, dimension (is:ie) :: freezing, melting
     real, dimension (is:ie) :: autoconversion
     real, dimension (is:ie) :: riming
+    real, dimension (is:ie) :: accretion
 
     real (kind = r8) :: con_r8, c8, cp8
 
@@ -1238,6 +1239,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     melting = 0.0
     autoconversion = 0.0
     riming = 0.0
+    accretion = 0.0
 
     ! -----------------------------------------------------------------------
     ! unit convert to mm/day
@@ -1442,7 +1444,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
                 water (i), rain (i), ice (i), snow (i), graupel (i), prefluxw (i, :), &
                 prefluxr (i, :), prefluxi (i, :), prefluxs (i, :), prefluxg (i, :), &
                 condensation (i), evaporation (i), deposition (i), sublimation (i), &
-                freezing (i), melting (i), autoconversion (i), riming (i), convt, last_step)
+                freezing (i), melting (i), autoconversion (i), riming (i), accretion (i), &
+                convt, last_step)
 
         endif
 
@@ -1881,7 +1884,7 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
         den, denfac, ccn, cin, dts, rh_adj, rh_rain, h_var, dte, water, rain, ice, &
         snow, graupel, prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, &
         condensation, evaporation, deposition, sublimation, freezing, melting, &
-        autoconversion, riming, convt, last_step)
+        autoconversion, riming, accretion, convt, last_step)
 
     implicit none
 
@@ -1908,6 +1911,7 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
     real, intent (inout) :: freezing, melting
     real, intent (inout) :: autoconversion
     real, intent (inout) :: riming
+    real, intent (inout) :: accretion
 
     real (kind = r8), intent (inout) :: dte
 
@@ -1948,14 +1952,16 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
         ! -----------------------------------------------------------------------
 
         call warm_rain (dts, ks, ke, dp, dz, tz, qv, ql, qr, qi, qs, qg, &
-            den, denfac, vtw, vtr, ccn, rh_rain, h_var, evaporation, autoconversion, convt)
+            den, denfac, vtw, vtr, ccn, rh_rain, h_var, evaporation, autoconversion, &
+            accretion, convt)
 
         ! -----------------------------------------------------------------------
         ! ice cloud microphysics
         ! -----------------------------------------------------------------------
 
         call ice_cloud (ks, ke, dp, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, &
-            vtr, vti, vts, vtg, dts, h_var, freezing, melting, autoconversion, riming, convt)
+            vtr, vti, vts, vtg, dts, h_var, freezing, melting, autoconversion, riming, &
+            accretion, convt)
 
         if (do_subgrid_proc) then
 
@@ -2778,7 +2784,7 @@ end subroutine check_column
 
 subroutine warm_rain (dts, ks, ke, dp, dz, tz, qv, ql, qr, qi, qs, qg, &
         den, denfac, vtw, vtr, ccn, rh_rain, h_var, evaporation, autoconversion, &
-        convt)
+        accretion, convt)
 
     implicit none
 
@@ -2798,19 +2804,21 @@ subroutine warm_rain (dts, ks, ke, dp, dz, tz, qv, ql, qr, qi, qs, qg, &
 
     real, intent (inout) :: evaporation
     real, intent (inout) :: autoconversion
+    real, intent (inout) :: accretion
 
     ! -----------------------------------------------------------------------
     ! rain evaporation to form water vapor
     ! -----------------------------------------------------------------------
 
-    call prevp (ks, ke, dts, tz, qv, ql, qr, qi, qs, qg, den, denfac, rh_rain, &
-        h_var, dp, evaporation, convt)
+    call prevp (ks, ke, dts, dp, tz, qv, ql, qr, qi, qs, qg, den, denfac, rh_rain, &
+        h_var, evaporation, convt)
 
     ! -----------------------------------------------------------------------
     ! rain accretion with cloud water
     ! -----------------------------------------------------------------------
 
-    call pracw (ks, ke, dts, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, vtr)
+    call pracw (ks, ke, dts, dp, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, &
+        vtr, accretion, convt)
 
     ! -----------------------------------------------------------------------
     ! cloud water to rain autoconversion
@@ -2825,8 +2833,8 @@ end subroutine warm_rain
 ! rain evaporation to form water vapor, Lin et al. (1983)
 ! =======================================================================
 
-subroutine prevp (ks, ke, dts, tz, qv, ql, qr, qi, qs, qg, den, denfac, rh_rain, &
-        h_var, dp, evaporation, convt)
+subroutine prevp (ks, ke, dts, dp, tz, qv, ql, qr, qi, qs, qg, den, denfac, rh_rain, &
+        h_var, evaporation, convt)
 
     implicit none
 
@@ -2935,7 +2943,8 @@ end subroutine prevp
 ! rain accretion with cloud water, Lin et al. (1983)
 ! =======================================================================
 
-subroutine pracw (ks, ke, dts, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, vtr)
+subroutine pracw (ks, ke, dts, dp, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, &
+        vtr, accretion, convt)
 
     implicit none
 
@@ -2945,13 +2954,15 @@ subroutine pracw (ks, ke, dts, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, vtr
 
     integer, intent (in) :: ks, ke
 
-    real, intent (in) :: dts
+    real, intent (in) :: dts, convt
 
-    real, intent (in), dimension (ks:ke) :: den, denfac, vtw, vtr
+    real, intent (in), dimension (ks:ke) :: den, denfac, vtw, vtr, dp
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
 
     real, intent (inout), dimension (ks:ke) :: qv, qr, ql, qi, qs, qg
+
+    real, intent (inout) :: accretion
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -2973,6 +2984,7 @@ subroutine pracw (ks, ke, dts, tz, qv, ql, qr, qi, qs, qg, den, denfac, vtw, vtr
                 sink = dts * acr2d (qden, cracw, denfac (k), blinr, mur)
                 sink = sink / (1. + sink) * ql (k)
             endif
+            accretion = accretion + sink * dp (k) * convt
 
             call update_qq (qv (k), ql (k), qr (k), qi (k), qs (k), qg (k), &
                 0., - sink, sink, 0., 0., 0.)
@@ -3099,7 +3111,7 @@ end subroutine praut
 
 subroutine ice_cloud (ks, ke, dp, tz, qv, ql, qr, qi, qs, qg, den, &
         denfac, vtw, vtr, vti, vts, vtg, dts, h_var, freezing, melting, &
-        autoconversion, riming, convt)
+        autoconversion, riming, accretion, convt)
 
     implicit none
 
@@ -3120,6 +3132,7 @@ subroutine ice_cloud (ks, ke, dp, tz, qv, ql, qr, qi, qs, qg, den, &
     real, intent (inout) :: freezing, melting
     real, intent (inout) :: autoconversion
     real, intent (inout) :: riming
+    real, intent (inout) :: accretion
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -3176,7 +3189,8 @@ subroutine ice_cloud (ks, ke, dp, tz, qv, ql, qr, qi, qs, qg, den, &
         ! snow accretion with cloud ice
         ! -----------------------------------------------------------------------
 
-        call psaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vts)
+        call psaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, dp, tz, den, denfac, vti, vts, &
+            accretion, convt)
 
         ! -----------------------------------------------------------------------
         ! cloud ice to snow autoconversion
@@ -3188,7 +3202,8 @@ subroutine ice_cloud (ks, ke, dp, tz, qv, ql, qr, qi, qs, qg, den, &
         ! graupel accretion with cloud ice
         ! -----------------------------------------------------------------------
 
-        call pgaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vtg)
+        call pgaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, dp, tz, den, denfac, vti, vtg, &
+            accretion, convt)
 
         ! -----------------------------------------------------------------------
         ! snow accretion with rain and rain freezing to form graupel
@@ -3201,7 +3216,7 @@ subroutine ice_cloud (ks, ke, dp, tz, qv, ql, qr, qi, qs, qg, den, &
         ! graupel accretion with snow
         ! -----------------------------------------------------------------------
 
-        call pgacs (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, vts, vtg)
+        call pgacs (ks, ke, dts, qv, ql, qr, qi, qs, qg, dp, tz, den, vts, vtg, accretion, convt)
 
         ! -----------------------------------------------------------------------
         ! snow to graupel autoconversion
@@ -3516,7 +3531,8 @@ end subroutine pgmlt
 ! snow accretion with cloud ice, Lin et al. (1983)
 ! =======================================================================
 
-subroutine psaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vts)
+subroutine psaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, dp, tz, den, denfac, vti,&
+        vts, accretion, convt)
 
     implicit none
 
@@ -3526,13 +3542,15 @@ subroutine psaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vts
 
     integer, intent (in) :: ks, ke
 
-    real, intent (in) :: dts
+    real, intent (in) :: dts, convt
 
-    real, intent (in), dimension (ks:ke) :: den, denfac, vti, vts
+    real, intent (in), dimension (ks:ke) :: den, denfac, vti, vts, dp
 
     real, intent (inout), dimension (ks:ke) :: qv, ql, qr, qi, qs, qg
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
+
+    real, intent (inout) :: accretion
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -3561,6 +3579,7 @@ subroutine psaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vts
             endif
 
             sink = min (fi2s_fac * qi (k), sink)
+            accretion = accretion + sink * dp (k) * convt
 
             call update_qq (qv (k), ql (k), qr (k), qi (k), qs (k), qg (k), &
                 0., 0., 0., - sink, sink, 0.)
@@ -3641,7 +3660,8 @@ end subroutine psaut
 ! graupel accretion with cloud ice, Lin et al. (1983)
 ! =======================================================================
 
-subroutine pgaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vtg)
+subroutine pgaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, dp, tz, den, denfac, vti, &
+        vtg, accretion, convt)
 
     implicit none
 
@@ -3651,13 +3671,15 @@ subroutine pgaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vtg
 
     integer, intent (in) :: ks, ke
 
-    real, intent (in) :: dts
+    real, intent (in) :: dts, convt
 
-    real, intent (in), dimension (ks:ke) :: den, denfac, vti, vtg
+    real, intent (in), dimension (ks:ke) :: den, denfac, vti, vtg, dp
 
     real, intent (inout), dimension (ks:ke) :: qv, ql, qr, qi, qs, qg
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
+
+    real, intent (inout) :: accretion
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -3690,6 +3712,7 @@ subroutine pgaci (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, denfac, vti, vtg
             endif
 
             sink = min (fi2g_fac * qi (k), sink)
+            accretion = accretion + sink * dp (k) * convt
 
             call update_qq (qv (k), ql (k), qr (k), qi (k), qs (k), qg (k), &
                 0., 0., 0., - sink, 0., sink)
@@ -3776,7 +3799,8 @@ end subroutine psacr_pgfr
 ! graupel accretion with snow, Lin et al. (1983)
 ! =======================================================================
 
-subroutine pgacs (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, vts, vtg)
+subroutine pgacs (ks, ke, dts, qv, ql, qr, qi, qs, qg, dp, tz, den, vts, vtg, &
+        accretion, convt)
 
     implicit none
 
@@ -3786,13 +3810,15 @@ subroutine pgacs (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, vts, vtg)
 
     integer, intent (in) :: ks, ke
 
-    real, intent (in) :: dts
+    real, intent (in) :: dts, convt
 
-    real, intent (in), dimension (ks:ke) :: den, vts, vtg
+    real, intent (in), dimension (ks:ke) :: den, vts, vtg, dp
 
     real, intent (inout), dimension (ks:ke) :: qv, ql, qr, qi, qs, qg
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
+
+    real, intent (inout) :: accretion
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -3809,6 +3835,7 @@ subroutine pgacs (ks, ke, dts, qv, ql, qr, qi, qs, qg, tz, den, vts, vtg)
             sink = dts * acr3d (vtg (k), vts (k), qs (k), qg (k), cgacs, acco (:, 4), &
                 acc (7), acc (8), den (k))
             sink = min (fs2g_fac * qs (k), sink)
+            accretion = accretion + sink * dp (k) * convt
 
             call update_qq (qv (k), ql (k), qr (k), qi (k), qs (k), qg (k), &
                 0., 0., 0., 0., - sink, sink)

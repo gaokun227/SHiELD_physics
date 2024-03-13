@@ -492,8 +492,7 @@ module module_physics_driver
           gsize, hs, land, water0, rain0, ice0, snow0, graupel0,        &
           dte, zvfun
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          condensation, evaporation, deposition, sublimation,           &
-          freezing, melting, autoconversion, riming, accretion
+          mppc, mppe, mppd, mpps, mppf, mppm, mppa, mppr, mppx
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -3413,15 +3412,15 @@ module module_physics_driver
 
       elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
 
-        condensation = 0.0
-        evaporation = 0.0
-        deposition = 0.0
-        sublimation = 0.0
-        freezing = 0.0
-        melting = 0.0
-        autoconversion = 0.0
-        riming = 0.0
-        accretion = 0.0
+        mppc = 0.0
+        mppe = 0.0
+        mppd = 0.0
+        mpps = 0.0
+        mppf = 0.0
+        mppm = 0.0
+        mppa = 0.0
+        mppr = 0.0
+        mppx = 0.0
 
         if (Model%do_sat_adj) then         ! Fast Saturation adjustment
 
@@ -3446,8 +3445,7 @@ module module_physics_driver
                          Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
                          Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
                          hs, dz, Stateout%gt0(:,levs:1:-1), delp, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                         gsize, condensation, evaporation, deposition, sublimation, freezing, melting, &
-                         autoconversion, riming, accretion, .true., Model%do_sat_adj)
+                         gsize, mppc, mppe, mppd, mpps, mppf, mppm, mppa, mppr, mppx, .true., Model%do_sat_adj)
 
         endif
 
@@ -3606,8 +3604,8 @@ module module_physics_driver
                                 .false., adj_vmr(:,levs:1:-1), te(:,levs:1:-1), dte, &
                                 prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
                                 prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
-                                condensation, evaporation, deposition, sublimation, freezing, melting, &
-                                autoconversion, riming, accretion, .true., Model%do_inline_mp)
+                                mppc, mppe, mppd, mpps, mppf, mppm, mppa, mppr, mppx, &
+                                .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         water0(:)   = water0(:)   * tem

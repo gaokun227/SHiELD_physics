@@ -604,7 +604,9 @@ end subroutine gfdl_cld_mp_init
 subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
         ua, va, delz, delp, gsize, dtm, hs, water, rain, ice, snow, graupel, &
         hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, adj_vmr, te, dte, &
-        prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, last_step, do_inline_mp)
+        prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, condensation, &
+        evaporation, deposition, sublimation, freezing, melting, autoconversion, &
+        riming, accretion, last_step, do_inline_mp)
 
     implicit none
 
@@ -629,6 +631,12 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa
 
     real, intent (inout), dimension (is:ie) :: water, rain, ice, snow, graupel
+    real, intent (inout), dimension (is:ie) :: condensation, evaporation
+    real, intent (inout), dimension (is:ie) :: deposition, sublimation
+    real, intent (inout), dimension (is:ie) :: freezing, melting
+    real, intent (inout), dimension (is:ie) :: autoconversion
+    real, intent (inout), dimension (is:ie) :: riming
+    real, intent (inout), dimension (is:ie) :: accretion
 
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
 
@@ -641,7 +649,9 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
-        prefluxi, prefluxs, prefluxg, last_step, do_inline_mp, .false., .true.)
+        prefluxi, prefluxs, prefluxg, condensation, evaporation, deposition, &
+        sublimation, freezing, melting, autoconversion, riming, accretion, &
+        last_step, do_inline_mp, .false., .true.)
 
 end subroutine gfdl_cld_mp_driver
 
@@ -1149,7 +1159,9 @@ end subroutine setup_mhc_lhc
 subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         qa, qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
-        prefluxi, prefluxs, prefluxg, last_step, do_inline_mp, do_mp_fast, do_mp_full)
+        prefluxi, prefluxs, prefluxg, condensation, evaporation, deposition, &
+        sublimation, freezing, melting, autoconversion, riming, accretion, &
+        last_step, do_inline_mp, do_mp_fast, do_mp_full)
 
     implicit none
 
@@ -1175,6 +1187,12 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa
 
     real, intent (inout), dimension (is:ie) :: water, rain, ice, snow, graupel
+    real, intent (inout), dimension (is:ie) :: condensation, evaporation
+    real, intent (inout), dimension (is:ie) :: deposition, sublimation
+    real, intent (inout), dimension (is:ie) :: freezing, melting
+    real, intent (inout), dimension (is:ie) :: autoconversion
+    real, intent (inout), dimension (is:ie) :: riming
+    real, intent (inout), dimension (is:ie) :: accretion
 
     real, intent (out), dimension (is:ie, ks:ke) :: te, adj_vmr
 
@@ -1199,13 +1217,6 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, dimension (ks:ke) :: pcr, edr, oer, rrr, tvr
     real, dimension (ks:ke) :: pcs, eds, oes, rrs, tvs
     real, dimension (ks:ke) :: pcg, edg, oeg, rrg, tvg
-
-    real, dimension (is:ie) :: condensation, evaporation
-    real, dimension (is:ie) :: deposition, sublimation
-    real, dimension (is:ie) :: freezing, melting
-    real, dimension (is:ie) :: autoconversion
-    real, dimension (is:ie) :: riming
-    real, dimension (is:ie) :: accretion
 
     real (kind = r8) :: con_r8, c8, cp8
 
@@ -5728,7 +5739,9 @@ end subroutine sedi_heat
 
 subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
         adj_vmr, te, dte, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, &
-        pt, delp, q_con, cappa, gsize, last_step, do_sat_adj)
+        pt, delp, q_con, cappa, gsize, condensation, evaporation, deposition, &
+        sublimation, freezing, melting, autoconversion, riming, accretion, &
+        last_step, do_sat_adj)
 
     implicit none
 
@@ -5750,6 +5763,13 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     real, intent (inout), dimension (is:ie, ks:ke) :: qv, ql, qr, qi, qs, qg, qa
 
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa
+
+    real, intent (inout), dimension (is:ie) :: condensation, evaporation
+    real, intent (inout), dimension (is:ie) :: deposition, sublimation
+    real, intent (inout), dimension (is:ie) :: freezing, melting
+    real, intent (inout), dimension (is:ie) :: autoconversion
+    real, intent (inout), dimension (is:ie) :: riming
+    real, intent (inout), dimension (is:ie) :: accretion
 
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
 
@@ -5790,7 +5810,9 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
-        prefluxi, prefluxs, prefluxg, last_step, .false., do_sat_adj, .false.)
+        prefluxi, prefluxs, prefluxg, condensation, evaporation, deposition, &
+        sublimation, freezing, melting, autoconversion, riming, accretion, &
+        last_step, .true., do_sat_adj, .false.)
 
 end subroutine cld_sat_adj
 

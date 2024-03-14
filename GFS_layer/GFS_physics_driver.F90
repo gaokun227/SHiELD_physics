@@ -492,8 +492,9 @@ module module_physics_driver
           gsize, hs, land, water0, rain0, ice0, snow0, graupel0,        &
           dte, zvfun
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          mppc, mppe, mppd, mpps, mppf, mppm, mppar, mppas, mppag,      &
-          mpprs, mpprg, mppxr, mppxs, mppxg
+          mppcw, mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss,       &
+          mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas,       &
+          mppag, mpprs, mpprg, mppxr, mppxs, mppxg
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -3413,12 +3414,20 @@ module module_physics_driver
 
       elseif (Model%ncld == 5) then       ! GFDL Cloud microphysics
 
-        mppc = 0.0
-        mppe = 0.0
-        mppd = 0.0
-        mpps = 0.0
-        mppf = 0.0
-        mppm = 0.0
+        mppcw = 0.0
+        mppew = 0.0
+        mpper = 0.0
+        mppdi = 0.0
+        mppds = 0.0
+        mppdg = 0.0
+        mppsi = 0.0
+        mppss = 0.0
+        mppsg = 0.0
+        mppfw = 0.0
+        mppfr = 0.0
+        mppmi = 0.0
+        mppms = 0.0
+        mppmg = 0.0
         mppar = 0.0
         mppas = 0.0
         mppag = 0.0
@@ -3451,8 +3460,9 @@ module module_physics_driver
                          Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
                          Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
                          hs, dz, Stateout%gt0(:,levs:1:-1), delp, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                         gsize, mppc, mppe, mppd, mpps, mppf, mppm, mppar, mppas, mppag, mpprs, mpprg, &
-                         mppxr, mppxs, mppxg, .true., Model%do_sat_adj)
+                         gsize, mppcw, mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss, mppsg, mppfw, &
+                         mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, &
+                         mppxg, .true., Model%do_sat_adj)
 
         endif
 
@@ -3611,8 +3621,9 @@ module module_physics_driver
                                 .false., adj_vmr(:,levs:1:-1), te(:,levs:1:-1), dte, &
                                 prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
                                 prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
-                                mppc, mppe, mppd, mpps, mppf, mppm, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, &
-                                .true., Model%do_inline_mp)
+                                mppcw, mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss, mppsg, mppfw, &
+                                mppfr, mppmi, mppms, mppsg, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
+                                mppxs, mppxg, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         water0(:)   = water0(:)   * tem

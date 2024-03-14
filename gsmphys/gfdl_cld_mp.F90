@@ -606,8 +606,8 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
         hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, adj_vmr, te, dte, &
         prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, &
         mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, &
-        mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
-        mppxs, mppxg, last_step, do_inline_mp)
+        mppfr, mppmi, mppms, mppmg, mppm1, mppm2, mppm3, mppar, mppas, mppag, &
+        mpprs, mpprg, mppxr, mppxs, mppxg, last_step, do_inline_mp)
 
     implicit none
 
@@ -637,6 +637,7 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     real, intent (inout), dimension (is:ie) :: mppss, mppsg, mppfw, mppfr, mppar
     real, intent (inout), dimension (is:ie) :: mppas, mppag, mpprs, mpprg, mppxr
     real, intent (inout), dimension (is:ie) :: mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout), dimension (is:ie) :: mppm1, mppm2, mppm3
 
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
 
@@ -651,8 +652,8 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
         prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, mpper, mppdi, mppd1, &
         mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
-        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, &
-        last_step, do_inline_mp, .false., .true.)
+        mppmg, mppm1, mppm2, mppm3, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
+        mppxs, mppxg, last_step, do_inline_mp, .false., .true.)
 
 end subroutine gfdl_cld_mp_driver
 
@@ -1162,8 +1163,8 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
         prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, mpper, mppdi, mppd1, &
         mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
-        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, &
-        last_step, do_inline_mp, do_mp_fast, do_mp_full)
+        mppmg, mppm1, mppm2, mppm3, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
+        mppxs, mppxg, last_step, do_inline_mp, do_mp_fast, do_mp_full)
 
     implicit none
 
@@ -1194,6 +1195,7 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, intent (inout), dimension (is:ie) :: mppss, mppsg, mppfw, mppfr, mppar
     real, intent (inout), dimension (is:ie) :: mppas, mppag, mpprs, mpprg, mppxr
     real, intent (inout), dimension (is:ie) :: mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout), dimension (is:ie) :: mppm1, mppm2, mppm3
 
     real, intent (out), dimension (is:ie, ks:ke) :: te, adj_vmr
 
@@ -1447,9 +1449,9 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
                 prefluxr (i, :), prefluxi (i, :), prefluxs (i, :), prefluxg (i, :), &
                 mppcw (i), mppew (i), mppe1 (i), mpper (i), mppdi (i), mppd1 (i), &
                 mppds (i), mppdg (i), mppsi (i), mpps1 (i), mppss (i), mppsg (i), &
-                mppfw (i), mppfr (i), mppmi (i), mppms (i), mppmg (i), mppar (i), &
-                mppas (i), mppag (i), mpprs (i), mpprg (i), mppxr (i), mppxs (i), &
-                mppxg (i), convt, last_step)
+                mppfw (i), mppfr (i), mppmi (i), mppms (i), mppmg (i), mppm1 (i), &
+                mppm2 (i), mppm3 (i), mppar (i), mppas (i), mppag (i), mpprs (i), &
+                mpprg (i), mppxr (i), mppxs (i), mppxg (i), convt, last_step)
 
         endif
 
@@ -1886,8 +1888,8 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
         den, denfac, ccn, cin, dts, rh_adj, rh_rain, h_var, dte, water, rain, ice, &
         snow, graupel, prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, mppcw, &
         mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, mppss, &
-        mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, &
-        mpprg, mppxr, mppxs, mppxg, convt, last_step)
+        mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppm1, mppm2, mppm3, mppar, &
+        mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, convt, last_step)
 
     implicit none
 
@@ -1914,6 +1916,7 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
     real, intent (inout) :: mppss, mppsg, mppfw, mppfr, mppar
     real, intent (inout) :: mppas, mppag, mpprs, mpprg, mppxr
     real, intent (inout) :: mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout) :: mppm1, mppm2, mppm3
 
     real (kind = r8), intent (inout) :: dte
 
@@ -1935,7 +1938,7 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
 
         call sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, vtw, &
             vtr, vti, vts, vtg, w1, r1, i1, s1, g1, pfw, pfr, pfi, pfs, pfg, u, v, &
-            w, den, denfac, dte, mppmi, mppms, mppmg, convt)
+            w, den, denfac, dte, mppm1, mppm2, mppm3, convt)
 
         water = water + w1 * convt
         rain = rain + r1 * convt
@@ -2147,7 +2150,7 @@ end subroutine mp_fast
 
 subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
         vtw, vtr, vti, vts, vtg, w1, r1, i1, s1, g1, pfw, pfr, pfi, pfs, pfg, &
-        u, v, w, den, denfac, dte, mppmi, mppms, mppmg, convt)
+        u, v, w, den, denfac, dte, mppm1, mppm2, mppm3, convt)
 
     implicit none
 
@@ -2171,7 +2174,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
 
-    real, intent (inout) :: mppmi, mppms, mppmg
+    real, intent (inout) :: mppm1, mppm2, mppm3
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -2220,7 +2223,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
 
     if (do_sedi_melt) then
         call sedi_melt (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
-            vti, r1, tau_imlt, icpk, "qi", mppmi, convt)
+            vti, r1, tau_imlt, icpk, "qi", mppm1, convt)
     endif
 
     call terminal_fall (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
@@ -2239,7 +2242,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
 
     if (do_sedi_melt) then
         call sedi_melt (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
-            vts, r1, tau_smlt, icpk, "qs", mppms, convt)
+            vts, r1, tau_smlt, icpk, "qs", mppm2, convt)
     endif
 
     call terminal_fall (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
@@ -2262,7 +2265,7 @@ subroutine sedimentation (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
 
     if (do_sedi_melt) then
         call sedi_melt (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
-            vtg, r1, tau_gmlt, icpk, "qg", mppmg, convt)
+            vtg, r1, tau_gmlt, icpk, "qg", mppm3, convt)
     endif
 
     call terminal_fall (dts, ks, ke, tz, qv, ql, qr, qi, qs, qg, dz, dp, &
@@ -5719,8 +5722,8 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
         adj_vmr, te, dte, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, &
         pt, delp, q_con, cappa, gsize, mppcw, mppew, mppe1, mpper, mppdi, &
         mppd1, mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, &
-        mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
-        mppxs, mppxg, last_step, do_sat_adj)
+        mppmi, mppms, mppmg, mppm1, mppm2, mppm3, mppar, mppas, mppag, &
+        mpprs, mpprg, mppxr, mppxs, mppxg, last_step, do_sat_adj)
 
     implicit none
 
@@ -5748,6 +5751,7 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     real, intent (inout), dimension (is:ie) :: mppss, mppsg, mppfw, mppfr, mppar
     real, intent (inout), dimension (is:ie) :: mppas, mppag, mpprs, mpprg, mppxr
     real, intent (inout), dimension (is:ie) :: mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout), dimension (is:ie) :: mppm1, mppm2, mppm3
 
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
 
@@ -5790,8 +5794,8 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
         prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, mpper, mppdi, mppd1, &
         mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
-        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, last_step, &
-        .false., do_sat_adj, .false.)
+        mppmg, mppm1, mppm2, mppm3, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
+        mppxs, mppxg, last_step, .false., do_sat_adj, .false.)
 
 end subroutine cld_sat_adj
 

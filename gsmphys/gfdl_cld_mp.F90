@@ -604,10 +604,10 @@ end subroutine gfdl_cld_mp_init
 subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
         ua, va, delz, delp, gsize, dtm, hs, water, rain, ice, snow, graupel, &
         hydrostatic, is, ie, ks, ke, q_con, cappa, consv_te, adj_vmr, te, dte, &
-        prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, mppcw, mppew, mpper, &
-        mppdi, mppds, mppdg, mppsi, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
-        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, &
-        last_step, do_inline_mp)
+        prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, &
+        mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, &
+        mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
+        mppxs, mppxg, last_step, do_inline_mp)
 
     implicit none
 
@@ -632,10 +632,11 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa
 
     real, intent (inout), dimension (is:ie) :: water, rain, ice, snow, graupel
-    real, intent (inout), dimension (is:ie) :: mppcw, mppew, mpper, mppdi, mppds, mppdg
-    real, intent (inout), dimension (is:ie) :: mppsi, mppss, mppsg, mppfw, mppfr
-    real, intent (inout), dimension (is:ie) :: mppar, mppas, mppag, mpprs, mpprg
-    real, intent (inout), dimension (is:ie) :: mppxr, mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout), dimension (is:ie) :: mppcw, mppew, mppe1, mpper, mppdi
+    real, intent (inout), dimension (is:ie) :: mppd1, mppds, mppdg, mppsi, mpps1
+    real, intent (inout), dimension (is:ie) :: mppss, mppsg, mppfw, mppfr, mppar
+    real, intent (inout), dimension (is:ie) :: mppas, mppag, mpprs, mpprg, mppxr
+    real, intent (inout), dimension (is:ie) :: mppxs, mppxg, mppmi, mppms, mppmg
 
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
 
@@ -648,10 +649,10 @@ subroutine gfdl_cld_mp_driver (qv, ql, qr, qi, qs, qg, qa, qnl, qni, pt, wa, &
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
-        prefluxi, prefluxs, prefluxg, mppcw, mppew, mpper, mppdi, mppds, mppdg, &
-        mppsi, mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas, &
-        mppag, mpprs, mpprg, mppxr, mppxs, mppxg, last_step, do_inline_mp, &
-        .false., .true.)
+        prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, mpper, mppdi, mppd1, &
+        mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
+        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, &
+        last_step, do_inline_mp, .false., .true.)
 
 end subroutine gfdl_cld_mp_driver
 
@@ -1159,10 +1160,10 @@ end subroutine setup_mhc_lhc
 subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
         qa, qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
-        prefluxi, prefluxs, prefluxg, mppcw, mppew, mpper, mppdi, mppds, mppdg, &
-        mppsi, mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas, &
-        mppag, mpprs, mpprg, mppxr, mppxs, mppxg, last_step, do_inline_mp, &
-        do_mp_fast, do_mp_full)
+        prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, mpper, mppdi, mppd1, &
+        mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
+        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, &
+        last_step, do_inline_mp, do_mp_fast, do_mp_full)
 
     implicit none
 
@@ -1188,10 +1189,11 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa
 
     real, intent (inout), dimension (is:ie) :: water, rain, ice, snow, graupel
-    real, intent (inout), dimension (is:ie) :: mppcw, mppew, mpper, mppdi, mppds, mppdg
-    real, intent (inout), dimension (is:ie) :: mppsi, mppss, mppsg, mppfw, mppfr
-    real, intent (inout), dimension (is:ie) :: mppar, mppas, mppag, mpprs, mpprg
-    real, intent (inout), dimension (is:ie) :: mppxr, mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout), dimension (is:ie) :: mppcw, mppew, mppe1, mpper, mppdi
+    real, intent (inout), dimension (is:ie) :: mppd1, mppds, mppdg, mppsi, mpps1
+    real, intent (inout), dimension (is:ie) :: mppss, mppsg, mppfw, mppfr, mppar
+    real, intent (inout), dimension (is:ie) :: mppas, mppag, mpprs, mpprg, mppxr
+    real, intent (inout), dimension (is:ie) :: mppxs, mppxg, mppmi, mppms, mppmg
 
     real, intent (out), dimension (is:ie, ks:ke) :: te, adj_vmr
 
@@ -1443,10 +1445,11 @@ subroutine mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, &
                 u, v, w, den, denfac, ccn, cin, dts, rh_adj, rh_rain, h_var, dte (i), &
                 water (i), rain (i), ice (i), snow (i), graupel (i), prefluxw (i, :), &
                 prefluxr (i, :), prefluxi (i, :), prefluxs (i, :), prefluxg (i, :), &
-                mppcw (i), mppew (i), mpper (i), mppdi (i), mppds (i), mppdg (i), &
-                mppsi (i), mppss (i), mppsg (i), mppfw (i), mppfr (i), mppmi (i), &
-                mppms (i), mppmg (i), mppar (i), mppas (i), mppag (i), mpprs (i), &
-                mpprg (i), mppxr (i), mppxs (i), mppxg (i), convt, last_step)
+                mppcw (i), mppew (i), mppe1 (i), mpper (i), mppdi (i), mppd1 (i), &
+                mppds (i), mppdg (i), mppsi (i), mpps1 (i), mppss (i), mppsg (i), &
+                mppfw (i), mppfr (i), mppmi (i), mppms (i), mppmg (i), mppar (i), &
+                mppas (i), mppag (i), mpprs (i), mpprg (i), mppxr (i), mppxs (i), &
+                mppxg (i), convt, last_step)
 
         endif
 
@@ -1882,9 +1885,9 @@ end subroutine neg_adj
 subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w, &
         den, denfac, ccn, cin, dts, rh_adj, rh_rain, h_var, dte, water, rain, ice, &
         snow, graupel, prefluxw, prefluxr, prefluxi, prefluxs, prefluxg, mppcw, &
-        mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss, mppsg, mppfw, mppfr, mppmi, &
-        mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, convt, &
-        last_step)
+        mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, mppss, &
+        mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, &
+        mpprg, mppxr, mppxs, mppxg, convt, last_step)
 
     implicit none
 
@@ -1906,10 +1909,11 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
 
     real, intent (inout) :: water, rain, ice, snow, graupel
-    real, intent (inout) :: mppcw, mppew, mpper, mppdi, mppds, mppdg
-    real, intent (inout) :: mppsi, mppss, mppsg, mppfw, mppfr
-    real, intent (inout) :: mppar, mppas, mppag, mpprs, mpprg
-    real, intent (inout) :: mppxr, mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout) :: mppcw, mppew, mppe1, mpper, mppdi
+    real, intent (inout) :: mppd1, mppds, mppdg, mppsi, mpps1
+    real, intent (inout) :: mppss, mppsg, mppfw, mppfr, mppar
+    real, intent (inout) :: mppas, mppag, mpprs, mpprg, mppxr
+    real, intent (inout) :: mppxs, mppxg, mppmi, mppms, mppmg
 
     real (kind = r8), intent (inout) :: dte
 
@@ -1967,8 +1971,8 @@ subroutine mp_full (ks, ke, ntimes, tz, qv, ql, qr, qi, qs, qg, dp, dz, u, v, w,
             ! -----------------------------------------------------------------------
 
             call subgrid_z_proc (ks, ke, den, denfac, dts, rh_adj, tz, qv, ql, qr, &
-                qi, qs, qg, dp, ccn, cin, mppcw, mppew, mppdi, mppds, mppdg, mppsi, &
-                mppss, mppsg, mppfw, convt, last_step)
+                qi, qs, qg, dp, ccn, cin, mppcw, mppew, mppe1, mppdi, mppd1, mppds, &
+                mppdg, mppsi, mpps1, mppss, mppsg, mppfw, convt, last_step)
 
         endif
 
@@ -3975,8 +3979,8 @@ end subroutine pgacw_pgacr
 ! =======================================================================
 
 subroutine subgrid_z_proc (ks, ke, den, denfac, dts, rh_adj, tz, qv, ql, qr, &
-        qi, qs, qg, dp, ccn, cin, mppcw, mppew, mppdi, mppds, mppdg, mppsi, &
-        mppss, mppsg, mppfw, convt, last_step)
+        qi, qs, qg, dp, ccn, cin, mppcw, mppew, mppe1, mppdi, mppd1, mppds, &
+        mppdg, mppsi, mpps1, mppss, mppsg, mppfw, convt, last_step)
 
     implicit none
 
@@ -3994,8 +3998,8 @@ subroutine subgrid_z_proc (ks, ke, den, denfac, dts, rh_adj, tz, qv, ql, qr, &
 
     real, intent (inout), dimension (ks:ke) :: qv, ql, qr, qi, qs, qg, ccn, cin
 
-    real, intent (inout) :: mppcw, mppew, mppdi, mppds, mppdg, mppsi, mppss, mppsg
-    real, intent (inout) :: mppfw
+    real, intent (inout) :: mppcw, mppew, mppe1, mppdi, mppd1, mppds
+    real, intent (inout) :: mppdg, mppsi, mpps1, mppss, mppsg, mppfw
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: tz
 
@@ -4025,7 +4029,7 @@ subroutine subgrid_z_proc (ks, ke, den, denfac, dts, rh_adj, tz, qv, ql, qr, &
     if (.not. do_warm_rain_mp) then
 
         call pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
-            lcpk, icpk, tcpk, tcp3, rh_adj, mppew, mppdi, mppsi, convt)
+            lcpk, icpk, tcpk, tcp3, rh_adj, mppe1, mppd1, mpps1, convt)
 
     endif
 
@@ -4099,7 +4103,7 @@ end subroutine subgrid_z_proc
 ! =======================================================================
 
 subroutine pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
-        lcpk, icpk, tcpk, tcp3, rh_adj, mppew, mppdi, mppsi, convt)
+        lcpk, icpk, tcpk, tcp3, rh_adj, mppe1, mppd1, mpps1, convt)
 
     implicit none
 
@@ -4120,7 +4124,7 @@ subroutine pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
 
     real (kind = r8), intent (inout), dimension (ks:ke) :: cvm, tz
 
-    real, intent (inout) :: mppew, mppdi, mppsi
+    real, intent (inout) :: mppe1, mppd1, mpps1
 
     ! -----------------------------------------------------------------------
     ! local variables
@@ -4139,7 +4143,7 @@ subroutine pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
         if (tz (k) .lt. t_min) then
 
             sink = dim (qv (k), qcmin)
-            mppdi = mppdi + sink * dp (k) * convt
+            mppd1 = mppd1 + sink * dp (k) * convt
 
             call update_qt (qv (k), ql (k), qr (k), qi (k), qs (k), qg (k), &
                  - sink, 0., 0., sink, 0., 0., te8 (k), cvm (k), tz (k), &
@@ -4164,8 +4168,8 @@ subroutine pinst (ks, ke, qv, ql, qr, qi, qs, qg, tz, dp, cvm, te8, den, &
                 sink = ql (k)
                 tmp = qi (k)
 
-                mppew = mppew + sink * dp (k) * convt
-                mppsi = mppsi + tmp * dp (k) * convt
+                mppe1 = mppe1 + sink * dp (k) * convt
+                mpps1 = mpps1 + tmp * dp (k) * convt
 
                 call update_qt (qv (k), ql (k), qr (k), qi (k), qs (k), qg (k), &
                     sink + tmp, - sink, 0., - tmp, 0., 0., te8 (k), cvm (k), tz (k), &
@@ -5713,9 +5717,10 @@ end subroutine sedi_heat
 
 subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
         adj_vmr, te, dte, qv, ql, qr, qi, qs, qg, qa, qnl, qni, hs, delz, &
-        pt, delp, q_con, cappa, gsize, mppcw, mppew, mpper, mppdi, mppds, &
-        mppdg, mppsi, mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, &
-        mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, last_step, do_sat_adj)
+        pt, delp, q_con, cappa, gsize, mppcw, mppew, mppe1, mpper, mppdi, &
+        mppd1, mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, &
+        mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
+        mppxs, mppxg, last_step, do_sat_adj)
 
     implicit none
 
@@ -5738,10 +5743,11 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
 
     real, intent (inout), dimension (is:, ks:) :: q_con, cappa
 
-    real, intent (inout), dimension (is:ie) :: mppcw, mppew, mpper, mppdi, mppds, mppdg
-    real, intent (inout), dimension (is:ie) :: mppsi, mppss, mppsg, mppfw, mppfr
-    real, intent (inout), dimension (is:ie) :: mppar, mppas, mppag, mpprs, mpprg
-    real, intent (inout), dimension (is:ie) :: mppxr, mppxs, mppxg, mppmi, mppms, mppmg
+    real, intent (inout), dimension (is:ie) :: mppcw, mppew, mppe1, mpper, mppdi
+    real, intent (inout), dimension (is:ie) :: mppd1, mppds, mppdg, mppsi, mpps1
+    real, intent (inout), dimension (is:ie) :: mppss, mppsg, mppfw, mppfr, mppar
+    real, intent (inout), dimension (is:ie) :: mppas, mppag, mpprs, mpprg, mppxr
+    real, intent (inout), dimension (is:ie) :: mppxs, mppxg, mppmi, mppms, mppmg
 
     real, intent (out), dimension (is:ie, ks:ke) :: adj_vmr
 
@@ -5782,10 +5788,10 @@ subroutine cld_sat_adj (dtm, is, ie, ks, ke, hydrostatic, consv_te, &
     call mpdrv (hydrostatic, ua, va, wa, delp, pt, qv, ql, qr, qi, qs, qg, qa, &
         qnl, qni, delz, is, ie, ks, ke, dtm, water, rain, ice, snow, graupel, &
         gsize, hs, q_con, cappa, consv_te, adj_vmr, te, dte, prefluxw, prefluxr, &
-        prefluxi, prefluxs, prefluxg, mppcw, mppew, mpper, mppdi, mppds, mppdg, &
-        mppsi, mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas, &
-        mppag, mpprs, mpprg, mppxr, mppxs, mppxg, last_step, .false., do_sat_adj, &
-        .false.)
+        prefluxi, prefluxs, prefluxg, mppcw, mppew, mppe1, mpper, mppdi, mppd1, &
+        mppds, mppdg, mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms, &
+        mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, last_step, &
+        .false., do_sat_adj, .false.)
 
 end subroutine cld_sat_adj
 

@@ -492,9 +492,9 @@ module module_physics_driver
           gsize, hs, land, water0, rain0, ice0, snow0, graupel0,        &
           dte, zvfun
       real(kind=kind_phys), dimension(size(Grid%xlon,1)) ::             &
-          mppcw, mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss,       &
-          mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas,       &
-          mppag, mpprs, mpprg, mppxr, mppxs, mppxg
+          mppcw, mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg,       &
+          mppsi, mpps1, mppss, mppsg, mppfw, mppfr, mppmi, mppms,       &
+          mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg
 #endif
 
       real(kind=kind_phys), dimension(size(Grid%xlon,1),4) ::           &
@@ -3416,11 +3416,14 @@ module module_physics_driver
 
         mppcw = 0.0
         mppew = 0.0
+        mppe1 = 0.0
         mpper = 0.0
         mppdi = 0.0
+        mppd1 = 0.0
         mppds = 0.0
         mppdg = 0.0
         mppsi = 0.0
+        mpps1 = 0.0
         mppss = 0.0
         mppsg = 0.0
         mppfw = 0.0
@@ -3460,9 +3463,9 @@ module module_physics_driver
                          Stateout%gq0(:,levs:1:-1,Model%ntsw), Stateout%gq0(:,levs:1:-1,Model%ntgl), &
                          Stateout%gq0(:,levs:1:-1,Model%ntclamt), qnl1(:,levs:1:-1), qni1(:,levs:1:-1), &
                          hs, dz, Stateout%gt0(:,levs:1:-1), delp, q_con(:,levs:1:-1), cappa(:,levs:1:-1), &
-                         gsize, mppcw, mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss, mppsg, mppfw, &
-                         mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, &
-                         mppxg, .true., Model%do_sat_adj)
+                         gsize, mppcw, mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, &
+                         mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppar, mppas, mppag, mpprs, &
+                         mpprg, mppxr, mppxs, mppxg, .true., Model%do_sat_adj)
 
         endif
 
@@ -3621,9 +3624,9 @@ module module_physics_driver
                                 .false., adj_vmr(:,levs:1:-1), te(:,levs:1:-1), dte, &
                                 prefluxw(:,levs:1:-1), prefluxr(:,levs:1:-1), &
                                 prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
-                                mppcw, mppew, mpper, mppdi, mppds, mppdg, mppsi, mppss, mppsg, mppfw, &
-                                mppfr, mppmi, mppms, mppsg, mppar, mppas, mppag, mpprs, mpprg, mppxr, &
-                                mppxs, mppxg, .true., Model%do_inline_mp)
+                                mppcw, mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, &
+                                mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppsg, mppar, mppas, mppag, &
+                                mpprs, mpprg, mppxr, mppxs, mppxg, .true., Model%do_inline_mp)
 
         tem = dtp * con_p001 / con_day
         water0(:)   = water0(:)   * tem

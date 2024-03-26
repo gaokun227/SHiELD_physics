@@ -1332,8 +1332,9 @@ c
                 ptem2 = dtodsu * ptem
                 tem1  = qcko(i,k,kk) + qcko(i,k+1,kk)
                 tem2  = q1(i,k,kk) + q1(i,k+1,kk)
-                f2(i,k+is) = f2(i,k+is) - (tem1 - tem2) * ptem1
-                f2(i,k+1+is)= q1(i,k+1,kk) + (tem1 - tem2) * ptem2
+                ! kgao note - turn off non-local mixing
+                f2(i,k+is) = f2(i,k+is) ! - (tem1 - tem2) * ptem1
+                f2(i,k+1+is)= q1(i,k+1,kk) ! + (tem1 - tem2) * ptem2
               else
                 f2(i,k+1+is) = q1(i,k+1,kk)
               endif
@@ -1349,8 +1350,9 @@ c
                   ptem2 = dtodsu * ptem
                   tem1  = qcdo(i,k,kk) + qcdo(i,k+1,kk)
                   tem2  = q1(i,k,kk) + q1(i,k+1,kk)
-                  f2(i,k+is)  = f2(i,k+is) + (tem1 - tem2) * ptem1
-                  f2(i,k+1+is)= f2(i,k+1+is) - (tem1 - tem2) * ptem2
+                  ! kgao note - turn off non-local mixing
+                  f2(i,k+is)  = f2(i,k+is) !+ (tem1 - tem2) * ptem1
+                  f2(i,k+1+is)= f2(i,k+1+is)! - (tem1 - tem2) * ptem2
                 endif
               endif
 !

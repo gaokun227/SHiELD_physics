@@ -3586,7 +3586,7 @@ module module_physics_driver
                          gsize, mppcw, mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, &
                          mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppm1, mppm2, mppm3, mppar, &
                          mppas, mppag, mpprs, &
-                         mpprg, mppxr, mppxs, mppxg, .true., Model%do_sat_adj)
+                         mpprg, mppxr, mppxs, mppxg, .true., Model%do_sat_adj, .true., .true.)
 
         endif
 
@@ -3747,7 +3747,8 @@ module module_physics_driver
                                 prefluxi(:,levs:1:-1), prefluxs(:,levs:1:-1), prefluxg(:,levs:1:-1), &
                                 mppcw, mppew, mppe1, mpper, mppdi, mppd1, mppds, mppdg, mppsi, mpps1, &
                                 mppss, mppsg, mppfw, mppfr, mppmi, mppms, mppmg, mppm1, mppm2, mppm3, &
-                                mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, .true., Model%do_inline_mp)
+                                mppar, mppas, mppag, mpprs, mpprg, mppxr, mppxs, mppxg, .true., Model%do_inline_mp, &
+                                .true., .true.)
 
         tem = dtp * con_p001 / con_day
         water0(:)   = water0(:)   * tem

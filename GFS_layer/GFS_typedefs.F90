@@ -652,13 +652,13 @@ module GFS_typedefs
     logical              :: no_pbl          !< disable PBL (for LES)
     logical              :: cap_k0_land     !< flag for applying limter on background diff in inversion layer over land in satmedmfdiff.f
     logical              :: do_dk_hb19      !< flag for using hb19 background diff formula in satmedmfdiff.f
-    logical              :: use_lup_only    !< flag for using l_up as l2 in tke-edmf pbl 
+    logical              :: use_lup_only    !< flag for using l_up as l2 in tke-edmf pbl
     logical              :: use_l1_sfc      !< flag for using l1 as l at lowest layer in tke-edmf pbl
-    logical              :: use_tke_pbl     !< flag for adjusting entrainment/detrainment rate in tke-edmf 
-    logical              :: use_shear_pbl   !< flag for considering shear effect on updraft/downdraft diagnosis in tke-edmf 
-    logical              :: use_tke_conv    !< flag for adjusting entrainment/detrainment rate in conv scheme 
+    logical              :: use_tke_pbl     !< flag for adjusting entrainment/detrainment rate in tke-edmf
+    logical              :: use_shear_pbl   !< flag for considering shear effect on updraft/downdraft diagnosis in tke-edmf
+    logical              :: use_tke_conv    !< flag for adjusting entrainment/detrainment rate in conv scheme
     logical              :: use_shear_conv  !< flag for considering shear effect on updraft/downdraft diagnosis in conv scheme
-    logical              :: limit_shal_conv !< flag for constraining shal conv based on diagnosed cloud depth/top 
+    logical              :: limit_shal_conv !< flag for constraining shal conv based on diagnosed cloud depth/top
     logical              :: dspheat         !< flag for tke dissipative heating
     logical              :: lheatstrg       !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy     !< tunable time scale for canopy heat storage parameterization
@@ -718,7 +718,7 @@ module GFS_typedefs
                                             !<     0: initial version of satmedmf (Nov 2018) modified by kgao at GFDL
                                             !<     1: updated version of satmedmf (May 2019) modified by kgao at GFDL
     integer              :: l2_diag_opt     !< flag for choosing a diagnosis method for l2 in tke-edmf
-    integer              :: l1l2_blend_opt  !< flag for choosing a blending method for l1 and l2 in tke-edmf 
+    integer              :: l1l2_blend_opt  !< flag for choosing a blending method for l1 and l2 in tke-edmf
     logical              :: do_deep         !< whether to do deep convection
     integer              :: nmtvr           !< number of topographic variables such as variance etc
                                             !< used in the GWD parameterization
@@ -878,7 +878,7 @@ module GFS_typedefs
     !--- debug flag
     logical              :: debug
     logical              :: pre_rad         !< flag for testing purpose
-    logical              :: do_ocean        !< flag for slab ocean model 
+    logical              :: do_ocean        !< flag for slab ocean model
     logical              :: use_ifs_ini_sst !< only work when "ecmwf_ic = .T."
     logical              :: use_ext_sst     !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
@@ -2295,13 +2295,13 @@ end subroutine overrides_create
     logical              :: no_pbl         = .false.                  !< disable PBL (for LES)
     logical              :: cap_k0_land    = .true.                   !< flag for applying limter on background diff in inversion
     logical              :: do_dk_hb19     = .false.                  !< flag for using hb19 formula for background diff
-    logical              :: use_lup_only   = .false.                  !< flag for using l_up as l2 
+    logical              :: use_lup_only   = .false.                  !< flag for using l_up as l2
     logical              :: use_l1_sfc     = .false.                  !< flag for using l1 as l in the lowest layer
     logical              :: use_tke_pbl    = .false.                  !< flag for adjusting entrainment/detrainment rates in edmf
-    logical              :: use_shear_pbl  = .false.                  !< flag for considering shear effect for wu/wd in edmf 
-    logical              :: use_tke_conv   = .false.                  !< flag for adjusting entrainment/detrainment rates in conv 
+    logical              :: use_shear_pbl  = .false.                  !< flag for considering shear effect for wu/wd in edmf
+    logical              :: use_tke_conv   = .false.                  !< flag for adjusting entrainment/detrainment rates in conv
     logical              :: use_shear_conv = .false.                  !< flag for considering shear effect for wu/wd in conv
-    logical              :: limit_shal_conv= .false.                  !< flag for constraining shal conv based on diagnosed cloud depth/top 
+    logical              :: limit_shal_conv= .false.                  !< flag for constraining shal conv based on diagnosed cloud depth/top
     logical              :: dspheat        = .false.                  !< flag for tke dissipative heating
     logical              :: lheatstrg      = .false.                  !< flag for canopy heat storage parameterization
     real(kind=kind_phys) :: hour_canopy    = 0.0d0                    !< tunable time scale for canopy heat storage parameterization
@@ -2493,8 +2493,8 @@ end subroutine overrides_create
     logical              :: lprnt          = .false.
     !logical              :: landseaprt     = .true. !moved to being a public module variable, for convenience
     logical              :: pre_rad        = .false.         !< flag for testing purpose
-    logical              :: do_ocean       = .false.         !< flag for slab ocean model 
-    logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T. 
+    logical              :: do_ocean       = .false.         !< flag for slab ocean model
+    logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T.
     logical              :: use_ext_sst    = .false.         !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
 
 !--- aerosol scavenging factors
@@ -2782,13 +2782,13 @@ end subroutine overrides_create
     Model%no_pbl           = no_pbl
     Model%cap_k0_land      = cap_k0_land
     Model%do_dk_hb19       = do_dk_hb19
-    Model%use_lup_only     = use_lup_only 
+    Model%use_lup_only     = use_lup_only
     Model%use_l1_sfc       = use_l1_sfc
     Model%use_tke_pbl      = use_tke_pbl
     Model%use_shear_pbl    = use_shear_pbl
     Model%use_tke_conv     = use_tke_conv
     Model%use_shear_conv   = use_shear_conv
-    Model%limit_shal_conv  = limit_shal_conv 
+    Model%limit_shal_conv  = limit_shal_conv
     Model%dspheat          = dspheat
     Model%lheatstrg        = lheatstrg
     Model%hour_canopy      = hour_canopy

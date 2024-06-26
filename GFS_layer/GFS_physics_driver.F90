@@ -427,7 +427,7 @@ module module_physics_driver
 
       integer, dimension(size(Grid%xlon,1)) ::                          &
            kbot, ktop, kcnv, soiltyp, vegtype, kpbl, slopetyp, kinver,  &
-           lmh, levshc, islmsk,                                         &
+           lmh, levshc, islmsk, soilcol,                                &
            !--- coupling inputs for physics
            islmsk_cice
 
@@ -748,22 +748,32 @@ module module_physics_driver
               Sfcprop%slmsk(i) = 2
               Sfcprop%hice(i) = 0.1 !minimum value
            elseif (nint(Sfcprop%slmsk(i)) == 2) then
-              if (Statein%ci(i) < 0.15) then !remove sea ice
+              if (Statein%ci(i) < 0.15) then ! Remove sea ice and associated snow
                  Sfcprop%slmsk(i) = 0
                  Sfcprop%fice(i) = 0.0
                  Sfcprop%hice(i) = 0.0
+                 Sfcprop%snowd(i) = 0.0
+                 Sfcprop%weasd(i) = 0.0
               else
                  Sfcprop%fice(i) = Statein%ci(i)
               endif
               
            endif
         endif
+        if (nint(Sfcprop%slmsk(i)) .eq. 0) then
+           ! Always reset the snow cover fraction to zero over all ocean grid
+           ! cells regardless of whether we are running with sea ice prescribed
+           ! from an external source or not.  This is to prevent persisted
+           ! snow cover from sea ice from contaminating the snow cover
+           ! diagnostic over ocean (where it should always be zero).
+           Sfcprop%sncovr(i) = 0.0
+        endif
       enddo
 
       do i = 1, im
         sigmaf(i)   = max( Sfcprop%vfrac(i),0.01 )
         islmsk(i)   = nint(Sfcprop%slmsk(i))
-
+        soilcol(i)  = nint(Sfcprop%scolor(i))
 
         if (islmsk(i) == 2) then
           if (Model%isot == 1) then
@@ -1322,7 +1332,8 @@ module module_physics_driver
           call noahmpdrv                                               &
 !  ---  inputs:
            (im, Model%lsoil, kdt, Statein%pgr,  Statein%ugrs, Statein%vgrs,   &
-            Statein%tgrs,  Statein%qgrs, soiltyp, vegtype, sigmaf,     &
+            Statein%tgrs,  Statein%qgrs, soiltyp, soilcol,             &
+            vegtype, sigmaf,                                           &
             Radtend%semis, adjsfcdlw_for_coupling,                     &
             adjsfcdsw_for_coupling, adjsfcnsw_for_coupling, dtf,       &
             Sfcprop%tg3, cd, cdq, Statein%prsl(:,1), work3,            &

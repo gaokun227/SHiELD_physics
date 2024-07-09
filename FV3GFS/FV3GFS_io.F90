@@ -533,7 +533,7 @@ module FV3GFS_io_mod
     nvar_s3  = 3
 
     if (Model%lsm == Model%lsm_noahmp) then
-      nvar_s2mp = 39       !mp 2D
+      nvar_s2mp = 40       !mp 2D
       nvar_s3mp = 5        !mp 3D
     else
       nvar_s2mp = 0        !mp 2D
@@ -664,6 +664,7 @@ module FV3GFS_io_mod
         sfc_name2(nvar_s2m+55) = 'albivis'
         sfc_name2(nvar_s2m+56) = 'albinir'
         sfc_name2(nvar_s2m+57) = 'emiss'
+        sfc_name2(nvar_s2m+58) = 'scolor'
       endif
 
       !--- names of the 3D variables to save
@@ -1165,6 +1166,7 @@ module FV3GFS_io_mod
              Sfcprop(nb)%albivis(ix)    = sfc_var2(i,j,nvar_s2m+55)
              Sfcprop(nb)%albinir(ix)    = sfc_var2(i,j,nvar_s2m+56)
              Sfcprop(nb)%emiss(ix)      = sfc_var2(i,j,nvar_s2m+57)
+             Sfcprop(nb)%scolor(ix)     = sfc_var2(i,j,nvar_s2m+58)
            endif
 
 
@@ -1317,6 +1319,7 @@ module FV3GFS_io_mod
               Sfcprop(nb)%albivis(ix)    = missing_value
               Sfcprop(nb)%albinir(ix)    = missing_value
               Sfcprop(nb)%emiss(ix)      = missing_value
+              Sfcprop(nb)%scolor(ix)     = 0.0
 
               Sfcprop(nb)%snowxy (ix)   = missing_value
               Sfcprop(nb)%snicexy(ix, -2:0) = missing_value
@@ -1542,6 +1545,11 @@ module FV3GFS_io_mod
                 Sfcprop(nb)%deeprechxy(ix) = 0.0
                 Sfcprop(nb)%rechxy(ix)     = 0.0
 
+                ! Use a default value of 4 for the soil color category over
+                ! land when cold starting. Note this will get overridden during
+                ! cycling if soil color data is provided. If soil color data is
+                ! not provided then the soil color will remain 4 over land.
+                Sfcprop(nb)%scolor(ix)     = 4.0
               endif !end if slmsk>0.01 (land only)
 
             enddo ! ix
@@ -2051,6 +2059,7 @@ module FV3GFS_io_mod
             sfc_var2(i,j,nvar_s2m+55) = Sfcprop(nb)%albivis(ix)
             sfc_var2(i,j,nvar_s2m+56) = Sfcprop(nb)%albinir(ix)
             sfc_var2(i,j,nvar_s2m+57) = Sfcprop(nb)%emiss(ix)
+            sfc_var2(i,j,nvar_s2m+58) = Sfcprop(nb)%scolor(ix)
           endif
 
           !--- 3D variables
@@ -3057,6 +3066,19 @@ module FV3GFS_io_mod
    endif
 
    index = index + 1
+   Diag_diag_manager_controlled(index)%axes = 0
+   Diag_diag_manager_controlled(index)%name = 'global_mean_co2'
+   Diag_diag_manager_controlled(index)%desc = 'global mean carbon dioxide concentration'
+   Diag_diag_manager_controlled(index)%unit = 'volume mixing ratio'
+   Diag_diag_manager_controlled(index)%mod_name = 'gfs_phys'
+   Diag_diag_manager_controlled(index)%coarse_graining_method = AREA_WEIGHTED
+   allocate (Diag_diag_manager_controlled(index)%data(nblks))
+   do nb = 1,nblks
+       Diag_diag_manager_controlled(index)%data(nb)%var2 => IntDiag(nb)%column_moles_co2_per_square_meter
+       Diag_diag_manager_controlled(index)%data(nb)%var21 => IntDiag(nb)%column_moles_dry_air_per_square_meter
+   enddo
+
+   index = index + 1
    Diag_diag_manager_controlled(index)%axes = 2
    Diag_diag_manager_controlled(index)%name = 'ocean_fraction'
    Diag_diag_manager_controlled(index)%desc = 'fraction of grid cell classified as ocean type'
@@ -3130,10 +3152,17 @@ module FV3GFS_io_mod
 
    do index = 1, DIAG_SIZE
       if (trim(Diag_diag_manager_controlled(index)%name) .eq. '') exit  ! No need to populate non-existent diagnostics
-      Diag_diag_manager_controlled(index)%id = register_diag_field(trim(Diag_diag_manager_controlled(index)%mod_name), &
-           & trim(Diag_diag_manager_controlled(index)%name),  &
-           & axes(1:Diag_diag_manager_controlled(index)%axes), Time, trim(Diag_diag_manager_controlled(index)%desc), &
-           & trim(Diag_diag_manager_controlled(index)%unit), missing_value=real(missing_value))
+        if (Diag_diag_manager_controlled(index)%axes .gt. 0) then
+          Diag_diag_manager_controlled(index)%id = register_diag_field(trim(Diag_diag_manager_controlled(index)%mod_name), &
+              & trim(Diag_diag_manager_controlled(index)%name),  &
+              & axes(1:Diag_diag_manager_controlled(index)%axes), Time, trim(Diag_diag_manager_controlled(index)%desc), &
+              & trim(Diag_diag_manager_controlled(index)%unit), missing_value=real(missing_value))
+        else
+          ! Scalar diagnostics are registered without any axes, so must be handled differently.
+          Diag_diag_manager_controlled(index)%id = register_diag_field(trim(Diag_diag_manager_controlled(index)%mod_name), &
+              & trim(Diag_diag_manager_controlled(index)%name), Time, trim(Diag_diag_manager_controlled(index)%desc), &
+              & trim(Diag_diag_manager_controlled(index)%unit), missing_value=real(missing_value))
+        endif
    enddo
   end subroutine register_diag_manager_controlled_diagnostics
 
@@ -6975,6 +7004,28 @@ module FV3GFS_io_mod
 
     idx = idx + 1
     Diag(idx)%axes = 2
+    Diag(idx)%name = 'snow_cover'
+    Diag(idx)%desc = 'snow cover area fraction'
+    Diag(idx)%unit = 'fraction'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Sfcprop(nb)%sncovr(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
+    Diag(idx)%name = 'soil_color'
+    Diag(idx)%desc = 'soil color category'
+    Diag(idx)%unit = 'none'
+    Diag(idx)%mod_name = 'gfs_sfc'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+      Diag(idx)%data(nb)%var2 => Sfcprop(nb)%scolor(:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 2
     Diag(idx)%name = 'crain'
     Diag(idx)%desc = 'instantaneous categorical rain'
     Diag(idx)%unit = 'number'
@@ -7390,6 +7441,7 @@ module FV3GFS_io_mod
     real(kind=kind_phys), allocatable :: masked_area(:,:,:)
     real(kind=kind_phys), allocatable :: blending_weights(:,:,:)
 
+    real(kind=kind_phys) :: scalar
     real(kind=kind_phys) :: var2d(nx, ny)
     real(kind=kind_phys) :: var3d(nx, ny, levs)
     integer :: i, j, ii, jj, k, isc, jsc, ix, nb, index, used
@@ -7496,6 +7548,14 @@ module FV3GFS_io_mod
             else
               call mpp_error(FATAL, 'FV3GFS_io invalid coarse-graining strategy provided.')
             endif
+          endif
+        elseif (trim(Diag_diag_manager_controlled(index)%name) .eq. 'global_mean_co2') then
+          if (Diag_diag_manager_controlled(index)%id > 0) then
+             call compute_global_mean_co2(Atm_block, IPD_Data, nx, ny, Diag_diag_manager_controlled(index), scalar)
+             used = send_data(Diag_diag_manager_controlled(index)%id, scalar, Time)
+          endif
+          if (Diag_diag_manager_controlled_coarse(index)%id > 0) then
+             call mpp_error(FATAL, 'global_mean_co2_coarse is not a valid diagnostic; use global_mean_co2 instead.')
           endif
         endif
       endif
@@ -7887,6 +7947,41 @@ module FV3GFS_io_mod
 
 
   end subroutine gfdl_diag_output
+
+ subroutine compute_global_mean_co2(Atm_block, IPD_Data, nx, ny, Diag, global_mean_co2)
+    type (block_control_type), intent(in) :: Atm_block
+    type(IPD_data_type),       intent(in) :: IPD_Data(:)
+    integer, intent(in) :: nx, ny
+    type(gfdl_diag_type), intent(in) :: Diag
+    real(kind=kind_phys), intent(out) :: global_mean_co2
+
+    real(kind=kind_phys) :: moles_dry_air, moles_co2, area
+    integer :: j, jj, i, ii, nb, ix, isc, jsc
+
+    moles_dry_air = 0.0
+    moles_co2 = 0.0
+
+    isc = Atm_block%isc
+    jsc = Atm_block%jsc
+
+    do j = 1, ny
+       jj = j + jsc - 1
+       do i = 1, nx
+          ii = i + isc - 1
+          nb = Atm_block%blkno(ii,jj)
+          ix = Atm_block%ixp(ii,jj)
+          area = IPD_Data(nb)%Grid%area(ix)
+          moles_dry_air = moles_dry_air + area * Diag%data(nb)%var21(ix)
+          moles_co2 = moles_co2 + area * Diag%data(nb)%var2(ix)
+        enddo
+     enddo
+
+    call mp_reduce_sum(moles_dry_air)
+    call mp_reduce_sum(moles_co2)
+
+    global_mean_co2 = moles_co2 / moles_dry_air
+ end subroutine compute_global_mean_co2
+
 !-------------------------------------------------------------------------
  subroutine prt_gb_nh_sh_us(qname, is,ie, js,je, a2, area, lon, lat, mask, fac, operation_in) !Prints averages/sums, or maxes/mins
   use physcons,    pi=>con_pi

@@ -3,12 +3,14 @@
       subroutine noahmpdrv                                              &
 !...................................
 !  ---  inputs:
-     &     ( im, km,itime,ps, u1, v1, t1, q1, soiltyp, vegtype, sigmaf, &
+     &     ( im, km,itime,ps, u1, v1, t1, q1, soiltyp, soilcol,vegtype, &
+     &       sigmaf,                                                    &
      &       sfcemis, dlwflx, dswsfc, snet, delt, tg3, cm, ch,          &
      &       prsl1, prslki, zf, dry, wind, slopetyp,                    &
      &       shdmin, shdmax, snoalb, sfalb, flag_iter, flag_guess,      &
      &       idveg,iopt_crs, iopt_btr, iopt_run, iopt_sfc, iopt_frz,    &
      &       iopt_inf,iopt_rad, iopt_alb, iopt_snf,iopt_tbot,iopt_stc,  &
+     &       iopt_gla,                                                  &
      &       xlatin,xcoszin, iyrlen, julian,imon,                       &
      &       rainn_mp,rainc_mp,snow_mp,graupel_mp,ice_mp,maxevap,       &
 
@@ -83,7 +85,8 @@
 
       integer, intent(in) :: im, km, itime,imon
 
-      integer, dimension(im), intent(in) :: soiltyp, vegtype, slopetyp
+      integer, dimension(im), intent(in) :: soiltyp, soilcol, vegtype,  &
+     &       slopetyp
 
       real (kind=kind_phys), dimension(im), intent(in) :: ps, u1, v1,   &
      &       t1, q1, sigmaf, dlwflx, dswsfc, snet, tg3, cm,             &
@@ -97,7 +100,8 @@
 
       integer,  intent(in) ::  idveg, iopt_crs,iopt_btr,iopt_run,       &
      &                         iopt_sfc,iopt_frz,iopt_inf,iopt_rad,     &
-     &                         iopt_alb,iopt_snf,iopt_tbot,iopt_stc
+     &                         iopt_alb,iopt_snf,iopt_tbot,iopt_stc,    &
+     &                         iopt_gla
 
       real (kind=kind_phys),  intent(in) :: julian
       integer,  intent(in)               :: iyrlen
@@ -173,7 +177,7 @@
      &       sfcems, sheat, shdfac, shdmin1d, shdmax1d, smcwlt,         &
      &       smcdry, smcref, smcmax, sneqv, snoalb1d, snowh,            &
      &       snomlt, sncovr, soilw, soilm, ssoil, tsea, th2,            &
-     &       xlai, zlvl, swdn, tem, psfc,fdown,t2v,tbot
+     &       xlai, zlvl, swdn, tem, psfc,fdown,t2v,tbot, qmelt
 
       real (kind=kind_phys) :: pconv,pnonc,pshcv,psnow,pgrpl,phail
       real (kind=kind_phys) :: lat,cosz,uu,vv,swe
@@ -203,7 +207,8 @@
      &                         irb,tr,evc,chleaf,chuc,chv2,chb2,        &
      &                         fpice,pahv,pahg,pahb,pah,co2pp,o2pp,ch2b
 
-      integer :: i, k, ice, stype, vtype ,slope,nroot,couple
+      integer :: i, k, ice, stype, soil_color_category
+      integer :: vtype ,slope,nroot,couple
       logical :: flag(im)
       logical :: snowng,frzgra
 
@@ -429,6 +434,7 @@
           vtype = vegtype(i)
           stype = soiltyp(i)
           slope = slopetyp(i)
+          soil_color_category = soilcol(i)
           shdfac= sigmaf(i)
 
           shdmin1d = shdmin(i)   
@@ -555,7 +561,6 @@
 !-- old
 !
           do k = 1, km
-!           stsoil(k) = stc(i,k)
             smsoil(k) = smc(i,k)
             slsoil(k) = slc(i,k)
           enddo
@@ -573,8 +578,8 @@
           cmm(i) = cm(i)  * wind(i)
 
 
-
-       call transfer_mp_parameters(vtype,stype,slope,isc,parameters)
+       call transfer_mp_parameters(vtype,stype,slope,                   &
+     &                             soil_color_category,parameters)
 
        call noahmp_options(idveg ,iopt_crs,iopt_btr,iopt_run,iopt_sfc,  &
      & iopt_frz,iopt_inf,iopt_rad,iopt_alb,iopt_snf,iopt_tbot,iopt_stc)
@@ -585,8 +590,7 @@
           tbot = min(tbot,263.15)
 
          call noahmp_options_glacier                                    &
-     &   (idveg  ,iopt_crs  ,iopt_btr, iopt_run ,iopt_sfc ,iopt_frz,    &
-     &   iopt_inf ,iopt_rad ,iopt_alb ,iopt_snf ,iopt_tbot, iopt_stc )
+     &   (iopt_alb  ,iopt_snf  ,iopt_tbot, iopt_stc, iopt_gla )
 
        call noahmp_glacier (                                            &
      &             i       ,1       ,cosz    ,nsnow   ,nsoil   ,delt  , & ! in : time/space/model-related
@@ -598,7 +602,8 @@
      &             fsa     ,fsr     ,fira    ,fsh     ,fgev  ,ssoil   , & ! out : 
      &             trad    ,edir    ,runsrf  ,runsub  ,sag   ,albedo  , & ! out : albedo is surface albedo
      &             qsnbot  ,ponding ,ponding1,ponding2,t2mb  ,q2b     , & ! out :
-     &             emissi  ,fpice   ,ch2b    ,esnow   ,albd, albi)
+     &             emissi  ,fpice   ,ch2b    ,qmelt   ,esnow ,albd    , &  
+     &             albi)
 
 !
 ! in/out and outs
@@ -799,10 +804,10 @@
           sfcemis(i) = emissi
           if(albedo .gt. 0.0) then
             sfalb(i)   = albedo
-	    albdvis(i) = albd(1)
-	    albdnir(i) = albd(2)
-	    albivis(i) = albi(1)
-	    albinir(i) = albi(2)
+            albdvis(i) = albd(1)
+            albdnir(i) = albd(2)
+            albivis(i) = albi(1)
+            albinir(i) = albi(2)
           end if
 
           stm(i) = (0.1*smsoil(1)+0.3*smsoil(2)+0.6*smsoil(3)+           &

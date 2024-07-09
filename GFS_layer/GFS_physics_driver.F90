@@ -1235,6 +1235,8 @@ module module_physics_driver
            (im, Statein%pgr, Statein%ugrs, Statein%vgrs, Statein%tgrs,  &
             Statein%qgrs, Sfcprop%tsfc, cd, cdq, Statein%prsl(1,1),     &
             work3, islmsk, Tbd%phy_f2d(1,Model%num_p2d), flag_iter,     &
+            Sfcprop%ffmm, fm10,                                         &
+            Model%lseaspray, Model%alps, Model%bets, Model%gams,        &
 !  ---  outputs:
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
 

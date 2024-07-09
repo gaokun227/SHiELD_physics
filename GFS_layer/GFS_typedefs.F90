@@ -613,6 +613,10 @@ module GFS_typedefs
     logical              :: do_z0_hwrf17    !< flag for using z0 scheme in 2017 HWRF (kgao)
     logical              :: do_z0_hwrf17_hwonly !< flag for using z0 scheme in 2017 HWRF only under high wind (kgao)
     real(kind=kind_phys) :: wind_th_hwrf    !< wind speed threshold when z0 level off as in HWRF (kgao)
+    logical              :: lseaspray       !< flag for using sea spray parametrization 
+    real(kind=kind_phys) :: alps            !< alpha parameter for sea spray effect
+    real(kind=kind_phys) :: bets            !< beta parameter for sea spray effect 
+    real(kind=kind_phys) :: gams            !< gamma parameter for sea spray effect
     logical              :: hybedmf         !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl         !< flag for NAM MYJ tke scheme
     logical              :: ysupbl          !< flag for ysu pbl scheme (version in WRFV3.8)
@@ -2028,6 +2032,10 @@ module GFS_typedefs
     logical              :: do_z0_hwrf17   = .false.                  !< flag for using z0 scheme in 2017 HWRF
     logical              :: do_z0_hwrf17_hwonly = .false.             !< flag for using z0 scheme in 2017 HWRF only under high wind
     real(kind=kind_phys) :: wind_th_hwrf   = 33.                      !< wind speed threshold when z0 level off as in HWRF
+    logical              :: lseaspray      = .false.                  !< flag for using sea spray parametrization 
+    real(kind=kind_phys) :: alps           = 0.00                     !< alpha parameter for sea spray effect
+    real(kind=kind_phys) :: bets           = 0.00                     !< beta parameter for sea spray effect
+    real(kind=kind_phys) :: gams           = 0.00                     !< gamma parameter for sea spray effect
     logical              :: hybedmf        = .false.                  !< flag for hybrid edmf pbl scheme
     logical              :: myj_pbl        = .false.                  !< flag for NAM MYJ tke-based scheme
     logical              :: ysupbl         = .false.                  !< flag for hybrid edmf pbl scheme
@@ -2265,6 +2273,7 @@ module GFS_typedefs
                                h2o_phys, pdfcld, shcnvcw, redrag, sfc_gfdl, z0s_max,        &
                                do_z0_moon, do_z0_hwrf15, do_z0_hwrf17,                      &
                                do_z0_hwrf17_hwonly, wind_th_hwrf,                           &
+                               lseaspray, alps, bets, gams,                                 &
                                hybedmf, dspheat, lheatstrg, hour_canopy, afac_canopy,       &
                                cnvcld, no_pbl, xkzm_lim, xkzm_fac, xkgdx,                   &
                                rlmn, rlmx, elmx, zolcru, cs0, ck0, ck1, ce0,                &
@@ -2495,6 +2504,10 @@ module GFS_typedefs
     Model%do_z0_hwrf17     = do_z0_hwrf17
     Model%do_z0_hwrf17_hwonly = do_z0_hwrf17_hwonly
     Model%wind_th_hwrf     = wind_th_hwrf
+    Model%lseaspray        = lseaspray
+    Model%alps             = alps
+    Model%bets             = bets
+    Model%gams             = gams
     Model%hybedmf          = hybedmf
     Model%myj_pbl          = myj_pbl
     Model%ysupbl           = ysupbl
@@ -3183,6 +3196,10 @@ module GFS_typedefs
       print *, ' do_z0_hwrf17      : ', Model%do_z0_hwrf17
       print *, ' do_z0_hwrf17_hwonly : ', Model%do_z0_hwrf17_hwonly
       print *, ' wind_th_hwrf      : ', Model%wind_th_hwrf
+      print *, ' lseaspray         : ', Model%lseaspray
+      print *, ' alps              : ', Model%alps
+      print *, ' bets              : ', Model%bets
+      print *, ' gams              : ', Model%gams
       print *, ' hybedmf           : ', Model%hybedmf
       print *, ' myj_pbl           : ', Model%myj_pbl
       print *, ' ysupbl            : ', Model%ysupbl

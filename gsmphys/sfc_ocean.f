@@ -3,7 +3,8 @@
 !...................................
 !  ---  inputs:
      &     ( im, ps, u1, v1, t1, q1, tskin, cm, ch,                     &
-     &       prsl1, prslki, islimsk, ddvel, flag_iter,                  &
+     &       prsl1, prslki, islimsk, ddvel, flag_iter, fm, fm10,        &
+     &       lseaspray, alps, bets, gams,                               &
 !  ---  outputs:
      &       qsurf, cmm, chh, gflux, evap, hflx, ep                     &
      &     )
@@ -79,10 +80,13 @@
       integer, intent(in) :: im
 
       real (kind=kind_phys), dimension(im), intent(in) :: ps, u1, v1,   &
-     &      t1, q1, tskin, cm, ch, prsl1, prslki, ddvel
+     &      t1, q1, tskin, cm, ch, prsl1, prslki, ddvel, fm, fm10
       integer, dimension(im), intent(in):: islimsk
 
       logical, intent(in) :: flag_iter(im)
+     
+      logical, intent(in) :: lseaspray 
+      real (kind=kind_phys) :: alps, bets, gams 
 
 !  ---  outputs:
       real (kind=kind_phys), dimension(im), intent(out) :: qsurf,       &
@@ -95,6 +99,17 @@
       integer :: i
 
       logical :: flag(im)
+
+!
+!  parameters for sea spray effect
+!
+      real (kind=kind_phys) :: f10m, u10m, v10m, ws10, ru10, qss1,
+     &                         bb1, hflxs, evaps, ptem
+!      real (kind=kind_phys), parameter :: alps=0.75,bets=0.75,gams=0.15,
+!     &                       ws10cr=30., conlf=7.2e-9, consf=6.4e-8
+
+      real (kind=kind_phys), parameter :: ws10cr=30., conlf=7.2e-9, 
+     &                                    consf=6.4e-8
 !
 !===> ...  begin here
 !
@@ -134,6 +149,35 @@
 
           evap(i)  = elocp*rch * (qss - q0)
           qsurf(i) = qss
+
+          ! sea spray effects
+          ! (Fairall et al. [1994] & Andreas et al. [2008])
+
+          if (lseaspray) then
+            f10m = fm10(i) / fm(i)
+            u10m = f10m * u1(i)
+            v10m = f10m * v1(i)
+            ws10 = sqrt(u10m*u10m + v10m*v10m)
+            ws10 = max(ws10,1.)
+            ws10 = min(ws10,ws10cr)
+
+            tem = .015 * ws10 * ws10
+            ru10 = 1. - .087 * log(10./tem)
+            qss1 = fpvs(t1(i))
+            qss1 = eps * qss1 / (prsl1(i) + epsm1 * qss1)
+            tem = rd * cp * t1(i) * t1(i)
+            tem = 1. + eps * hvap * hvap * qss1 / tem
+            bb1 = 1. / tem
+
+            evaps = conlf * (ws10**5.4) * ru10 * bb1
+            evaps = evaps * rho * hvap * (qss1 - q0)
+            evap(i) = evap(i) + alps * evaps
+
+            hflxs = consf * (ws10**3.4) * ru10
+            hflxs = hflxs * rho * cp * (tskin(i) - t1(i))
+            ptem = alps - gams
+            hflx(i) = hflx(i) + bets * hflxs - ptem * evaps
+          endif 
 
           tem      = 1.0 / rho
           hflx(i)  = hflx(i) * tem * cpinv

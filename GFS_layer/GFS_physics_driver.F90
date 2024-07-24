@@ -1629,6 +1629,7 @@ module module_physics_driver
                        Model%ntcw, Model%ntiw, Model%ntke,                          &
                        dvdt, dudt, dtdt, dqdt,                                      &
                        Statein%ugrs, Statein%vgrs, Statein%tgrs, Statein%qgrs,      &
+                       Statein%def_1, Statein%def_2,                                &
                        Radtend%htrsw, Radtend%htrlw, xmu, garea, zvfun, islmsk,     &
                        Statein%prsik(1,1), rb, Sfcprop%zorl, Diag%u10m, Diag%v10m,  &
                        Sfcprop%ffmm, Sfcprop%ffhh, Sfcprop%tsfc, hflx, evap,        &
@@ -1643,6 +1644,7 @@ module module_physics_driver
                        Model%xkgdx,  Model%dspfac, Model%bl_upfr, Model%bl_dnfr,    & 
                        Model%l2_diag_opt, Model%use_lup_only, Model%l1l2_blend_opt, &
                        Model%use_l1_sfc, Model%use_tke_pbl, Model%use_shear_pbl,    &
+                       Model%do_3dtke,                                              &
                        dkt, flux_cg, flux_en, elm_pbl) !cg as up and en as down
         endif
 

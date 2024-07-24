@@ -48,6 +48,9 @@
 !----------------------------------------------------------------------
       subroutine satmedmfvdifq(ix,im,km,ntrac,ntcw,ntiw,ntke,
      &     dv,du,tdt,rtg_in,u1,v1,t1,q1_in,
+!3D-SA-TKE
+     &     def_1,def_2,
+!3D-SA-TKE
      &     swh,hlw,xmu,garea,zvfun,islimsk,
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,
      &     tsea,heat,evap,stress,spd1,kpbl,
@@ -57,7 +60,7 @@
      &     xkzm_s,xkzinv,rlmx,elmx,zolcru,cs0,ck0,ck1,ce0,
      &     do_dk_hb19,xkgdx,dspfac,bl_upfr,bl_dnfr,
      &     l2_diag_opt,use_lup_only,l1l2_blend_opt,use_l1_sfc,
-     &     use_tke_ent_det,use_shear,  
+     &     use_tke_ent_det,use_shear,do_3dtke,  
      &     dkt_out, flux_up, flux_dn, elm)
 !
       use machine  , only : kind_phys
@@ -79,6 +82,9 @@
      &                     xkzm_mi, xkzm_hi
       real(kind=kind_phys) dv(im,km),     du(im,km),
      &                     tdt(im,km),    rtg(im,km,ntrac),
+!3D-SA-TKE
+     &                     def_1(ix,km),  def_2(ix,km),
+!3D-SA-TKE-end
      &                     u1(ix,km),     v1(ix,km),
      &                     t1(ix,km),     q1(ix,km,ntrac),
      &                     swh(ix,km),    hlw(ix,km),
@@ -101,7 +107,7 @@
 ! kgao note - q1 and rtg are local var now 
 !
       logical dspheat, do_dk_hb19, use_lup_only, use_l1_sfc,
-     &        use_tke_ent_det, use_shear
+     &        use_tke_ent_det, use_shear, do_3dtke
 
       real(kind=kind_phys)::dkt_out(im,km),flux_up(im,km),flux_dn(im,km)
 !
@@ -204,6 +210,21 @@
      &                     tem,     tem1,   tem2,   tem3,
      &                     ptem,    ptem0,  ptem1,  ptem2
 !
+
+!3D-SA-TKE
+      real(kind=kind_phys) thetal(im,km),dku1(im,km),dkt1(im,km),
+     &                     elm_les(im,km),ele_les(im,km),pftke(im),
+     &                     dkq1(im,km),pfl(im),cpl1,cpl2,cpl3,cpl4,
+     &                     cpl5,cpl6,pfnl(im),cpnl1,cpnl2,cpnl3,cpnl4,
+     &                     cpnl5,cpnl6,cptke1,cptke2,cptke3,shrp3d
+      real(kind=kind_phys) ak(im,km),bk(im,km),ck(im,km),pk(im,km),
+     &                     f3(im,km) !,rizt(im,km)
+      real(kind=kind_phys) aa1,aa2,bb1,bb2,cc1,alpha1, alpha2, alpha3,
+     &                     alpha4,alpha5,ssh,ssm,gh,aa,bb,cc,dd
+      integer l_tkemax,kscl
+      real(kind=kind_phys) tkemax, scl, kmaxles, esmax
+!3D-SA-TKE-end
+
       real(kind=kind_phys) ck0, ck1, ch0, ch1, ce0, rchck
 !
       real(kind=kind_phys) qlcr, zstblmax, hcrinv
@@ -239,6 +260,16 @@
       parameter(vegflo=0.1,vegfup=1.0,z0lo=0.1,z0up=1.0)
       parameter(vc0=1.0,zc0=1.0)
       parameter(csmf=0.5)
+!3D-SA-TKE
+      parameter(cpl1=0.280,cpl2=0.870,cpl3=0.913)
+      parameter(cpl4=0.153,cpl5=0.278,cpl6=0.720)
+      parameter(cpnl1=0.243,cpnl2=0.936,cpnl3=1.11)
+      parameter(cpnl4=0.312,cpnl5=0.329,cpnl6=0.757)
+      parameter(cptke1=0.07,cptke2=0.142,cptke3=0.071)
+      parameter(aa1=0.92,aa2=0.74,bb1=16.6,bb2=10.1,cc1=0.08)
+      parameter(kmaxles=300.0,esmax=500.0)
+!      parameter(aa1=0.92,aa2=0.649,bb1=17.7,bb2=9.5,cc1=0.08)
+!3D-SA-TKE-end
 !
 !************************************************************************
 !      elmx = rlmx
@@ -469,6 +500,11 @@
           if(ntiw > 0) then
             tem = max(q1_in(i,k,ntcw),qlmin)
             tem1 = max(q1_in(i,k,ntiw),qlmin)
+! KGao: below is not used yet
+!3D-SA-TKE
+! note: q1(i,k,ntiw) is ice and q1(i,k,5) is snow
+!            tem1 = max(q1(i,k,ntiw)+q1(i,k,5),qlmin)
+!3D-SA-TKE-end
             qlx(i,k) = tem + tem1
             ptem = hvap*tem + (hvap+hfus)*tem1
             slx(i,k)   = cp * t1(i,k) + phil(i,k) - ptem
@@ -1189,6 +1225,118 @@
 !
         enddo
       enddo
+
+!3D-SA-TKE
+      if (do_3dtke) then
+! compute km, kh, kq for LES 3D TKE scheme (Deardorff 1980)
+
+! calculate thetal
+      do k=1,km
+        do i=1,im
+        pix(i,k)   = psk(i) / prslk(i,k)
+        theta(i,k) = t1(i,k) * pix(i,k)
+        tem=theta(i,k)/t1(i,k)
+        if(ntiw > 0) then
+          tem1=max(q1(i,k,ntcw),qlmin)+
+     &         max(q1(i,k,ntiw)+q1(i,k,5),qlmin)
+          thetal(i,k)=theta(i,k)-(hvap+hfus)/cp*tem*tem1
+        else
+          tem1=max(q1(i,k,ntcw),qlmin)
+          thetal(i,k)=theta(i,k)-hvap/cp*tem*tem1
+        endif
+        enddo
+      enddo
+
+      do k=1,km
+        do i=1,im
+          dku1(i,k)  = 0.
+          dkt1(i,k)  = 0.
+          dkq1(i,k)  = 0.
+        enddo
+      enddo
+
+      do k=1,km
+        do i=1,im
+          dku1(i,k)  = 0.
+          dkt1(i,k)  = 0.
+          dkq1(i,k)  = 0.
+        enddo
+      enddo
+
+      do k = 1, km1
+        do i = 1, im
+        dz = zi(i,k+1) - zi(i,k)
+        tem=grav/theta(i,1)*(thetal(i,k+1)-thetal(i,k))/dz
+        tem1=(garea(i)*dz)**(1.0/3.0)
+! calculate LES mixing length
+        if(tem > 0.0) then
+          elm_les(i,k)=0.76*sqrt(tkeh(i,k))*tem**(-0.5)
+          elm_les(i,k)=min(elm_les(i,k),tem1)
+        else
+          elm_les(i,k)=tem1
+        endif
+        ele_les(i,k)=elm_les(i,k)
+! calculate km, kh, and kq for LES
+        dku1(i,k)=0.1*elm_les(i,k)*sqrt(tkeh(i,k))
+        dkt1(i,k)=(1.0+2.0*elm_les(i,k)/tem1)*dku1(i,k)
+        dkq1(i,k)=dkt1(i,k)
+        dku1(i,k) = min(dku1(i,k),kmaxles)
+        dkt1(i,k) = min(dkt1(i,k),kmaxles)
+        dkq1(i,k) = min(dkq1(i,k),kmaxles)
+
+! KGao: diag elm_les
+        flux_up(i,k) = elm_les(i,k)        
+        enddo
+      enddo
+
+        do i = 1, im
+!         d/zi
+          scl=1000.
+          l_tkemax=10
+          kscl=10
+          tkemax=0.0
+          do k=1,km
+          tkemax=max(tkemax,tke(i,k))
+          enddo
+          do k=1,km
+            if (abs(tke(i,k)-tkemax)/tkemax .lt. 1.0e-9) then
+              l_tkemax=k
+            endif
+          enddo
+          do k=l_tkemax,km
+             if (tke(i,k)-0.5*tkemax .gt. 0.0) then
+             kscl=k
+             endif
+          enddo
+             kscl=min(kscl,km-10)
+          scl=zi(i,kscl+1)
+!          tem=gdx(i)/max(hpbl(i),scl)
+          tem=gdx(i)/max(hpbl(i),esmax)
+!         partition function for local fluxes
+           pfl(i)=cpl1*(tem**2+cpl2*tem**0.5-cpl3)/
+     &             (tem**2+cpl4*tem**0.5+cpl5)+cpl6
+           pfl(i)=min(max(pfl(i),0.0),1.0)
+!         partition function for nonlocal fluxes
+           pfnl(i)=cpnl1*(tem**2+cpnl2*tem**(7./8.)-cpnl3)/
+     &             (tem**2+cpnl4*tem**(7./8.)+cpnl5)+cpnl6
+           pfnl(i)=min(max(pfnl(i),0.0),1.0)
+           pftke(i)=(tem**2+cptke1*tem**(2./3.))/
+     &             (tem**2+cptke2*tem**(2./3.)+cptke3)
+           pftke(i)=min(max(pftke(i),0.0),1.0)
+        enddo
+
+!     blending kq,kt, and km from LES and MS
+      do k = 1,km
+      do i=1,im
+          pfl(i) = 1. ! KGao: control blending here
+          dkq(i,k)=(1.0-pfl(i))*dkq1(i,k)+pfl(i)*dkq(i,k)
+          dkt(i,k)=(1.0-pfl(i))*dkt1(i,k)+pfl(i)*dkt(i,k)
+          dku(i,k)=(1.0-pfl(i))*dku1(i,k)+pfl(i)*dku(i,k)
+      enddo
+      enddo
+
+      endif
+!3D-SA-TKE-end
 !
 !  compute a minimum TKE deduced from background diffusivity for momentum.
 !
@@ -1334,6 +1482,21 @@
             endif
             shrp = shrp + ptem1 + ptem2
           endif
+
+          !3D-SA-TKE
+          if (do_3dtke) then
+          ! obtaining 3d shear production from dycore
+            if (k ==1) then
+              shrp3d = dku(i,k)*def_1(i,k)
+            else
+              tem1 = dku(i,k-1) * def_1(i,k-1)
+              tem2 = dku(i,k) * def_1(i,k)
+              shrp3d = 0.5*(tem1+tem2)
+            endif
+            shrp = shrp3d ! KGao: shrp is overridden by shrp3d
+          endif
+          !3D-SA-TKE-end
+
           prod(i,k) = buop + shrp
         enddo
       enddo
@@ -1346,13 +1509,33 @@
       do k = 1,km1
         do i=1,im
            tem = sqrt(tke(i,k))
-           ptem = ce0 / ele(i,k)
-           diss(i,k) = ptem * tke(i,k) * tem
-           tem1 = prod(i,k) + tke(i,k) / dtn
-           diss(i,k)=max(min(diss(i,k), tem1), 0.)
-           tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k))! no diffusion yet
+
+!3D-SA-TKE
+           if (do_3dtke) then
+             !calculating 3D TKE transport and pressure correlation
+             ptem1 = ce0 / ele(i,k)
+             tem1 = (garea(i)*dz)**(1.0/3.0)
+             tem2 = 0.19+0.51*ele_les(i,k)/tem1
+             ptem2 = tem2 / ele_les(i,k)
+             ptem = (1.0-pftke(i))*ptem2+pftke(i)*ptem1
+             diss(i,k) = ptem * tke(i,k) * tem
+             tem1 = prod(i,k) + tke(i,k) / dtn
+             diss(i,k) = max(min(diss(i,k), tem1), 0.)
+             tem = 2.0*dkq(i,k)*def_2(i,k)
+             tem = min(tem,1.0)
+             tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)+tem)
+!3D-SA-TKE-end
+           else
+             ptem = ce0 / ele(i,k)
+             diss(i,k) = ptem * tke(i,k) * tem
+             tem1 = prod(i,k) + tke(i,k) / dtn
+             diss(i,k)=max(min(diss(i,k), tem1), 0.)
+             tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k))! no diffusion yet
+           endif
+
 !          tke(i,k) = max(tke(i,k), tkmin)
            tke(i,k) = max(tke(i,k), tkmnz(i,k))
+
         enddo
       enddo
       enddo
@@ -1515,7 +1698,7 @@ c
              f1(i,k)   = f1(i,k)+dtodsd*dsdzt -(ptem-tem)*ptem1
              f1(i,k+1) = t1(i,k+1)-dtodsu*dsdzt +(ptem-tem)*ptem2
              ! kgao - updraft mass flux
-             flux_up(i,k) = xmf(i,k) !0.5*(ptem-tem)*xmf(i,k)
+             !flux_up(i,k) = xmf(i,k) !0.5*(ptem-tem)*xmf(i,k)
 
              tem       = q1(i,k,1) + q1(i,k+1,1)
              ptem      = qcko(i,k,1) + qcko(i,k+1,1)
@@ -1537,7 +1720,7 @@ c
               f1(i,k)   = f1(i,k) + (ptem - tem) * ptem1
               f1(i,k+1) = f1(i,k+1) - (ptem - tem) * ptem2
               ! kgao - downdraft mass flux
-              flux_dn(i,k) = xmfd(i,k) !-0.5*(ptem-tem)*xmfd(i,k)
+              !flux_dn(i,k) = xmfd(i,k) !-0.5*(ptem-tem)*xmfd(i,k)
 
               tem       = q1(i,k,1) + q1(i,k+1,1)
               ptem      = qcdo(i,k,1) + qcdo(i,k+1,1)

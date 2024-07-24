@@ -103,6 +103,10 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: prsl  (:,:) => null()   !< model layer mean pressure Pa
     real (kind=kind_phys), pointer :: prslk (:,:) => null()   !< exner function = (p/p0)**rocp
 
+    !--- 3D-SA-TKE 
+    real (kind=kind_phys), pointer :: def_1  (:,:) => null()  !< tke production 
+    real (kind=kind_phys), pointer :: def_2  (:,:) => null()  !< tke transport
+   
     !--- prognostic variables
     real (kind=kind_phys), pointer :: pgr  (:)     => null()  !< surface pressure (Pa) real
     real (kind=kind_phys), pointer :: ugrs (:,:)   => null()  !< u component of layer wind
@@ -625,6 +629,7 @@ module GFS_typedefs
     logical              :: no_pbl          !< disable PBL (for LES)
     logical              :: cap_k0_land     !< flag for applying limter on background diff in inversion layer over land in tke-edmf pbl 
     logical              :: do_dk_hb19      !< flag for using hb19 background diff formula in tke-edmf pbl 
+    logical              :: do_3dtke        !< flag for using 3d tke budget in tke-edmf pbl 
     logical              :: use_lup_only    !< flag for using l_up as l2 in tke-edmf pbl 
     logical              :: use_l1_sfc      !< flag for using l1 as l at lowest layer in tke-edmf pbl
     logical              :: use_tke_pbl     !< flag for adjusting entrainment/detrainment rate in tke-edmf 
@@ -933,6 +938,9 @@ module GFS_typedefs
                                                                   !< (rad. only) are set to 2, the arrays contains provided
                                                                   !< (rad. only) random seeds for sub-column clouds generators
 
+    !--- 3D-SA_TKE
+    real (kind=kind_phys), pointer :: hpbl     (:)     => null() 
+
     !--- In
     real (kind=kind_phys), pointer :: ozpl     (:,:,:) => null()  !< ozone forcing data
     real (kind=kind_phys), pointer :: h2opl    (:,:,:) => null()  !< water forcing data
@@ -1233,11 +1241,16 @@ module GFS_typedefs
     allocate (Statein%ugrs   (IM,Model%levs))
     allocate (Statein%vgrs   (IM,Model%levs))
     allocate (Statein%qgrs   (IM,Model%levs,Model%ntrac))
-
     Statein%qgrs   = clear_val
     Statein%pgr    = clear_val
     Statein%ugrs   = clear_val
     Statein%vgrs   = clear_val
+
+    !--- 3D-SA-TKE
+    allocate (Statein%def_1  (IM,Model%levs))
+    allocate (Statein%def_2  (IM,Model%levs))
+    Statein%def_1  = clear_val
+    Statein%def_2  = clear_val
 
     if (Model%myj_pbl) then
        allocate (Statein%exch_h(IM, Model%levs))
@@ -2044,6 +2057,7 @@ module GFS_typedefs
     logical              :: no_pbl         = .false.                  !< disable PBL (for LES)
     logical              :: cap_k0_land    = .true.                   !< flag for applying limter on background diff in inversion
     logical              :: do_dk_hb19     = .false.                  !< flag for using hb19 formula for background diff
+    logical              :: do_3dtke       = .false.                  !< flag for using 3d tke budget 
     logical              :: use_lup_only   = .false.                  !< flag for using l_up as l2 
     logical              :: use_l1_sfc     = .false.                  !< flag for using l1 as l in the lowest layer
     logical              :: use_tke_pbl    = .false.                  !< flag for adjusting entrainment/detrainment rates in edmf
@@ -2286,7 +2300,7 @@ module GFS_typedefs
                                l2_diag_opt, l1l2_blend_opt, do_deep, jcap,                  &
                                cs_parm, flgmin, cgwf, ccwf, cdmbgwd, sup, ctei_rm, crtrh,   &
                                dlqf,rbcr,mix_precip,orogwd,myj_pbl,ysupbl,satmedmf,         &
-                               cap_k0_land,do_dk_hb19,use_lup_only,use_l1_sfc,              &
+                               cap_k0_land,do_dk_hb19,do_3dtke,use_lup_only,use_l1_sfc,     &
                                use_tke_pbl,use_shear_pbl,use_tke_conv,use_shear_conv,       &
                                cloud_gfdl,gwd_p_crit,                                       &
                           !--- Rayleigh friction
@@ -2515,6 +2529,7 @@ module GFS_typedefs
     Model%no_pbl           = no_pbl
     Model%cap_k0_land      = cap_k0_land
     Model%do_dk_hb19       = do_dk_hb19
+    Model%do_3dtke         = do_3dtke
     Model%use_lup_only     = use_lup_only 
     Model%use_l1_sfc       = use_l1_sfc
     Model%use_tke_pbl      = use_tke_pbl
@@ -3207,6 +3222,7 @@ module GFS_typedefs
       print *, ' no_pbl            : ', Model%no_pbl
       print *, ' cap_k0_land       : ', Model%cap_k0_land
       print *, ' do_dk_hb19        : ', Model%do_dk_hb19
+      print *, ' do_3dtke          : ', Model%do_3dtke
       print *, ' use_lup_only      : ', Model%use_lup_only
       print *, ' use_l1_sfc        : ', Model%use_l1_sfc
       print *, ' use_tke_pbl       : ', Model%use_tke_pbl
@@ -3454,6 +3470,10 @@ module GFS_typedefs
       allocate (Tbd%icsdsw (IM))
       allocate (Tbd%icsdlw (IM))
     endif
+
+    !--- 3D-SA-TKE
+    allocate (Tbd%hpbl (IM))
+    Tbd%hpbl = clear_val
 
     !--- ozone and stratosphere h2o needs
     allocate (Tbd%ozpl  (IM,levozp,oz_coeff))

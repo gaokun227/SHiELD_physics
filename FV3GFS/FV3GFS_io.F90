@@ -4871,6 +4871,17 @@ module FV3GFS_io_mod
 
     idx = idx + 1
     Diag(idx)%axes = 3
+    Diag(idx)%name = 'elm_pbl'
+    Diag(idx)%desc = 'mixing length from tke-edmf'
+    Diag(idx)%unit = 'm'
+    Diag(idx)%mod_name = 'gfs_phys'
+    allocate (Diag(idx)%data(nblks))
+    do nb = 1,nblks
+       Diag(idx)%data(nb)%var3 => Gfs_diag(nb)%elm_pbl(:,:)
+    enddo
+
+    idx = idx + 1
+    Diag(idx)%axes = 3
     Diag(idx)%name = 'wu2_shal'
     Diag(idx)%desc = 'updraft velocity square from shallow convection'
     Diag(idx)%unit = 'm**2/s**2'

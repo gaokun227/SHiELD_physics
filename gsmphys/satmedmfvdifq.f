@@ -1285,7 +1285,7 @@
         dkq1(i,k) = min(dkq1(i,k),kmaxles)
 
 ! KGao: diag elm_les
-        flux_up(i,k) = elm_les(i,k)        
+        !flux_up(i,k) = elm_les(i,k)        
         enddo
       enddo
 
@@ -1328,7 +1328,7 @@
 !     blending kq,kt, and km from LES and MS
       do k = 1,km
       do i=1,im
-          pfl(i) = 1. ! KGao: control blending here
+          pfl(i) = 1. ! KGao: disable blending; use old
           dkq(i,k)=(1.0-pfl(i))*dkq1(i,k)+pfl(i)*dkq(i,k)
           dkt(i,k)=(1.0-pfl(i))*dkt1(i,k)+pfl(i)*dkt(i,k)
           dku(i,k)=(1.0-pfl(i))*dku1(i,k)+pfl(i)*dku(i,k)
@@ -1485,6 +1485,11 @@
 
           !3D-SA-TKE
           if (do_3dtke) then
+
+          ! KGao debug
+            flux_up(i,k) = def_1(i,k)
+            flux_dn(i,k) = def_2(i,k)
+
           ! obtaining 3d shear production from dycore
             if (k ==1) then
               shrp3d = dku(i,k)*def_1(i,k)
@@ -1511,27 +1516,29 @@
            tem = sqrt(tke(i,k))
 
 !3D-SA-TKE
-           if (do_3dtke) then
+
+           ! KGao: comment out following lines for testing purpose
+           !if (do_3dtke) then
              !calculating 3D TKE transport and pressure correlation
-             ptem1 = ce0 / ele(i,k)
-             tem1 = (garea(i)*dz)**(1.0/3.0)
-             tem2 = 0.19+0.51*ele_les(i,k)/tem1
-             ptem2 = tem2 / ele_les(i,k)
-             ptem = (1.0-pftke(i))*ptem2+pftke(i)*ptem1
-             diss(i,k) = ptem * tke(i,k) * tem
-             tem1 = prod(i,k) + tke(i,k) / dtn
-             diss(i,k) = max(min(diss(i,k), tem1), 0.)
-             tem = 2.0*dkq(i,k)*def_2(i,k)
-             tem = min(tem,1.0)
-             tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)+tem)
+             !ptem1 = ce0 / ele(i,k)
+             !tem1 = (garea(i)*dz)**(1.0/3.0)
+             !tem2 = 0.19+0.51*ele_les(i,k)/tem1
+             !ptem2 = tem2 / ele_les(i,k)
+             !ptem = (1.0-pftke(i))*ptem2+pftke(i)*ptem1
+             !diss(i,k) = ptem * tke(i,k) * tem
+             !tem1 = prod(i,k) + tke(i,k) / dtn
+             !diss(i,k) = max(min(diss(i,k), tem1), 0.)
+             !tem = 2.0*dkq(i,k)*def_2(i,k)
+             !tem = min(tem,1.0)
+             !tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)+tem)
 !3D-SA-TKE-end
-           else
+           !else
              ptem = ce0 / ele(i,k)
              diss(i,k) = ptem * tke(i,k) * tem
              tem1 = prod(i,k) + tke(i,k) / dtn
              diss(i,k)=max(min(diss(i,k), tem1), 0.)
              tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k))! no diffusion yet
-           endif
+           !endif
 
 !          tke(i,k) = max(tke(i,k), tkmin)
            tke(i,k) = max(tke(i,k), tkmnz(i,k))

@@ -1517,28 +1517,31 @@
 
 !3D-SA-TKE
 
-           ! KGao: comment out following lines for testing purpose
-           !if (do_3dtke) then
-             !calculating 3D TKE transport and pressure correlation
-             !ptem1 = ce0 / ele(i,k)
-             !tem1 = (garea(i)*dz)**(1.0/3.0)
-             !tem2 = 0.19+0.51*ele_les(i,k)/tem1
-             !ptem2 = tem2 / ele_les(i,k)
-             !ptem = (1.0-pftke(i))*ptem2+pftke(i)*ptem1
-             !diss(i,k) = ptem * tke(i,k) * tem
-             !tem1 = prod(i,k) + tke(i,k) / dtn
-             !diss(i,k) = max(min(diss(i,k), tem1), 0.)
-             !tem = 2.0*dkq(i,k)*def_2(i,k)
-             !tem = min(tem,1.0)
-             !tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)+tem)
+           if (do_3dtke) then
+             !calculate dissipation term
+             ptem1 = ce0 / ele(i,k)
+             tem1 = (garea(i)*dz)**(1.0/3.0)
+             tem2 = 0.19+0.51*ele_les(i,k)/tem1
+             ptem2 = tem2 / ele_les(i,k)
+             ! KGao: disable blending; use ori form only
+             pftke(i) = 1. 
+             ptem = (1.0-pftke(i))*ptem2+pftke(i)*ptem1
+             diss(i,k) = ptem * tke(i,k) * tem
+             tem1 = prod(i,k) + tke(i,k) / dtn
+             diss(i,k) = max(min(diss(i,k), tem1), 0.)
+
+             !calculate 3D TKE transport and pressure correlation
+             tem = 2.0*dkq(i,k)*def_2(i,k)
+             tem = min(tem,1.0)
+             tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k)+tem)
 !3D-SA-TKE-end
-           !else
+           else
              ptem = ce0 / ele(i,k)
              diss(i,k) = ptem * tke(i,k) * tem
              tem1 = prod(i,k) + tke(i,k) / dtn
-             diss(i,k)=max(min(diss(i,k), tem1), 0.)
+             diss(i,k)= max(min(diss(i,k), tem1), 0.)
              tke(i,k) = tke(i,k) + dtn * (prod(i,k)-diss(i,k))! no diffusion yet
-           !endif
+           endif
 
 !          tke(i,k) = max(tke(i,k), tkmin)
            tke(i,k) = max(tke(i,k), tkmnz(i,k))

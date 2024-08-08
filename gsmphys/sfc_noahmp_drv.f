@@ -586,6 +586,7 @@
      &             i       ,1       ,cosz    ,nsnow   ,nsoil   ,delt  , & ! in : time/space/model-related
      &             sfctmp  ,sfcprs  ,uu      ,vv      ,q2      ,swdn  , & ! in : forcing
      &             prcp    ,lwdn    ,tbot    ,zlvl    ,ficeold ,zsoil , & ! in : forcing
+     &             snoalb1d,                                            & ! in : forcing
      &             qsnowx  ,sneqvox ,alboldx ,cmx     ,chx     ,isnowx, & ! in/out :sneqvox + alboldx -LST 
      &             swe  ,smsoil  ,zsnsox     ,snowh  ,snicex ,snliqx ,  & ! in/out : sneqvx + snowhx are avgd
      &             tgx     ,tsnsox  ,slsoil  ,taussx  ,qsfc1d         , & ! in/out : 
@@ -649,6 +650,7 @@
      &        qc      , swdn    , lwdn                                 ,& ! in : forcing
      &        pconv   , pnonc   , pshcv   , psnow   , pgrpl   , phail  ,& ! in : forcing
      &        tbot    , co2pp   , o2pp    , foln    , ficeold , zlvl   ,& ! in : forcing
+     &        snoalb1d                                                 ,& ! in : forcing
      &        alboldx , sneqvox                                        ,& ! in/out : 
      &        tsnsox  , slsoil  , smsoil  , tahx    , eahx    , fwetx  ,& ! in/out : 
      &        canliqx , canicex , tvx     , tgx     , qsfc1d  , qsnowx ,& ! in/out : 
@@ -941,6 +943,7 @@
         parameters%den    =    den_table(vegtype)       !tree density (no. of trunks per m2)
         parameters%rc     =     rc_table(vegtype)       !tree crown radius (m)
         parameters%mfsno  =  mfsno_table(vegtype)       !snowmelt m parameter ()
+        parameters%scffac =  scffac_table(vegtype)      !snow cover factor (m)
         parameters%saim   =   saim_table(vegtype,:)     !monthly stem area index, one-sided
         parameters%laim   =   laim_table(vegtype,:)     !monthly leaf area index, one-sided
         parameters%sla    =    sla_table(vegtype)       !single-side leaf area per kg [m2/kg]

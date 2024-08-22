@@ -1360,7 +1360,6 @@ module module_physics_driver
             Sfcprop%shflx, Sfcprop%lhflx,                               &
 !  ---  outputs:
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
-
           else
           call sfc_ocean                                                &  
 !  ---  inputs:         
@@ -1370,6 +1369,8 @@ module module_physics_driver
             maxevap,                                                    &
 !  ---  outputs:        
              qss, Diag%cmm, Diag%chh, gflx, evap, hflx, ep1d)
+          endif
+
           endif
 
         endif       ! if ( nstf_name(1) > 0 ) then

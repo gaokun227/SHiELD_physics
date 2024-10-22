@@ -169,6 +169,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: ffhh (:)      => null()  !< fh parameter from PBL scheme
     real (kind=kind_phys), pointer :: snowd (:)     => null()  !< snow depth water equivalent in mm ; same as snwdph
     real (kind=kind_phys), pointer :: zorl (:)      => null()  !< composite surface roughness in cm
+    real (kind=kind_phys), pointer :: ztrl (:)      => null()  !< surface roughness for t and q in cm
     real (kind=kind_phys), pointer :: uustar (:)    => null()  !< boundary layer parameter
     real (kind=kind_phys), pointer :: shdmax (:)    => null()  !< max fractnl cover of green veg (not used)
     real (kind=kind_phys), pointer :: srflag (:)    => null()  !< sfc_fld%srflag - snow/rain flag for precipitation
@@ -217,6 +218,7 @@ module GFS_typedefs
     real (kind=kind_phys), pointer :: ffhh (:)    => null()  !< fh parameter from PBL scheme
     real (kind=kind_phys), pointer :: snowd (:)   => null()  !< snow depth water equivalent in mm ; same as snwdph
     real (kind=kind_phys), pointer :: zorl (:)    => null()  !< composite surface roughness in cm
+    real (kind=kind_phys), pointer :: ztrl (:)    => null()  !< surface roughness for t and q in cm
     real (kind=kind_phys), pointer :: uustar (:)  => null()  !< boundary layer parameter
     real (kind=kind_phys), pointer :: shdmax (:)  => null()  !< max fractnl cover of green veg (not used)
     real (kind=kind_phys), pointer :: sfcemis (:) => null()  !< surface lw emissivity in fraction
@@ -1668,6 +1670,7 @@ module GFS_typedefs
     allocate (Statein%ffhh(IM))
     allocate (Statein%snowd(IM))
     allocate (Statein%zorl(IM))
+    allocate (Statein%ztrl(IM))
     allocate (Statein%uustar(IM))
     allocate (Statein%shdmax(IM))
     allocate (Statein%srflag(IM))
@@ -1699,6 +1702,7 @@ module GFS_typedefs
     Statein%ffhh = clear_val
     Statein%snowd = clear_val
     Statein%zorl = clear_val
+    Statein%ztrl = clear_val
     Statein%uustar = clear_val
     Statein%shdmax = clear_val
     Statein%srflag = clear_val
@@ -1762,6 +1766,7 @@ module GFS_typedefs
     allocate (Stateout%ffhh (IM))
     allocate (Stateout%snowd (IM))
     allocate (Stateout%zorl (IM))
+    allocate (Stateout%ztrl (IM))
     allocate (Stateout%uustar (IM))
     allocate (Stateout%shdmax (IM))
     allocate (Stateout%sfcemis (IM))
@@ -1797,6 +1802,7 @@ module GFS_typedefs
     Stateout%ffhh = clear_val
     Stateout%snowd = clear_val
     Stateout%zorl = clear_val
+    Stateout%ztrl = clear_val
     Stateout%uustar = clear_val
     Stateout%shdmax = clear_val
     Stateout%sfcemis = clear_val

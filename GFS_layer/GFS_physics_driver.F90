@@ -773,9 +773,9 @@ module module_physics_driver
               else
                  Sfcprop%fice(i) = Statein%ci(i)
               endif
-              
            endif
         endif
+
         if (nint(Sfcprop%slmsk(i)) .eq. 0) then
            ! Always reset the snow cover fraction to zero over all ocean grid
            ! cells regardless of whether we are running with sea ice prescribed
@@ -785,6 +785,13 @@ module module_physics_driver
            Sfcprop%sncovr(i) = 0.0
         endif
       enddo
+
+      ! KGao: override initial sst with external sst data before the first physics call
+      if (Model%use_ext_ini_sst .and. Model%kdt == 1) then
+         do i = 1, im
+            if (nint(Sfcprop%slmsk(i)) .eq. 0 ) Sfcprop%tsfc(i) = Statein%sst(i) + Model%sst_perturbation
+         enddo
+      endif
 
       do i = 1, im
         sigmaf(i)   = max( Sfcprop%vfrac(i),0.01 )

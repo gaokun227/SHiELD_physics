@@ -991,6 +991,8 @@ module GFS_typedefs
     logical              :: do_ocean        !< flag for slab ocean model
     logical              :: use_ifs_ini_sst !< only work when "ecmwf_ic = .T."
     logical              :: use_ext_sst     !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
+    logical              :: use_ext_ini_sst !< flag for overriding model initial sst with external data
+                                            !< can be used with or without use_ext_sst
 
     !--- variables modified at each time step
     integer              :: ipt             !< index for diagnostic printout point
@@ -2835,6 +2837,7 @@ end subroutine overrides_create
     logical              :: do_ocean       = .false.         !< flag for slab ocean model
     logical              :: use_ifs_ini_sst= .false.         !< only work when "ecmwf_ic = .T.
     logical              :: use_ext_sst    = .false.         !< flag for using external SST forcing (or any external SST dataset, passed from the dynamics or nudging)
+    logical              :: use_ext_ini_sst= .false.         !< flag for overriding model initial sst with external data
 
 !--- aerosol scavenging factors
     character(len=20) :: fscav_aero(20) = 'default'
@@ -2915,7 +2918,7 @@ end subroutine overrides_create
                                iau_filter_increments,iau_drymassfixer,                      &
                           !--- debug options
                                debug, pre_rad, do_ocean, use_ifs_ini_sst, use_ext_sst,      &
-                               lprnt, landseaprt, &
+                               use_ext_ini_sst, lprnt, landseaprt, &
                           !--- aerosol scavenging factors ('name:value' string array)
                                fscav_aero, &
                                sst_perturbation,                                            &
@@ -3393,6 +3396,7 @@ end subroutine overrides_create
     Model%do_ocean         = do_ocean
     Model%use_ifs_ini_sst  = use_ifs_ini_sst
     Model%use_ext_sst      = use_ext_sst
+    Model%use_ext_ini_sst  = use_ext_ini_sst
     Model%lprnt            = lprnt
     Model%landseaprt       = landseaprt
 
@@ -4053,6 +4057,7 @@ end subroutine overrides_create
       print *, ' do_ocean          : ', Model%do_ocean
       print *, ' use_ifs_ini_sst   : ', Model%use_ifs_ini_sst
       print *, ' use_ext_sst       : ', Model%use_ext_sst
+      print *, ' use_ext_ini_sst   : ', Model%use_ext_ini_sst
       print *, ' '
       print *, 'variables modified at each time step'
       print *, ' ipt               : ', Model%ipt

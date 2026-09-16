@@ -28,18 +28,18 @@ public :: surf_diff_type, compute_nu, compute_e, vert_diff_down_2
 
 type surf_diff_type
 
-  real, pointer, dimension(:,:) :: dtmass  => NULL(),   &
+  real(kind=kind_phys), pointer, dimension(:,:) :: dtmass  => NULL(),   &
                                    dflux_t => NULL(),   &
                                    delta_t => NULL(),   &
                                    delta_u => NULL(),   &
                                    delta_v => NULL()
-  real, pointer, dimension(:,:,:) :: tdt_dyn => NULL(), &
+  real(kind=kind_phys), pointer, dimension(:,:,:) :: tdt_dyn => NULL(), &
                                      qdt_dyn => NULL(), &
                                      dgz_dyn => NULL(), &
                                      ddp_dyn => NULL(), &
                                      tdt_rad => NULL()   !miz
 
-  real, pointer, dimension(:,:,:) :: dflux_tr => NULL(),& ! tracer flux tendency
+  real(kind=kind_phys), pointer, dimension(:,:,:) :: dflux_tr => NULL(),& ! tracer flux tendency
                                      delta_tr => NULL()   ! tracer tendency
 end type surf_diff_type
 !

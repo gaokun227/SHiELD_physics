@@ -979,7 +979,7 @@ module module_physics_driver
             Sfcprop%shdmax(i) = statein%shdmax(i)
             !Sfcprop%srflag(i) = statein%srflag(i)
             Sfcprop%weasd(i) = statein%weasd(i)
-            Sfcprop%tprcp(i) = statein%tprcp(i)
+            !Sfcprop%tprcp(i) = statein%tprcp(i) !statein%tprcp(i) is not updated in inline phys
             Diag%cmm(i) = statein%cmm(i)
             Diag%chh(i) = statein%chh(i)
          enddo

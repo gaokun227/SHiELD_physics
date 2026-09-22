@@ -1730,7 +1730,20 @@ module FV3GFS_io_mod
     jsc = Atm_block%jsc
     jec = Atm_block%jec
 
-    if (Model%use_ext_sst) then
+    ! KGao: use_ext_ini_sst can be use with or without use_ext_sst
+    !
+    ! a) if both are true:
+    !    data_override to be called every physics timestep,
+    !    but we only override initial SST with the external data
+    !
+    ! b) if use_ext_ini_sst is true, but use_ext_sst is false:
+    !    data_override to be called only once to save computation;
+    !    this is the recommended option for forecast experiments
+    !
+    ! c) if use_ext_ini_sst is false, but use_ext_sst is true:
+    !    model inititial sst is still from sfc_data.xx.nc
+    !
+    if (Model%use_ext_sst .or. (Model%use_ext_ini_sst .and. Model%kdt .le. 1) ) then
 
         ! Here is a sample data_table that will enable reading in
         ! external SSTs and sea-ice from an external file.
